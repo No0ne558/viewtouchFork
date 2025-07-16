@@ -3627,7 +3627,7 @@ int SubCheck::FigureTotals(Settings *settings)
 
     if (gratuity && gratuity->flags & TF_IS_PERCENT)
     {
-        Flt f = PriceToFlt(raw_sales) * PercentToFlt(gratuity->amount);
+        Flt f = PriceToFlt(raw_sales) * (gratuity->amount / 10000.0);
         gratuity->value = -FltToPrice(f);
     }
 

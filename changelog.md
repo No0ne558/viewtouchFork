@@ -111,6 +111,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Cleaned up CMake configuration to only include the new font_check utility for font testing.
 
 ### Fixed
+- **Gratuity Percentage Calculation Fix**: Resolved critical issue where gratuity percentages were calculated incorrectly
+  - **Root Cause**: Gratuity calculation in `main/check.cc` was using `PercentToFlt(gratuity->amount)` which treated percentage values incorrectly
+  - **Problem**: A 3.99% gratuity on a $10.00 sale was calculated as 399% instead of 3.99%, resulting in $49.90 total instead of $10.40
+  - **Fix**: Changed calculation from `PercentToFlt(gratuity->amount)` to `(gratuity->amount / 10000.0)` to properly handle percentage values
+  - **Result**: Gratuity percentages now calculate correctly (3.99% = 0.0399 multiplier) while maintaining proper display format
 - **COMPREHENSIVE UI RENDERING FIXES**: Resolved critical font metric initialization issues affecting all UI elements
   - **Fixed Entry Fields and Button Positioning**: Resolved issues where entry fields and buttons appeared in wrong positions or were misplaced
     - Root cause: `font_width` and `font_height` were 0 when zones were first created, causing all UI calculations to be wrong

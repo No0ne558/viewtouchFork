@@ -163,7 +163,7 @@ RenderResult PaymentZone::Render(Terminal *term, int update_flag)
         line += min_spacing * 1.5;
 
     TextPosR(term, mark, line, "Sale Total");
-    TextPosR(term, mark + 9, line, term->FormatPrice(subCheck->total_sales));
+    TextPosR(term, mark + 4, line, term->FormatPrice(subCheck->total_sales));
     line += min_spacing;
 
     if (settings->tax_alcohol && settings->tax_PST)
@@ -188,7 +188,7 @@ RenderResult PaymentZone::Render(Terminal *term, int update_flag)
         if (sales_tax > 0)
         {
             TextPosR(term, mark, line, "Sales Tax");
-            TextPosR(term, mark + 9, line, term->FormatPrice(sales_tax));
+            TextPosR(term, mark + 4, line, term->FormatPrice(sales_tax));
             line += min_spacing;
         }
     }
@@ -196,42 +196,42 @@ RenderResult PaymentZone::Render(Terminal *term, int update_flag)
 	if(settings->tax_GST > 0)
     {
 		TextPosR(term, mark, line, "GST"); // Canada - Goods and Services Tax
-		TextPosR(term, mark + 9, line, term->FormatPrice(subCheck->total_tax_GST));
+		TextPosR(term, mark + 4, line, term->FormatPrice(subCheck->total_tax_GST));
 		line += min_spacing;
 	}
 
 	if(settings->tax_HST > 0)
 	{
 		TextPosR(term, mark, line, "HST"); // Canada - Harmonized Sales Tax
-		TextPosR(term, mark + 9, line, term->FormatPrice(subCheck->total_tax_HST));
+		TextPosR(term, mark + 4, line, term->FormatPrice(subCheck->total_tax_HST));
 		line += min_spacing;
 	}
 
     if (settings->tax_PST > 0)
     {
         TextPosR(term, mark, line, "PST"); // Canada - Provincial Sales Tax - BC, Ontario?
-        TextPosR(term, mark + 9, line, term->FormatPrice(subCheck->total_tax_PST));
+        TextPosR(term, mark + 4, line, term->FormatPrice(subCheck->total_tax_PST));
         line += min_spacing;
     }
 
     if (settings->tax_QST > 0)
     {
         TextPosR(term, mark, line, "QST"); // Canada - Quebec Sales Tax
-        TextPosR(term, mark + 9, line, term->FormatPrice(subCheck->total_tax_QST));
+        TextPosR(term, mark + 4, line, term->FormatPrice(subCheck->total_tax_QST));
         line += min_spacing;
     }
 
     if (settings->tax_VAT > 0)
     {
         TextPosR(term, mark, line, "VAT");
-        TextPosR(term, mark + 9, line, term->FormatPrice(subCheck->total_tax_VAT));
+        TextPosR(term, mark + 4, line, term->FormatPrice(subCheck->total_tax_VAT));
         line += min_spacing;
     }
 
     if (subCheck->IsTaxExempt())
     {
         TextPosR(term, mark, line, term->Translate("Tax Exempt"));
-        TextPosR(term, mark + 9, line, term->FormatPrice(-subCheck->TotalTax()));
+        TextPosR(term, mark + 4, line, term->FormatPrice(-subCheck->TotalTax()));
         line += min_spacing;
         snprintf(str, STRLENGTH, "Tax ID:  %s", subCheck->tax_exempt.Value());
         TextL(term, line, str);
@@ -242,21 +242,21 @@ RenderResult PaymentZone::Render(Terminal *term, int update_flag)
     {
         snprintf(str, STRLENGTH, "%g%% Gratuity", (Flt) gratuity->amount / 100.0);
         TextPosR(term, mark, line, str);
-        TextPosR(term, mark + 9, line, term->FormatPrice(-gratuity->value));
+        TextPosR(term, mark + 4, line, term->FormatPrice(-gratuity->value));
         line += min_spacing;
     }
 
     if (pennies)
     {
         TextPosR(term, mark, line, "Money Lost");
-        TextPosR(term, mark + 9, line, term->FormatPrice(pennies->value));
+        TextPosR(term, mark + 4, line, term->FormatPrice(pennies->value));
         total_cost -= pennies->value;
         line += min_spacing;
     }
 
     line += min_spacing * .5;
     TextPosR(term, mark, line, "Total");
-    TextPosR(term, mark + 9, line, term->FormatPrice(total_cost), COLOR_DK_RED);
+    TextPosR(term, mark + 4, line, term->FormatPrice(total_cost), COLOR_DK_RED);
     line += min_spacing;
 
     if (term->cdu != nullptr)
@@ -417,7 +417,7 @@ RenderResult PaymentZone::Render(Terminal *term, int update_flag)
     if (preauth_amount > 0)
     {
         TextPosR(term, mark, line, "Amount Preauthed", text);
-        TextPosR(term, mark +9, line, term->FormatPrice(preauth_amount), COLOR_BLUE);
+        TextPosR(term, mark + 9, line, term->FormatPrice(preauth_amount), COLOR_BLUE);
         line += min_spacing;
     }
     if (subCheck->TabRemain() > 0)
@@ -912,7 +912,7 @@ int PaymentZone::RenderPaymentEntry(Terminal *term)
 
     TextPosL(term, 2, input_line, "Input Amount:");
     Entry(term, 17, input_line, 8.5);
-    TextPosR(term, 25.5, input_line, term->FormatPrice(amount), COLOR_YELLOW);
+    TextPosR(term, 10, input_line, term->FormatPrice(amount), COLOR_YELLOW);
     return 0;
 }
 
