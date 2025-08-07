@@ -562,6 +562,19 @@ int SettingsZone::SaveRecord(Terminal *term, int record, int write_file)
         settings->Save();
 
     MasterControl->SetAllIconify(settings->allow_iconify);
+    
+    // Propagate text enhancement settings to all terminals
+    for (Terminal *t = MasterControl->TermList(); t != NULL; t = t->next)
+    {
+        t->SetEmbossedText(settings->use_embossed_text);
+        t->SetTextAntialiasing(settings->use_text_antialiasing);
+        t->SetDropShadow(settings->use_drop_shadows);
+        t->SetShadowOffset(settings->shadow_offset_x, settings->shadow_offset_y);
+        t->SetShadowBlur(settings->shadow_blur_radius);
+    }
+    
+    // Update all zones to reflect the new settings
+    term->UpdateAllTerms(UPDATE_SETTINGS, NULL);
 
     return 0;
 }

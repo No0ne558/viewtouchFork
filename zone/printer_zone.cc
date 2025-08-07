@@ -169,7 +169,7 @@ int TermObj::Render(Terminal *t)
     }
 
     const std::string str = AdjustCase(term->name.str());
-    t->RenderZoneText(str.c_str(), x, y, w, h, color, FONT_TIMES_24B);
+    t->RenderZoneText(str.c_str(), x, y, w, h, color, FONT_TIMES_24B, 1);
     return 0;
 }
 

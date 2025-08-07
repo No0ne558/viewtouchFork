@@ -1538,10 +1538,10 @@ int TableObj::Render(Terminal *term)
     int xx = x + 2, ww = w - 4;
     if (check->IsTakeOut() || check->IsFastFood())
 	{
-        term->RenderZoneText(GlobalTranslate("To Go"), xx, y, ww, h, col, FONT_TIMES_24B);
+        term->RenderZoneText(GlobalTranslate("To Go"), xx, y, ww, h, col, FONT_TIMES_24B, 1);
 	}
     else
-        term->RenderZoneText(check->Table(), xx, y, ww, h, col, FONT_TIMES_24B);
+        term->RenderZoneText(check->Table(), xx, y, ww, h, col, FONT_TIMES_24B, 1);
     return 0;
 }
 

@@ -3455,7 +3455,7 @@ int Terminal::RenderTextLen(const genericChar* str, int len, int x, int y, int c
     return Send();
 }
 
-int Terminal::RenderZoneText(const genericChar* str, int x, int y, int w, int h, int color, int font)
+int Terminal::RenderZoneText(const genericChar* str, int x, int y, int w, int h, int color, int font, int embossed)
 {
     FnTrace("Terminal::RenderZoneText");
     if (w <= 0 || h <= 0 || str == NULL)
@@ -3466,14 +3466,27 @@ int Terminal::RenderZoneText(const genericChar* str, int x, int y, int w, int h,
 
     font = FontID(font);
 
-    WInt8(TERM_ZONETEXTC);
-    WStr(str);
-    WInt16(x);
-    WInt16(y);
-    WInt16(w);
-    WInt16(h);
-    WInt8(color);
-    WInt8(font);
+    if (embossed) {
+        WInt8(TERM_ZONETEXTC);
+        WStr(str);
+        WInt16(x);
+        WInt16(y);
+        WInt16(w);
+        WInt16(h);
+        WInt8(color);
+        WInt8(font);
+        WInt8(1); // embossed flag
+    } else {
+        WInt8(TERM_ZONETEXTC);
+        WStr(str);
+        WInt16(x);
+        WInt16(y);
+        WInt16(w);
+        WInt16(h);
+        WInt8(color);
+        WInt8(font);
+        WInt8(0); // no embossed
+    }
     return Send();
 }
 

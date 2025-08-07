@@ -564,7 +564,7 @@ public:
     int RenderTextLen(const char* str, int len, int x, int y, int color, int font,
                       int align = ALIGN_LEFT, int mode = 0, int max_pixel_width = 0);
     int RenderZoneText(const char* str, int x, int y, int w, int h,
-                       int color, int font);
+                       int color, int font, int embossed = 0);
     int RenderHLine(int x, int y, int len, int color, int lw = 1);
     int RenderVLine(int x, int y, int len, int color, int lw = 1);
     int RenderRectangle(int x, int y, int w, int h, int image);

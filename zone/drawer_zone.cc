@@ -144,9 +144,9 @@ int DrawerObj::Render(Terminal *term)
         c = COLOR_BLACK;
 
     if (h > 40)
-        term->RenderZoneText(str, x + 3, y, w - 6, h - 14, c, FONT_TIMES_24);
+        term->RenderZoneText(str, x + 3, y, w - 6, h - 14, c, FONT_TIMES_24, 1);
     else
-        term->RenderZoneText(str, x + 2, y, w - 4, h - 12, c, FONT_TIMES_20);
+        term->RenderZoneText(str, x + 2, y, w - 4, h - 12, c, FONT_TIMES_20, 1);
     return 0;
 }
 
@@ -426,7 +426,7 @@ RenderResult DrawerManageZone::Render(Terminal *term, int update_flag)
         if (no > max_line)
         {
             term->RenderZoneText("More Drawers\\(Touch Here)",
-                              x + border, y + h - border - 40, 120, 40, COLOR_BLACK, FONT_TIMES_20);
+                              x + border, y + h - border - 40, 120, 40, COLOR_BLACK, FONT_TIMES_20, 1);
             no = max_line;
         }
         else

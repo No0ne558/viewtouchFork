@@ -901,7 +901,7 @@ int Layer::StatusBar(int sx, int sy, int sw, int sh, int bar_color,
     int len = strlen(text);
     if (len > 0)
         Text(text, len, x + sx + (sw / 2), y + sy + ((sh - GetFontHeight(font) + 1) / 2),
-             text_color, font, ALIGN_CENTER, 0, use_embossed_text);
+             text_color, font, ALIGN_CENTER, 0, 0);
     return 0;
 }
 
@@ -1245,7 +1245,7 @@ int Layer::MouseEnter(LayerList *ll)
     if (window_frame)
     {
         FramedWindow(0, 0, w, h, ll->active_frame_color);
-        ZoneText(window_title.Value(), 5, 6, w - 10, 20, COLOR_BLACK, FONT_TIMES_18, ALIGN_CENTER, use_embossed_text);
+        ZoneText(window_title.Value(), 5, 6, w - 10, 20, COLOR_BLACK, FONT_TIMES_18, ALIGN_CENTER, 0);
         update = 1;
         ll->UpdateAll(0);
     }
@@ -1259,7 +1259,7 @@ int Layer::MouseExit(LayerList *ll)
     if (window_frame)
     {
         FramedWindow(0, 0, w, h, ll->inactive_frame_color);
-        ZoneText(window_title.Value(), 5, 6, w - 10, 20, COLOR_BLACK, FONT_TIMES_18, ALIGN_CENTER, use_embossed_text);
+        ZoneText(window_title.Value(), 5, 6, w - 10, 20, COLOR_BLACK, FONT_TIMES_18, ALIGN_CENTER, 0);
         update = 1;
         ll->UpdateAll(0);
     }
@@ -2025,7 +2025,7 @@ int LO_PushButton::Render(Layer *l)
 
     int c = color[hilight];
     int fw = l->frame_width;
-    l->ZoneText(text.Value(), x+fw, y+fw, w-(fw*2), h-(fw*2), c, font, ALIGN_CENTER, use_embossed_text);
+    l->ZoneText(text.Value(), x+fw, y+fw, w-(fw*2), h-(fw*2), c, font, ALIGN_CENTER, 1);
     return 0;
 }
 

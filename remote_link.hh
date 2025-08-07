@@ -122,9 +122,9 @@ public:
 #define TERM_TEXTL            8   // <s, x, y, c, f, p2>
 #define TERM_TEXTC            9   // <s, x, y, c, f, p2>
 #define TERM_TEXTR            10  // <s, x, y, c, f, p2>
-#define TERM_ZONETEXTL        11  // <s, x, y, w, h, c, f>
-#define TERM_ZONETEXTC        12  // <s, x, y, w, h, c, f>
-#define TERM_ZONETEXTR        13  // <s, x, y, w, h, c, f>
+#define TERM_ZONETEXTL        11  // <s, x, y, w, h, c, f, embossed>
+#define TERM_ZONETEXTC        12  // <s, x, y, w, h, c, f, embossed>
+#define TERM_ZONETEXTR        13  // <s, x, y, w, h, c, f, embossed>
 #define TERM_SHADOW           14  // <x, y, w, h, p2, sh>
 #define TERM_RECTANGLE        15  // <x, y, w, h, t>
 #define TERM_HLINE            16  // <x, y, l, c, p1>

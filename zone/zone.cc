@@ -259,7 +259,7 @@ int Zone::RenderZone(Terminal *term, const genericChar* text, int update_flag)
                 c = term->page->default_color[state];
             if (c != COLOR_CLEAR)
                 term->RenderZoneText(b, x + bx, y + by + header, w - (bx*2),
-                                     h - (by*2) - header - footer, c, font);
+                                     h - (by*2) - header - footer, c, font, ShouldUseEmbossedText(term));
         }
     }
     if (term->show_info)
@@ -268,6 +268,48 @@ int Zone::RenderZone(Terminal *term, const genericChar* text, int update_flag)
     }
 
     return 0;
+}
+
+int Zone::ShouldUseEmbossedText(Terminal *term)
+{
+    FnTrace("Zone::ShouldUseEmbossedText()");
+    
+    // First check if embossed text is globally disabled
+    if (term != nullptr)
+    {
+        Settings *settings = term->GetSettings();
+        if (settings != nullptr && !settings->use_embossed_text)
+            return 0;  // Global setting disabled, never use embossed text
+    }
+    
+    // If global setting is enabled (or unknown), check zone type
+    int zone_type = Type();
+    
+    // Button-like zones that should have embossed text
+    switch (zone_type)
+    {
+        case ZONE_ITEM:           // Menu item buttons
+        case ZONE_STANDARD:       // Standard buttons with message & jump
+        case ZONE_SIMPLE:         // Simple button with only jump
+        case ZONE_TENDER:         // Tender payment type button
+        case ZONE_QUALIFIER:      // Qualifier buttons (no, extra, lite)
+        case ZONE_TOGGLE:         // Toggle buttons
+        case ZONE_SWITCH:         // Settings selection button
+        case ZONE_LOGIN:          // Login buttons
+        case ZONE_LOGOUT:         // Logout buttons
+        case ZONE_COMMAND:        // System command buttons
+        case ZONE_GUEST_COUNT:    // Guest count entry
+        case ZONE_CONDITIONAL:    // Conditional buttons
+            return 1;
+            
+        // Text-based zones that should NOT have embossed text
+        case ZONE_CHECK_LIST:     // Check lists
+        case ZONE_ORDER_ENTRY:    // Order entry display
+        case ZONE_TABLE:          // Table status (special case, may want embossed)
+        case ZONE_COMMENT:        // Comments
+        default:
+            return 0;
+    }
 }
 
 int Zone::RenderInfo(Terminal *term)

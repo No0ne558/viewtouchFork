@@ -111,7 +111,7 @@ int ButtonObj::Render(Terminal *term)
     else
         term->RenderButton(x, y, w, h, ZF_RAISED, IMAGE_SAND);
     term->RenderZoneText(term->Translate(label.Value()), x + 3, y + 3, w - 6, h - 6,
-                      color, font);
+                      color, font, 1);
     return 0;
 }
 
@@ -346,7 +346,7 @@ RenderResult SimpleDialog::Render(Terminal *term, int update_flag)
     {
         int hh = ((h * 3) / 5);
         term->RenderZoneText(term->Translate(name.Value()), x + border + 10, y + border,
-                          w - (border * 2) - 20, hh - border, color[0], font);
+                          w - (border * 2) - 20, hh - border, color[0], font, 0);
 
         buttons.LayoutColumns(term, x + border, y + hh,
                               w - (border * 2), h - hh - border, gap);
@@ -358,7 +358,7 @@ RenderResult SimpleDialog::Render(Terminal *term, int update_flag)
         z = 1;
 
         term->RenderZoneText(name.Value(), x + border, y + border,
-                          w - (border * 2), head_height, color[0], font);
+                          w - (border * 2), head_height, color[0], font, 0);
         ZoneObject *zo = buttons.List();
         while (zo)
         {
@@ -384,7 +384,7 @@ RenderResult SimpleDialog::Render(Terminal *term, int update_flag)
         bw = (w - (border * 2) - (gap * 2)) / 3;
         z = 1;
         term->RenderZoneText(name.Value(), x + border, y + border,
-                          w - (border * 2), head_height, color[0], font);
+                          w - (border * 2), head_height, color[0], font, 0);
         ZoneObject *zo = buttons.List();
         while (zo)
         {

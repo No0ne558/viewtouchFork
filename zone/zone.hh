@@ -176,6 +176,7 @@ public:
     virtual const genericChar* TranslateString(Terminal *t);
     virtual int          SetSize(Terminal *t, int width, int height);
     virtual int          SetPosition(Terminal *t, int pos_x, int pos_y);
+    virtual int          ShouldUseEmbossedText(Terminal *term = nullptr);
 
     // The focus methods allow various zones to switch back to unfocused mode
     // when another zone is touched.  The SearchZone is the primary example of

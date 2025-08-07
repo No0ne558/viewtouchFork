@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 ### Added
+- **User-Configurable Embossed Text Option**
+  - Re-enabled the "Use Embossed Text Effects?" setting in the Settings UI (Miscellaneous Settings section)
+  - Added global user preference to enable/disable embossed text effects system-wide
+  - When disabled globally, no zones use embossed text regardless of their type (performance optimization)
+  - When enabled globally, intelligent per-zone logic applies embossed effects to appropriate UI elements:
+    - Button-like zones (menu items, standard buttons, tenders, qualifiers, etc.) use embossed text
+    - Text-display zones (check lists, order entry, comments, etc.) use standard text rendering
+  - Settings changes take effect immediately across all terminals without restart
+  - Backward compatible with existing systems (embossed text enabled by default)
+  - Persistent setting saved to settings file and restored on system restart
 - **Comprehensive Text Enhancement System**
   - Implemented system-wide enhanced text rendering with three configurable effects
   - **Embossed Text Effect**: Creates 3D frosted glass appearance with highlights and shadows (enabled by default)
