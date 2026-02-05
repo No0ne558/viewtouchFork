@@ -8,6 +8,10 @@
 #include "zones/login_zone.hpp"
 #include "zones/settings_zone.hpp"
 #include "zones/manager_zone.hpp"
+#include "zones/user_manager_zone.hpp"
+#include "zones/balance_tills_zone.hpp"
+#include "zones/audit_zone.hpp"
+#include "zones/manager_reports_zones.hpp"
 #include "core/application.hpp"
 #include "core/logger.hpp"
 #include <QKeyEvent>
@@ -746,82 +750,80 @@ void MainWindow::createDemoPages() {
     managerZone->setBackgroundColor(QColor(25, 30, 40));
     managerZone->setBorderWidth(0);
     
-    // Connect manager zone signals
+    // Connect manager zone signals to navigate to sub-pages
     connect(managerZone.get(), &ManagerZone::userManagerRequested, this, [this]() {
         VT_INFO("User Manager requested");
-        // TODO: Navigate to user manager page
+        app().navigateTo(PageId{9});  // User Manager page
     });
     
     connect(managerZone.get(), &ManagerZone::balanceTillsRequested, this, [this]() {
         VT_INFO("Balance Tills requested");
-        // TODO: Navigate to balance tills page
+        app().navigateTo(PageId{10});  // Balance Tills page
     });
     
     connect(managerZone.get(), &ManagerZone::auditRequested, this, [this]() {
         VT_INFO("Audit requested");
-        // TODO: Navigate to audit page
+        app().navigateTo(PageId{11});  // Audit page
     });
     
     connect(managerZone.get(), &ManagerZone::menuItemPerformanceRequested, this, [this]() {
         VT_INFO("Menu Item Performance requested");
+        app().navigateTo(PageId{12});  // Menu Performance page
     });
     
     connect(managerZone.get(), &ManagerZone::todaysRevenueRequested, this, [this]() {
         VT_INFO("Today's Revenue & Productivity requested");
+        app().navigateTo(PageId{13});  // Today's Revenue page
     });
     
     connect(managerZone.get(), &ManagerZone::exceptionalTransactionsRequested, this, [this]() {
         VT_INFO("Exceptional Transactions requested");
+        app().navigateTo(PageId{14});  // Exceptional Transactions page
     });
     
     connect(managerZone.get(), &ManagerZone::franchiseTrafficRequested, this, [this]() {
         VT_INFO("Franchise Traffic requested");
+        app().navigateTo(PageId{15});  // Franchise Traffic page
     });
     
     connect(managerZone.get(), &ManagerZone::receiptsBalanceRequested, this, [this]() {
         VT_INFO("Receipts Balance & Cash Deposits requested");
+        app().navigateTo(PageId{16});  // Receipts Balance page
     });
     
     connect(managerZone.get(), &ManagerZone::closedCheckSummaryRequested, this, [this]() {
         VT_INFO("Closed Check Summary requested");
+        app().navigateTo(PageId{17});  // Closed Check Summary page
     });
     
     connect(managerZone.get(), &ManagerZone::reviewGuestChecksRequested, this, [this]() {
         VT_INFO("Review Guest Checks requested");
+        app().navigateTo(PageId{18});  // Review Guest Checks page
     });
     
     connect(managerZone.get(), &ManagerZone::expensesRequested, this, [this]() {
         VT_INFO("Expenses requested");
+        app().navigateTo(PageId{19});  // Expenses page
     });
     
     connect(managerZone.get(), &ManagerZone::editMenuItemPropertiesRequested, this, [this]() {
         VT_INFO("Edit Menu Item Properties requested");
+        app().navigateTo(PageId{20});  // Edit Menu Item page
     });
     
     connect(managerZone.get(), &ManagerZone::payCapturedTipsRequested, this, [this]() {
         VT_INFO("Pay Captured Tips requested");
+        app().navigateTo(PageId{21});  // Pay Tips page
     });
     
     connect(managerZone.get(), &ManagerZone::recordExpensesRequested, this, [this]() {
         VT_INFO("Record Expenses requested");
+        app().navigateTo(PageId{22});  // Record Expense page
     });
     
     connect(managerZone.get(), &ManagerZone::endDayRequested, this, [this]() {
         VT_INFO("End Day requested");
-        // TODO: End day confirmation and processing
-        QMessageBox::StandardButton reply = QMessageBox::question(this, 
-            "End Day",
-            "Are you sure you want to end the business day?\n\n"
-            "This will:\n"
-            "• Close all open checks\n"
-            "• Generate end-of-day reports\n"
-            "• Reset daily totals",
-            QMessageBox::Yes | QMessageBox::No);
-        
-        if (reply == QMessageBox::Yes) {
-            VT_INFO("End Day CONFIRMED");
-            // TODO: Actually process end of day
-        }
+        app().navigateTo(PageId{23});  // End Day page
     });
     
     connect(managerZone.get(), &ManagerZone::backRequested, this, [this]() {
@@ -832,6 +834,269 @@ void MainWindow::createDemoPages() {
     managerPage->addZone(std::move(managerZone), X(20), Y(20), X(1880), Y(1040));
     
     addPage(std::move(managerPage));
+    
+    // ========================================================================
+    // Page 9: User Manager Page
+    // ========================================================================
+    auto userManagerPage = std::make_unique<Page>(PageType::Manager);
+    userManagerPage->setId(PageId{9});
+    userManagerPage->setPageName("User Manager");
+    userManagerPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto userManagerZone = std::make_unique<UserManagerZone>(employeeStore_.get());
+    userManagerZone->setBackgroundColor(QColor(30, 30, 40));
+    userManagerZone->setBorderWidth(0);
+    connect(userManagerZone.get(), &UserManagerZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});  // Back to Manager
+    });
+    userManagerPage->addZone(std::move(userManagerZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(userManagerPage));
+    
+    // ========================================================================
+    // Page 10: Balance Tills Page
+    // ========================================================================
+    auto balanceTillsPage = std::make_unique<Page>(PageType::Manager);
+    balanceTillsPage->setId(PageId{10});
+    balanceTillsPage->setPageName("Balance Tills");
+    balanceTillsPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto balanceTillsZone = std::make_unique<BalanceTillsZone>(employeeStore_.get());
+    balanceTillsZone->setBackgroundColor(QColor(30, 30, 40));
+    balanceTillsZone->setBorderWidth(0);
+    connect(balanceTillsZone.get(), &BalanceTillsZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});  // Back to Manager
+    });
+    balanceTillsPage->addZone(std::move(balanceTillsZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(balanceTillsPage));
+    
+    // ========================================================================
+    // Page 11: Audit Page
+    // ========================================================================
+    auto auditPage = std::make_unique<Page>(PageType::Report);
+    auditPage->setId(PageId{11});
+    auditPage->setPageName("Audit");
+    auditPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto auditZone = std::make_unique<AuditZone>();
+    auditZone->setBackgroundColor(QColor(30, 30, 40));
+    auditZone->setBorderWidth(0);
+    connect(auditZone.get(), &AuditZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});  // Back to Manager
+    });
+    auditPage->addZone(std::move(auditZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(auditPage));
+    
+    // ========================================================================
+    // Page 12: Menu Performance Page
+    // ========================================================================
+    auto menuPerfPage = std::make_unique<Page>(PageType::Report);
+    menuPerfPage->setId(PageId{12});
+    menuPerfPage->setPageName("Menu Performance");
+    menuPerfPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto menuPerfZone = std::make_unique<MenuPerformanceZone>();
+    menuPerfZone->setBackgroundColor(QColor(30, 30, 40));
+    menuPerfZone->setBorderWidth(0);
+    connect(menuPerfZone.get(), &MenuPerformanceZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    menuPerfPage->addZone(std::move(menuPerfZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(menuPerfPage));
+    
+    // ========================================================================
+    // Page 13: Today's Revenue Page
+    // ========================================================================
+    auto revenuePage = std::make_unique<Page>(PageType::Report);
+    revenuePage->setId(PageId{13});
+    revenuePage->setPageName("Today's Revenue");
+    revenuePage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto revenueZone = std::make_unique<TodaysRevenueZone>();
+    revenueZone->setBackgroundColor(QColor(30, 30, 40));
+    revenueZone->setBorderWidth(0);
+    connect(revenueZone.get(), &TodaysRevenueZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    revenuePage->addZone(std::move(revenueZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(revenuePage));
+    
+    // ========================================================================
+    // Page 14: Exceptional Transactions Page
+    // ========================================================================
+    auto exceptionalPage = std::make_unique<Page>(PageType::Report);
+    exceptionalPage->setId(PageId{14});
+    exceptionalPage->setPageName("Exceptional Transactions");
+    exceptionalPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto exceptionalZone = std::make_unique<ExceptionalTransactionsZone>();
+    exceptionalZone->setBackgroundColor(QColor(30, 30, 40));
+    exceptionalZone->setBorderWidth(0);
+    connect(exceptionalZone.get(), &ExceptionalTransactionsZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    exceptionalPage->addZone(std::move(exceptionalZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(exceptionalPage));
+    
+    // ========================================================================
+    // Page 15: Franchise Traffic Page
+    // ========================================================================
+    auto trafficPage = std::make_unique<Page>(PageType::Report);
+    trafficPage->setId(PageId{15});
+    trafficPage->setPageName("Franchise Traffic");
+    trafficPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto trafficZone = std::make_unique<FranchiseTrafficZone>();
+    trafficZone->setBackgroundColor(QColor(30, 30, 40));
+    trafficZone->setBorderWidth(0);
+    connect(trafficZone.get(), &FranchiseTrafficZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    trafficPage->addZone(std::move(trafficZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(trafficPage));
+    
+    // ========================================================================
+    // Page 16: Receipts Balance Page
+    // ========================================================================
+    auto receiptsPage = std::make_unique<Page>(PageType::Report);
+    receiptsPage->setId(PageId{16});
+    receiptsPage->setPageName("Receipts Balance");
+    receiptsPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto receiptsZone = std::make_unique<ReceiptsBalanceZone>();
+    receiptsZone->setBackgroundColor(QColor(30, 30, 40));
+    receiptsZone->setBorderWidth(0);
+    connect(receiptsZone.get(), &ReceiptsBalanceZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    receiptsPage->addZone(std::move(receiptsZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(receiptsPage));
+    
+    // ========================================================================
+    // Page 17: Closed Check Summary Page
+    // ========================================================================
+    auto closedChecksPage = std::make_unique<Page>(PageType::Report);
+    closedChecksPage->setId(PageId{17});
+    closedChecksPage->setPageName("Closed Check Summary");
+    closedChecksPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto closedChecksZone = std::make_unique<ClosedCheckSummaryZone>();
+    closedChecksZone->setBackgroundColor(QColor(30, 30, 40));
+    closedChecksZone->setBorderWidth(0);
+    connect(closedChecksZone.get(), &ClosedCheckSummaryZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    closedChecksPage->addZone(std::move(closedChecksZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(closedChecksPage));
+    
+    // ========================================================================
+    // Page 18: Review Guest Checks Page
+    // ========================================================================
+    auto guestChecksPage = std::make_unique<Page>(PageType::Report);
+    guestChecksPage->setId(PageId{18});
+    guestChecksPage->setPageName("Review Guest Checks");
+    guestChecksPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto guestChecksZone = std::make_unique<ReviewGuestChecksZone>();
+    guestChecksZone->setBackgroundColor(QColor(30, 30, 40));
+    guestChecksZone->setBorderWidth(0);
+    connect(guestChecksZone.get(), &ReviewGuestChecksZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    guestChecksPage->addZone(std::move(guestChecksZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(guestChecksPage));
+    
+    // ========================================================================
+    // Page 19: Expenses Page
+    // ========================================================================
+    auto expensesPage = std::make_unique<Page>(PageType::Report);
+    expensesPage->setId(PageId{19});
+    expensesPage->setPageName("Expenses");
+    expensesPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto expensesZone = std::make_unique<ExpensesViewZone>();
+    expensesZone->setBackgroundColor(QColor(30, 30, 40));
+    expensesZone->setBorderWidth(0);
+    connect(expensesZone.get(), &ExpensesViewZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    connect(expensesZone.get(), &ExpensesViewZone::addExpenseRequested, this, []() {
+        app().navigateTo(PageId{22});  // Record Expense page
+    });
+    expensesPage->addZone(std::move(expensesZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(expensesPage));
+    
+    // ========================================================================
+    // Page 20: Edit Menu Item Page
+    // ========================================================================
+    auto editMenuPage = std::make_unique<Page>(PageType::Settings);
+    editMenuPage->setId(PageId{20});
+    editMenuPage->setPageName("Edit Menu Items");
+    editMenuPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto editMenuZone = std::make_unique<EditMenuItemZone>();
+    editMenuZone->setBackgroundColor(QColor(30, 30, 40));
+    editMenuZone->setBorderWidth(0);
+    connect(editMenuZone.get(), &EditMenuItemZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    editMenuPage->addZone(std::move(editMenuZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(editMenuPage));
+    
+    // ========================================================================
+    // Page 21: Pay Captured Tips Page
+    // ========================================================================
+    auto payTipsPage = std::make_unique<Page>(PageType::Manager);
+    payTipsPage->setId(PageId{21});
+    payTipsPage->setPageName("Pay Captured Tips");
+    payTipsPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto payTipsZone = std::make_unique<PayCapturedTipsZone>();
+    payTipsZone->setBackgroundColor(QColor(30, 30, 40));
+    payTipsZone->setBorderWidth(0);
+    connect(payTipsZone.get(), &PayCapturedTipsZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    payTipsPage->addZone(std::move(payTipsZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(payTipsPage));
+    
+    // ========================================================================
+    // Page 22: Record Expense Page
+    // ========================================================================
+    auto recordExpensePage = std::make_unique<Page>(PageType::Manager);
+    recordExpensePage->setId(PageId{22});
+    recordExpensePage->setPageName("Record Expense");
+    recordExpensePage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto recordExpenseZone = std::make_unique<RecordExpenseZone>();
+    recordExpenseZone->setBackgroundColor(QColor(30, 30, 40));
+    recordExpenseZone->setBorderWidth(0);
+    connect(recordExpenseZone.get(), &RecordExpenseZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    recordExpensePage->addZone(std::move(recordExpenseZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(recordExpensePage));
+    
+    // ========================================================================
+    // Page 23: End Day Page
+    // ========================================================================
+    auto endDayPage = std::make_unique<Page>(PageType::Manager);
+    endDayPage->setId(PageId{23});
+    endDayPage->setPageName("End Day");
+    endDayPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    auto endDayZone = std::make_unique<EndDayZone>();
+    endDayZone->setBackgroundColor(QColor(30, 30, 40));
+    endDayZone->setBorderWidth(0);
+    connect(endDayZone.get(), &EndDayZone::backRequested, this, []() {
+        app().navigateTo(PageId{8});
+    });
+    connect(endDayZone.get(), &EndDayZone::endDayConfirmed, this, [this]() {
+        VT_INFO("End of day complete - logging out");
+        authService_->logout();
+        app().navigateTo(PageId{1});
+    });
+    endDayPage->addZone(std::move(endDayZone), X(20), Y(20), X(1880), Y(1040));
+    addPage(std::move(endDayPage));
     
     VT_INFO("Application pages created: {} pages total", pages_.size());
 }

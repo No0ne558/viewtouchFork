@@ -182,6 +182,15 @@ add_library(vt2_zones STATIC
     src/zones/settings_zone.hpp
     src/zones/manager_zone.cpp
     src/zones/manager_zone.hpp
+    # Manager function zones
+    src/zones/user_manager_zone.cpp
+    src/zones/user_manager_zone.hpp
+    src/zones/balance_tills_zone.cpp
+    src/zones/balance_tills_zone.hpp
+    src/zones/audit_zone.cpp
+    src/zones/audit_zone.hpp
+    src/zones/manager_reports_zones.cpp
+    src/zones/manager_reports_zones.hpp
 )
 
 target_include_directories(vt2_zones PUBLIC
