@@ -7,12 +7,16 @@
 
 #include "core/types.hpp"
 #include "ui/page.hpp"
+#include "auth/auth_service.hpp"
+#include "data/employee_store.hpp"
 #include <QMainWindow>
 #include <QStackedWidget>
 #include <map>
 #include <memory>
 
 namespace vt2 {
+
+class LoginZone;  // Forward declaration
 
 /**
  * @brief Main application window
@@ -54,6 +58,20 @@ public:
      * @brief Scale a value by Y factor
      */
     [[nodiscard]] int sy(int value) const { return static_cast<int>(value * scaleY_); }
+    
+    // ========================================================================
+    // Authentication
+    // ========================================================================
+    
+    /**
+     * @brief Get the auth service
+     */
+    [[nodiscard]] AuthService* authService() { return authService_.get(); }
+    
+    /**
+     * @brief Get the employee store
+     */
+    [[nodiscard]] EmployeeStore* employeeStore() { return employeeStore_.get(); }
     
     // ========================================================================
     // Page Management
@@ -100,17 +118,26 @@ public:
 
 signals:
     void pageChanged(PageId newPage);
+    void userLoggedIn(const Employee* employee, bool isSuperuser);
+    void userLoggedOut();
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     
+private slots:
+    void onLoginAction(const QString& action);
+    void onAuthenticationResult(bool success, const QString& message);
+    
 private:
     void setupUI();
+    void setupAuth();
     void applyTheme();
     void updateScaleFactors();
     void rebuildPages();
+    void attemptLogin(const QString& action);
+    void showPostLoginPage(const QString& action);
     
     QStackedWidget* pageStack_ = nullptr;
     std::map<PageId, Page*> pages_;
@@ -118,6 +145,12 @@ private:
     
     qreal scaleX_ = 1.0;
     qreal scaleY_ = 1.0;
+    
+    // Authentication
+    std::unique_ptr<AuthService> authService_;
+    std::unique_ptr<EmployeeStore> employeeStore_;
+    LoginZone* loginZone_ = nullptr;  // Non-owning pointer
+    QString pendingAction_;  // Action selected after PIN entry
 };
 
 } // namespace vt2

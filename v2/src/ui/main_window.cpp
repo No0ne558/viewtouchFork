@@ -14,12 +14,14 @@
 #include <QVBoxLayout>
 #include <QScreen>
 #include <QGuiApplication>
+#include <QMessageBox>
 
 namespace vt2 {
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent) {
     setupUI();
+    setupAuth();
     applyTheme();
     updateScaleFactors();
     createDemoPages();
@@ -59,6 +61,46 @@ void MainWindow::setupUI() {
     // setWindowFlags(Qt::FramelessWindowHint);
 }
 
+void MainWindow::setupAuth() {
+    // Initialize employee store with demo data
+    employeeStore_ = std::make_unique<EmployeeStore>(this);
+    employeeStore_->loadDemoData();
+    
+    // Initialize auth service
+    authService_ = std::make_unique<AuthService>(this);
+    
+    // Connect auth service to employee store for lookups
+    authService_->setEmployeeLookup([this](const QString& pin) {
+        return employeeStore_->findByPin(pin);
+    });
+    
+    // Connect auth service signals
+    connect(authService_.get(), &AuthService::userLoggedIn, 
+            this, [this](const Employee* emp, bool isSuperuser) {
+        VT_INFO("User logged in: {} (superuser: {})", 
+                emp->fullName().toStdString(), isSuperuser);
+        emit userLoggedIn(emp, isSuperuser);
+    });
+    
+    connect(authService_.get(), &AuthService::userLoggedOut, 
+            this, [this]() {
+        VT_INFO("User logged out");
+        emit userLoggedOut();
+        showPage(PageId{1});  // Return to login
+    });
+    
+    connect(authService_.get(), &AuthService::authenticationFailed,
+            this, [this](const QString& reason) {
+        VT_WARN("Authentication failed: {}", reason.toStdString());
+        if (loginZone_) {
+            loginZone_->setErrorMessage(reason);
+        }
+    });
+    
+    VT_INFO("Authentication system initialized with {} employees", 
+            employeeStore_->activeCount());
+}
+
 void MainWindow::updateScaleFactors() {
     scaleX_ = static_cast<qreal>(width()) / BASE_WIDTH;
     scaleY_ = static_cast<qreal>(height()) / BASE_HEIGHT;
@@ -96,6 +138,7 @@ void MainWindow::rebuildPages() {
     }
     pages_.clear();
     nextPageId_ = 1;
+    loginZone_ = nullptr;  // Will be recreated
     
     // Recreate pages with new scale
     createDemoPages();
@@ -219,8 +262,11 @@ void MainWindow::createDemoPages() {
     auto loginZone = std::make_unique<LoginZone>();
     loginZone->setBackgroundColor(QColor(35, 35, 45));
     loginZone->setBorderWidth(0);
-    LoginZone* loginZonePtr = loginZone.get();
+    loginZone_ = loginZone.get();  // Store non-owning pointer
     loginPage->addZone(std::move(loginZone), X(60), Y(160), X(550), Y(800));
+    
+    // Connect login zone signal to handle actions
+    connect(loginZone_, &LoginZone::pinEntered, this, &MainWindow::onLoginAction);
     
     // Right side: Action buttons
     int rightX = 680;
@@ -234,9 +280,9 @@ void MainWindow::createDemoPages() {
     signInOutBtn->setText("Sign In / Out");
     signInOutBtn->setBackgroundColor(colors::VTBlue);
     signInOutBtn->setFontSize(FontSize::Huge);
-    signInOutBtn->setAction([loginZonePtr]() {
+    signInOutBtn->setAction([this]() {
         VT_INFO("Sign In/Out pressed - validating PIN");
-        emit loginZonePtr->pinEntered("SIGNOUT");
+        emit loginZone_->pinEntered("SIGNOUT");
     });
     loginPage->addZone(std::move(signInOutBtn), X(rightX), Y(startY), X(btnWidth), Y(btnHeight));
     
@@ -248,9 +294,9 @@ void MainWindow::createDemoPages() {
     tablesBtn->setText("Tables");
     tablesBtn->setBackgroundColor(colors::Teal);
     tablesBtn->setFontSize(FontSize::Huge);
-    tablesBtn->setAction([loginZonePtr]() {
+    tablesBtn->setAction([this]() {
         VT_INFO("Tables pressed - validating PIN");
-        emit loginZonePtr->pinEntered("TABLES");
+        emit loginZone_->pinEntered("TABLES");
     });
     loginPage->addZone(std::move(tablesBtn), X(rightX2), Y(startY), X(btnWidth), Y(btnHeight));
     
@@ -262,9 +308,9 @@ void MainWindow::createDemoPages() {
     takeoutBtn->setText("Takeout");
     takeoutBtn->setBackgroundColor(colors::Orange);
     takeoutBtn->setFontSize(FontSize::Huge);
-    takeoutBtn->setAction([loginZonePtr]() {
+    takeoutBtn->setAction([this]() {
         VT_INFO("Takeout pressed - validating PIN");
-        emit loginZonePtr->pinEntered("TAKEOUT");
+        emit loginZone_->pinEntered("TAKEOUT");
     });
     loginPage->addZone(std::move(takeoutBtn), X(rightX), Y(row2Y), X(btnWidth), Y(btnHeight));
     
@@ -273,9 +319,9 @@ void MainWindow::createDemoPages() {
     quickDineInBtn->setText("Quick Dine In");
     quickDineInBtn->setBackgroundColor(colors::VTGreen);
     quickDineInBtn->setFontSize(FontSize::Huge);
-    quickDineInBtn->setAction([loginZonePtr]() {
+    quickDineInBtn->setAction([this]() {
         VT_INFO("Quick Dine In pressed - validating PIN");
-        emit loginZonePtr->pinEntered("QUICKDINE");
+        emit loginZone_->pinEntered("QUICKDINE");
     });
     loginPage->addZone(std::move(quickDineInBtn), X(rightX2), Y(row2Y), X(btnWidth), Y(btnHeight));
     
@@ -287,8 +333,8 @@ void MainWindow::createDemoPages() {
     reportsBtn->setText("Reports");
     reportsBtn->setBackgroundColor(colors::Purple);
     reportsBtn->setFontSize(FontSize::XLarge);
-    reportsBtn->setAction([loginZonePtr]() {
-        emit loginZonePtr->pinEntered("REPORTS");
+    reportsBtn->setAction([this]() {
+        emit loginZone_->pinEntered("REPORTS");
     });
     loginPage->addZone(std::move(reportsBtn), X(rightX), Y(row3Y), X(btnWidth), Y(smallBtnHeight));
     
@@ -296,8 +342,8 @@ void MainWindow::createDemoPages() {
     checksBtn->setText("Open Checks");
     checksBtn->setBackgroundColor(colors::VTYellow);
     checksBtn->setFontSize(FontSize::XLarge);
-    checksBtn->setAction([loginZonePtr]() {
-        emit loginZonePtr->pinEntered("CHECKS");
+    checksBtn->setAction([this]() {
+        emit loginZone_->pinEntered("CHECKS");
     });
     loginPage->addZone(std::move(checksBtn), X(rightX2), Y(row3Y), X(btnWidth), Y(smallBtnHeight));
     
@@ -308,8 +354,8 @@ void MainWindow::createDemoPages() {
     settingsBtn->setText("Settings");
     settingsBtn->setBackgroundColor(colors::Gray);
     settingsBtn->setFontSize(FontSize::XLarge);
-    settingsBtn->setAction([loginZonePtr]() {
-        emit loginZonePtr->pinEntered("SETTINGS");
+    settingsBtn->setAction([this]() {
+        emit loginZone_->pinEntered("SETTINGS");
     });
     loginPage->addZone(std::move(settingsBtn), X(rightX), Y(row4Y), X(btnWidth), Y(smallBtnHeight));
     
@@ -317,49 +363,10 @@ void MainWindow::createDemoPages() {
     managerBtn->setText("Manager");
     managerBtn->setBackgroundColor(colors::VTRed);
     managerBtn->setFontSize(FontSize::XLarge);
-    managerBtn->setAction([loginZonePtr]() {
-        emit loginZonePtr->pinEntered("MANAGER");
+    managerBtn->setAction([this]() {
+        emit loginZone_->pinEntered("MANAGER");
     });
     loginPage->addZone(std::move(managerBtn), X(rightX2), Y(row4Y), X(btnWidth), Y(smallBtnHeight));
-    
-    // Connect login zone signal to handle actions
-    connect(loginZonePtr, &LoginZone::pinEntered, this, [loginZonePtr](const QString& action) {
-        // Get the actual PIN that was entered
-        QString pin = loginZonePtr->property("enteredPin").toString();
-        
-        if (pin.length() < 4 && action != "SIGNOUT") {
-            loginZonePtr->setErrorMessage("Enter your PIN first");
-            return;
-        }
-        
-        VT_INFO("Action: {} with PIN ({} digits)", action.toStdString(), pin.length());
-        
-        // TODO: Real employee lookup by PIN
-        // For now, accept any 4+ digit PIN
-        
-        loginZonePtr->clearPin();
-        
-        if (action == "SIGNOUT") {
-            VT_INFO("Sign out - staying on login page");
-            // Just clear and stay
-        } else if (action == "TABLES") {
-            app().navigateTo(PageId{2});  // Tables page
-        } else if (action == "TAKEOUT" || action == "QUICKDINE") {
-            app().navigateTo(PageId{3});  // Order page
-        } else if (action == "REPORTS") {
-            // TODO: Reports page
-            VT_INFO("Reports not yet implemented");
-        } else if (action == "CHECKS") {
-            // TODO: Open checks page
-            VT_INFO("Open Checks not yet implemented");
-        } else if (action == "SETTINGS") {
-            // TODO: Settings page
-            VT_INFO("Settings not yet implemented");
-        } else if (action == "MANAGER") {
-            // TODO: Manager page
-            VT_INFO("Manager not yet implemented");
-        }
-    });
     
     // Footer with version
     auto loginFooter = std::make_unique<ButtonZone>();
@@ -567,6 +574,114 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
 void MainWindow::closeEvent(QCloseEvent* event) {
     VT_INFO("Main window closing");
     event->accept();
+}
+
+void MainWindow::onLoginAction(const QString& action) {
+    if (!loginZone_) return;
+    
+    QString pin = loginZone_->enteredPin();
+    
+    // Sign out doesn't require a PIN
+    if (action == "SIGNOUT") {
+        if (authService_->isLoggedIn()) {
+            authService_->logout();
+            loginZone_->clearPin();
+            VT_INFO("User signed out");
+        } else {
+            loginZone_->setErrorMessage("No user signed in");
+        }
+        return;
+    }
+    
+    // All other actions require a valid PIN
+    if (pin.isEmpty()) {
+        loginZone_->setErrorMessage("Enter your PIN first");
+        return;
+    }
+    
+    // Store the pending action for after successful auth
+    pendingAction_ = action;
+    
+    // Attempt authentication
+    auto result = authService_->authenticate(pin);
+    
+    if (result.success) {
+        loginZone_->clearPin();
+        showPostLoginPage(pendingAction_);
+        pendingAction_.clear();
+    } else {
+        // Error message is set via signal from auth service
+        // Don't clear PIN so user can try again
+    }
+}
+
+void MainWindow::onAuthenticationResult(bool success, const QString& message) {
+    if (!loginZone_) return;
+    
+    if (success) {
+        loginZone_->clearPin();
+        loginZone_->clearError();
+        
+        if (!pendingAction_.isEmpty()) {
+            showPostLoginPage(pendingAction_);
+            pendingAction_.clear();
+        }
+    } else {
+        loginZone_->setErrorMessage(message);
+    }
+}
+
+void MainWindow::showPostLoginPage(const QString& action) {
+    // Check permissions for protected actions
+    if (action == "SETTINGS") {
+        if (!authService_->hasPermission(Permission::SystemSettings)) {
+            if (loginZone_) {
+                loginZone_->setErrorMessage("Permission denied: Settings");
+            }
+            return;
+        }
+    } else if (action == "MANAGER") {
+        if (!authService_->hasPermission(Permission::EditEmployees)) {
+            if (loginZone_) {
+                loginZone_->setErrorMessage("Permission denied: Manager");
+            }
+            return;
+        }
+    } else if (action == "REPORTS") {
+        if (!authService_->hasPermission(Permission::ViewReports)) {
+            if (loginZone_) {
+                loginZone_->setErrorMessage("Permission denied: Reports");
+            }
+            return;
+        }
+    }
+    
+    // Navigate to the appropriate page
+    if (action == "TABLES") {
+        app().navigateTo(PageId{2});  // Tables page
+    } else if (action == "TAKEOUT" || action == "QUICKDINE") {
+        app().navigateTo(PageId{3});  // Order page
+    } else if (action == "REPORTS") {
+        VT_INFO("Reports page - {}",
+                authService_->isSuperuser() ? "SUPERUSER ACCESS" : 
+                authService_->currentEmployee()->fullName().toStdString());
+        // TODO: Navigate to reports page when implemented
+        app().navigateTo(PageId{3});  // Placeholder
+    } else if (action == "CHECKS") {
+        // TODO: Open checks page
+        VT_INFO("Open Checks - logged in as {}", 
+                authService_->currentEmployee()->fullName().toStdString());
+        app().navigateTo(PageId{3});  // Placeholder
+    } else if (action == "SETTINGS") {
+        VT_INFO("Settings page - SUPERUSER or ADMIN ACCESS");
+        // TODO: Navigate to settings page when implemented
+        app().navigateTo(PageId{3});  // Placeholder
+    } else if (action == "MANAGER") {
+        VT_INFO("Manager page - logged in as {}",
+                authService_->currentEmployee()->fullName().toStdString());
+        // TODO: Navigate to manager page when implemented
+        app().navigateTo(PageId{3});  // Placeholder
+    }
 }
 
 } // namespace vt2

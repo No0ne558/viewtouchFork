@@ -157,6 +157,8 @@ target_include_directories(vt2_ui PUBLIC
 
 target_link_libraries(vt2_ui PUBLIC
     vt2_core
+    vt2_data
+    vt2_auth
     Qt6::Widgets
 )
 
@@ -217,6 +219,8 @@ add_library(vt2_data STATIC
     src/data/menu_item.hpp
     src/data/employee.cpp
     src/data/employee.hpp
+    src/data/employee_store.cpp
+    src/data/employee_store.hpp
     src/data/settings.cpp
     src/data/settings.hpp
 )
@@ -228,6 +232,23 @@ target_include_directories(vt2_data PUBLIC
 target_link_libraries(vt2_data PUBLIC
     vt2_core
     Qt6::Sql
+)
+
+# ============================================================================
+# Auth Library - Authentication and authorization
+# ============================================================================
+add_library(vt2_auth STATIC
+    src/auth/auth_service.cpp
+    src/auth/auth_service.hpp
+)
+
+target_include_directories(vt2_auth PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(vt2_auth PUBLIC
+    vt2_core
+    vt2_data
 )
 
 # ============================================================================

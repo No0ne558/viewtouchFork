@@ -43,7 +43,7 @@ public:
     void setActive(bool active) { active_ = active; }
     
 private:
-    EmployeeId id_{0};
+    EmployeeId id_{};
     QString firstName_;
     QString lastName_;
     QString pin_;

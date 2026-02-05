@@ -30,13 +30,64 @@ using Result = std::expected<T, E>;
 // ID Types - Strong typing for different entity IDs
 // ============================================================================
 
-struct ZoneId { std::uint32_t value; auto operator<=>(const ZoneId&) const = default; };
-struct PageId { std::uint32_t value; auto operator<=>(const PageId&) const = default; };
-struct CheckId { std::uint32_t value; auto operator<=>(const CheckId&) const = default; };
-struct OrderId { std::uint32_t value; auto operator<=>(const OrderId&) const = default; };
-struct EmployeeId { std::uint32_t value; auto operator<=>(const EmployeeId&) const = default; };
-struct MenuItemId { std::uint32_t value; auto operator<=>(const MenuItemId&) const = default; };
-struct TableId { std::uint32_t value; auto operator<=>(const TableId&) const = default; };
+struct ZoneId { 
+    std::uint32_t value{0}; 
+    auto operator<=>(const ZoneId&) const = default; 
+};
+struct PageId { 
+    std::uint32_t value{0}; 
+    auto operator<=>(const PageId&) const = default; 
+};
+struct CheckId { 
+    std::uint32_t value{0}; 
+    auto operator<=>(const CheckId&) const = default; 
+};
+struct OrderId { 
+    std::uint32_t value{0}; 
+    auto operator<=>(const OrderId&) const = default; 
+};
+struct EmployeeId { 
+    std::uint32_t value{0}; 
+    constexpr EmployeeId() = default;
+    constexpr explicit EmployeeId(std::uint32_t v) : value(v) {}
+    auto operator<=>(const EmployeeId&) const = default; 
+};
+struct MenuItemId { 
+    std::uint32_t value{0}; 
+    auto operator<=>(const MenuItemId&) const = default; 
+};
+struct TableId { 
+    std::uint32_t value{0}; 
+    auto operator<=>(const TableId&) const = default; 
+};
+
+} // namespace vt2
+
+// Hash functions for ID types (in std namespace for unordered_map compatibility)
+namespace std {
+template<>
+struct hash<vt2::EmployeeId> {
+    size_t operator()(const vt2::EmployeeId& id) const noexcept {
+        return hash<uint32_t>{}(id.value);
+    }
+};
+
+template<>
+struct hash<vt2::PageId> {
+    size_t operator()(const vt2::PageId& id) const noexcept {
+        return hash<uint32_t>{}(id.value);
+    }
+};
+
+template<>
+struct hash<vt2::ZoneId> {
+    size_t operator()(const vt2::ZoneId& id) const noexcept {
+        return hash<uint32_t>{}(id.value);
+    }
+};
+} // namespace std
+
+namespace vt2 {
 
 // ============================================================================
 // Time Aliases

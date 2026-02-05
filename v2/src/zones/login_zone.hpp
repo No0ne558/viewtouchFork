@@ -59,7 +59,7 @@ private:
     QPushButton* m_clearBtn{nullptr};
     QPushButton* m_backBtn{nullptr};
     
-    static constexpr int MAX_PIN_LENGTH = 6;
+    static constexpr int MAX_PIN_LENGTH = 5;  // PINs are 1-5 digits
 };
 
 } // namespace vt2
