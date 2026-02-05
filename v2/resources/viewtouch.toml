@@ -1,0 +1,28 @@
+# ViewTouch V2 Default Configuration
+# =====================================
+
+[store]
+name = "My Restaurant"
+address = "123 Main Street"
+phone = "(555) 123-4567"
+
+[display]
+width = 1024
+height = 768
+fullscreen = false
+theme = "modern-dark"
+scale_factor = 1.0
+
+[system]
+data_directory = "/usr/viewtouch2/dat"
+log_directory = "/var/log/viewtouch2"
+debug_mode = false
+
+[hardware]
+printer_device = "/dev/usb/lp0"
+drawer_device = "/dev/ttyUSB0"
+touchscreen_enabled = true
+
+[network]
+server_address = "localhost"
+server_port = 8080
