@@ -135,6 +135,7 @@ enum class ZoneBehavior {
 
 enum class PageType {
     Index,          // Main menu/index page
+    Login,          // Login/PIN entry page
     Table,          // Table selection page
     Order,          // Order entry page
     Payment,        // Payment processing page

@@ -5,11 +5,15 @@
 
 #include "ui/main_window.hpp"
 #include "zones/button_zone.hpp"
+#include "zones/login_zone.hpp"
 #include "core/application.hpp"
 #include "core/logger.hpp"
 #include <QKeyEvent>
 #include <QCloseEvent>
+#include <QResizeEvent>
 #include <QVBoxLayout>
+#include <QScreen>
+#include <QGuiApplication>
 
 namespace vt2 {
 
@@ -17,6 +21,7 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent) {
     setupUI();
     applyTheme();
+    updateScaleFactors();
     createDemoPages();
 }
 
@@ -25,12 +30,80 @@ MainWindow::~MainWindow() = default;
 void MainWindow::setupUI() {
     setWindowTitle("ViewTouch V2");
     
+    // Set minimum size to 1920x1080
+    setMinimumSize(MIN_WIDTH, MIN_HEIGHT);
+    
+    // Get primary screen and set initial size
+    if (auto* screen = QGuiApplication::primaryScreen()) {
+        QRect screenGeometry = screen->availableGeometry();
+        
+        // If screen is large enough, start at screen size
+        // Otherwise start at minimum size
+        int startWidth = qMax(screenGeometry.width(), MIN_WIDTH);
+        int startHeight = qMax(screenGeometry.height(), MIN_HEIGHT);
+        
+        resize(startWidth, startHeight);
+        
+        VT_INFO("Screen: {}x{}, Window: {}x{}", 
+                screenGeometry.width(), screenGeometry.height(),
+                startWidth, startHeight);
+    } else {
+        resize(MIN_WIDTH, MIN_HEIGHT);
+    }
+    
     // Create central widget with page stack
     pageStack_ = new QStackedWidget(this);
     setCentralWidget(pageStack_);
     
     // Remove window decorations for POS kiosk mode (can be toggled)
     // setWindowFlags(Qt::FramelessWindowHint);
+}
+
+void MainWindow::updateScaleFactors() {
+    scaleX_ = static_cast<qreal>(width()) / BASE_WIDTH;
+    scaleY_ = static_cast<qreal>(height()) / BASE_HEIGHT;
+    VT_DEBUG("Scale factors: X={:.3f}, Y={:.3f}", scaleX_, scaleY_);
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event) {
+    QMainWindow::resizeEvent(event);
+    
+    qreal oldScaleX = scaleX_;
+    qreal oldScaleY = scaleY_;
+    
+    updateScaleFactors();
+    
+    // Only rebuild if scale changed significantly
+    if (qAbs(scaleX_ - oldScaleX) > 0.01 || qAbs(scaleY_ - oldScaleY) > 0.01) {
+        rebuildPages();
+    }
+}
+
+void MainWindow::rebuildPages() {
+    VT_INFO("Rebuilding pages for new resolution: {}x{}", width(), height());
+    
+    // Remember current page
+    PageId currentId{0};
+    if (auto* current = currentPage()) {
+        currentId = current->id();
+    }
+    
+    // Clear all pages
+    while (pageStack_->count() > 0) {
+        QWidget* w = pageStack_->widget(0);
+        pageStack_->removeWidget(w);
+        delete w;
+    }
+    pages_.clear();
+    nextPageId_ = 1;
+    
+    // Recreate pages with new scale
+    createDemoPages();
+    
+    // Restore current page
+    if (currentId.value != 0 && page(currentId)) {
+        showPage(currentId);
+    }
 }
 
 void MainWindow::applyTheme() {
@@ -108,161 +181,202 @@ std::vector<PageId> MainWindow::pageIds() const {
 }
 
 void MainWindow::createDemoPages() {
-    VT_INFO("Creating demo pages...");
+    VT_INFO("Creating application pages at scale {:.2f}x{:.2f}...", scaleX_, scaleY_);
+    
+    // Helper lambdas for scaling - all coordinates based on 1920x1080 base
+    auto X = [this](int v) { return sx(v); };
+    auto Y = [this](int v) { return sy(v); };
     
     // ========================================================================
-    // Page 1: Main Index Page
+    // Page 1: Login Page (PIN + Actions on same page)
     // ========================================================================
-    auto indexPage = std::make_unique<Page>(PageType::Index);
-    indexPage->setId(PageId{1});
-    indexPage->setPageName("Main Menu");
-    indexPage->setBackgroundColor(colors::VTBackground);
+    auto loginPage = std::make_unique<Page>(PageType::Login);
+    loginPage->setId(PageId{1});
+    loginPage->setPageName("Login");
+    loginPage->setBackgroundColor(QColor(25, 25, 35));
     
-    // Title
-    auto title = std::make_unique<ButtonZone>();
-    title->setText("ViewTouch V2");
-    title->setBackgroundColor(QColor(51, 51, 51));
-    title->setForegroundColor(colors::White);
-    title->setFontSize(FontSize::Huge);
-    title->setBorderWidth(0);
-    indexPage->addZone(std::move(title), 10, 10, 1004, 60);
+    // Company title at top
+    auto companyTitle = std::make_unique<ButtonZone>();
+    companyTitle->setText("ViewTouch POS");
+    companyTitle->setBackgroundColor(QColor(25, 25, 35));
+    companyTitle->setForegroundColor(colors::White);
+    companyTitle->setFontSize(FontSize::Huge);
+    companyTitle->setBorderWidth(0);
+    loginPage->addZone(std::move(companyTitle), X(20), Y(15), X(1880), Y(80));
     
-    // Main menu buttons
-    QStringList menuItems = {
-        "Dine In", "Take Out", "Delivery", "Bar",
-        "Tables", "Checks", "Reports", "Settings"
-    };
+    // Left side: PIN Entry
+    // PIN display field label
+    auto pinLabel = std::make_unique<ButtonZone>();
+    pinLabel->setText("Enter PIN:");
+    pinLabel->setBackgroundColor(QColor(25, 25, 35));
+    pinLabel->setForegroundColor(colors::LightGray);
+    pinLabel->setFontSize(FontSize::Large);
+    pinLabel->setBorderWidth(0);
+    pinLabel->setAlignment(HAlign::Center, VAlign::Bottom);
+    loginPage->addZone(std::move(pinLabel), X(60), Y(100), X(550), Y(60));
     
-    QList<QColor> buttonColors = {
-        colors::VTBlue, colors::VTGreen, colors::Orange, colors::Purple,
-        colors::Teal, colors::VTYellow, colors::Gray, colors::DarkGray
-    };
+    // Login zone with PIN keypad (left side)
+    auto loginZone = std::make_unique<LoginZone>();
+    loginZone->setBackgroundColor(QColor(35, 35, 45));
+    loginZone->setBorderWidth(0);
+    LoginZone* loginZonePtr = loginZone.get();
+    loginPage->addZone(std::move(loginZone), X(60), Y(160), X(550), Y(800));
     
-    int startX = 10;
-    int startY = 90;
-    int btnWidth = 245;
-    int btnHeight = 160;
-    int spacing = 10;
+    // Right side: Action buttons
+    int rightX = 680;
+    int btnWidth = 560;
+    int btnHeight = 180;
+    int spacing = 25;
+    int startY = 120;
     
-    for (int i = 0; i < menuItems.size(); ++i) {
-        auto btn = std::make_unique<ButtonZone>();
-        btn->setText(menuItems[i]);
-        btn->setBackgroundColor(buttonColors[i % buttonColors.size()]);
-        btn->setFontSize(FontSize::XLarge);
+    // Sign In/Out button
+    auto signInOutBtn = std::make_unique<ButtonZone>();
+    signInOutBtn->setText("Sign In / Out");
+    signInOutBtn->setBackgroundColor(colors::VTBlue);
+    signInOutBtn->setFontSize(FontSize::Huge);
+    signInOutBtn->setAction([loginZonePtr]() {
+        VT_INFO("Sign In/Out pressed - validating PIN");
+        emit loginZonePtr->pinEntered("SIGNOUT");
+    });
+    loginPage->addZone(std::move(signInOutBtn), X(rightX), Y(startY), X(btnWidth), Y(btnHeight));
+    
+    // Second column
+    int rightX2 = rightX + btnWidth + spacing;
+    
+    // Tables button
+    auto tablesBtn = std::make_unique<ButtonZone>();
+    tablesBtn->setText("Tables");
+    tablesBtn->setBackgroundColor(colors::Teal);
+    tablesBtn->setFontSize(FontSize::Huge);
+    tablesBtn->setAction([loginZonePtr]() {
+        VT_INFO("Tables pressed - validating PIN");
+        emit loginZonePtr->pinEntered("TABLES");
+    });
+    loginPage->addZone(std::move(tablesBtn), X(rightX2), Y(startY), X(btnWidth), Y(btnHeight));
+    
+    // Row 2
+    int row2Y = startY + btnHeight + spacing;
+    
+    // Takeout button
+    auto takeoutBtn = std::make_unique<ButtonZone>();
+    takeoutBtn->setText("Takeout");
+    takeoutBtn->setBackgroundColor(colors::Orange);
+    takeoutBtn->setFontSize(FontSize::Huge);
+    takeoutBtn->setAction([loginZonePtr]() {
+        VT_INFO("Takeout pressed - validating PIN");
+        emit loginZonePtr->pinEntered("TAKEOUT");
+    });
+    loginPage->addZone(std::move(takeoutBtn), X(rightX), Y(row2Y), X(btnWidth), Y(btnHeight));
+    
+    // Quick Dine In button
+    auto quickDineInBtn = std::make_unique<ButtonZone>();
+    quickDineInBtn->setText("Quick Dine In");
+    quickDineInBtn->setBackgroundColor(colors::VTGreen);
+    quickDineInBtn->setFontSize(FontSize::Huge);
+    quickDineInBtn->setAction([loginZonePtr]() {
+        VT_INFO("Quick Dine In pressed - validating PIN");
+        emit loginZonePtr->pinEntered("QUICKDINE");
+    });
+    loginPage->addZone(std::move(quickDineInBtn), X(rightX2), Y(row2Y), X(btnWidth), Y(btnHeight));
+    
+    // Row 3: Additional options (smaller)
+    int row3Y = row2Y + btnHeight + spacing + 30;
+    int smallBtnHeight = 130;
+    
+    auto reportsBtn = std::make_unique<ButtonZone>();
+    reportsBtn->setText("Reports");
+    reportsBtn->setBackgroundColor(colors::Purple);
+    reportsBtn->setFontSize(FontSize::XLarge);
+    reportsBtn->setAction([loginZonePtr]() {
+        emit loginZonePtr->pinEntered("REPORTS");
+    });
+    loginPage->addZone(std::move(reportsBtn), X(rightX), Y(row3Y), X(btnWidth), Y(smallBtnHeight));
+    
+    auto checksBtn = std::make_unique<ButtonZone>();
+    checksBtn->setText("Open Checks");
+    checksBtn->setBackgroundColor(colors::VTYellow);
+    checksBtn->setFontSize(FontSize::XLarge);
+    checksBtn->setAction([loginZonePtr]() {
+        emit loginZonePtr->pinEntered("CHECKS");
+    });
+    loginPage->addZone(std::move(checksBtn), X(rightX2), Y(row3Y), X(btnWidth), Y(smallBtnHeight));
+    
+    // Row 4
+    int row4Y = row3Y + smallBtnHeight + spacing;
+    
+    auto settingsBtn = std::make_unique<ButtonZone>();
+    settingsBtn->setText("Settings");
+    settingsBtn->setBackgroundColor(colors::Gray);
+    settingsBtn->setFontSize(FontSize::XLarge);
+    settingsBtn->setAction([loginZonePtr]() {
+        emit loginZonePtr->pinEntered("SETTINGS");
+    });
+    loginPage->addZone(std::move(settingsBtn), X(rightX), Y(row4Y), X(btnWidth), Y(smallBtnHeight));
+    
+    auto managerBtn = std::make_unique<ButtonZone>();
+    managerBtn->setText("Manager");
+    managerBtn->setBackgroundColor(colors::VTRed);
+    managerBtn->setFontSize(FontSize::XLarge);
+    managerBtn->setAction([loginZonePtr]() {
+        emit loginZonePtr->pinEntered("MANAGER");
+    });
+    loginPage->addZone(std::move(managerBtn), X(rightX2), Y(row4Y), X(btnWidth), Y(smallBtnHeight));
+    
+    // Connect login zone signal to handle actions
+    connect(loginZonePtr, &LoginZone::pinEntered, this, [loginZonePtr](const QString& action) {
+        // Get the actual PIN that was entered
+        QString pin = loginZonePtr->property("enteredPin").toString();
         
-        int col = i % 4;
-        int row = i / 4;
-        int x = startX + col * (btnWidth + spacing);
-        int y = startY + row * (btnHeight + spacing);
-        
-        // Add navigation action for certain buttons
-        if (menuItems[i] == "Dine In") {
-            btn->setAction([]() {
-                app().navigateTo(PageId{2});  // Go to order page
-            });
-        } else if (menuItems[i] == "Tables") {
-            btn->setAction([]() {
-                app().navigateTo(PageId{3});  // Go to tables page
-            });
+        if (pin.length() < 4 && action != "SIGNOUT") {
+            loginZonePtr->setErrorMessage("Enter your PIN first");
+            return;
         }
         
-        indexPage->addZone(std::move(btn), x, y, btnWidth, btnHeight);
-    }
-    
-    // Status bar at bottom
-    auto statusBar = std::make_unique<ButtonZone>();
-    statusBar->setText("Ready | No Employee Signed In | " + 
-                       QDateTime::currentDateTime().toString("hh:mm AP"));
-    statusBar->setBackgroundColor(QColor(30, 30, 30));
-    statusBar->setForegroundColor(colors::LightGray);
-    statusBar->setFontSize(FontSize::Normal);
-    statusBar->setAlignment(HAlign::Left, VAlign::Center);
-    statusBar->setBorderWidth(0);
-    indexPage->addZone(std::move(statusBar), 0, 718, 1024, 50);
-    
-    addPage(std::move(indexPage));
-    
-    // ========================================================================
-    // Page 2: Order Entry Page
-    // ========================================================================
-    auto orderPage = std::make_unique<Page>(PageType::Order);
-    orderPage->setId(PageId{2});
-    orderPage->setPageName("Order Entry");
-    orderPage->setBackgroundColor(colors::VTBackground);
-    
-    // Header
-    auto orderHeader = std::make_unique<ButtonZone>();
-    orderHeader->setText("Order Entry - Table 1");
-    orderHeader->setBackgroundColor(colors::VTBlue);
-    orderHeader->setFontSize(FontSize::Large);
-    orderHeader->setBorderWidth(0);
-    orderPage->addZone(std::move(orderHeader), 10, 10, 700, 50);
-    
-    // Back button
-    auto backBtn = std::make_unique<ButtonZone>();
-    backBtn->setText("← Back");
-    backBtn->setBackgroundColor(colors::DarkGray);
-    backBtn->setAction([]() {
-        app().goBack();
-    });
-    orderPage->addZone(std::move(backBtn), 720, 10, 100, 50);
-    
-    // Order list area (placeholder)
-    auto orderList = std::make_unique<ButtonZone>();
-    orderList->setText("Order Items\n\n(Order display area)");
-    orderList->setBackgroundColor(QColor(40, 40, 40));
-    orderList->setAlignment(HAlign::Left, VAlign::Top);
-    orderPage->addZone(std::move(orderList), 10, 70, 500, 500);
-    
-    // Menu category buttons
-    QStringList categories = {"Appetizers", "Entrees", "Sides", "Drinks", "Desserts"};
-    for (int i = 0; i < categories.size(); ++i) {
-        auto catBtn = std::make_unique<ButtonZone>();
-        catBtn->setText(categories[i]);
-        catBtn->setBackgroundColor(colors::VTGreen);
-        orderPage->addZone(std::move(catBtn), 520, 70 + i * 55, 200, 50);
-    }
-    
-    // Menu items grid (sample)
-    QStringList items = {"Burger", "Pizza", "Salad", "Soup", "Steak", "Fish", 
-                         "Pasta", "Tacos", "Wings"};
-    for (int i = 0; i < items.size(); ++i) {
-        auto itemBtn = std::make_unique<ButtonZone>();
-        itemBtn->setText(items[i]);
-        itemBtn->setBackgroundColor(colors::VTBlue);
+        VT_INFO("Action: {} with PIN ({} digits)", action.toStdString(), pin.length());
         
-        int col = i % 3;
-        int row = i / 3;
-        orderPage->addZone(std::move(itemBtn), 
-                          730 + col * 100, 70 + row * 55, 95, 50);
-    }
+        // TODO: Real employee lookup by PIN
+        // For now, accept any 4+ digit PIN
+        
+        loginZonePtr->clearPin();
+        
+        if (action == "SIGNOUT") {
+            VT_INFO("Sign out - staying on login page");
+            // Just clear and stay
+        } else if (action == "TABLES") {
+            app().navigateTo(PageId{2});  // Tables page
+        } else if (action == "TAKEOUT" || action == "QUICKDINE") {
+            app().navigateTo(PageId{3});  // Order page
+        } else if (action == "REPORTS") {
+            // TODO: Reports page
+            VT_INFO("Reports not yet implemented");
+        } else if (action == "CHECKS") {
+            // TODO: Open checks page
+            VT_INFO("Open Checks not yet implemented");
+        } else if (action == "SETTINGS") {
+            // TODO: Settings page
+            VT_INFO("Settings not yet implemented");
+        } else if (action == "MANAGER") {
+            // TODO: Manager page
+            VT_INFO("Manager not yet implemented");
+        }
+    });
     
-    // Action buttons at bottom
-    auto sendBtn = std::make_unique<ButtonZone>();
-    sendBtn->setText("SEND");
-    sendBtn->setBackgroundColor(colors::VTGreen);
-    sendBtn->setFontSize(FontSize::Large);
-    orderPage->addZone(std::move(sendBtn), 10, 580, 150, 60);
+    // Footer with version
+    auto loginFooter = std::make_unique<ButtonZone>();
+    loginFooter->setText("ViewTouch V2.0 | © 2026");
+    loginFooter->setBackgroundColor(QColor(20, 20, 30));
+    loginFooter->setForegroundColor(QColor(100, 100, 100));
+    loginFooter->setFontSize(FontSize::Normal);
+    loginFooter->setBorderWidth(0);
+    loginPage->addZone(std::move(loginFooter), 0, Y(1020), X(1920), Y(60));
     
-    auto payBtn = std::make_unique<ButtonZone>();
-    payBtn->setText("PAY");
-    payBtn->setBackgroundColor(colors::VTYellow);
-    payBtn->setFontSize(FontSize::Large);
-    orderPage->addZone(std::move(payBtn), 170, 580, 150, 60);
-    
-    auto voidBtn = std::make_unique<ButtonZone>();
-    voidBtn->setText("VOID");
-    voidBtn->setBackgroundColor(colors::VTRed);
-    voidBtn->setFontSize(FontSize::Large);
-    orderPage->addZone(std::move(voidBtn), 330, 580, 150, 60);
-    
-    addPage(std::move(orderPage));
+    addPage(std::move(loginPage));
     
     // ========================================================================
-    // Page 3: Tables Page
+    // Page 2: Tables Page
     // ========================================================================
     auto tablesPage = std::make_unique<Page>(PageType::Table);
-    tablesPage->setId(PageId{3});
+    tablesPage->setId(PageId{2});
     tablesPage->setPageName("Table Selection");
     tablesPage->setBackgroundColor(colors::VTBackground);
     
@@ -270,20 +384,28 @@ void MainWindow::createDemoPages() {
     auto tablesHeader = std::make_unique<ButtonZone>();
     tablesHeader->setText("Select a Table");
     tablesHeader->setBackgroundColor(colors::Teal);
-    tablesHeader->setFontSize(FontSize::Large);
+    tablesHeader->setFontSize(FontSize::XLarge);
     tablesHeader->setBorderWidth(0);
-    tablesPage->addZone(std::move(tablesHeader), 10, 10, 900, 50);
+    tablesPage->addZone(std::move(tablesHeader), X(20), Y(15), X(1700), Y(70));
     
     // Back button
     auto tablesBackBtn = std::make_unique<ButtonZone>();
     tablesBackBtn->setText("← Back");
     tablesBackBtn->setBackgroundColor(colors::DarkGray);
+    tablesBackBtn->setFontSize(FontSize::Large);
     tablesBackBtn->setAction([]() {
-        app().goBack();
+        app().navigateTo(PageId{1});  // Back to login
     });
-    tablesPage->addZone(std::move(tablesBackBtn), 920, 10, 94, 50);
+    tablesPage->addZone(std::move(tablesBackBtn), X(1740), Y(15), X(160), Y(70));
     
-    // Table grid
+    // Table grid - 5 columns, 4 rows
+    int tableStartX = 20;
+    int tableStartY = 110;
+    int tableWidth = 370;
+    int tableHeight = 220;
+    int tableSpacingX = 10;
+    int tableSpacingY = 15;
+    
     for (int i = 0; i < 20; ++i) {
         auto tableBtn = std::make_unique<ButtonZone>();
         tableBtn->setText(QString("Table\n%1").arg(i + 1));
@@ -294,17 +416,126 @@ void MainWindow::createDemoPages() {
         if (i % 7 == 0) color = colors::VTRed;     // Dirty
         
         tableBtn->setBackgroundColor(color);
-        tableBtn->setFontSize(FontSize::Medium);
+        tableBtn->setFontSize(FontSize::XLarge);
+        
+        // Click to go to order entry for that table
+        int tableNum = i + 1;
+        tableBtn->setAction([tableNum]() {
+            VT_INFO("Table {} selected", tableNum);
+            app().navigateTo(PageId{3});  // Go to order page
+        });
         
         int col = i % 5;
         int row = i / 5;
-        tablesPage->addZone(std::move(tableBtn), 
-                           10 + col * 205, 80 + row * 160, 195, 150);
+        int posX = tableStartX + col * (tableWidth + tableSpacingX);
+        int posY = tableStartY + row * (tableHeight + tableSpacingY);
+        tablesPage->addZone(std::move(tableBtn), X(posX), Y(posY), X(tableWidth), Y(tableHeight));
     }
     
     addPage(std::move(tablesPage));
     
-    VT_INFO("Demo pages created: {} pages total", pages_.size());
+    // ========================================================================
+    // Page 3: Order Entry Page
+    // ========================================================================
+    auto orderPage = std::make_unique<Page>(PageType::Order);
+    orderPage->setId(PageId{3});
+    orderPage->setPageName("Order Entry");
+    orderPage->setBackgroundColor(colors::VTBackground);
+    
+    // Header
+    auto orderHeader = std::make_unique<ButtonZone>();
+    orderHeader->setText("Order Entry");
+    orderHeader->setBackgroundColor(colors::VTBlue);
+    orderHeader->setFontSize(FontSize::XLarge);
+    orderHeader->setBorderWidth(0);
+    orderPage->addZone(std::move(orderHeader), X(20), Y(15), X(1700), Y(70));
+    
+    // Back button
+    auto backBtn = std::make_unique<ButtonZone>();
+    backBtn->setText("← Done");
+    backBtn->setBackgroundColor(colors::DarkGray);
+    backBtn->setFontSize(FontSize::Large);
+    backBtn->setAction([]() {
+        app().navigateTo(PageId{1});  // Back to login
+    });
+    orderPage->addZone(std::move(backBtn), X(1740), Y(15), X(160), Y(70));
+    
+    // Order list area (left side - takes about 40% of width)
+    auto orderList = std::make_unique<ButtonZone>();
+    orderList->setText("Order Items\n\n(Order display area)");
+    orderList->setBackgroundColor(QColor(40, 40, 40));
+    orderList->setAlignment(HAlign::Left, VAlign::Top);
+    orderList->setFontSize(FontSize::Large);
+    orderPage->addZone(std::move(orderList), X(20), Y(100), X(700), Y(850));
+    
+    // Menu category buttons (middle column)
+    QStringList categories = {"Appetizers", "Entrees", "Sides", "Drinks", "Desserts"};
+    int catStartX = 740;
+    int catWidth = 280;
+    int catHeight = 100;
+    int catSpacing = 15;
+    
+    for (int i = 0; i < categories.size(); ++i) {
+        auto catBtn = std::make_unique<ButtonZone>();
+        catBtn->setText(categories[i]);
+        catBtn->setBackgroundColor(colors::VTGreen);
+        catBtn->setFontSize(FontSize::Large);
+        orderPage->addZone(std::move(catBtn), X(catStartX), Y(100 + i * (catHeight + catSpacing)), 
+                          X(catWidth), Y(catHeight));
+    }
+    
+    // Menu items grid (right side - 4x4 grid)
+    QStringList items = {"Burger", "Pizza", "Salad", "Soup", 
+                         "Steak", "Fish", "Pasta", "Tacos",
+                         "Wings", "Fries", "Soda", "Beer",
+                         "Wine", "Coffee", "Dessert", "Special"};
+    int itemStartX = 1040;
+    int itemWidth = 210;
+    int itemHeight = 120;
+    int itemSpacing = 10;
+    
+    for (int i = 0; i < items.size(); ++i) {
+        auto itemBtn = std::make_unique<ButtonZone>();
+        itemBtn->setText(items[i]);
+        itemBtn->setBackgroundColor(colors::VTBlue);
+        itemBtn->setFontSize(FontSize::Large);
+        
+        int col = i % 4;
+        int row = i / 4;
+        int posX = itemStartX + col * (itemWidth + itemSpacing);
+        int posY = 100 + row * (itemHeight + itemSpacing);
+        orderPage->addZone(std::move(itemBtn), X(posX), Y(posY), X(itemWidth), Y(itemHeight));
+    }
+    
+    // Action buttons at bottom
+    int actionY = 970;
+    int actionWidth = 220;
+    int actionHeight = 90;
+    int actionSpacing = 20;
+    
+    auto sendBtn = std::make_unique<ButtonZone>();
+    sendBtn->setText("SEND");
+    sendBtn->setBackgroundColor(colors::VTGreen);
+    sendBtn->setFontSize(FontSize::XLarge);
+    orderPage->addZone(std::move(sendBtn), X(20), Y(actionY), X(actionWidth), Y(actionHeight));
+    
+    auto payBtn = std::make_unique<ButtonZone>();
+    payBtn->setText("PAY");
+    payBtn->setBackgroundColor(colors::VTYellow);
+    payBtn->setFontSize(FontSize::XLarge);
+    orderPage->addZone(std::move(payBtn), X(20 + actionWidth + actionSpacing), Y(actionY), 
+                      X(actionWidth), Y(actionHeight));
+    
+    auto voidBtn = std::make_unique<ButtonZone>();
+    voidBtn->setText("VOID");
+    voidBtn->setBackgroundColor(colors::VTRed);
+    voidBtn->setFontSize(FontSize::XLarge);
+    orderPage->addZone(std::move(voidBtn), X(20 + 2*(actionWidth + actionSpacing)), Y(actionY), 
+                      X(actionWidth), Y(actionHeight));
+    
+    addPage(std::move(orderPage));
+    
+    VT_INFO("Application pages created: {} pages total", pages_.size());
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event) {
