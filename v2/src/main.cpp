@@ -1,30 +1,53 @@
-/**
- * @file main.cpp
- * @brief ViewTouch V2 Application Entry Point
+/*
+ * ViewTouch V2 - Main Entry Point
  * 
- * This is the main entry point for ViewTouch V2, a modern rewrite of
- * the classic ViewTouch POS system using Qt6 and C++23.
+ * ViewTouch POS System - Qt6 Implementation
+ * A faithful reimplementation of the original ViewTouch architecture
  */
 
-#include "core/application.hpp"
-#include "core/logger.hpp"
-#include <QApplication>
-#include <iostream>
+#include "app/application.hpp"
 
-int main(int argc, char* argv[]) {
-    // Initialize application
-    auto& app = vt2::Application::instance();
+#include <QDebug>
+#include <QCommandLineParser>
+
+int main(int argc, char* argv[])
+{
+    vt::Application app(argc, argv);
     
-    if (auto result = app.init(argc, argv); !result) {
-        std::cerr << "Failed to initialize application: " << result.error() << std::endl;
+    // Parse command line
+    QCommandLineParser parser;
+    parser.setApplicationDescription(QStringLiteral("ViewTouch Point of Sale System"));
+    parser.addHelpOption();
+    parser.addVersionOption();
+    
+    QCommandLineOption dataPathOption(
+        QStringList() << QStringLiteral("d") << QStringLiteral("data"),
+        QStringLiteral("Path to data directory"),
+        QStringLiteral("path"));
+    parser.addOption(dataPathOption);
+    
+    QCommandLineOption fullscreenOption(
+        QStringList() << QStringLiteral("f") << QStringLiteral("fullscreen"),
+        QStringLiteral("Start in fullscreen mode"));
+    parser.addOption(fullscreenOption);
+    
+    parser.process(app);
+    
+    // Set data path if provided
+    if (parser.isSet(dataPathOption)) {
+        app.setDataPath(parser.value(dataPathOption));
+    }
+    
+    // Initialize
+    if (!app.initialize()) {
+        qCritical() << "Failed to initialize application";
         return 1;
     }
     
-    // Run main event loop
-    int exitCode = app.run();
+    // Show main window
+    app.showMainWindow();
     
-    // Cleanup
-    app.shutdown();
+    qDebug() << "ViewTouch V2 started";
     
-    return exitCode;
+    return app.exec();
 }
