@@ -7,6 +7,7 @@
 #include "zones/button_zone.hpp"
 #include "zones/login_zone.hpp"
 #include "zones/settings_zone.hpp"
+#include "zones/manager_zone.hpp"
 #include "core/application.hpp"
 #include "core/logger.hpp"
 #include <QKeyEvent>
@@ -732,6 +733,106 @@ void MainWindow::createDemoPages() {
     
     addPage(std::move(clearPage));
     
+    // ========================================================================
+    // Page 8: Manager Page
+    // ========================================================================
+    auto managerPage = std::make_unique<Page>(PageType::Manager);
+    managerPage->setId(PageId{8});
+    managerPage->setPageName("Manager");
+    managerPage->setBackgroundColor(QColor(25, 30, 40));
+    
+    // Manager zone takes the full page
+    auto managerZone = std::make_unique<ManagerZone>();
+    managerZone->setBackgroundColor(QColor(25, 30, 40));
+    managerZone->setBorderWidth(0);
+    
+    // Connect manager zone signals
+    connect(managerZone.get(), &ManagerZone::userManagerRequested, this, [this]() {
+        VT_INFO("User Manager requested");
+        // TODO: Navigate to user manager page
+    });
+    
+    connect(managerZone.get(), &ManagerZone::balanceTillsRequested, this, [this]() {
+        VT_INFO("Balance Tills requested");
+        // TODO: Navigate to balance tills page
+    });
+    
+    connect(managerZone.get(), &ManagerZone::auditRequested, this, [this]() {
+        VT_INFO("Audit requested");
+        // TODO: Navigate to audit page
+    });
+    
+    connect(managerZone.get(), &ManagerZone::menuItemPerformanceRequested, this, [this]() {
+        VT_INFO("Menu Item Performance requested");
+    });
+    
+    connect(managerZone.get(), &ManagerZone::todaysRevenueRequested, this, [this]() {
+        VT_INFO("Today's Revenue & Productivity requested");
+    });
+    
+    connect(managerZone.get(), &ManagerZone::exceptionalTransactionsRequested, this, [this]() {
+        VT_INFO("Exceptional Transactions requested");
+    });
+    
+    connect(managerZone.get(), &ManagerZone::franchiseTrafficRequested, this, [this]() {
+        VT_INFO("Franchise Traffic requested");
+    });
+    
+    connect(managerZone.get(), &ManagerZone::receiptsBalanceRequested, this, [this]() {
+        VT_INFO("Receipts Balance & Cash Deposits requested");
+    });
+    
+    connect(managerZone.get(), &ManagerZone::closedCheckSummaryRequested, this, [this]() {
+        VT_INFO("Closed Check Summary requested");
+    });
+    
+    connect(managerZone.get(), &ManagerZone::reviewGuestChecksRequested, this, [this]() {
+        VT_INFO("Review Guest Checks requested");
+    });
+    
+    connect(managerZone.get(), &ManagerZone::expensesRequested, this, [this]() {
+        VT_INFO("Expenses requested");
+    });
+    
+    connect(managerZone.get(), &ManagerZone::editMenuItemPropertiesRequested, this, [this]() {
+        VT_INFO("Edit Menu Item Properties requested");
+    });
+    
+    connect(managerZone.get(), &ManagerZone::payCapturedTipsRequested, this, [this]() {
+        VT_INFO("Pay Captured Tips requested");
+    });
+    
+    connect(managerZone.get(), &ManagerZone::recordExpensesRequested, this, [this]() {
+        VT_INFO("Record Expenses requested");
+    });
+    
+    connect(managerZone.get(), &ManagerZone::endDayRequested, this, [this]() {
+        VT_INFO("End Day requested");
+        // TODO: End day confirmation and processing
+        QMessageBox::StandardButton reply = QMessageBox::question(this, 
+            "End Day",
+            "Are you sure you want to end the business day?\n\n"
+            "This will:\n"
+            "• Close all open checks\n"
+            "• Generate end-of-day reports\n"
+            "• Reset daily totals",
+            QMessageBox::Yes | QMessageBox::No);
+        
+        if (reply == QMessageBox::Yes) {
+            VT_INFO("End Day CONFIRMED");
+            // TODO: Actually process end of day
+        }
+    });
+    
+    connect(managerZone.get(), &ManagerZone::backRequested, this, [this]() {
+        authService_->logout();  // Log out manager
+        app().navigateTo(PageId{1});  // Back to login
+    });
+    
+    managerPage->addZone(std::move(managerZone), X(20), Y(20), X(1880), Y(1040));
+    
+    addPage(std::move(managerPage));
+    
     VT_INFO("Application pages created: {} pages total", pages_.size());
 }
 
@@ -869,8 +970,7 @@ void MainWindow::showPostLoginPage(const QString& action) {
     } else if (action == "MANAGER") {
         VT_INFO("Manager page - logged in as {}",
                 authService_->currentEmployee()->fullName().toStdString());
-        // TODO: Navigate to manager page when implemented
-        app().navigateTo(PageId{3});  // Placeholder
+        app().navigateTo(PageId{8});  // Manager page
     }
 }
 

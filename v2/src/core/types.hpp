@@ -162,6 +162,7 @@ enum class ZoneType {
     Login,
     Settings,
     Hardware,
+    Manager,
     
     // Custom
     Custom
