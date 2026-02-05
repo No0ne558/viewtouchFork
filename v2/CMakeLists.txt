@@ -178,6 +178,8 @@ add_library(vt2_zones STATIC
     src/zones/table_zone.hpp
     src/zones/report_zone.cpp
     src/zones/report_zone.hpp
+    src/zones/settings_zone.cpp
+    src/zones/settings_zone.hpp
 )
 
 target_include_directories(vt2_zones PUBLIC

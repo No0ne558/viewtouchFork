@@ -6,6 +6,7 @@
 #include "ui/main_window.hpp"
 #include "zones/button_zone.hpp"
 #include "zones/login_zone.hpp"
+#include "zones/settings_zone.hpp"
 #include "core/application.hpp"
 #include "core/logger.hpp"
 #include <QKeyEvent>
@@ -542,6 +543,195 @@ void MainWindow::createDemoPages() {
     
     addPage(std::move(orderPage));
     
+    // ========================================================================
+    // Page 4: Settings Page (Superuser Only)
+    // ========================================================================
+    auto settingsPage = std::make_unique<Page>(PageType::Settings);
+    settingsPage->setId(PageId{4});
+    settingsPage->setPageName("Settings");
+    settingsPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    // Settings zone takes most of the page
+    auto settingsZone = std::make_unique<SettingsZone>();
+    settingsZone->setBackgroundColor(QColor(30, 30, 40));
+    settingsZone->setBorderWidth(0);
+    
+    // Connect settings zone signals
+    connect(settingsZone.get(), &SettingsZone::hardwareRequested, this, [this]() {
+        VT_INFO("Hardware settings requested");
+        app().navigateTo(PageId{5});  // Hardware page
+    });
+    
+    connect(settingsZone.get(), &SettingsZone::taxRequested, this, [this]() {
+        VT_INFO("Tax settings requested");
+        app().navigateTo(PageId{6});  // Tax page
+    });
+    
+    connect(settingsZone.get(), &SettingsZone::clearSystemRequested, this, [this]() {
+        VT_INFO("Clear system requested");
+        app().navigateTo(PageId{7});  // Clear system page
+    });
+    
+    connect(settingsZone.get(), &SettingsZone::backRequested, this, [this]() {
+        authService_->logout();  // Log out superuser
+        app().navigateTo(PageId{1});  // Back to login
+    });
+    
+    settingsPage->addZone(std::move(settingsZone), X(20), Y(20), X(1880), Y(1040));
+    
+    addPage(std::move(settingsPage));
+    
+    // ========================================================================
+    // Page 5: Hardware Settings Page
+    // ========================================================================
+    auto hardwarePage = std::make_unique<Page>(PageType::Settings);
+    hardwarePage->setId(PageId{5});
+    hardwarePage->setPageName("Hardware Settings");
+    hardwarePage->setBackgroundColor(QColor(30, 30, 40));
+    
+    // Header
+    auto hwHeader = std::make_unique<ButtonZone>();
+    hwHeader->setText("Hardware Settings");
+    hwHeader->setBackgroundColor(QColor(0, 150, 136));
+    hwHeader->setFontSize(FontSize::XLarge);
+    hwHeader->setBorderWidth(0);
+    hardwarePage->addZone(std::move(hwHeader), X(20), Y(15), X(1700), Y(70));
+    
+    // Back button
+    auto hwBackBtn = std::make_unique<ButtonZone>();
+    hwBackBtn->setText("← Back");
+    hwBackBtn->setBackgroundColor(colors::DarkGray);
+    hwBackBtn->setFontSize(FontSize::Large);
+    hwBackBtn->setAction([]() {
+        app().navigateTo(PageId{4});  // Back to settings
+    });
+    hardwarePage->addZone(std::move(hwBackBtn), X(1740), Y(15), X(160), Y(70));
+    
+    // Display section
+    auto displayLabel = std::make_unique<ButtonZone>();
+    displayLabel->setText("Displays");
+    displayLabel->setBackgroundColor(QColor(40, 40, 50));
+    displayLabel->setFontSize(FontSize::Large);
+    displayLabel->setBorderWidth(0);
+    displayLabel->setAlignment(HAlign::Left, VAlign::Center);
+    hardwarePage->addZone(std::move(displayLabel), X(20), Y(110), X(400), Y(50));
+    
+    auto addDisplayBtn = std::make_unique<ButtonZone>();
+    addDisplayBtn->setText("+ Add Display");
+    addDisplayBtn->setBackgroundColor(colors::Teal);
+    addDisplayBtn->setFontSize(FontSize::Large);
+    addDisplayBtn->setAction([]() {
+        VT_INFO("Add display - not yet implemented");
+    });
+    hardwarePage->addZone(std::move(addDisplayBtn), X(20), Y(170), X(400), Y(120));
+    
+    // Display list placeholder
+    auto displayList = std::make_unique<ButtonZone>();
+    displayList->setText("No displays configured\n\n(Display list will appear here)");
+    displayList->setBackgroundColor(QColor(40, 40, 50));
+    displayList->setFontSize(FontSize::Normal);
+    displayList->setAlignment(HAlign::Center, VAlign::Center);
+    hardwarePage->addZone(std::move(displayList), X(20), Y(310), X(400), Y(400));
+    
+    // Printer section
+    auto printerLabel = std::make_unique<ButtonZone>();
+    printerLabel->setText("Printers");
+    printerLabel->setBackgroundColor(QColor(40, 40, 50));
+    printerLabel->setFontSize(FontSize::Large);
+    printerLabel->setBorderWidth(0);
+    printerLabel->setAlignment(HAlign::Left, VAlign::Center);
+    hardwarePage->addZone(std::move(printerLabel), X(460), Y(110), X(400), Y(50));
+    
+    auto addPrinterBtn = std::make_unique<ButtonZone>();
+    addPrinterBtn->setText("+ Add Printer");
+    addPrinterBtn->setBackgroundColor(colors::Purple);
+    addPrinterBtn->setFontSize(FontSize::Large);
+    addPrinterBtn->setAction([]() {
+        VT_INFO("Add printer - not yet implemented");
+    });
+    hardwarePage->addZone(std::move(addPrinterBtn), X(460), Y(170), X(400), Y(120));
+    
+    // Printer list placeholder
+    auto printerList = std::make_unique<ButtonZone>();
+    printerList->setText("No printers configured\n\n(Printer list will appear here)");
+    printerList->setBackgroundColor(QColor(40, 40, 50));
+    printerList->setFontSize(FontSize::Normal);
+    printerList->setAlignment(HAlign::Center, VAlign::Center);
+    hardwarePage->addZone(std::move(printerList), X(460), Y(310), X(400), Y(400));
+    
+    addPage(std::move(hardwarePage));
+    
+    // ========================================================================
+    // Page 6: Tax Settings Page
+    // ========================================================================
+    auto taxPage = std::make_unique<Page>(PageType::Settings);
+    taxPage->setId(PageId{6});
+    taxPage->setPageName("Tax Settings");
+    taxPage->setBackgroundColor(QColor(30, 30, 40));
+    
+    // Header
+    auto taxHeader = std::make_unique<ButtonZone>();
+    taxHeader->setText("Tax Settings");
+    taxHeader->setBackgroundColor(QColor(63, 81, 181));
+    taxHeader->setFontSize(FontSize::XLarge);
+    taxHeader->setBorderWidth(0);
+    taxPage->addZone(std::move(taxHeader), X(20), Y(15), X(1700), Y(70));
+    
+    // Back button
+    auto taxBackBtn = std::make_unique<ButtonZone>();
+    taxBackBtn->setText("← Back");
+    taxBackBtn->setBackgroundColor(colors::DarkGray);
+    taxBackBtn->setFontSize(FontSize::Large);
+    taxBackBtn->setAction([]() {
+        app().navigateTo(PageId{4});  // Back to settings
+    });
+    taxPage->addZone(std::move(taxBackBtn), X(1740), Y(15), X(160), Y(70));
+    
+    // Tax rate placeholder
+    auto taxInfo = std::make_unique<ButtonZone>();
+    taxInfo->setText("Tax Configuration\n\n"
+                     "Sales Tax Rate: 8.25%\n\n"
+                     "(Tax settings editor coming soon)");
+    taxInfo->setBackgroundColor(QColor(40, 40, 50));
+    taxInfo->setFontSize(FontSize::Large);
+    taxInfo->setAlignment(HAlign::Center, VAlign::Center);
+    taxPage->addZone(std::move(taxInfo), X(20), Y(110), X(900), Y(400));
+    
+    addPage(std::move(taxPage));
+    
+    // ========================================================================
+    // Page 7: Clear System Page
+    // ========================================================================
+    auto clearPage = std::make_unique<Page>(PageType::Settings);
+    clearPage->setId(PageId{7});
+    clearPage->setPageName("Clear System");
+    clearPage->setBackgroundColor(QColor(40, 20, 20));
+    
+    // Clear system zone
+    auto clearZone = std::make_unique<ClearSystemZone>();
+    clearZone->setBackgroundColor(QColor(40, 20, 20));
+    clearZone->setBorderWidth(0);
+    
+    connect(clearZone.get(), &ClearSystemZone::clearConfirmed, this, [this]() {
+        VT_WARN("SYSTEM CLEAR CONFIRMED - Would clear database here");
+        // TODO: Actually clear the database (checks, orders, transactions)
+        // Keep: menu items, employees, settings
+        
+        QMessageBox::information(this, "System Cleared",
+            "Database has been cleared.\n\n"
+            "Menu items, employees, and settings have been preserved.");
+        
+        app().navigateTo(PageId{4});  // Back to settings
+    });
+    
+    connect(clearZone.get(), &ClearSystemZone::backRequested, this, []() {
+        app().navigateTo(PageId{4});  // Back to settings
+    });
+    
+    clearPage->addZone(std::move(clearZone), X(20), Y(20), X(1880), Y(1040));
+    
+    addPage(std::move(clearPage));
+    
     VT_INFO("Application pages created: {} pages total", pages_.size());
 }
 
@@ -632,12 +822,13 @@ void MainWindow::onAuthenticationResult(bool success, const QString& message) {
 }
 
 void MainWindow::showPostLoginPage(const QString& action) {
-    // Check permissions for protected actions
+    // Settings is SUPERUSER ONLY - not just SystemSettings permission
     if (action == "SETTINGS") {
-        if (!authService_->hasPermission(Permission::SystemSettings)) {
+        if (!authService_->isSuperuser()) {
             if (loginZone_) {
-                loginZone_->setErrorMessage("Permission denied: Settings");
+                loginZone_->setErrorMessage("Access denied: Superuser only");
             }
+            VT_WARN("Settings access denied - superuser only");
             return;
         }
     } else if (action == "MANAGER") {
@@ -668,14 +859,13 @@ void MainWindow::showPostLoginPage(const QString& action) {
         // TODO: Navigate to reports page when implemented
         app().navigateTo(PageId{3});  // Placeholder
     } else if (action == "CHECKS") {
-        // TODO: Open checks page
         VT_INFO("Open Checks - logged in as {}", 
                 authService_->currentEmployee()->fullName().toStdString());
+        // TODO: Open checks page
         app().navigateTo(PageId{3});  // Placeholder
     } else if (action == "SETTINGS") {
-        VT_INFO("Settings page - SUPERUSER or ADMIN ACCESS");
-        // TODO: Navigate to settings page when implemented
-        app().navigateTo(PageId{3});  // Placeholder
+        VT_INFO("Settings page - SUPERUSER ACCESS GRANTED");
+        app().navigateTo(PageId{4});  // Settings page
     } else if (action == "MANAGER") {
         VT_INFO("Manager page - logged in as {}",
                 authService_->currentEmployee()->fullName().toStdString());
