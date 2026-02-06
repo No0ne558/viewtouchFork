@@ -254,20 +254,10 @@ enum UpdateFlag : uint32_t {
 };
 
 /*************************************************************
- * Special Page IDs
+ * Special Page IDs - defined in zone/zone_db.hpp
+ * Keeping these here for backward compatibility
  *************************************************************/
-constexpr int PAGE_ID_MANAGER     = -10;
-constexpr int PAGE_ID_ITEM_TARGET = -9;
-constexpr int PAGE_ID_BAR_SETTLE  = -8;
-constexpr int PAGE_ID_LOGOUT      = -7;
-constexpr int PAGE_ID_GUESTCOUNT2 = -6;
-constexpr int PAGE_ID_GUESTCOUNT  = -5;
-constexpr int PAGE_ID_TABLE2      = -4;
-constexpr int PAGE_ID_TABLE       = -3;
-constexpr int PAGE_ID_LOGIN2      = -2;
-constexpr int PAGE_ID_LOGIN       = -1;
-constexpr int PAGE_ID_SETTLEMENT  = -20;
-constexpr int PAGE_ID_TABSETTLE   = -85;
+// See zone/zone_db.hpp for PAGEID_* constants
 
 /*************************************************************
  * Stack Sizes

@@ -26,6 +26,7 @@
 #include <QPainter>
 #include <QMenuBar>
 #include <QMenu>
+#include <QStatusBar>
 #include <QFileDialog>
 #include <QMessageBox>
 
@@ -533,24 +534,36 @@ void MainWindow::onNewPageRequested() {
 }
 
 void MainWindow::onSaveRequested() {
-    QString filename = QFileDialog::getSaveFileName(this,
-        tr("Save Pages"), QString(), tr("ViewTouch Pages (*.vtp);;All Files (*)"));
+    if (!control_) {
+        QMessageBox::warning(this, tr("Error"), tr("No control object available."));
+        return;
+    }
     
-    if (!filename.isEmpty()) {
-        // TODO: Implement page serialization
-        QMessageBox::information(this, tr("Save"),
-            tr("Page save not yet implemented.\nFile: %1").arg(filename));
+    // Save to the default Ui file in the data directory
+    if (control_->saveUi()) {
+        statusBar()->showMessage(tr("UI saved successfully"), 3000);
+    } else {
+        QMessageBox::warning(this, tr("Save Error"),
+            tr("Failed to save UI data."));
     }
 }
 
 void MainWindow::onLoadRequested() {
-    QString filename = QFileDialog::getOpenFileName(this,
-        tr("Load Pages"), QString(), tr("ViewTouch Pages (*.vtp);;All Files (*)"));
+    if (!control_) {
+        QMessageBox::warning(this, tr("Error"), tr("No control object available."));
+        return;
+    }
     
-    if (!filename.isEmpty()) {
-        // TODO: Implement page deserialization
-        QMessageBox::information(this, tr("Load"),
-            tr("Page load not yet implemented.\nFile: %1").arg(filename));
+    // Load from the default Ui file
+    if (control_->loadUi()) {
+        // Refresh the display
+        if (terminalWidget_) {
+            terminalWidget_->update();
+        }
+        statusBar()->showMessage(tr("UI loaded successfully"), 3000);
+    } else {
+        QMessageBox::warning(this, tr("Load Error"),
+            tr("Failed to load UI data."));
     }
 }
 

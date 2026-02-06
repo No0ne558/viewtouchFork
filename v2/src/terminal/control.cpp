@@ -16,6 +16,8 @@ Control::Control(QObject* parent)
     : QObject(parent)
     , zoneDb_(std::make_unique<ZoneDB>())
 {
+    // Initialize system pages
+    zoneDb_->initSystemPages();
 }
 
 Control::~Control() = default;
@@ -27,6 +29,14 @@ bool Control::initialize() {
         if (!dir.exists()) {
             return false;
         }
+        // Set data directory for ZoneDB
+        zoneDb_->setDataDir(dataPath_);
+    }
+    
+    // Try to load UI data
+    if (!loadUi()) {
+        // If no UI file exists, we start with just system pages
+        // which are already initialized in the constructor
     }
     
     return true;
@@ -126,7 +136,23 @@ bool Control::saveConfig(const QString& filename) const {
 
 bool Control::loadZoneDb(const QString& filename) {
     if (zoneDb_) {
-        return zoneDb_->loadFromFile(filename);
+        return zoneDb_->loadUi(filename);
+    }
+    return false;
+}
+
+bool Control::loadUi(const QString& filename) {
+    if (zoneDb_) {
+        QString file = filename.isEmpty() ? QStringLiteral("Ui") : filename;
+        return zoneDb_->loadUi(file);
+    }
+    return false;
+}
+
+bool Control::saveUi(const QString& filename) const {
+    if (zoneDb_) {
+        QString file = filename.isEmpty() ? QStringLiteral("Ui") : filename;
+        return zoneDb_->saveUi(file);
     }
     return false;
 }

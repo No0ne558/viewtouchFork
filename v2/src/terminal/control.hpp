@@ -87,8 +87,12 @@ public:
     bool loadConfig(const QString& filename);
     bool saveConfig(const QString& filename) const;
     
-    // Load zone database
+    // Load zone database (legacy)
     bool loadZoneDb(const QString& filename);
+    
+    // Load/save UI data (pages and zones)
+    bool loadUi(const QString& filename = QString());
+    bool saveUi(const QString& filename = QString()) const;
     
 signals:
     void terminalAdded(Terminal* term);
