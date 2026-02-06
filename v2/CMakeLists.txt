@@ -79,6 +79,14 @@ set(BUSINESS_SOURCES
     src/business/tips.cpp
     src/business/reports.hpp
     src/business/reports.cpp
+    src/business/tax.hpp
+    src/business/tax.cpp
+    src/business/archive.hpp
+    src/business/archive.cpp
+    src/business/exception.hpp
+    src/business/exception.cpp
+    src/business/discount.hpp
+    src/business/discount.cpp
 )
 
 # Hardware integration
