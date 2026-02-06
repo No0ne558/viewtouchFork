@@ -30,6 +30,10 @@ void PagePropertiesDialog::setupUi() {
     auto* mainLayout = new QVBoxLayout(this);
     auto* formLayout = new QFormLayout();
     
+    idSpinBox_ = new QSpinBox();
+    idSpinBox_->setRange(-9999, 9999);  // Allow negative IDs for system pages
+    formLayout->addRow(tr("Page ID:"), idSpinBox_);
+    
     nameEdit_ = new QLineEdit();
     formLayout->addRow(tr("Name:"), nameEdit_);
     
@@ -48,7 +52,7 @@ void PagePropertiesDialog::setupUi() {
     formLayout->addRow(tr("Size:"), sizeLayout);
     
     parentIdSpinBox_ = new QSpinBox();
-    parentIdSpinBox_->setRange(0, 9999);
+    parentIdSpinBox_->setRange(-9999, 9999);  // Allow negative parent page IDs
     formLayout->addRow(tr("Parent ID:"), parentIdSpinBox_);
     
     indexSpinBox_ = new QSpinBox();
@@ -79,6 +83,7 @@ void PagePropertiesDialog::setupUi() {
 void PagePropertiesDialog::loadFromPage() {
     if (!page_) return;
     
+    idSpinBox_->setValue(page_->id());
     nameEdit_->setText(page_->name());
     static_cast<PageTypeComboBox*>(typeCombo_)->setCurrentPageType(page_->type());
     widthSpinBox_->setValue(page_->width());
@@ -93,6 +98,7 @@ void PagePropertiesDialog::loadFromPage() {
 void PagePropertiesDialog::saveToPage() {
     if (!page_) return;
     
+    page_->setId(idSpinBox_->value());
     page_->setName(nameEdit_->text());
     page_->setType(static_cast<PageTypeComboBox*>(typeCombo_)->currentPageType());
     page_->setSize(widthSpinBox_->value(), heightSpinBox_->value());

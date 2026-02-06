@@ -6,6 +6,7 @@
 #include "zone/login_zone.hpp"
 #include "zone/table_zone.hpp"
 #include "zone/payment_zone.hpp"
+#include "zone/order_zone.hpp"
 #include "render/renderer.hpp"
 #include "terminal/terminal.hpp"
 
@@ -211,23 +212,33 @@ ItemZone::ItemZone() {
 }
 
 void ItemZone::renderContent(Renderer& renderer, Terminal* term) {
-    QRect r(region().x, region().y, region().w, region().h);
+    Q_UNUSED(term);
     
-    uint8_t colorId = state(currentState()).color;
-    if (colorId == 0) colorId = static_cast<uint8_t>(TextColor::Black);
-    
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
     uint8_t fontId = static_cast<uint8_t>(font());
     if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times_20);
     
-    // Draw item name
-    QString displayText = label().isEmpty() ? name() : label();
+    // Draw item name centered
+    QString displayName = label().isEmpty() ? name() : label();
+    renderer.drawTextCentered(displayName, cx, y() + h() / 3, fontId, textColor);
     
-    // If we have a price, show it
+    // Draw price at bottom
+    QString priceText;
     if (!priceStr_.isEmpty()) {
-        displayText += "\n" + priceStr_;
+        priceText = priceStr_;
+    } else if (price_ > 0) {
+        // Format price as currency
+        priceText = QString("$%1.%2")
+            .arg(price_ / 100)
+            .arg(price_ % 100, 2, 10, QChar('0'));
     }
     
-    renderer.drawText(displayText, r, fontId, colorId, TextAlign::Center);
+    if (!priceText.isEmpty()) {
+        // Use smaller font for price
+        uint8_t priceFontId = static_cast<uint8_t>(FontId::Times14);
+        renderer.drawTextCentered(priceText, cx, y() + h() * 2 / 3, priceFontId, textColor);
+    }
 }
 
 int ItemZone::touch(Terminal* term, int tx, int ty) {
@@ -245,6 +256,19 @@ int ItemZone::touch(Terminal* term, int tx, int ty) {
 QualifierZone::QualifierZone() {
     setZoneType(ZoneType::Qualifier);
     setBehavior(ZoneBehavior::Blink);
+}
+
+void QualifierZone::renderContent(Renderer& renderer, Terminal* term) {
+    Q_UNUSED(term);
+    
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
+    uint8_t fontId = static_cast<uint8_t>(font());
+    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times_20);
+    
+    // Draw qualifier name centered (e.g., "No", "Extra", "Lite", "Side")
+    QString displayName = label().isEmpty() ? name() : label();
+    renderer.drawTextCentered(displayName, cx, y() + h() / 2, fontId, textColor);
 }
 
 int QualifierZone::touch(Terminal* term, int tx, int ty) {
@@ -291,16 +315,15 @@ void StatusZone::showMessage(const QString& msg, int duration) {
 }
 
 void StatusZone::renderContent(Renderer& renderer, Terminal* term) {
-    QRect r(region().x, region().y, region().w, region().h);
+    Q_UNUSED(term);
     
-    uint8_t colorId = state(currentState()).color;
-    if (colorId == 0) colorId = static_cast<uint8_t>(TextColor::Black);
-    
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
     uint8_t fontId = static_cast<uint8_t>(font());
     if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times_18);
     
     QString text = statusText_.isEmpty() ? name() : statusText_;
-    renderer.drawText(text, r, fontId, colorId, TextAlign::Left);
+    renderer.drawTextCentered(text, cx, y() + h() / 2, fontId, textColor);
 }
 
 /*************************************************************
@@ -378,6 +401,7 @@ std::unique_ptr<Zone> ZoneFactory::create(ZoneType type) {
         case ZoneType::ItemSubstitute:
         case ZoneType::ItemPound:
         case ZoneType::ItemAdmission:
+        case ZoneType::OrderComment:
             return std::make_unique<ItemZone>();
             
         case ZoneType::Qualifier:
@@ -386,10 +410,31 @@ std::unique_ptr<Zone> ZoneFactory::create(ZoneType type) {
         // Payments
         case ZoneType::Tender:
             return std::make_unique<TenderZone>();
+        case ZoneType::PaymentEntry:
+            return std::make_unique<PaymentZone>();
+        case ZoneType::DrawerManage:
+        case ZoneType::DrawerAssign:
+            return std::make_unique<DrawerZone>();
+        case ZoneType::SplitCheck:
+            return std::make_unique<SplitCheckZone>();
+        case ZoneType::EndDay:
+            return std::make_unique<EndDayZone>();
             
         // Tables
         case ZoneType::Table:
             return std::make_unique<TableZone>();
+        case ZoneType::GuestCount:
+            return std::make_unique<GuestCountZone>();
+        case ZoneType::TableAssign:
+            return std::make_unique<TransferZone>();
+            
+        // Order management
+        case ZoneType::OrderEntry:
+        case ZoneType::OrderDisplay:
+            return std::make_unique<OrderZone>();
+        case ZoneType::OrderAdd:
+        case ZoneType::OrderDelete:
+            return std::make_unique<ItemModZone>();
             
         // User management
         case ZoneType::Login:
@@ -401,7 +446,7 @@ std::unique_ptr<Zone> ZoneFactory::create(ZoneType type) {
         case ZoneType::Command:
             return std::make_unique<CommandZone>();
             
-        // Default to standard button
+        // Default: create a MessageButtonZone with the specified type
         default:
             auto zone = std::make_unique<MessageButtonZone>();
             zone->setZoneType(type);

@@ -83,6 +83,10 @@ public:
     void drawText(const QString& text, int x, int y,
                   uint8_t fontId, uint8_t colorId);
     
+    // Draw text centered at x,y position
+    void drawTextCentered(const QString& text, int cx, int cy,
+                          uint8_t fontId, uint8_t colorId);
+    
     // Get text metrics
     QSize textSize(const QString& text, uint8_t fontId) const;
     int textWidth(const QString& text, uint8_t fontId) const;

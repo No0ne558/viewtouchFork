@@ -6,6 +6,7 @@
 #include "editor/zone_properties.hpp"
 #include "zone/zone.hpp"
 #include "zone/zone_types.hpp"
+#include "zone/page.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -25,9 +26,11 @@ static bool IsItemZoneType(ZoneType t) {
            t == ZoneType::ItemAdmission;
 }
 
-ZonePropertiesDialog::ZonePropertiesDialog(Zone* zone, QWidget* parent)
+ZonePropertiesDialog::ZonePropertiesDialog(Zone* zone, Page* page, QWidget* parent)
     : QDialog(parent)
     , zone_(zone)
+    , page_(page)
+    , originalType_(zone ? zone->zoneType() : ZoneType::Undefined)
 {
     setWindowTitle(tr("Button Properties"));
     setMinimumSize(500, 600);
@@ -519,8 +522,72 @@ void ZonePropertiesDialog::saveToZone() {
     }
 }
 
+void ZonePropertiesDialog::replaceZoneIfTypeChanged() {
+    if (!zone_ || !page_) return;
+    
+    ZoneType newType = zoneTypeCombo_->currentZoneType();
+    
+    // If type hasn't changed, no replacement needed
+    if (newType == originalType_) {
+        zoneReplaced_ = false;
+        return;
+    }
+    
+    // Create new zone of correct type using factory
+    auto newZone = ZoneFactory::create(newType);
+    if (!newZone) return;
+    
+    // Copy common properties from old zone
+    newZone->setName(nameEdit_->text());
+    newZone->setRegion(xSpinBox_->value(), ySpinBox_->value(),
+                       widthSpinBox_->value(), heightSpinBox_->value());
+    newZone->setGroupId(groupSpinBox_->value());
+    newZone->setZoneType(newType);
+    
+    // Copy appearance states
+    for (int i = 0; i < 3; ++i) {
+        ZoneState st;
+        st.frame = stateWidgets_[i].frameCombo->currentFrame();
+        st.texture = stateWidgets_[i].textureCombo->currentTextureId();
+        st.color = stateWidgets_[i].colorCombo->currentColorId();
+        newZone->setState(i, st);
+    }
+    
+    newZone->setBehavior(behaviorCombo_->currentBehavior());
+    newZone->setFont(fontCombo_->currentFontId());
+    newZone->setShape(shapeCombo_->currentShape());
+    newZone->setShadow(shadowSpinBox_->value());
+    newZone->setKey(keySpinBox_->value());
+    newZone->setActive(activeCheck_->isChecked());
+    newZone->setEdit(editCheck_->isChecked());
+    newZone->setStayLit(stayLitCheck_->isChecked());
+    
+    // Copy ButtonZone properties if applicable
+    if (auto* newBtn = dynamic_cast<ButtonZone*>(newZone.get())) {
+        newBtn->setJumpTarget(jumpIdSpinBox_->value(), jumpTypeCombo_->currentJumpType());
+        newBtn->setLabel(nameEdit_->text());
+    }
+    
+    // Remove old zone and add new one
+    page_->removeZone(zone_);
+    replacementZone_ = newZone.get();
+    page_->addZone(std::move(newZone));
+    
+    zoneReplaced_ = true;
+}
+
 void ZonePropertiesDialog::applyChanges() {
-    saveToZone();
+    if (page_) {
+        // Check if type changed and we need to replace the zone
+        replaceZoneIfTypeChanged();
+        if (!zoneReplaced_) {
+            // Just update existing zone
+            saveToZone();
+        }
+    } else {
+        // No page, just save to existing zone
+        saveToZone();
+    }
 }
 
 void ZonePropertiesDialog::onApply() {

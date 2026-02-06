@@ -48,6 +48,8 @@ public slots:
     void onNewPageRequested();
     void onSaveRequested();
     void onLoadRequested();
+    void onGoToPageRequested();
+    void onDeleteSelectedRequested();
     
 protected:
     void keyPressEvent(QKeyEvent* event) override;

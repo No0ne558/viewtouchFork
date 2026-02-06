@@ -29,6 +29,7 @@
 #include <QStatusBar>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QInputDialog>
 
 #include <algorithm>
 
@@ -98,6 +99,7 @@ void MainWindow::setupMenuBar() {
     editMenu->addSeparator();
     editMenu->addAction(tr("&New Zone"), this, &MainWindow::onNewZoneRequested, QKeySequence("Ctrl+N"));
     editMenu->addAction(tr("New &Page"), this, &MainWindow::onNewPageRequested, QKeySequence("Ctrl+Shift+N"));
+    editMenu->addAction(tr("&Delete Selected"), this, &MainWindow::onDeleteSelectedRequested, QKeySequence::Delete);
     editMenu->addSeparator();
     editMenu->addAction(tr("Page &Properties..."), [this]() {
         if (terminal_ && terminal_->currentPage()) {
@@ -108,6 +110,16 @@ void MainWindow::setupMenuBar() {
     // View menu
     auto* viewMenu = menuBar->addMenu(tr("&View"));
     viewMenu->addAction(tr("&Fullscreen"), this, &MainWindow::toggleFullscreen, QKeySequence("F11"));
+    viewMenu->addSeparator();
+    viewMenu->addAction(tr("&Go to Page..."), this, &MainWindow::onGoToPageRequested, QKeySequence("Ctrl+G"));
+    
+    // Page menu (for quick navigation to system pages)
+    auto* pageMenu = menuBar->addMenu(tr("&Pages"));
+    pageMenu->addAction(tr("Login Page (-1)"), [this]() { if (terminal_) terminal_->jumpToPage(-1); if (terminalWidget_) terminalWidget_->update(); });
+    pageMenu->addAction(tr("Tables Page (-3)"), [this]() { if (terminal_) terminal_->jumpToPage(-3); if (terminalWidget_) terminalWidget_->update(); });
+    pageMenu->addAction(tr("Manager Page (-10)"), [this]() { if (terminal_) terminal_->jumpToPage(-10); if (terminalWidget_) terminalWidget_->update(); });
+    pageMenu->addSeparator();
+    pageMenu->addAction(tr("Home Page (1)"), [this]() { if (terminal_) terminal_->jumpToPage(1); if (terminalWidget_) terminalWidget_->update(); });
     
     // Help menu
     auto* helpMenu = menuBar->addMenu(tr("&Help"));
@@ -399,6 +411,20 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
                 showNormal();
             }
             break;
+        case Qt::Key_Delete:
+        case Qt::Key_Backspace:
+            // Delete selected zones
+            if (editMode_ && editMode_->isActive() && terminal_ && terminal_->currentPage()) {
+                Page* page = terminal_->currentPage();
+                auto selected = editMode_->selectedZones();
+                for (Zone* zone : selected) {
+                    editMode_->deleteZone(zone, page);
+                }
+                if (terminalWidget_) {
+                    terminalWidget_->update();
+                }
+            }
+            break;
         default:
             QMainWindow::keyPressEvent(event);
             break;
@@ -447,9 +473,17 @@ void MainWindow::onEditModeChanged(bool active) {
 void MainWindow::onZonePropertiesRequested(Zone* zone) {
     if (!zone) return;
     
-    ZonePropertiesDialog dlg(zone, this);
+    Page* page = terminal_ ? terminal_->currentPage() : nullptr;
+    ZonePropertiesDialog dlg(zone, page, this);
     if (dlg.exec() == QDialog::Accepted) {
         dlg.applyChanges();
+        
+        // If zone was replaced (type changed), update selection
+        if (dlg.wasZoneReplaced() && editMode_ && dlg.replacementZone()) {
+            editMode_->clearSelection();
+            editMode_->selectZone(dlg.replacementZone());
+        }
+        
         if (terminalWidget_) {
             terminalWidget_->update();
         }
@@ -562,9 +596,57 @@ void MainWindow::onLoadRequested() {
         }
         statusBar()->showMessage(tr("UI loaded successfully"), 3000);
     } else {
-        QMessageBox::warning(this, tr("Load Error"),
-            tr("Failed to load UI data."));
+        QMessageBox::information(this, tr("No UI Data"),
+            tr("No saved UI data found. Use File → Save to save current UI first."));
     }
+}
+
+void MainWindow::onGoToPageRequested() {
+    bool ok;
+    int pageId = QInputDialog::getInt(this, tr("Go to Page"),
+        tr("Enter page ID (negative for system pages):"),
+        terminal_ && terminal_->currentPage() ? terminal_->currentPage()->id() : 1,
+        -9999, 9999, 1, &ok);
+    
+    if (ok) {
+        if (!control_ || !control_->zoneDb()) return;
+        
+        Page* page = control_->zoneDb()->page(pageId);
+        if (page) {
+            if (terminal_) {
+                terminal_->jumpToPage(pageId);
+            }
+            if (terminalWidget_) {
+                terminalWidget_->update();
+            }
+        } else {
+            QMessageBox::warning(this, tr("Page Not Found"),
+                tr("No page exists with ID %1").arg(pageId));
+        }
+    }
+}
+
+void MainWindow::onDeleteSelectedRequested() {
+    if (!editMode_ || !editMode_->isActive()) return;
+    if (!terminal_ || !terminal_->currentPage()) return;
+    
+    Page* page = terminal_->currentPage();
+    auto selected = editMode_->selectedZones();
+    
+    if (selected.empty()) {
+        statusBar()->showMessage(tr("No zones selected"), 2000);
+        return;
+    }
+    
+    for (Zone* zone : selected) {
+        editMode_->deleteZone(zone, page);
+    }
+    
+    if (terminalWidget_) {
+        terminalWidget_->update();
+    }
+    
+    statusBar()->showMessage(tr("Deleted %1 zone(s)").arg(selected.size()), 2000);
 }
 
 /*************************************************************

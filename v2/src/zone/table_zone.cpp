@@ -73,33 +73,50 @@ QColor TableZone::statusColor() const {
 void TableZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
     
-    // Draw table name
-    QString display = m_tableName.isEmpty() ? QString::number(m_tableId) : m_tableName;
-    renderer.drawText(display, x() + w()/2 - 10, y() + 15, static_cast<uint8_t>(font()), 0);
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
+    uint8_t fontId = static_cast<uint8_t>(font());
+    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times_20);
     
-    // Draw status info
+    // Draw table name/number centered at top
+    QString display = m_tableName.isEmpty() ? QString("Table %1").arg(m_tableId) : m_tableName;
+    renderer.drawTextCentered(display, cx, y() + 20, fontId, textColor);
+    
+    // Draw status-specific info
     if (m_status == TableStatus::Occupied) {
         // Show guest count
-        QString guests = QString("%1G").arg(m_guestCount);
-        renderer.drawText(guests, x() + 5, y() + h() - 20, static_cast<uint8_t>(font()), 0);
+        QString guests = QString("%1 Guests").arg(m_guestCount);
+        uint8_t smallFont = static_cast<uint8_t>(FontId::Times14);
+        renderer.drawTextCentered(guests, cx, y() + h() / 2, smallFont, textColor);
         
-        // Show elapsed time
+        // Show elapsed time at bottom
         int mins = elapsedMinutes();
-        QString time = QString("%1m").arg(mins);
-        renderer.drawText(time, x() + w() - 30, y() + h() - 20, static_cast<uint8_t>(font()), 0);
+        QString time;
+        if (mins >= 60) {
+            time = QString("%1:%2").arg(mins / 60).arg(mins % 60, 2, 10, QChar('0'));
+        } else {
+            time = QString("%1 min").arg(mins);
+        }
+        renderer.drawTextCentered(time, cx, y() + h() - 20, smallFont, textColor);
         
         // Show check count if stacked
         if (m_checkIds.size() > 1) {
-            QString checks = QString("[%1]").arg(m_checkIds.size());
-            renderer.drawText(checks, x() + w()/2 - 10, y() + h() - 20, static_cast<uint8_t>(font()), 0);
+            QString checks = QString("[%1 checks]").arg(m_checkIds.size());
+            renderer.drawTextCentered(checks, cx, y() + h() - 35, smallFont, textColor);
         }
     } else if (m_status == TableStatus::Reserved) {
-        renderer.drawText(QString("RSVD"), x() + w()/2 - 15, y() + h() - 20, static_cast<uint8_t>(font()), 0);
+        renderer.drawTextCentered(QString("RESERVED"), cx, y() + h() / 2, fontId, textColor);
+    } else if (m_status == TableStatus::Dirty) {
+        renderer.drawTextCentered(QString("DIRTY"), cx, y() + h() / 2, fontId, textColor);
+    } else if (m_status == TableStatus::Empty) {
+        uint8_t smallFont = static_cast<uint8_t>(FontId::Times14);
+        renderer.drawTextCentered(QString("Available"), cx, y() + h() / 2, smallFont, textColor);
     }
     
-    // Server name
-    if (!m_serverName.isEmpty()) {
-        renderer.drawText(m_serverName.left(8), x() + 5, y() + h()/2, static_cast<uint8_t>(font()), 0);
+    // Draw server name at bottom if set
+    if (!m_serverName.isEmpty() && m_status == TableStatus::Occupied) {
+        uint8_t smallFont = static_cast<uint8_t>(FontId::Times14);
+        renderer.drawTextCentered(m_serverName, cx, y() + h() - 5, smallFont, textColor);
     }
 }
 
@@ -136,12 +153,26 @@ void GuestCountZone::setGuestCount(int count) {
 void GuestCountZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
     
-    // Draw label
-    renderer.drawText(QString("Guests:"), x() + 10, y() + 15, static_cast<uint8_t>(font()), 0);
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
+    uint8_t fontId = static_cast<uint8_t>(font());
+    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times24);
     
-    // Draw current count
+    // Draw title
+    renderer.drawTextCentered(QString("How Many Guests?"), cx, y() + 25, fontId, textColor);
+    
+    // Draw current count large in center
+    uint8_t bigFont = static_cast<uint8_t>(FontId::Times34B);
     QString count = QString::number(m_guestCount);
-    renderer.drawText(count, x() + w()/2, y() + h()/2, static_cast<uint8_t>(font()), 0);
+    if (m_guestCount == 0) {
+        count = "_";  // Show cursor/placeholder
+    }
+    renderer.drawTextCentered(count, cx, y() + h() / 2 + 10, bigFont, textColor);
+    
+    // Draw range hint at bottom
+    uint8_t smallFont = static_cast<uint8_t>(FontId::Times14);
+    QString hint = QString("(%1-%2)").arg(m_minGuests).arg(m_maxGuests);
+    renderer.drawTextCentered(hint, cx, y() + h() - 15, smallFont, textColor);
 }
 
 int GuestCountZone::touch(Terminal* term, int tx, int ty) {
@@ -170,6 +201,11 @@ TransferZone::TransferZone()
 void TransferZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
     
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
+    uint8_t fontId = static_cast<uint8_t>(font());
+    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times_20);
+    
     QString label;
     switch (m_transferType) {
         case TransferType::Table:
@@ -183,7 +219,7 @@ void TransferZone::renderContent(Renderer& renderer, Terminal* term) {
             break;
     }
     
-    renderer.drawText(label, x() + 10, y() + h()/2, static_cast<uint8_t>(font()), 0);
+    renderer.drawTextCentered(label, cx, y() + h() / 2, fontId, textColor);
 }
 
 int TransferZone::touch(Terminal* term, int tx, int ty) {

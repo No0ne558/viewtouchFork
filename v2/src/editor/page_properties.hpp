@@ -39,6 +39,7 @@ private:
 
     Page* page_;
     
+    QSpinBox* idSpinBox_;
     QLineEdit* nameEdit_;
     QComboBox* typeCombo_;
     QSpinBox* widthSpinBox_;

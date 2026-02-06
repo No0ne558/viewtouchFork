@@ -278,6 +278,24 @@ void Renderer::drawText(const QString& text, int x, int y,
     painter_.drawText(scaleX(x), scaleY(y), text);
 }
 
+void Renderer::drawTextCentered(const QString& text, int cx, int cy,
+                                uint8_t fontId, uint8_t colorId) {
+    if (!painter_.isActive() || text.isEmpty()) return;
+    
+    QFont f = font(fontId);
+    painter_.setFont(f);
+    painter_.setPen(color(colorId));
+    
+    QFontMetrics fm(f);
+    int textW = fm.horizontalAdvance(text);
+    int textH = fm.height();
+    
+    int x = cx - textW / 2;
+    int y = cy + textH / 4;  // Adjust for baseline
+    
+    painter_.drawText(scaleX(x), scaleY(y), text);
+}
+
 QSize Renderer::textSize(const QString& text, uint8_t fontId) const {
     QFontMetrics fm(font(fontId));
     return QSize(fm.horizontalAdvance(text), fm.height());

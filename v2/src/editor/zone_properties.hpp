@@ -44,6 +44,7 @@ class ItemFamilyComboBox;
 class SalesTypeComboBox;
 class PrinterComboBox;
 class CallOrderComboBox;
+class Page;
 
 /*************************************************************
  * ZonePropertiesDialog - Edit button/zone properties
@@ -53,10 +54,16 @@ class ZonePropertiesDialog : public QDialog {
     Q_OBJECT
 
 public:
-    explicit ZonePropertiesDialog(Zone* zone, QWidget* parent = nullptr);
+    explicit ZonePropertiesDialog(Zone* zone, Page* page = nullptr, QWidget* parent = nullptr);
     ~ZonePropertiesDialog();
 
     void applyChanges();
+    
+    // Returns true if zone was replaced (type changed)
+    bool wasZoneReplaced() const { return zoneReplaced_; }
+    
+    // Get the new zone if it was replaced
+    Zone* replacementZone() const { return replacementZone_; }
 
 private slots:
     void onApply();
@@ -78,9 +85,14 @@ private:
     void setupItemTab();
     void loadFromZone();
     void saveToZone();
+    void replaceZoneIfTypeChanged();
     void applyZoneTypeDefaults(ZoneType type);
 
     Zone* zone_;
+    Page* page_ = nullptr;
+    ZoneType originalType_ = ZoneType::Undefined;
+    bool zoneReplaced_ = false;
+    Zone* replacementZone_ = nullptr;
     
     // Tab widget
     QTabWidget* mainTabWidget_;

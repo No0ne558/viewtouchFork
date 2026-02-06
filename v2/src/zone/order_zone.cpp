@@ -151,60 +151,93 @@ void OrderZone::renderContent(Renderer& renderer, Terminal* term) {
     int startIdx = m_currentPage * m_itemsPerPage;
     int endIdx = qMin(startIdx + m_itemsPerPage, filtered.size());
     
-    int lineHeight = 20;
-    int yPos = y() + 5;
+    uint8_t fontId = static_cast<uint8_t>(font());
+    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times14);
+    uint8_t boldFontId = static_cast<uint8_t>(FontId::Times14B);
     
+    int textColor = static_cast<int>(effectiveColor());
+    int lineHeight = 22;
+    int yPos = y() + 10;
+    int leftMargin = x() + 10;
+    int rightEdge = x() + w() - 10;
+    
+    // Header line
+    renderer.drawText(QString("Qty  Item"), leftMargin, yPos, boldFontId, textColor);
+    renderer.drawText(QString("Price"), rightEdge - 50, yPos, boldFontId, textColor);
+    yPos += lineHeight;
+    
+    // Draw separator line
+    renderer.drawLine(leftMargin, yPos - 5, rightEdge, yPos - 5, textColor, 1);
+    
+    // Draw order items
     for (int i = startIdx; i < endIdx; ++i) {
         const auto& item = filtered[i];
         
         // Highlight selected item
         bool selected = (i == m_selectedIndex);
-        Q_UNUSED(selected);  // Used for future highlighting
+        if (selected) {
+            QRect selRect(leftMargin - 2, yPos - 2, w() - 16, lineHeight);
+            renderer.fillRect(selRect, static_cast<uint8_t>(TextureId::LitSand));
+        }
         
         // Draw quantity
         QString qty = QString("%1").arg(item.quantity);
-        renderer.drawText(qty, x() + 5, yPos, static_cast<uint8_t>(font()), 0);
+        renderer.drawText(qty, leftMargin, yPos, fontId, textColor);
         
         // Draw name (with void/comp indicators)
         QString itemName = item.name;
-        if (item.isVoid) itemName = "VOID " + itemName;
-        if (item.isComp) itemName = "COMP " + itemName;
-        renderer.drawText(itemName, x() + 30, yPos, static_cast<uint8_t>(font()), 0);
+        if (item.isVoid) itemName = "[VOID] " + itemName;
+        else if (item.isComp) itemName = "[COMP] " + itemName;
+        renderer.drawText(itemName, leftMargin + 30, yPos, fontId, textColor);
         
         // Draw price
         QString price = QString("$%1.%2")
             .arg(item.price / 100)
             .arg(item.price % 100, 2, 10, QChar('0'));
-        renderer.drawText(price, x() + w() - 60, yPos, static_cast<uint8_t>(font()), 0);
-        
-        // Draw modifiers
-        for (const auto& mod : item.modifiers) {
-            yPos += lineHeight - 5;
-            renderer.drawText(QString("  ") + mod, x() + 40, yPos, static_cast<uint8_t>(font()), 0);
-        }
+        renderer.drawText(price, rightEdge - 50, yPos, fontId, textColor);
         
         yPos += lineHeight;
+        
+        // Draw modifiers indented
+        for (const auto& mod : item.modifiers) {
+            renderer.drawText(QString("  - ") + mod, leftMargin + 40, yPos, fontId, textColor);
+            yPos += lineHeight - 4;
+        }
     }
     
     // Draw totals at bottom
-    int totalY = y() + h() - 40;
+    int totalY = y() + h() - 55;
+    renderer.drawLine(leftMargin, totalY - 5, rightEdge, totalY - 5, textColor, 1);
     
-    QString subtotalStr = QString("Subtotal: $%1.%2")
+    QString subtotalStr = QString("Subtotal:");
+    renderer.drawText(subtotalStr, leftMargin, totalY, fontId, textColor);
+    QString subtotalAmt = QString("$%1.%2")
         .arg(subtotal() / 100)
         .arg(subtotal() % 100, 2, 10, QChar('0'));
-    renderer.drawText(subtotalStr, x() + w() - 120, totalY, static_cast<uint8_t>(font()), 0);
+    renderer.drawText(subtotalAmt, rightEdge - 60, totalY, fontId, textColor);
     
     if (m_taxTotal > 0) {
-        QString taxStr = QString("Tax: $%1.%2")
+        totalY += lineHeight;
+        QString taxStr = QString("Tax:");
+        renderer.drawText(taxStr, leftMargin, totalY, fontId, textColor);
+        QString taxAmt = QString("$%1.%2")
             .arg(m_taxTotal / 100)
             .arg(m_taxTotal % 100, 2, 10, QChar('0'));
-        renderer.drawText(taxStr, x() + w() - 120, totalY + 15, static_cast<uint8_t>(font()), 0);
+        renderer.drawText(taxAmt, rightEdge - 60, totalY, fontId, textColor);
     }
     
-    // Page indicator
+    // Grand total in bold
+    totalY += lineHeight;
+    renderer.drawText(QString("TOTAL:"), leftMargin, totalY, boldFontId, textColor);
+    QString grandTotalAmt = QString("$%1.%2")
+        .arg(grandTotal() / 100)
+        .arg(grandTotal() % 100, 2, 10, QChar('0'));
+    renderer.drawText(grandTotalAmt, rightEdge - 60, totalY, boldFontId, textColor);
+    
+    // Page indicator if needed
     if (pageCount() > 1) {
-        QString pageStr = QString("Page %1/%2").arg(m_currentPage + 1).arg(pageCount());
-        renderer.drawText(pageStr, x() + 5, y() + h() - 15, static_cast<uint8_t>(font()), 0);
+        QString pageStr = QString("Page %1 of %2").arg(m_currentPage + 1).arg(pageCount());
+        renderer.drawTextCentered(pageStr, x() + w() / 2, y() + h() - 10, fontId, textColor);
     }
 }
 
@@ -240,11 +273,17 @@ SeatNavZone::SeatNavZone()
 void SeatNavZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
     
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
+    uint8_t fontId = static_cast<uint8_t>(font());
+    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times_20);
+    uint8_t smallFontId = static_cast<uint8_t>(FontId::Times14);
+    
     QString label = (m_direction == NavDirection::Prior) ? "< Prev Seat" : "Next Seat >";
-    renderer.drawText(label, x() + 10, y() + h()/2, static_cast<uint8_t>(font()), 0);
+    renderer.drawTextCentered(label, cx, y() + h() / 3, fontId, textColor);
     
     QString seatStr = QString("Seat %1").arg(m_currentSeat);
-    renderer.drawText(seatStr, x() + w()/2 - 20, y() + h() - 15, static_cast<uint8_t>(font()), 0);
+    renderer.drawTextCentered(seatStr, cx, y() + h() * 2 / 3, smallFontId, textColor);
 }
 
 int SeatNavZone::touch(Terminal* term, int tx, int ty) {
@@ -285,8 +324,13 @@ CheckNavZone::CheckNavZone()
 void CheckNavZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
     
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
+    uint8_t fontId = static_cast<uint8_t>(font());
+    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times_20);
+    
     QString label = (m_direction == NavDirection::Prior) ? "< Prev Check" : "Next Check >";
-    renderer.drawText(label, x() + 10, y() + h()/2, static_cast<uint8_t>(font()), 0);
+    renderer.drawTextCentered(label, cx, y() + h() / 2, fontId, textColor);
 }
 
 int CheckNavZone::touch(Terminal* term, int tx, int ty) {
@@ -314,8 +358,12 @@ ItemModZone::ItemModZone()
 void ItemModZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
     
-    QString label = (m_modType == ModType::Increase) ? "+" : "-";
-    renderer.drawText(label, x() + w()/2 - 5, y() + h()/2, static_cast<uint8_t>(font()), 0);
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
+    uint8_t bigFontId = static_cast<uint8_t>(FontId::Times34B);
+    
+    QString label = (m_modType == ModType::Increase) ? "+" : "−";  // Using proper minus sign
+    renderer.drawTextCentered(label, cx, y() + h() / 2, bigFontId, textColor);
 }
 
 int ItemModZone::touch(Terminal* term, int tx, int ty) {

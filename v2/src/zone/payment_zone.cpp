@@ -200,11 +200,21 @@ QString TenderZone::tenderName() const {
 void TenderZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
     
-    renderer.drawText(tenderName(), x() + 10, y() + h()/2, static_cast<uint8_t>(font()), 0);
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
+    uint8_t fontId = static_cast<uint8_t>(font());
+    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times_20);
     
+    // Draw tender name centered
+    renderer.drawTextCentered(tenderName(), cx, y() + h() / 3, fontId, textColor);
+    
+    // Draw fixed amount if set
     if (m_fixedAmount > 0) {
-        QString amtStr = QString("$%1").arg(m_fixedAmount / 100);
-        renderer.drawText(amtStr, x() + w() - 50, y() + h()/2, static_cast<uint8_t>(font()), 0);
+        QString amtStr = QString("$%1.%2")
+            .arg(m_fixedAmount / 100)
+            .arg(m_fixedAmount % 100, 2, 10, QChar('0'));
+        uint8_t priceFontId = static_cast<uint8_t>(FontId::Times14);
+        renderer.drawTextCentered(amtStr, cx, y() + h() * 2 / 3, priceFontId, textColor);
     }
 }
 
@@ -241,7 +251,14 @@ QString DrawerZone::actionLabel() const {
 
 void DrawerZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
-    renderer.drawText(actionLabel(), x() + 10, y() + h()/2, static_cast<uint8_t>(font()), 0);
+    
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
+    uint8_t fontId = static_cast<uint8_t>(font());
+    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times_20);
+    
+    // Draw action label centered
+    renderer.drawTextCentered(actionLabel(), cx, y() + h() / 2, fontId, textColor);
 }
 
 int DrawerZone::touch(Terminal* term, int tx, int ty) {
@@ -281,7 +298,14 @@ QString SplitCheckZone::modeLabel() const {
 
 void SplitCheckZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
-    renderer.drawText(modeLabel(), x() + 10, y() + h()/2, static_cast<uint8_t>(font()), 0);
+    
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
+    uint8_t fontId = static_cast<uint8_t>(font());
+    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times_20);
+    
+    // Draw split mode centered
+    renderer.drawTextCentered(modeLabel(), cx, y() + h() / 2, fontId, textColor);
 }
 
 int SplitCheckZone::touch(Terminal* term, int tx, int ty) {
@@ -307,29 +331,36 @@ EndDayZone::EndDayZone()
 void EndDayZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
     
+    int cx = x() + w() / 2;
+    int textColor = static_cast<int>(effectiveColor());
+    uint8_t fontId = static_cast<uint8_t>(font());
+    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times_20);
+    uint8_t smallFontId = static_cast<uint8_t>(FontId::Times14);
+    
     if (m_confirmed) {
-        renderer.drawText(QString("Confirm End Day?"), x() + 10, y() + h()/2, static_cast<uint8_t>(font()), 0);
+        renderer.drawTextCentered("Confirm End Day?", cx, y() + h() / 2, fontId, textColor);
     } else {
-        renderer.drawText(QString("End Day"), x() + 10, y() + 15, static_cast<uint8_t>(font()), 0);
+        renderer.drawTextCentered("End Day", cx, y() + h() / 4, fontId, textColor);
         
-        // Show pre-check status
-        int yPos = y() + 35;
+        // Show pre-check status centered
+        int yPos = y() + h() / 2;
+        int lineHeight = 18;
         
         if (m_openCheckCount > 0) {
             QString str = QString("Open Checks: %1").arg(m_openCheckCount);
-            renderer.drawText(str, x() + 20, yPos, static_cast<uint8_t>(font()), 0);
-            yPos += 15;
+            renderer.drawTextCentered(str, cx, yPos, smallFontId, textColor);
+            yPos += lineHeight;
         }
         
         if (m_openDrawerCount > 0) {
             QString str = QString("Open Drawers: %1").arg(m_openDrawerCount);
-            renderer.drawText(str, x() + 20, yPos, static_cast<uint8_t>(font()), 0);
-            yPos += 15;
+            renderer.drawTextCentered(str, cx, yPos, smallFontId, textColor);
+            yPos += lineHeight;
         }
         
         if (m_clockedInCount > 0) {
             QString str = QString("Clocked In: %1").arg(m_clockedInCount);
-            renderer.drawText(str, x() + 20, yPos, static_cast<uint8_t>(font()), 0);
+            renderer.drawTextCentered(str, cx, yPos, smallFontId, textColor);
         }
     }
 }

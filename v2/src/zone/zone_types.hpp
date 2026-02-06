@@ -233,6 +233,7 @@ signals:
     void qualifierSelected(int type, const QString& name);
 
 protected:
+    void renderContent(Renderer& renderer, Terminal* term) override;
     int touch(Terminal* term, int tx, int ty) override;
     
 private:

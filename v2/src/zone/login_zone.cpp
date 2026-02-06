@@ -147,21 +147,29 @@ bool LoginZone::clockOff(int employeeId) {
 void LoginZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
     
-    // Draw prompt text
+    int textColor = static_cast<int>(effectiveColor());
+    int cx = x() + w() / 2;  // Center X
+    int lineHeight = 30;
+    int topMargin = 20;
+    
+    // Title at top
+    QString title = "Welcome";
+    renderer.drawTextCentered(title, cx, y() + topMargin, static_cast<uint8_t>(font()), textColor);
+    
+    // Prompt text in middle
     QString prompt = promptText();
-    renderer.drawText(prompt, x() + 10, y() + 20, static_cast<uint8_t>(font()), 0);
+    renderer.drawTextCentered(prompt, cx, y() + h() / 3, static_cast<uint8_t>(font()), textColor);
     
-    // Draw input field
-    QString display = inputDisplay();
-    if (!display.isEmpty()) {
-        renderer.drawText(display, x() + 10, y() + h() / 2, static_cast<uint8_t>(font()), 0);
-    }
-    
-    // Draw cursor if in input mode
+    // Input display area - show X's for digits, underscore for cursor
     if (m_loginState == LoginState::GetUserId || 
         m_loginState == LoginState::GetPassword) {
-        int cursorX = x() + 10 + display.length() * 12;  // Approximate char width
-        renderer.drawText(QString("_"), cursorX, y() + h() / 2, static_cast<uint8_t>(font()), 0);
+        QString display = inputDisplay();
+        QString inputLine = display + "_";  // Add cursor
+        renderer.drawTextCentered(inputLine, cx, y() + h() / 2 + lineHeight, static_cast<uint8_t>(font()), textColor);
+    } else if (m_loginState == LoginState::UserOnline) {
+        // Show user name when logged in
+        QString hello = QString("Hello, %1").arg(m_userName);
+        renderer.drawTextCentered(hello, cx, y() + h() / 2, static_cast<uint8_t>(font()), textColor);
     }
 }
 
