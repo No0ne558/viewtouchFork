@@ -45,6 +45,7 @@ private slots:
     void onApply();
     void onOk();
     void onStateTabChanged(int index);
+    void onZoneTypeChanged(int index);
     void updatePreview();
 
 private:
@@ -54,6 +55,7 @@ private:
     void setupBehaviorTab();
     void loadFromZone();
     void saveToZone();
+    void applyZoneTypeDefaults(ZoneType type);
 
     Zone* zone_;
     

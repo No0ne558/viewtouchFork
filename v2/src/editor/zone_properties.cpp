@@ -69,6 +69,10 @@ void ZonePropertiesDialog::setupUi() {
     zoneTypeCombo_ = new ZoneTypeComboBox();
     generalLayout->addRow(tr("Zone Type:"), zoneTypeCombo_);
     
+    // Connect zone type change to update defaults
+    connect(zoneTypeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ZonePropertiesDialog::onZoneTypeChanged);
+    
     tabWidget->addTab(generalTab, tr("General"));
     
     // Appearance tab
@@ -239,6 +243,384 @@ void ZonePropertiesDialog::onOk() {
 
 void ZonePropertiesDialog::onStateTabChanged(int index) {
     updatePreview();
+}
+
+void ZonePropertiesDialog::onZoneTypeChanged(int index) {
+    ZoneType type = zoneTypeCombo_->currentZoneType();
+    applyZoneTypeDefaults(type);
+    updatePreview();
+}
+
+void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
+    // Apply default frame, texture, color, font, behavior based on zone type
+    // This matches the original ViewTouch zone defaults
+    
+    ZoneFrame defaultFrame = ZoneFrame::Border;
+    uint8_t defaultTexture = static_cast<uint8_t>(TextureId::DarkWood);
+    uint8_t defaultColor = static_cast<uint8_t>(TextColor::White);
+    FontId defaultFont = FontId::Times24;
+    ZoneBehavior defaultBehavior = ZoneBehavior::Blink;
+    
+    switch (type) {
+        // Basic buttons
+        case ZoneType::Simple:
+        case ZoneType::Standard:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::Toggle:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::GreenTexture);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::Conditional:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::Comment:
+            defaultFrame = ZoneFrame::None;
+            defaultTexture = TEXTURE_CLEAR;
+            defaultColor = static_cast<uint8_t>(TextColor::Gray);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::Switch:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::GrayParchment);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        // Menu items
+        case ZoneType::Item:
+        case ZoneType::ItemNormal:
+        case ZoneType::ItemModifier:
+        case ZoneType::ItemMethod:
+        case ZoneType::ItemSubstitute:
+        case ZoneType::ItemPound:
+        case ZoneType::ItemAdmission:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::GreenTexture);
+            defaultFont = FontId::Times20;
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::Qualifier:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::GreenMarble);
+            defaultFont = FontId::Times20;
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        // Payments
+        case ZoneType::Tender:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::DarkWood);
+            defaultFont = FontId::Times24B;
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::TenderSet:
+        case ZoneType::PaymentEntry:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::DarkWood);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::Payout:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        // Tables
+        case ZoneType::Table:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::GrayMarble);
+            defaultFont = FontId::Times24B;
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::TableAssign:
+        case ZoneType::CheckDisplay:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::CheckList:
+        case ZoneType::CheckEdit:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::SplitCheck:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::GreenMarble);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        // User management
+        case ZoneType::Login:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
+            defaultFont = FontId::Times34B;
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::Logout:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            defaultFont = FontId::Times24B;
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::UserEdit:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::GuestCount:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::GrayMarble);
+            defaultFont = FontId::Times34B;
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        // Order entry
+        case ZoneType::OrderEntry:
+        case ZoneType::OrderDisplay:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::Parchment);
+            defaultColor = static_cast<uint8_t>(TextColor::Black);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::OrderPage:
+        case ZoneType::OrderFlow:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::OrderAdd:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::GreenTexture);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::OrderDelete:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::OrderComment:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::OrangeTexture);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        // Settings
+        case ZoneType::Settings:
+        case ZoneType::TaxSettings:
+        case ZoneType::TaxSet:
+        case ZoneType::MoneySet:
+        case ZoneType::TimeSettings:
+        case ZoneType::CCSettings:
+        case ZoneType::CCMsgSettings:
+        case ZoneType::ReceiptSet:
+        case ZoneType::Receipts:
+        case ZoneType::CalculationSettings:
+        case ZoneType::JobSecurity:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::GrayParchment);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::Developer:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        // Hardware
+        case ZoneType::Hardware:
+        case ZoneType::PrintTarget:
+        case ZoneType::ItemTarget:
+        case ZoneType::VideoTarget:
+        case ZoneType::SplitKitchen:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::GrayParchment);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::CDU:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::Black);
+            defaultColor = static_cast<uint8_t>(TextColor::Green);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::DrawerManage:
+        case ZoneType::DrawerAssign:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::DarkWood);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        // Reports
+        case ZoneType::Report:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::Parchment);
+            defaultColor = static_cast<uint8_t>(TextColor::Black);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::Chart:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::WhiteTexture);
+            defaultColor = static_cast<uint8_t>(TextColor::Black);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::Search:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::Read:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::Parchment);
+            defaultColor = static_cast<uint8_t>(TextColor::Black);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        // Inventory
+        case ZoneType::Inventory:
+        case ZoneType::Recipe:
+        case ZoneType::Vendor:
+        case ZoneType::ItemList:
+        case ZoneType::Invoice:
+        case ZoneType::Account:
+        case ZoneType::RevenueGroups:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::TanParchment);
+            defaultColor = static_cast<uint8_t>(TextColor::Black);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::Expense:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        // Scheduling
+        case ZoneType::Schedule:
+        case ZoneType::Labor:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::TanParchment);
+            defaultColor = static_cast<uint8_t>(TextColor::Black);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::EndDay:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            defaultFont = FontId::Times24B;
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        // Customer
+        case ZoneType::CustomerInfo:
+        case ZoneType::CreditCardList:
+        case ZoneType::Merchant:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::TanParchment);
+            defaultColor = static_cast<uint8_t>(TextColor::Black);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        // System
+        case ZoneType::Command:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::Phrase:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::TanParchment);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::License:
+        case ZoneType::ExpireMsg:
+            defaultFrame = ZoneFrame::DoubleBorder;
+            defaultTexture = static_cast<uint8_t>(TextureId::GrayParchment);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::KillSystem:
+        case ZoneType::ClearSystem:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::Lava);
+            defaultFont = FontId::Times24B;
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        // Status/Image buttons
+        case ZoneType::StatusButton:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
+            defaultBehavior = ZoneBehavior::None;
+            break;
+            
+        case ZoneType::ImageButton:
+            defaultFrame = ZoneFrame::None;
+            defaultTexture = TEXTURE_CLEAR;
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        case ZoneType::IndexTab:
+        case ZoneType::LanguageButton:
+            defaultFrame = ZoneFrame::Border;
+            defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
+            defaultBehavior = ZoneBehavior::Blink;
+            break;
+            
+        default:
+            // Use defaults set above
+            break;
+    }
+    
+    // Apply to state widgets (Normal state)
+    stateWidgets_[0].frameCombo->setCurrentFrame(defaultFrame);
+    stateWidgets_[0].textureCombo->setCurrentTextureId(defaultTexture);
+    stateWidgets_[0].colorCombo->setCurrentColorId(defaultColor);
+    
+    // Selected state - typically brighter/highlighted
+    stateWidgets_[1].frameCombo->setCurrentFrame(defaultFrame);
+    stateWidgets_[1].textureCombo->setCurrentTextureId(
+        static_cast<uint8_t>(TextureId::LitSand));  // Highlighted
+    stateWidgets_[1].colorCombo->setCurrentColorId(defaultColor);
+    
+    // Alternate state - same as normal
+    stateWidgets_[2].frameCombo->setCurrentFrame(defaultFrame);
+    stateWidgets_[2].textureCombo->setCurrentTextureId(defaultTexture);
+    stateWidgets_[2].colorCombo->setCurrentColorId(defaultColor);
+    
+    // Apply font and behavior
+    fontCombo_->setCurrentFontId(defaultFont);
+    behaviorCombo_->setCurrentBehavior(defaultBehavior);
 }
 
 void ZonePropertiesDialog::updatePreview() {
