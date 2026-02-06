@@ -59,6 +59,22 @@ set(EDITOR_SOURCES
     src/editor/page_properties.cpp
 )
 
+# Business logic
+set(BUSINESS_SOURCES
+    src/business/check.hpp
+    src/business/check.cpp
+    src/business/employee.hpp
+    src/business/employee.cpp
+    src/business/menu.hpp
+    src/business/menu.cpp
+)
+
+# Data management
+set(DATA_SOURCES
+    src/data/settings.hpp
+    src/data/settings.cpp
+)
+
 # Main application
 set(APP_SOURCES
     src/main.cpp
@@ -74,6 +90,8 @@ add_executable(viewtouch2
     ${TERMINAL_SOURCES}
     ${RENDER_SOURCES}
     ${EDITOR_SOURCES}
+    ${BUSINESS_SOURCES}
+    ${DATA_SOURCES}
     ${APP_SOURCES}
 )
 
