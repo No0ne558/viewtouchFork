@@ -47,45 +47,44 @@ constexpr uint8_t COLOR_CLEAR        = 253;
 constexpr uint8_t COLOR_UNCHANGED    = 252;
 
 /*************************************************************
- * Texture/Image IDs - matches original ViewTouch
+ * Texture/Image IDs - matches original ViewTouch exactly
  *************************************************************/
 enum class TextureId : uint8_t {
-    Default        = 0,
-    Sand           = 1,
-    LiteSand       = 2,
-    DarkSand       = 3,
-    Wood           = 4,
-    LiteWood       = 5,
-    DarkWood       = 6,
-    Parchment      = 7,
-    LiteParchment  = 8,
-    DarkParchment  = 9,
-    Marble         = 10,
-    LiteMarble     = 11,
-    DarkMarble     = 12,
-    Leather        = 13,
-    LiteLeather    = 14,
-    DarkLeather    = 15,
-    Canvas         = 16,
-    LiteCanvas     = 17,
-    DarkCanvas     = 18,
-    White          = 19,
-    Gray           = 20,
-    Black          = 21,
-    Red            = 22,
-    DarkRed        = 23,
-    Green          = 24,
-    DarkGreen      = 25,
-    Blue           = 26,
-    DarkBlue       = 27,
-    Yellow         = 28,
-    Orange         = 29,
-    Tan            = 30,
-    Teal           = 31,
-    DarkTeal       = 32,
-    BlueGreen      = 33,
-    DarkBlueGreen  = 34,
-    Count          = 35
+    Sand              = 0,   // sand-8.xpm
+    LitSand           = 1,   // litsand-6.xpm
+    DarkSand          = 2,   // darksand-6.xpm
+    LiteWood          = 3,   // litewood-8.xpm
+    Wood              = 4,   // wood-10.xpm
+    DarkWood          = 5,   // darkwood-10.xpm
+    GrayParchment     = 6,   // grayparchment-8.xpm
+    GrayMarble        = 7,   // graymarble-12.xpm
+    GreenMarble       = 8,   // greenmarble-12.xpm
+    Parchment         = 9,   // parchment-6.xpm
+    Pearl             = 10,  // pearl-8.xpm
+    Canvas            = 11,  // canvas-8.xpm
+    TanParchment      = 12,  // tanparchment-8.xpm
+    Smoke             = 13,  // smoke-4.xpm
+    Leather           = 14,  // leather-8.xpm
+    BlueParchment     = 15,  // blueparchment.xpm
+    Gradient          = 16,  // gradient-8.xpm
+    GradientBrown     = 17,  // gradient-brown.xpm
+    Black             = 18,  // black.xpm
+    GreySand          = 19,  // greySand.xpm
+    WhiteMesh         = 20,  // whiteMesh.xpm
+    CarbonFiber       = 21,  // carbonfiber-128-6.xpm
+    WhiteTexture      = 22,  // whitetexture-128-32.xpm
+    DarkOrangeTexture = 23,  // darkorangetexture-128-32.xpm
+    YellowTexture     = 24,  // yellowtexture-128-32.xpm
+    GreenTexture      = 25,  // greentexture-128-32.xpm
+    OrangeTexture     = 26,  // orangetexture-128-32.xpm
+    BlueTexture       = 27,  // bluetexture-128-32.xpm
+    PoolTable         = 28,  // pooltable-256.xpm
+    Test              = 29,  // test-256.xpm
+    DiamondLeather    = 30,  // diamondleather-256.xpm
+    Bread             = 31,  // bread-256.xpm
+    Lava              = 32,  // lava-256.xpm
+    DarkMarble        = 33,  // darkmarble-256.xpm
+    Count             = 34
 };
 
 // Special texture values

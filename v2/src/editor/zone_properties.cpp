@@ -284,39 +284,41 @@ uint8_t ColorComboBox::currentColorId() const {
 TextureComboBox::TextureComboBox(QWidget* parent)
     : QComboBox(parent)
 {
-    addItem(tr("Default"), static_cast<int>(TextureId::Default));
+    // Textures matching original ViewTouch XPM files
     addItem(tr("Sand"), static_cast<int>(TextureId::Sand));
-    addItem(tr("Lite Sand"), static_cast<int>(TextureId::LiteSand));
+    addItem(tr("Lite Sand"), static_cast<int>(TextureId::LitSand));
     addItem(tr("Dark Sand"), static_cast<int>(TextureId::DarkSand));
-    addItem(tr("Wood"), static_cast<int>(TextureId::Wood));
     addItem(tr("Lite Wood"), static_cast<int>(TextureId::LiteWood));
+    addItem(tr("Wood"), static_cast<int>(TextureId::Wood));
     addItem(tr("Dark Wood"), static_cast<int>(TextureId::DarkWood));
+    addItem(tr("Gray Parchment"), static_cast<int>(TextureId::GrayParchment));
+    addItem(tr("Gray Marble"), static_cast<int>(TextureId::GrayMarble));
+    addItem(tr("Green Marble"), static_cast<int>(TextureId::GreenMarble));
     addItem(tr("Parchment"), static_cast<int>(TextureId::Parchment));
-    addItem(tr("Lite Parchment"), static_cast<int>(TextureId::LiteParchment));
-    addItem(tr("Dark Parchment"), static_cast<int>(TextureId::DarkParchment));
-    addItem(tr("Marble"), static_cast<int>(TextureId::Marble));
-    addItem(tr("Lite Marble"), static_cast<int>(TextureId::LiteMarble));
-    addItem(tr("Dark Marble"), static_cast<int>(TextureId::DarkMarble));
-    addItem(tr("Leather"), static_cast<int>(TextureId::Leather));
-    addItem(tr("Lite Leather"), static_cast<int>(TextureId::LiteLeather));
-    addItem(tr("Dark Leather"), static_cast<int>(TextureId::DarkLeather));
+    addItem(tr("Pearl"), static_cast<int>(TextureId::Pearl));
     addItem(tr("Canvas"), static_cast<int>(TextureId::Canvas));
-    addItem(tr("Lite Canvas"), static_cast<int>(TextureId::LiteCanvas));
-    addItem(tr("Dark Canvas"), static_cast<int>(TextureId::DarkCanvas));
-    addItem(tr("White"), static_cast<int>(TextureId::White));
-    addItem(tr("Gray"), static_cast<int>(TextureId::Gray));
+    addItem(tr("Tan Parchment"), static_cast<int>(TextureId::TanParchment));
+    addItem(tr("Smoke"), static_cast<int>(TextureId::Smoke));
+    addItem(tr("Leather"), static_cast<int>(TextureId::Leather));
+    addItem(tr("Blue Parchment"), static_cast<int>(TextureId::BlueParchment));
+    addItem(tr("Gradient"), static_cast<int>(TextureId::Gradient));
+    addItem(tr("Brown Gradient"), static_cast<int>(TextureId::GradientBrown));
     addItem(tr("Black"), static_cast<int>(TextureId::Black));
-    addItem(tr("Red"), static_cast<int>(TextureId::Red));
-    addItem(tr("Dark Red"), static_cast<int>(TextureId::DarkRed));
-    addItem(tr("Green"), static_cast<int>(TextureId::Green));
-    addItem(tr("Dark Green"), static_cast<int>(TextureId::DarkGreen));
-    addItem(tr("Blue"), static_cast<int>(TextureId::Blue));
-    addItem(tr("Dark Blue"), static_cast<int>(TextureId::DarkBlue));
-    addItem(tr("Yellow"), static_cast<int>(TextureId::Yellow));
-    addItem(tr("Orange"), static_cast<int>(TextureId::Orange));
-    addItem(tr("Tan"), static_cast<int>(TextureId::Tan));
-    addItem(tr("Teal"), static_cast<int>(TextureId::Teal));
-    addItem(tr("Dark Teal"), static_cast<int>(TextureId::DarkTeal));
+    addItem(tr("Grey Sand"), static_cast<int>(TextureId::GreySand));
+    addItem(tr("White Mesh"), static_cast<int>(TextureId::WhiteMesh));
+    addItem(tr("Carbon Fiber"), static_cast<int>(TextureId::CarbonFiber));
+    addItem(tr("White Texture"), static_cast<int>(TextureId::WhiteTexture));
+    addItem(tr("Dark Orange"), static_cast<int>(TextureId::DarkOrangeTexture));
+    addItem(tr("Yellow Texture"), static_cast<int>(TextureId::YellowTexture));
+    addItem(tr("Green Texture"), static_cast<int>(TextureId::GreenTexture));
+    addItem(tr("Orange Texture"), static_cast<int>(TextureId::OrangeTexture));
+    addItem(tr("Blue Texture"), static_cast<int>(TextureId::BlueTexture));
+    addItem(tr("Pool Table"), static_cast<int>(TextureId::PoolTable));
+    addItem(tr("Test"), static_cast<int>(TextureId::Test));
+    addItem(tr("Diamond Leather"), static_cast<int>(TextureId::DiamondLeather));
+    addItem(tr("Bread"), static_cast<int>(TextureId::Bread));
+    addItem(tr("Lava"), static_cast<int>(TextureId::Lava));
+    addItem(tr("Dark Marble"), static_cast<int>(TextureId::DarkMarble));
 }
 
 void TextureComboBox::setCurrentTextureId(uint8_t id) {

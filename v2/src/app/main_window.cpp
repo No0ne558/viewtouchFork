@@ -219,13 +219,13 @@ void MainWindow::createDemoPages() {
         
         ZoneState normal;
         normal.frame = ZoneFrame::Raised;
-        normal.texture = static_cast<uint8_t>(TextureId::DarkBlue);
+        normal.texture = static_cast<uint8_t>(TextureId::BlueTexture);
         normal.color = static_cast<uint8_t>(TextColor::White);
         btn->setState(0, normal);
         
         ZoneState selected;
         selected.frame = ZoneFrame::Inset;
-        selected.texture = static_cast<uint8_t>(TextureId::Blue);
+        selected.texture = static_cast<uint8_t>(TextureId::BlueTexture);
         selected.color = static_cast<uint8_t>(TextColor::Yellow);
         btn->setState(1, selected);
         
@@ -248,13 +248,13 @@ void MainWindow::createDemoPages() {
         
         ZoneState normal;
         normal.frame = ZoneFrame::Raised;
-        normal.texture = static_cast<uint8_t>(TextureId::DarkGreen);
+        normal.texture = static_cast<uint8_t>(TextureId::GreenTexture);
         normal.color = static_cast<uint8_t>(TextColor::White);
         btn->setState(0, normal);
         
         ZoneState selected;
         selected.frame = ZoneFrame::Inset;
-        selected.texture = static_cast<uint8_t>(TextureId::Green);
+        selected.texture = static_cast<uint8_t>(TextureId::GreenTexture);
         selected.color = static_cast<uint8_t>(TextColor::White);
         btn->setState(1, selected);
         
@@ -276,13 +276,13 @@ void MainWindow::createDemoPages() {
         
         ZoneState normal;
         normal.frame = ZoneFrame::Raised;
-        normal.texture = static_cast<uint8_t>(TextureId::DarkRed);
+        normal.texture = static_cast<uint8_t>(TextureId::Lava);
         normal.color = static_cast<uint8_t>(TextColor::White);
         btn->setState(0, normal);
         
         ZoneState selected;
         selected.frame = ZoneFrame::Inset;
-        selected.texture = static_cast<uint8_t>(TextureId::Red);
+        selected.texture = static_cast<uint8_t>(TextureId::OrangeTexture);
         selected.color = static_cast<uint8_t>(TextColor::White);
         btn->setState(1, selected);
         
@@ -325,7 +325,7 @@ void MainWindow::createDemoPages() {
     
     ZoneState backNormal;
     backNormal.frame = ZoneFrame::Raised;
-    backNormal.texture = static_cast<uint8_t>(TextureId::Gray);
+    backNormal.texture = static_cast<uint8_t>(TextureId::Smoke);
     backNormal.color = static_cast<uint8_t>(TextColor::Black);
     backBtn->setState(0, backNormal);
     
@@ -342,7 +342,7 @@ void MainWindow::createDemoPages() {
     
     ZoneState orderTitleState;
     orderTitleState.frame = ZoneFrame::Border;
-    orderTitleState.texture = static_cast<uint8_t>(TextureId::DarkBlue);
+    orderTitleState.texture = static_cast<uint8_t>(TextureId::BlueTexture);
     orderTitleState.color = static_cast<uint8_t>(TextColor::White);
     orderTitle->setState(0, orderTitleState);
     static_cast<ButtonZone*>(orderTitle.get())->setLabel(QStringLiteral("Order Entry"));
@@ -383,13 +383,13 @@ void MainWindow::createDemoPages() {
             
             ZoneState normal;
             normal.frame = ZoneFrame::Raised;
-            normal.texture = static_cast<uint8_t>(TextureId::Tan);
+            normal.texture = static_cast<uint8_t>(TextureId::TanParchment);
             normal.color = static_cast<uint8_t>(TextColor::Black);
             btn->setState(0, normal);
             
             ZoneState selected;
             selected.frame = ZoneFrame::Inset;
-            selected.texture = static_cast<uint8_t>(TextureId::Yellow);
+            selected.texture = static_cast<uint8_t>(TextureId::YellowTexture);
             selected.color = static_cast<uint8_t>(TextColor::Black);
             btn->setState(1, selected);
             
@@ -407,7 +407,7 @@ void MainWindow::createDemoPages() {
     
     ZoneState orderListState;
     orderListState.frame = ZoneFrame::Inset;
-    orderListState.texture = static_cast<uint8_t>(TextureId::White);
+    orderListState.texture = static_cast<uint8_t>(TextureId::WhiteTexture);
     orderListState.color = static_cast<uint8_t>(TextColor::Black);
     orderList->setState(0, orderListState);
     static_cast<ButtonZone*>(orderList.get())->setLabel(QStringLiteral("Order Items"));
@@ -521,13 +521,13 @@ void MainWindow::onNewZoneRequested() {
     
     ZoneState normal;
     normal.frame = ZoneFrame::Raised;
-    normal.texture = static_cast<uint8_t>(TextureId::Gray);
+    normal.texture = static_cast<uint8_t>(TextureId::Smoke);
     normal.color = static_cast<uint8_t>(TextColor::Black);
     zone->setState(0, normal);
     
     ZoneState selected;
     selected.frame = ZoneFrame::Inset;
-    selected.texture = static_cast<uint8_t>(TextureId::Blue);
+    selected.texture = static_cast<uint8_t>(TextureId::BlueTexture);
     selected.color = static_cast<uint8_t>(TextColor::Black);
     zone->setState(1, selected);
     

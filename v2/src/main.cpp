@@ -44,6 +44,9 @@ int main(int argc, char* argv[])
         return 1;
     }
     
+    // Print texture status
+    fprintf(stderr, "ViewTouch V2: Textures loaded, application starting...\n");
+    
     // Show main window
     app.showMainWindow();
     
