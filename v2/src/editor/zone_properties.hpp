@@ -27,6 +27,7 @@ class FrameComboBox;
 class FontComboBox;
 class BehaviorComboBox;
 class ShapeComboBox;
+class ZoneTypeComboBox;
 
 /*************************************************************
  * ZonePropertiesDialog - Edit zone properties
@@ -63,6 +64,7 @@ private:
     QSpinBox* widthSpinBox_;
     QSpinBox* heightSpinBox_;
     QSpinBox* groupSpinBox_;
+    ZoneTypeComboBox* zoneTypeCombo_;
     
     // Appearance tab - for each state
     QTabWidget* stateTabWidget_;
@@ -166,6 +168,19 @@ public:
     
     void setCurrentShape(ZoneShape shape);
     ZoneShape currentShape() const;
+};
+
+/*************************************************************
+ * ZoneTypeComboBox - Combo box for selecting zone types
+ *************************************************************/
+class ZoneTypeComboBox : public QComboBox {
+    Q_OBJECT
+    
+public:
+    explicit ZoneTypeComboBox(QWidget* parent = nullptr);
+    
+    void setCurrentZoneType(ZoneType type);
+    ZoneType currentZoneType() const;
 };
 
 } // namespace vt

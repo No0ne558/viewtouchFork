@@ -66,6 +66,9 @@ void ZonePropertiesDialog::setupUi() {
     groupSpinBox_->setRange(0, 999);
     generalLayout->addRow(tr("Group:"), groupSpinBox_);
     
+    zoneTypeCombo_ = new ZoneTypeComboBox();
+    generalLayout->addRow(tr("Zone Type:"), zoneTypeCombo_);
+    
     tabWidget->addTab(generalTab, tr("General"));
     
     // Appearance tab
@@ -168,6 +171,7 @@ void ZonePropertiesDialog::loadFromZone() {
     widthSpinBox_->setValue(zone_->w());
     heightSpinBox_->setValue(zone_->h());
     groupSpinBox_->setValue(zone_->groupId());
+    zoneTypeCombo_->setCurrentZoneType(zone_->zoneType());
     
     // Appearance - states
     for (int i = 0; i < 3; ++i) {
@@ -197,6 +201,7 @@ void ZonePropertiesDialog::saveToZone() {
     zone_->setRegion(xSpinBox_->value(), ySpinBox_->value(),
                      widthSpinBox_->value(), heightSpinBox_->value());
     zone_->setGroupId(groupSpinBox_->value());
+    zone_->setZoneType(zoneTypeCombo_->currentZoneType());
     
     // Appearance - states
     for (int i = 0; i < 3; ++i) {
@@ -440,6 +445,131 @@ void ShapeComboBox::setCurrentShape(ZoneShape shape) {
 
 ZoneShape ShapeComboBox::currentShape() const {
     return static_cast<ZoneShape>(currentData().toInt());
+}
+
+/*************************************************************
+ * ZoneTypeComboBox Implementation
+ *************************************************************/
+ZoneTypeComboBox::ZoneTypeComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    // Basic buttons
+    addItem(tr("Standard Button"), static_cast<int>(ZoneType::Standard));
+    addItem(tr("Simple Button"), static_cast<int>(ZoneType::Simple));
+    addItem(tr("Toggle Button"), static_cast<int>(ZoneType::Toggle));
+    addItem(tr("Conditional"), static_cast<int>(ZoneType::Conditional));
+    addItem(tr("Switch"), static_cast<int>(ZoneType::Switch));
+    addItem(tr("Comment"), static_cast<int>(ZoneType::Comment));
+    addItem(tr("Status Button"), static_cast<int>(ZoneType::StatusButton));
+    addItem(tr("Image Button"), static_cast<int>(ZoneType::ImageButton));
+    addItem(tr("Language Button"), static_cast<int>(ZoneType::LanguageButton));
+    addItem(tr("Index Tab"), static_cast<int>(ZoneType::IndexTab));
+    
+    // Menu items
+    addItem(tr("Menu Item"), static_cast<int>(ZoneType::Item));
+    addItem(tr("Item Normal"), static_cast<int>(ZoneType::ItemNormal));
+    addItem(tr("Item Modifier"), static_cast<int>(ZoneType::ItemModifier));
+    addItem(tr("Item Method"), static_cast<int>(ZoneType::ItemMethod));
+    addItem(tr("Item Substitute"), static_cast<int>(ZoneType::ItemSubstitute));
+    addItem(tr("Item Pound"), static_cast<int>(ZoneType::ItemPound));
+    addItem(tr("Item Admission"), static_cast<int>(ZoneType::ItemAdmission));
+    addItem(tr("Qualifier"), static_cast<int>(ZoneType::Qualifier));
+    
+    // Order management
+    addItem(tr("Order Entry"), static_cast<int>(ZoneType::OrderEntry));
+    addItem(tr("Order Page"), static_cast<int>(ZoneType::OrderPage));
+    addItem(tr("Order Flow"), static_cast<int>(ZoneType::OrderFlow));
+    addItem(tr("Order Add"), static_cast<int>(ZoneType::OrderAdd));
+    addItem(tr("Order Delete"), static_cast<int>(ZoneType::OrderDelete));
+    addItem(tr("Order Comment"), static_cast<int>(ZoneType::OrderComment));
+    addItem(tr("Order Display"), static_cast<int>(ZoneType::OrderDisplay));
+    
+    // Payments
+    addItem(tr("Tender"), static_cast<int>(ZoneType::Tender));
+    addItem(tr("Payment Entry"), static_cast<int>(ZoneType::PaymentEntry));
+    addItem(tr("Tender Set"), static_cast<int>(ZoneType::TenderSet));
+    addItem(tr("Payout"), static_cast<int>(ZoneType::Payout));
+    
+    // Tables & Checks
+    addItem(tr("Table"), static_cast<int>(ZoneType::Table));
+    addItem(tr("Table Assign"), static_cast<int>(ZoneType::TableAssign));
+    addItem(tr("Check List"), static_cast<int>(ZoneType::CheckList));
+    addItem(tr("Check Display"), static_cast<int>(ZoneType::CheckDisplay));
+    addItem(tr("Check Edit"), static_cast<int>(ZoneType::CheckEdit));
+    addItem(tr("Split Check"), static_cast<int>(ZoneType::SplitCheck));
+    
+    // User management
+    addItem(tr("Login"), static_cast<int>(ZoneType::Login));
+    addItem(tr("Logout"), static_cast<int>(ZoneType::Logout));
+    addItem(tr("User Edit"), static_cast<int>(ZoneType::UserEdit));
+    addItem(tr("Guest Count"), static_cast<int>(ZoneType::GuestCount));
+    
+    // Settings
+    addItem(tr("Settings"), static_cast<int>(ZoneType::Settings));
+    addItem(tr("Tax Settings"), static_cast<int>(ZoneType::TaxSettings));
+    addItem(tr("Tax Set"), static_cast<int>(ZoneType::TaxSet));
+    addItem(tr("Money Set"), static_cast<int>(ZoneType::MoneySet));
+    addItem(tr("Time Settings"), static_cast<int>(ZoneType::TimeSettings));
+    addItem(tr("CC Settings"), static_cast<int>(ZoneType::CCSettings));
+    addItem(tr("CC Messages"), static_cast<int>(ZoneType::CCMsgSettings));
+    addItem(tr("Receipt Settings"), static_cast<int>(ZoneType::ReceiptSet));
+    addItem(tr("Receipts"), static_cast<int>(ZoneType::Receipts));
+    addItem(tr("Calculation Settings"), static_cast<int>(ZoneType::CalculationSettings));
+    addItem(tr("Job Security"), static_cast<int>(ZoneType::JobSecurity));
+    addItem(tr("Developer"), static_cast<int>(ZoneType::Developer));
+    
+    // Hardware
+    addItem(tr("Hardware"), static_cast<int>(ZoneType::Hardware));
+    addItem(tr("Print Target"), static_cast<int>(ZoneType::PrintTarget));
+    addItem(tr("Item Target"), static_cast<int>(ZoneType::ItemTarget));
+    addItem(tr("Video Target"), static_cast<int>(ZoneType::VideoTarget));
+    addItem(tr("CDU"), static_cast<int>(ZoneType::CDU));
+    addItem(tr("Split Kitchen"), static_cast<int>(ZoneType::SplitKitchen));
+    addItem(tr("Drawer Manage"), static_cast<int>(ZoneType::DrawerManage));
+    addItem(tr("Drawer Assign"), static_cast<int>(ZoneType::DrawerAssign));
+    
+    // Reports
+    addItem(tr("Report"), static_cast<int>(ZoneType::Report));
+    addItem(tr("Chart"), static_cast<int>(ZoneType::Chart));
+    addItem(tr("Search"), static_cast<int>(ZoneType::Search));
+    addItem(tr("Read"), static_cast<int>(ZoneType::Read));
+    
+    // Inventory
+    addItem(tr("Inventory"), static_cast<int>(ZoneType::Inventory));
+    addItem(tr("Recipe"), static_cast<int>(ZoneType::Recipe));
+    addItem(tr("Vendor"), static_cast<int>(ZoneType::Vendor));
+    addItem(tr("Item List"), static_cast<int>(ZoneType::ItemList));
+    addItem(tr("Invoice"), static_cast<int>(ZoneType::Invoice));
+    addItem(tr("Expense"), static_cast<int>(ZoneType::Expense));
+    addItem(tr("Account"), static_cast<int>(ZoneType::Account));
+    addItem(tr("Revenue Groups"), static_cast<int>(ZoneType::RevenueGroups));
+    
+    // Scheduling
+    addItem(tr("Schedule"), static_cast<int>(ZoneType::Schedule));
+    addItem(tr("Labor"), static_cast<int>(ZoneType::Labor));
+    addItem(tr("End Day"), static_cast<int>(ZoneType::EndDay));
+    
+    // Customer
+    addItem(tr("Customer Info"), static_cast<int>(ZoneType::CustomerInfo));
+    addItem(tr("Credit Card List"), static_cast<int>(ZoneType::CreditCardList));
+    addItem(tr("Merchant"), static_cast<int>(ZoneType::Merchant));
+    
+    // System
+    addItem(tr("Command"), static_cast<int>(ZoneType::Command));
+    addItem(tr("Phrase"), static_cast<int>(ZoneType::Phrase));
+    addItem(tr("License"), static_cast<int>(ZoneType::License));
+    addItem(tr("Expire Message"), static_cast<int>(ZoneType::ExpireMsg));
+    addItem(tr("Kill System"), static_cast<int>(ZoneType::KillSystem));
+    addItem(tr("Clear System"), static_cast<int>(ZoneType::ClearSystem));
+}
+
+void ZoneTypeComboBox::setCurrentZoneType(ZoneType type) {
+    int index = findData(static_cast<int>(type));
+    if (index >= 0) setCurrentIndex(index);
+}
+
+ZoneType ZoneTypeComboBox::currentZoneType() const {
+    return static_cast<ZoneType>(currentData().toInt());
 }
 
 } // namespace vt

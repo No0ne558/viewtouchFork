@@ -11,6 +11,102 @@
 namespace vt {
 
 /*************************************************************
+ * Zone Types - matches original ViewTouch pos_zone.hh
+ *************************************************************/
+enum class ZoneType : uint8_t {
+    Undefined        = 0,   // type not defined
+    Standard         = 1,   // button with message & jump
+    Item             = 2,   // order menu item
+    Conditional      = 3,   // work if conditions are met
+    Tender           = 4,   // tender payment type button
+    Table            = 5,   // table status/selection
+    Comment          = 6,   // only seen by superuser
+    Qualifier        = 7,   // qualifier: no, extra, lite
+    Toggle           = 8,   // button with toggling text/message
+    Simple           = 9,   // button with only jump
+    Switch           = 10,  // settings selection button
+    
+    Login            = 20,  // takes user id for login
+    Command          = 21,  // system command/status
+    GuestCount       = 23,  // enter the number of guests
+    Logout           = 24,  // user logout stuff
+    
+    OrderEntry       = 30,  // show current menu order
+    CheckList        = 31,  // show open checks
+    PaymentEntry     = 32,  // show/allow payments for check
+    UserEdit         = 33,  // show/edit users
+    Settings         = 34,  // edit general system variables
+    TaxSettings      = 35,  // tax and royalty settings
+    Developer        = 36,  // developer application settings
+    TenderSet        = 37,  // tender selection & settings
+    TaxSet           = 38,  // tax specifications
+    MoneySet         = 39,  // currency specifications
+    CCSettings       = 40,  // credit/charge card settings
+    CCMsgSettings    = 41,  // credit/charge card messages
+    
+    Report           = 50,  // super report zone
+    OrderPage        = 51,  // page change on order entry window
+    Schedule         = 52,  // employee scheduling
+    PrintTarget      = 53,  // family printer destinations
+    SplitCheck       = 54,  // check splitting zone
+    DrawerManage     = 55,  // drawer pulling/balancing
+    Hardware         = 56,  // terminal & printer setup
+    TimeSettings     = 57,  // store hours/shifts
+    TableAssign      = 58,  // transfer tables/checks
+    CheckDisplay     = 59,  // display multiple checks
+    
+    KillSystem       = 61,  // system termination
+    Payout           = 62,  // cash payout system
+    DrawerAssign     = 63,  // drawer assignment
+    OrderFlow        = 64,  // order start/index/continue
+    Search           = 66,  // search for word though records
+    SplitKitchen     = 67,  // split kitchen terminal assignment
+    EndDay           = 68,  // end of day management
+    Read             = 69,  // reading & displaying text files
+    JobSecurity      = 70,  // job security settings
+    Inventory        = 71,  // raw product inventory
+    Recipe           = 72,  // recipes using raw products
+    Vendor           = 73,  // raw product suppliers
+    Labor            = 74,  // labor management
+    ItemList         = 75,  // list all sales items
+    Invoice          = 76,  // invoice entry/listing
+    Phrase           = 77,  // phrase translation/replacement
+    ItemTarget       = 78,  // item printer target
+    ReceiptSet       = 79,  // printed receipt settings
+    Merchant         = 80,  // merchant info for credit authorize
+    License          = 81,  // viewtouch pos license setup
+    Account          = 82,  // chart of accounts list/edit
+    OrderAdd         = 83,  // increase order button
+    OrderDelete      = 84,  // delete/rebuild button
+    OrderDisplay     = 85,  // kitchen work order display
+    Chart            = 86,  // spreadsheet like data display
+    VideoTarget      = 87,  // kitchen video food types
+    Expense          = 88,  // paying expense from revenue
+    StatusButton     = 89,  // for error messages
+    CDU              = 90,  // CDU string entry
+    Receipts         = 91,  // receipt headers/footers
+    CustomerInfo     = 92,  // editing customer info
+    CheckEdit        = 93,  // editing check info
+    CreditCardList   = 94,  // managing exceptions/refunds/voids
+    ExpireMsg        = 95,  // expiration message
+    RevenueGroups    = 96,  // revenue group settings
+    ImageButton      = 97,  // button with user-selectable image
+    
+    ItemNormal       = 98,  // menu item button
+    ItemModifier     = 99,  // modifier button
+    ItemMethod       = 100, // non-tracking modifier button
+    ItemSubstitute   = 101, // menu item + substitute button
+    ItemPound        = 102, // priced by weight button
+    ItemAdmission    = 103, // event admission button
+    OrderComment     = 104, // add comment button
+    
+    ClearSystem      = 107, // clear system with countdown
+    IndexTab         = 108, // index tab button
+    LanguageButton   = 109, // language selection button
+    CalculationSettings = 110 // calculation settings
+};
+
+/*************************************************************
  * Page Types - matches original ViewTouch
  *************************************************************/
 enum class PageType : uint8_t {

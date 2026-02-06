@@ -134,17 +134,15 @@ void Renderer::drawRaisedFrame(const QRect& rect, uint8_t textureId) {
     
     QRect r = scaleRect(rect);
     
-    // Fill face
-    painter_.fillRect(r, face);
-    
     // Draw raised edges (light on top/left, dark on bottom/right)
-    painter_.setPen(light);
-    painter_.drawLine(r.left(), r.top(), r.right(), r.top());     // top
-    painter_.drawLine(r.left(), r.top(), r.left(), r.bottom());   // left
+    // Texture is drawn separately, we just draw the 3D frame edges
+    painter_.setPen(QPen(light, 2));
+    painter_.drawLine(r.left(), r.top(), r.right() - 1, r.top());     // top
+    painter_.drawLine(r.left(), r.top(), r.left(), r.bottom() - 1);   // left
     
-    painter_.setPen(dark);
-    painter_.drawLine(r.right(), r.top(), r.right(), r.bottom()); // right
-    painter_.drawLine(r.left(), r.bottom(), r.right(), r.bottom()); // bottom
+    painter_.setPen(QPen(dark, 2));
+    painter_.drawLine(r.right(), r.top(), r.right(), r.bottom());     // right
+    painter_.drawLine(r.left(), r.bottom(), r.right(), r.bottom());   // bottom
 }
 
 void Renderer::drawInsetFrame(const QRect& rect, uint8_t textureId) {
@@ -155,17 +153,15 @@ void Renderer::drawInsetFrame(const QRect& rect, uint8_t textureId) {
     
     QRect r = scaleRect(rect);
     
-    // Fill face
-    painter_.fillRect(r, face);
-    
     // Draw inset edges (dark on top/left, light on bottom/right)
-    painter_.setPen(dark);
-    painter_.drawLine(r.left(), r.top(), r.right(), r.top());     // top
-    painter_.drawLine(r.left(), r.top(), r.left(), r.bottom());   // left
+    // Texture is drawn separately, we just draw the 3D frame edges
+    painter_.setPen(QPen(dark, 2));
+    painter_.drawLine(r.left(), r.top(), r.right() - 1, r.top());     // top
+    painter_.drawLine(r.left(), r.top(), r.left(), r.bottom() - 1);   // left
     
-    painter_.setPen(light);
-    painter_.drawLine(r.right(), r.top(), r.right(), r.bottom()); // right
-    painter_.drawLine(r.left(), r.bottom(), r.right(), r.bottom()); // bottom
+    painter_.setPen(QPen(light, 2));
+    painter_.drawLine(r.right(), r.top(), r.right(), r.bottom());     // right
+    painter_.drawLine(r.left(), r.bottom(), r.right(), r.bottom());   // bottom
 }
 
 void Renderer::drawDoubleFrame(const QRect& rect, uint8_t textureId) {
@@ -176,24 +172,22 @@ void Renderer::drawDoubleFrame(const QRect& rect, uint8_t textureId) {
     
     QRect r = scaleRect(rect);
     
-    // Fill face
-    painter_.fillRect(r, face);
-    
+    // Texture is drawn separately, we just draw the 3D frame edges
     // Outer frame (raised)
-    painter_.setPen(light);
-    painter_.drawLine(r.left(), r.top(), r.right(), r.top());
-    painter_.drawLine(r.left(), r.top(), r.left(), r.bottom());
-    painter_.setPen(dark);
+    painter_.setPen(QPen(light, 2));
+    painter_.drawLine(r.left(), r.top(), r.right() - 1, r.top());
+    painter_.drawLine(r.left(), r.top(), r.left(), r.bottom() - 1);
+    painter_.setPen(QPen(dark, 2));
     painter_.drawLine(r.right(), r.top(), r.right(), r.bottom());
     painter_.drawLine(r.left(), r.bottom(), r.right(), r.bottom());
     
     // Inner frame (inset)
-    int inset = 3;
+    int inset = 4;
     QRect inner = r.adjusted(inset, inset, -inset, -inset);
-    painter_.setPen(dark);
+    painter_.setPen(QPen(dark, 1));
     painter_.drawLine(inner.left(), inner.top(), inner.right(), inner.top());
     painter_.drawLine(inner.left(), inner.top(), inner.left(), inner.bottom());
-    painter_.setPen(light);
+    painter_.setPen(QPen(light, 1));
     painter_.drawLine(inner.right(), inner.top(), inner.right(), inner.bottom());
     painter_.drawLine(inner.left(), inner.bottom(), inner.right(), inner.bottom());
 }
@@ -206,11 +200,9 @@ void Renderer::drawBorderFrame(const QRect& rect, uint8_t textureId) {
     
     QRect r = scaleRect(rect);
     
-    // Fill face
-    painter_.fillRect(r, face);
-    
-    // Simple border
+    // Texture is drawn separately, we just draw the border
     painter_.setPen(QPen(dark, 2));
+    painter_.setBrush(Qt::NoBrush);
     painter_.drawRect(r);
 }
 

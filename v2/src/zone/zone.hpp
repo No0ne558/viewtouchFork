@@ -136,6 +136,10 @@ public:
     
     // Zone type identification (for subclass behavior)
     virtual const char* typeName() const { return "Zone"; }
+    
+    // Zone type property
+    ZoneType zoneType() const { return zoneType_; }
+    void setZoneType(ZoneType t) { zoneType_ = t; }
 
 signals:
     void touched(Zone* zone);
@@ -151,6 +155,7 @@ private:
     Region region_;
     QString name_;
     int groupId_ = 0;
+    ZoneType zoneType_ = ZoneType::Standard;
     
     ZoneBehavior behavior_ = ZoneBehavior::Blink;
     FontId font_ = FontId::Default;
