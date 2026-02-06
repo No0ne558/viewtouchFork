@@ -7,6 +7,7 @@
 #include "terminal/control.hpp"
 #include "terminal/terminal.hpp"
 #include "zone/zone.hpp"
+#include "zone/zone_types.hpp"
 #include "zone/page.hpp"
 #include "zone/zone_db.hpp"
 #include "render/renderer.hpp"
@@ -31,50 +32,6 @@
 #include <algorithm>
 
 namespace vt {
-
-/*************************************************************
- * ButtonZone - A simple touchable button
- *************************************************************/
-class ButtonZone : public Zone {
-public:
-    ButtonZone() = default;
-    
-    void setLabel(const QString& label) { label_ = label; }
-    QString label() const { return label_; }
-    
-    void setJumpTarget(int pageId, JumpType jt = JumpType::Normal) {
-        jumpPageId_ = pageId;
-        jumpType_ = jt;
-    }
-    
-protected:
-    void renderContent(Renderer& renderer, Terminal* term) override {
-        QRect r(region().x, region().y, region().w, region().h);
-        
-        // Get color based on state
-        uint8_t colorId = state(currentState()).color;
-        if (colorId == 0) {
-            colorId = static_cast<uint8_t>(TextColor::Black);
-        }
-        
-        renderer.drawText(label_, r, 
-                         static_cast<uint8_t>(FontId::Times_20),
-                         colorId, TextAlign::Center);
-    }
-    
-    int touch(Terminal* term, int tx, int ty) override {
-        int result = Zone::touch(term, tx, ty);
-        if (jumpPageId_ > 0 && term) {
-            term->jumpToPage(jumpPageId_, jumpType_);
-        }
-        return result;
-    }
-    
-private:
-    QString label_;
-    int jumpPageId_ = 0;
-    JumpType jumpType_ = JumpType::Normal;
-};
 
 /*************************************************************
  * MainWindow Implementation

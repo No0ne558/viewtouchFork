@@ -23,6 +23,8 @@ set(CORE_SOURCES
 set(ZONE_SOURCES
     src/zone/zone.hpp
     src/zone/zone.cpp
+    src/zone/zone_types.hpp
+    src/zone/zone_types.cpp
     src/zone/page.hpp
     src/zone/page.cpp
     src/zone/zone_db.hpp

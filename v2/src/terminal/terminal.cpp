@@ -144,6 +144,38 @@ void Terminal::release(int x, int y) {
     }
 }
 
+int Terminal::signal(const QString& message, int groupId) {
+    // Process message signals from zones
+    // Messages can be commands like "save", "cancel", "done", etc.
+    
+    if (message.isEmpty()) {
+        return 0;
+    }
+    
+    // Common messages
+    if (message == QStringLiteral("done") || message == QStringLiteral("cancel")) {
+        jumpBack();
+        return 1;
+    }
+    
+    if (message == QStringLiteral("home")) {
+        jumpHome();
+        return 1;
+    }
+    
+    if (message == QStringLiteral("logout")) {
+        setUserId(0);
+        setUserName(QString());
+        jumpHome();
+        return 1;
+    }
+    
+    // TODO: Implement more message handlers
+    // "save", "print", "clear", etc.
+    
+    return 0;
+}
+
 void Terminal::setSelectedZone(Zone* zone) {
     if (selectedZone_ != zone) {
         if (selectedZone_) {

@@ -88,6 +88,9 @@ public:
     void touch(int x, int y);
     void release(int x, int y);
     
+    // Signal/message handling
+    int signal(const QString& message, int groupId = 0);
+    
     // Selected zone
     Zone* selectedZone() const { return selectedZone_; }
     void setSelectedZone(Zone* zone);
