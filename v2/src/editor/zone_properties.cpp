@@ -1,9 +1,11 @@
 /*
- * ViewTouch V2 - Zone Properties Dialog Implementation
+ * ViewTouch V2 - Button Properties Dialog Implementation
+ * Matches original ViewTouch "Button Properties Dialog"
  */
 
 #include "editor/zone_properties.hpp"
 #include "zone/zone.hpp"
+#include "zone/zone_types.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -11,18 +13,28 @@
 #include <QGridLayout>
 #include <QPushButton>
 #include <QDialogButtonBox>
+#include <QScrollArea>
 
 namespace vt {
+
+// Helper function to check if zone type is an item type
+static bool IsItemZoneType(ZoneType t) {
+    return t == ZoneType::Item || t == ZoneType::ItemNormal ||
+           t == ZoneType::ItemModifier || t == ZoneType::ItemMethod ||
+           t == ZoneType::ItemSubstitute || t == ZoneType::ItemPound ||
+           t == ZoneType::ItemAdmission;
+}
 
 ZonePropertiesDialog::ZonePropertiesDialog(Zone* zone, QWidget* parent)
     : QDialog(parent)
     , zone_(zone)
 {
-    setWindowTitle(tr("Zone Properties"));
-    setMinimumSize(450, 500);
+    setWindowTitle(tr("Button Properties"));
+    setMinimumSize(500, 600);
     
     setupUi();
     loadFromZone();
+    updateFieldVisibility();
 }
 
 ZonePropertiesDialog::~ZonePropertiesDialog() = default;
@@ -30,16 +42,26 @@ ZonePropertiesDialog::~ZonePropertiesDialog() = default;
 void ZonePropertiesDialog::setupUi() {
     auto* mainLayout = new QVBoxLayout(this);
     
-    auto* tabWidget = new QTabWidget(this);
+    mainTabWidget_ = new QTabWidget(this);
     
-    // General tab
+    // ============ General Tab ============
     auto* generalTab = new QWidget();
-    setupGeneralTab();
     auto* generalLayout = new QFormLayout(generalTab);
     
-    nameEdit_ = new QLineEdit();
-    generalLayout->addRow(tr("Name:"), nameEdit_);
+    zoneTypeCombo_ = new ZoneTypeComboBox();
+    generalLayout->addRow(tr("Button's Type:"), zoneTypeCombo_);
     
+    nameEdit_ = new QLineEdit();
+    generalLayout->addRow(tr("Button's Name:"), nameEdit_);
+    
+    pageEdit_ = new QLineEdit();
+    generalLayout->addRow(tr("Page Location:"), pageEdit_);
+    
+    groupSpinBox_ = new QSpinBox();
+    groupSpinBox_->setRange(0, 999);
+    generalLayout->addRow(tr("Group ID:"), groupSpinBox_);
+    
+    // Position and size
     auto* posLayout = new QHBoxLayout();
     xSpinBox_ = new QSpinBox();
     xSpinBox_->setRange(0, 9999);
@@ -62,34 +84,51 @@ void ZonePropertiesDialog::setupUi() {
     sizeLayout->addWidget(heightSpinBox_);
     generalLayout->addRow(tr("Size:"), sizeLayout);
     
-    groupSpinBox_ = new QSpinBox();
-    groupSpinBox_->setRange(0, 999);
-    generalLayout->addRow(tr("Group:"), groupSpinBox_);
-    
-    zoneTypeCombo_ = new ZoneTypeComboBox();
-    generalLayout->addRow(tr("Zone Type:"), zoneTypeCombo_);
-    
-    // Connect zone type change to update defaults
+    // Connect zone type change to update defaults and visibility
     connect(zoneTypeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ZonePropertiesDialog::onZoneTypeChanged);
     
-    tabWidget->addTab(generalTab, tr("General"));
+    mainTabWidget_->addTab(generalTab, tr("General"));
     
-    // Appearance tab
+    // ============ Appearance Tab ============
     auto* appearanceTab = new QWidget();
-    setupAppearanceTab();
     auto* appearanceLayout = new QVBoxLayout(appearanceTab);
     
-    // State tabs (Normal, Selected, Alternate)
+    // Behavior - moved to top of appearance
+    auto* behaveLayout = new QFormLayout();
+    behaviorCombo_ = new BehaviorComboBox();
+    behaveLayout->addRow(tr("Button's Behavior:"), behaviorCombo_);
+    
+    fontCombo_ = new FontComboBox();
+    behaveLayout->addRow(tr("Button's Font:"), fontCombo_);
+    
+    shapeCombo_ = new ShapeComboBox();
+    behaveLayout->addRow(tr("Button's Shape:"), shapeCombo_);
+    
+    shadowSpinBox_ = new QSpinBox();
+    shadowSpinBox_->setRange(0, 1024);
+    shadowSpinBox_->setSpecialValueText(tr("Default"));
+    behaveLayout->addRow(tr("Shadow Intensity:"), shadowSpinBox_);
+    
+    keySpinBox_ = new QSpinBox();
+    keySpinBox_->setRange(0, 255);
+    keySpinBox_->setSpecialValueText(tr("None"));
+    behaveLayout->addRow(tr("Keyboard Shortcut:"), keySpinBox_);
+    
+    appearanceLayout->addLayout(behaveLayout);
+    
+    // State tabs (Normal, Selected, Disabled)
     stateTabWidget_ = new QTabWidget();
     
-    const QString stateNames[] = {tr("Normal"), tr("Selected"), tr("Alternate")};
+    const QString stateNames[] = {
+        tr("Normal"), tr("When Selected"), tr("When Disabled")
+    };
     for (int i = 0; i < 3; ++i) {
         auto* stateWidget = new QWidget();
         auto* stateLayout = new QFormLayout(stateWidget);
         
         stateWidgets_[i].frameCombo = new FrameComboBox();
-        stateLayout->addRow(tr("Frame:"), stateWidgets_[i].frameCombo);
+        stateLayout->addRow(tr("Edge:"), stateWidgets_[i].frameCombo);
         
         stateWidgets_[i].textureCombo = new TextureComboBox();
         stateLayout->addRow(tr("Texture:"), stateWidgets_[i].textureCombo);
@@ -109,47 +148,248 @@ void ZonePropertiesDialog::setupUi() {
     
     appearanceLayout->addWidget(stateTabWidget_);
     
-    // Font and shape
-    auto* fontShapeLayout = new QFormLayout();
+    mainTabWidget_->addTab(appearanceTab, tr("Appearance"));
     
-    fontCombo_ = new FontComboBox();
-    fontShapeLayout->addRow(tr("Font:"), fontCombo_);
+    // ============ Actions Tab ============
+    actionsTab_ = new QWidget();
+    auto* actionsScroll = new QScrollArea();
+    actionsScroll->setWidgetResizable(true);
+    actionsScroll->setWidget(actionsTab_);
     
-    shapeCombo_ = new ShapeComboBox();
-    fontShapeLayout->addRow(tr("Shape:"), shapeCombo_);
+    actionsLayout_ = new QFormLayout(actionsTab_);
     
-    shadowSpinBox_ = new QSpinBox();
-    shadowSpinBox_->setRange(0, 1024);
-    fontShapeLayout->addRow(tr("Shadow:"), shadowSpinBox_);
+    // Confirmation (for ZONE_STANDARD)
+    confirmLabel_ = new QLabel(tr("Confirmation:"));
+    confirmCheck_ = new QCheckBox(tr("Ask for confirmation"));
+    actionsLayout_->addRow(confirmLabel_, confirmCheck_);
     
-    appearanceLayout->addLayout(fontShapeLayout);
+    confirmMsgLabel_ = new QLabel(tr("Confirm Message:"));
+    confirmMsgEdit_ = new QLineEdit();
+    actionsLayout_->addRow(confirmMsgLabel_, confirmMsgEdit_);
     
-    tabWidget->addTab(appearanceTab, tr("Appearance"));
+    // Expression (for ZONE_CONDITIONAL)
+    expressionLabel_ = new QLabel(tr("Expression:"));
+    expressionEdit_ = new QLineEdit();
+    expressionEdit_->setPlaceholderText(tr("Conditional expression"));
+    actionsLayout_->addRow(expressionLabel_, expressionEdit_);
     
-    // Behavior tab
-    auto* behaviorTab = new QWidget();
-    setupBehaviorTab();
-    auto* behaviorLayout = new QFormLayout(behaviorTab);
+    // Message (for ZONE_STANDARD, ZONE_CONDITIONAL, ZONE_TOGGLE)
+    messageLabel_ = new QLabel(tr("Message:"));
+    messageEdit_ = new QLineEdit();
+    messageEdit_->setPlaceholderText(tr("Message to broadcast"));
+    actionsLayout_->addRow(messageLabel_, messageEdit_);
     
-    behaviorCombo_ = new BehaviorComboBox();
-    behaviorLayout->addRow(tr("Behavior:"), behaviorCombo_);
+    // Jump (for buttons)
+    jumpTypeLabel_ = new QLabel(tr("Jump Options:"));
+    jumpTypeCombo_ = new JumpTypeComboBox();
+    actionsLayout_->addRow(jumpTypeLabel_, jumpTypeCombo_);
     
-    activeCheck_ = new QCheckBox(tr("Active"));
-    behaviorLayout->addRow(activeCheck_);
+    jumpIdLabel_ = new QLabel(tr("Jump To Page:"));
+    jumpIdSpinBox_ = new QSpinBox();
+    jumpIdSpinBox_->setRange(-100, 9999);
+    actionsLayout_->addRow(jumpIdLabel_, jumpIdSpinBox_);
     
-    editCheck_ = new QCheckBox(tr("Editable"));
-    behaviorLayout->addRow(editCheck_);
+    connect(jumpTypeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ZonePropertiesDialog::onJumpTypeChanged);
     
-    stayLitCheck_ = new QCheckBox(tr("Stay Lit"));
-    behaviorLayout->addRow(stayLitCheck_);
+    // Drawer zone type
+    drawerZoneTypeLabel_ = new QLabel(tr("Drawer Button Type:"));
+    drawerZoneTypeCombo_ = new QComboBox();
+    drawerZoneTypeCombo_->addItem(tr("Pull Drawer"), 0);
+    drawerZoneTypeCombo_->addItem(tr("Balance Drawer"), 1);
+    drawerZoneTypeCombo_->addItem(tr("Adjust Drawer"), 2);
+    actionsLayout_->addRow(drawerZoneTypeLabel_, drawerZoneTypeCombo_);
     
-    keySpinBox_ = new QSpinBox();
-    keySpinBox_->setRange(0, 255);
-    behaviorLayout->addRow(tr("Key Code:"), keySpinBox_);
+    // Filename (for ZONE_READ)
+    filenameLabel_ = new QLabel(tr("File Name:"));
+    filenameEdit_ = new QLineEdit();
+    actionsLayout_->addRow(filenameLabel_, filenameEdit_);
     
-    tabWidget->addTab(behaviorTab, tr("Behavior"));
+    // Image filename
+    imageFilenameLabel_ = new QLabel(tr("Image File:"));
+    imageFilenameCombo_ = new QComboBox();
+    imageFilenameCombo_->setEditable(true);
+    actionsLayout_->addRow(imageFilenameLabel_, imageFilenameCombo_);
     
-    mainLayout->addWidget(tabWidget);
+    // Tender (for ZONE_TENDER)
+    tenderTypeLabel_ = new QLabel(tr("Tender Type:"));
+    tenderTypeCombo_ = new TenderTypeComboBox();
+    actionsLayout_->addRow(tenderTypeLabel_, tenderTypeCombo_);
+    
+    tenderAmountLabel_ = new QLabel(tr("Tender Amount:"));
+    tenderAmountSpinBox_ = new QDoubleSpinBox();
+    tenderAmountSpinBox_->setRange(0, 99999.99);
+    tenderAmountSpinBox_->setDecimals(2);
+    tenderAmountSpinBox_->setPrefix(tr("$"));
+    actionsLayout_->addRow(tenderAmountLabel_, tenderAmountSpinBox_);
+    
+    // Report (for ZONE_REPORT)
+    reportTypeLabel_ = new QLabel(tr("Report Type:"));
+    reportTypeCombo_ = new ReportTypeComboBox();
+    actionsLayout_->addRow(reportTypeLabel_, reportTypeCombo_);
+    
+    connect(reportTypeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ZonePropertiesDialog::onReportTypeChanged);
+    
+    checkDispLabel_ = new QLabel(tr("Check to Display:"));
+    checkDispSpinBox_ = new QSpinBox();
+    checkDispSpinBox_->setRange(0, 99);
+    actionsLayout_->addRow(checkDispLabel_, checkDispSpinBox_);
+    
+    videoTargetLabel_ = new QLabel(tr("Video Target:"));
+    videoTargetCombo_ = new PrinterComboBox();
+    actionsLayout_->addRow(videoTargetLabel_, videoTargetCombo_);
+    
+    reportPrintLabel_ = new QLabel(tr("Touch Print:"));
+    reportPrintCombo_ = new QComboBox();
+    reportPrintCombo_->addItem(tr("Don't Print"), 0);
+    reportPrintCombo_->addItem(tr("Print Report"), 1);
+    reportPrintCombo_->addItem(tr("Print Order"), 2);
+    actionsLayout_->addRow(reportPrintLabel_, reportPrintCombo_);
+    
+    // Spacing (for list zones)
+    spacingLabel_ = new QLabel(tr("Line Spacing:"));
+    spacingSpinBox_ = new QSpinBox();
+    spacingSpinBox_->setRange(0, 100);
+    actionsLayout_->addRow(spacingLabel_, spacingSpinBox_);
+    
+    // Qualifier (for ZONE_QUALIFIER)
+    qualifierLabel_ = new QLabel(tr("Qualifier:"));
+    qualifierCombo_ = new QualifierComboBox();
+    actionsLayout_->addRow(qualifierLabel_, qualifierCombo_);
+    
+    // Amount (for ZONE_ORDER_PAGE)
+    amountLabel_ = new QLabel(tr("Amount:"));
+    amountSpinBox_ = new QSpinBox();
+    amountSpinBox_->setRange(0, 999);
+    actionsLayout_->addRow(amountLabel_, amountSpinBox_);
+    
+    // Switch type (for ZONE_SWITCH)
+    switchTypeLabel_ = new QLabel(tr("Switch Type:"));
+    switchTypeCombo_ = new SwitchTypeComboBox();
+    actionsLayout_->addRow(switchTypeLabel_, switchTypeCombo_);
+    
+    // Customer type (for ZONE_TABLE)
+    customerTypeLabel_ = new QLabel(tr("Customer Type:"));
+    customerTypeCombo_ = new CustomerTypeComboBox();
+    actionsLayout_->addRow(customerTypeLabel_, customerTypeCombo_);
+    
+    mainTabWidget_->addTab(actionsScroll, tr("Actions"));
+    
+    // ============ Item Tab ============
+    itemTab_ = new QWidget();
+    auto* itemScroll = new QScrollArea();
+    itemScroll->setWidgetResizable(true);
+    itemScroll->setWidget(itemTab_);
+    
+    itemLayout_ = new QFormLayout(itemTab_);
+    
+    // Item type selector (only for generic ZONE_ITEM)
+    itemTypeLabel_ = new QLabel(tr("Menu Type:"));
+    itemTypeCombo_ = new ItemTypeComboBox();
+    itemLayout_->addRow(itemTypeLabel_, itemTypeCombo_);
+    
+    connect(itemTypeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ZonePropertiesDialog::onItemTypeChanged);
+    
+    // Item names
+    itemNameLabel_ = new QLabel(tr("True Name:"));
+    itemNameEdit_ = new QLineEdit();
+    itemLayout_->addRow(itemNameLabel_, itemNameEdit_);
+    
+    itemZoneNameLabel_ = new QLabel(tr("On-Screen Name:"));
+    itemZoneNameEdit_ = new QLineEdit();
+    itemZoneNameEdit_->setPlaceholderText(tr("If different from True Name"));
+    itemLayout_->addRow(itemZoneNameLabel_, itemZoneNameEdit_);
+    
+    itemPrintNameLabel_ = new QLabel(tr("Print Name:"));
+    itemPrintNameEdit_ = new QLineEdit();
+    itemPrintNameEdit_->setPlaceholderText(tr("Abbreviation for remote printing"));
+    itemLayout_->addRow(itemPrintNameLabel_, itemPrintNameEdit_);
+    
+    // Pricing
+    itemPriceLabel_ = new QLabel(tr("Selling Price:"));
+    itemPriceSpinBox_ = new QDoubleSpinBox();
+    itemPriceSpinBox_->setRange(0, 99999.99);
+    itemPriceSpinBox_->setDecimals(2);
+    itemPriceSpinBox_->setPrefix(tr("$"));
+    itemLayout_->addRow(itemPriceLabel_, itemPriceSpinBox_);
+    
+    itemSubpriceLabel_ = new QLabel(tr("Substitute Price:"));
+    itemSubpriceSpinBox_ = new QDoubleSpinBox();
+    itemSubpriceSpinBox_->setRange(0, 99999.99);
+    itemSubpriceSpinBox_->setDecimals(2);
+    itemSubpriceSpinBox_->setPrefix(tr("$"));
+    itemLayout_->addRow(itemSubpriceLabel_, itemSubpriceSpinBox_);
+    
+    itemEmployeePriceLabel_ = new QLabel(tr("Employee Price:"));
+    itemEmployeePriceSpinBox_ = new QDoubleSpinBox();
+    itemEmployeePriceSpinBox_->setRange(0, 99999.99);
+    itemEmployeePriceSpinBox_->setDecimals(2);
+    itemEmployeePriceSpinBox_->setPrefix(tr("$"));
+    itemLayout_->addRow(itemEmployeePriceLabel_, itemEmployeePriceSpinBox_);
+    
+    // Categories
+    itemFamilyLabel_ = new QLabel(tr("Family:"));
+    itemFamilyCombo_ = new ItemFamilyComboBox();
+    itemLayout_->addRow(itemFamilyLabel_, itemFamilyCombo_);
+    
+    itemSalesLabel_ = new QLabel(tr("Tax/Discount:"));
+    itemSalesCombo_ = new SalesTypeComboBox();
+    itemLayout_->addRow(itemSalesLabel_, itemSalesCombo_);
+    
+    // Printing
+    itemPrinterLabel_ = new QLabel(tr("Printer Target:"));
+    itemPrinterCombo_ = new PrinterComboBox();
+    itemLayout_->addRow(itemPrinterLabel_, itemPrinterCombo_);
+    
+    itemCallOrderLabel_ = new QLabel(tr("Call Order:"));
+    itemCallOrderCombo_ = new CallOrderComboBox();
+    itemLayout_->addRow(itemCallOrderLabel_, itemCallOrderCombo_);
+    
+    // Modifier script
+    pageListLabel_ = new QLabel(tr("Modifier Pages:"));
+    pageListEdit_ = new QLineEdit();
+    pageListEdit_->setPlaceholderText(tr("Comma-separated page numbers"));
+    itemLayout_->addRow(pageListLabel_, pageListEdit_);
+    
+    // Admission-specific fields
+    itemLocationLabel_ = new QLabel(tr("Event Location:"));
+    itemLocationEdit_ = new QLineEdit();
+    itemLayout_->addRow(itemLocationLabel_, itemLocationEdit_);
+    
+    itemEventTimeLabel_ = new QLabel(tr("Event Time:"));
+    itemEventTimeEdit_ = new QLineEdit();
+    itemLayout_->addRow(itemEventTimeLabel_, itemEventTimeEdit_);
+    
+    itemTotalTicketsLabel_ = new QLabel(tr("Total Seats:"));
+    itemTotalTicketsSpinBox_ = new QSpinBox();
+    itemTotalTicketsSpinBox_->setRange(0, 99999);
+    itemLayout_->addRow(itemTotalTicketsLabel_, itemTotalTicketsSpinBox_);
+    
+    itemPriceLabelLabel_ = new QLabel(tr("Price Class:"));
+    itemPriceLabelEdit_ = new QLineEdit();
+    itemLayout_->addRow(itemPriceLabelLabel_, itemPriceLabelEdit_);
+    
+    mainTabWidget_->addTab(itemScroll, tr("Item"));
+    
+    // ============ Options Tab ============
+    auto* optionsTab = new QWidget();
+    auto* optionsLayout = new QFormLayout(optionsTab);
+    
+    activeCheck_ = new QCheckBox(tr("Button is Active"));
+    activeCheck_->setChecked(true);
+    optionsLayout->addRow(activeCheck_);
+    
+    editCheck_ = new QCheckBox(tr("Editable in Edit Mode"));
+    optionsLayout->addRow(editCheck_);
+    
+    stayLitCheck_ = new QCheckBox(tr("Stay Lit After Touch"));
+    optionsLayout->addRow(stayLitCheck_);
+    
+    mainTabWidget_->addTab(optionsTab, tr("Options"));
+    
+    mainLayout->addWidget(mainTabWidget_);
     
     // Buttons
     auto* buttonBox = new QDialogButtonBox(
@@ -164,18 +404,21 @@ void ZonePropertiesDialog::setupUi() {
 void ZonePropertiesDialog::setupGeneralTab() {}
 void ZonePropertiesDialog::setupAppearanceTab() {}
 void ZonePropertiesDialog::setupBehaviorTab() {}
+void ZonePropertiesDialog::setupActionsTab() {}
+void ZonePropertiesDialog::setupItemTab() {}
 
 void ZonePropertiesDialog::loadFromZone() {
     if (!zone_) return;
     
     // General
+    zoneTypeCombo_->setCurrentZoneType(zone_->zoneType());
     nameEdit_->setText(zone_->name());
+    // pageEdit_->setText(...);  // TODO: page location
+    groupSpinBox_->setValue(zone_->groupId());
     xSpinBox_->setValue(zone_->x());
     ySpinBox_->setValue(zone_->y());
     widthSpinBox_->setValue(zone_->w());
     heightSpinBox_->setValue(zone_->h());
-    groupSpinBox_->setValue(zone_->groupId());
-    zoneTypeCombo_->setCurrentZoneType(zone_->zoneType());
     
     // Appearance - states
     for (int i = 0; i < 3; ++i) {
@@ -185,16 +428,41 @@ void ZonePropertiesDialog::loadFromZone() {
         stateWidgets_[i].colorCombo->setCurrentColorId(st.color);
     }
     
+    behaviorCombo_->setCurrentBehavior(zone_->behavior());
     fontCombo_->setCurrentFontId(zone_->font());
     shapeCombo_->setCurrentShape(zone_->shape());
     shadowSpinBox_->setValue(zone_->shadow());
+    keySpinBox_->setValue(zone_->key());
     
-    // Behavior
-    behaviorCombo_->setCurrentBehavior(zone_->behavior());
+    // Options
     activeCheck_->setChecked(zone_->isActive());
     editCheck_->setChecked(zone_->isEdit());
     stayLitCheck_->setChecked(zone_->stayLit());
-    keySpinBox_->setValue(zone_->key());
+    
+    // Try to load type-specific properties from derived classes
+    // ButtonZone properties
+    if (auto* btn = dynamic_cast<ButtonZone*>(zone_)) {
+        jumpTypeCombo_->setCurrentJumpType(btn->jumpType());
+        jumpIdSpinBox_->setValue(btn->jumpPageId());
+    }
+    
+    // MessageButtonZone properties
+    if (auto* msgBtn = dynamic_cast<MessageButtonZone*>(zone_)) {
+        messageEdit_->setText(msgBtn->message());
+        confirmCheck_->setChecked(msgBtn->needsConfirm());
+        confirmMsgEdit_->setText(msgBtn->confirmMessage());
+    }
+    
+    // ConditionalZone properties
+    if (auto* condZone = dynamic_cast<ConditionalZone*>(zone_)) {
+        expressionEdit_->setText(condZone->expression());
+    }
+    
+    // ItemZone properties  
+    if (auto* item = dynamic_cast<ItemZone*>(zone_)) {
+        itemNameEdit_->setText(item->name());
+        itemPriceSpinBox_->setValue(item->price() / 100.0);
+    }
 }
 
 void ZonePropertiesDialog::saveToZone() {
@@ -216,16 +484,39 @@ void ZonePropertiesDialog::saveToZone() {
         zone_->setState(i, st);
     }
     
+    zone_->setBehavior(behaviorCombo_->currentBehavior());
     zone_->setFont(fontCombo_->currentFontId());
     zone_->setShape(shapeCombo_->currentShape());
     zone_->setShadow(shadowSpinBox_->value());
+    zone_->setKey(keySpinBox_->value());
     
-    // Behavior
-    zone_->setBehavior(behaviorCombo_->currentBehavior());
+    // Options
     zone_->setActive(activeCheck_->isChecked());
     zone_->setEdit(editCheck_->isChecked());
     zone_->setStayLit(stayLitCheck_->isChecked());
-    zone_->setKey(keySpinBox_->value());
+    
+    // Save type-specific properties to derived classes
+    // ButtonZone properties
+    if (auto* btn = dynamic_cast<ButtonZone*>(zone_)) {
+        btn->setJumpTarget(jumpIdSpinBox_->value(), jumpTypeCombo_->currentJumpType());
+    }
+    
+    // MessageButtonZone properties
+    if (auto* msgBtn = dynamic_cast<MessageButtonZone*>(zone_)) {
+        msgBtn->setMessage(messageEdit_->text());
+        msgBtn->setConfirm(confirmCheck_->isChecked(), confirmMsgEdit_->text());
+    }
+    
+    // ConditionalZone properties
+    if (auto* condZone = dynamic_cast<ConditionalZone*>(zone_)) {
+        condZone->setExpression(expressionEdit_->text());
+    }
+    
+    // ItemZone properties
+    if (auto* item = dynamic_cast<ItemZone*>(zone_)) {
+        item->setName(itemNameEdit_->text());
+        item->setPrice(static_cast<int>(itemPriceSpinBox_->value() * 100));
+    }
 }
 
 void ZonePropertiesDialog::applyChanges() {
@@ -248,7 +539,225 @@ void ZonePropertiesDialog::onStateTabChanged(int index) {
 void ZonePropertiesDialog::onZoneTypeChanged(int index) {
     ZoneType type = zoneTypeCombo_->currentZoneType();
     applyZoneTypeDefaults(type);
+    updateFieldVisibility();
     updatePreview();
+}
+
+void ZonePropertiesDialog::onJumpTypeChanged(int index) {
+    // Show/hide jump ID based on jump type
+    JumpType jt = jumpTypeCombo_->currentJumpType();
+    bool showJumpId = (jt == JumpType::Normal || jt == JumpType::Stealth || jt == JumpType::Password);
+    jumpIdLabel_->setVisible(showJumpId);
+    jumpIdSpinBox_->setVisible(showJumpId);
+}
+
+void ZonePropertiesDialog::onItemTypeChanged(int index) {
+    updateFieldVisibility();
+}
+
+void ZonePropertiesDialog::onReportTypeChanged(int index) {
+    // Show check display and video target only for check report
+    int rt = reportTypeCombo_->currentReportType();
+    bool isCheckReport = (rt == 5);  // REPORT_CHECK
+    checkDispLabel_->setVisible(isCheckReport);
+    checkDispSpinBox_->setVisible(isCheckReport);
+    videoTargetLabel_->setVisible(isCheckReport);
+    videoTargetCombo_->setVisible(isCheckReport);
+}
+
+void ZonePropertiesDialog::updateFieldVisibility() {
+    // This matches original ViewTouch ZoneDialog::Correct()
+    ZoneType t = zoneTypeCombo_->currentZoneType();
+    bool isItem = IsItemZoneType(t);
+    int itype = itemTypeCombo_->currentItemType();
+    
+    // Derive itype from zone type for specific item zones
+    if (t == ZoneType::ItemNormal) itype = 0;  // ITEM_NORMAL
+    else if (t == ZoneType::ItemModifier) itype = 1;  // ITEM_MODIFIER
+    else if (t == ZoneType::ItemMethod) itype = 2;  // ITEM_METHOD
+    else if (t == ZoneType::ItemSubstitute) itype = 3;  // ITEM_SUBSTITUTE
+    else if (t == ZoneType::ItemPound) itype = 4;  // ITEM_POUND
+    else if (t == ZoneType::ItemAdmission) itype = 5;  // ITEM_ADMISSION
+    
+    // --- Name field ---
+    bool showName = (t != ZoneType::Command && t != ZoneType::GuestCount &&
+                     t != ZoneType::UserEdit && t != ZoneType::Inventory && t != ZoneType::Recipe &&
+                     t != ZoneType::Vendor && t != ZoneType::ItemList && t != ZoneType::Invoice &&
+                     t != ZoneType::Qualifier && t != ZoneType::Labor && t != ZoneType::Login &&
+                     t != ZoneType::Logout && t != ZoneType::OrderEntry && t != ZoneType::OrderPage &&
+                     t != ZoneType::OrderFlow && t != ZoneType::PaymentEntry && t != ZoneType::Switch &&
+                     t != ZoneType::JobSecurity && t != ZoneType::TenderSet && t != ZoneType::Hardware &&
+                     !isItem && t != ZoneType::OrderAdd && t != ZoneType::OrderDelete &&
+                     t != ZoneType::OrderComment);
+    nameEdit_->setVisible(showName);
+    
+    // --- Confirmation fields (ZONE_STANDARD only) ---
+    bool showConfirm = (t == ZoneType::Standard);
+    confirmLabel_->setVisible(showConfirm);
+    confirmCheck_->setVisible(showConfirm);
+    confirmMsgLabel_->setVisible(showConfirm);
+    confirmMsgEdit_->setVisible(showConfirm);
+    
+    // --- Expression (ZONE_CONDITIONAL) ---
+    bool showExpression = (t == ZoneType::Conditional);
+    expressionLabel_->setVisible(showExpression);
+    expressionEdit_->setVisible(showExpression);
+    
+    // --- Message (STANDARD, CONDITIONAL, TOGGLE) ---
+    bool showMessage = (t == ZoneType::Standard || t == ZoneType::Conditional || t == ZoneType::Toggle);
+    messageLabel_->setVisible(showMessage);
+    messageEdit_->setVisible(showMessage);
+    
+    // --- Drawer zone type ---
+    bool showDrawerType = (t == ZoneType::DrawerManage);
+    drawerZoneTypeLabel_->setVisible(showDrawerType);
+    drawerZoneTypeCombo_->setVisible(showDrawerType);
+    
+    // --- Filename (ZONE_READ) ---
+    bool showFilename = (t == ZoneType::Read);
+    filenameLabel_->setVisible(showFilename);
+    filenameEdit_->setVisible(showFilename);
+    
+    // --- Image filename ---
+    bool showImage = (t == ZoneType::Simple || t == ZoneType::IndexTab || isItem ||
+                      t == ZoneType::Qualifier || t == ZoneType::Table || t == ZoneType::ImageButton);
+    imageFilenameLabel_->setVisible(showImage);
+    imageFilenameCombo_->setVisible(showImage);
+    
+    // --- Tender fields ---
+    bool showTender = (t == ZoneType::Tender);
+    tenderTypeLabel_->setVisible(showTender);
+    tenderTypeCombo_->setVisible(showTender);
+    tenderAmountLabel_->setVisible(showTender);
+    tenderAmountSpinBox_->setVisible(showTender);
+    
+    // --- Report fields ---
+    bool showReport = (t == ZoneType::Report);
+    reportTypeLabel_->setVisible(showReport);
+    reportTypeCombo_->setVisible(showReport);
+    reportPrintLabel_->setVisible(showReport);
+    reportPrintCombo_->setVisible(showReport);
+    // Check display and video target only for check report - handled in onReportTypeChanged
+    if (showReport) {
+        onReportTypeChanged(reportTypeCombo_->currentIndex());
+    } else {
+        checkDispLabel_->setVisible(false);
+        checkDispSpinBox_->setVisible(false);
+        videoTargetLabel_->setVisible(false);
+        videoTargetCombo_->setVisible(false);
+    }
+    
+    // --- Spacing (list zones) ---
+    bool showSpacing = (t == ZoneType::CheckList || t == ZoneType::DrawerManage ||
+                        t == ZoneType::UserEdit || t == ZoneType::Inventory || t == ZoneType::Recipe ||
+                        t == ZoneType::Vendor || t == ZoneType::ItemList || t == ZoneType::Invoice ||
+                        t == ZoneType::Labor || t == ZoneType::OrderEntry || t == ZoneType::PaymentEntry ||
+                        t == ZoneType::Payout || t == ZoneType::Report || t == ZoneType::Hardware ||
+                        t == ZoneType::TenderSet || t == ZoneType::Merchant);
+    spacingLabel_->setVisible(showSpacing);
+    spacingSpinBox_->setVisible(showSpacing);
+    
+    // --- Qualifier (ZONE_QUALIFIER) ---
+    bool showQualifier = (t == ZoneType::Qualifier);
+    qualifierLabel_->setVisible(showQualifier);
+    qualifierCombo_->setVisible(showQualifier);
+    
+    // --- Amount (ZONE_ORDER_PAGE) ---
+    bool showAmount = (t == ZoneType::OrderPage);
+    amountLabel_->setVisible(showAmount);
+    amountSpinBox_->setVisible(showAmount);
+    
+    // --- Switch type (ZONE_SWITCH) ---
+    bool showSwitch = (t == ZoneType::Switch);
+    switchTypeLabel_->setVisible(showSwitch);
+    switchTypeCombo_->setVisible(showSwitch);
+    
+    // --- Customer type (ZONE_TABLE) ---
+    bool showCustomer = (t == ZoneType::Table);
+    customerTypeLabel_->setVisible(showCustomer);
+    customerTypeCombo_->setVisible(showCustomer);
+    
+    // --- Jump fields ---
+    bool showJump = (isItem || t == ZoneType::Simple || t == ZoneType::IndexTab ||
+                     t == ZoneType::Standard || t == ZoneType::Conditional || t == ZoneType::Qualifier);
+    jumpTypeLabel_->setVisible(showJump);
+    jumpTypeCombo_->setVisible(showJump);
+    if (showJump) {
+        onJumpTypeChanged(jumpTypeCombo_->currentIndex());
+    } else {
+        jumpIdLabel_->setVisible(false);
+        jumpIdSpinBox_->setVisible(false);
+    }
+    
+    // --- Key shortcut ---
+    bool showKey = (t == ZoneType::Simple || t == ZoneType::IndexTab || t == ZoneType::Standard ||
+                    t == ZoneType::Toggle || t == ZoneType::Conditional);
+    keySpinBox_->setVisible(showKey);
+    
+    // ============ Item Tab Visibility ============
+    // Show/hide the entire Item tab based on zone type
+    int itemTabIndex = mainTabWidget_->indexOf(mainTabWidget_->findChild<QScrollArea*>());
+    if (itemTabIndex < 0) {
+        // Find by walking tabs
+        for (int i = 0; i < mainTabWidget_->count(); ++i) {
+            if (mainTabWidget_->tabText(i) == tr("Item")) {
+                itemTabIndex = i;
+                break;
+            }
+        }
+    }
+    if (itemTabIndex >= 0) {
+        mainTabWidget_->setTabVisible(itemTabIndex, isItem);
+    }
+    
+    // Item-specific field visibility
+    itemTypeLabel_->setVisible(t == ZoneType::Item);  // Only for generic ZONE_ITEM
+    itemTypeCombo_->setVisible(t == ZoneType::Item);
+    
+    itemNameLabel_->setVisible(isItem);
+    itemNameEdit_->setVisible(isItem);
+    itemZoneNameLabel_->setVisible(isItem);
+    itemZoneNameEdit_->setVisible(isItem);
+    itemPrintNameLabel_->setVisible(isItem);
+    itemPrintNameEdit_->setVisible(isItem);
+    
+    itemPriceLabel_->setVisible(isItem);
+    itemPriceSpinBox_->setVisible(isItem);
+    
+    bool showSubprice = (isItem && itype == 3);  // ITEM_SUBSTITUTE
+    itemSubpriceLabel_->setVisible(showSubprice);
+    itemSubpriceSpinBox_->setVisible(showSubprice);
+    
+    itemEmployeePriceLabel_->setVisible(isItem);
+    itemEmployeePriceSpinBox_->setVisible(isItem);
+    
+    bool showFamily = (isItem && itype != 5);  // Not ITEM_ADMISSION
+    itemFamilyLabel_->setVisible(showFamily);
+    itemFamilyCombo_->setVisible(showFamily);
+    itemSalesLabel_->setVisible(showFamily);
+    itemSalesCombo_->setVisible(showFamily);
+    
+    bool showPrinter = (isItem && (itype == 0 || itype == 3 || itype == 4 || itype == 5));
+    itemPrinterLabel_->setVisible(showPrinter);
+    itemPrinterCombo_->setVisible(showPrinter);
+    
+    bool showCallOrder = (isItem && itype != 0 && itype != 4);
+    itemCallOrderLabel_->setVisible(showCallOrder);
+    itemCallOrderCombo_->setVisible(showCallOrder);
+    
+    pageListLabel_->setVisible(isItem);
+    pageListEdit_->setVisible(isItem);
+    
+    // Admission-specific fields
+    bool showAdmission = (isItem && itype == 5);  // ITEM_ADMISSION
+    itemLocationLabel_->setVisible(showAdmission);
+    itemLocationEdit_->setVisible(showAdmission);
+    itemEventTimeLabel_->setVisible(showAdmission);
+    itemEventTimeEdit_->setVisible(showAdmission);
+    itemTotalTicketsLabel_->setVisible(showAdmission);
+    itemTotalTicketsSpinBox_->setVisible(showAdmission);
+    itemPriceLabelLabel_->setVisible(showAdmission);
+    itemPriceLabelEdit_->setVisible(showAdmission);
 }
 
 void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
@@ -952,6 +1461,306 @@ void ZoneTypeComboBox::setCurrentZoneType(ZoneType type) {
 
 ZoneType ZoneTypeComboBox::currentZoneType() const {
     return static_cast<ZoneType>(currentData().toInt());
+}
+
+/*************************************************************
+ * JumpTypeComboBox Implementation
+ *************************************************************/
+JumpTypeComboBox::JumpTypeComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    addItem(tr("Remain On This Page"), static_cast<int>(JumpType::None));
+    addItem(tr("Jump To A Modifier Page"), static_cast<int>(JumpType::Normal));
+    addItem(tr("Move To A Menu Item Page"), static_cast<int>(JumpType::Stealth));
+    addItem(tr("Return From A Jump"), static_cast<int>(JumpType::Return));
+    addItem(tr("Follow The Script"), static_cast<int>(JumpType::Script));
+    addItem(tr("Return to Index"), static_cast<int>(JumpType::Index));
+    addItem(tr("Return To The Starting Page"), static_cast<int>(JumpType::Home));
+    addItem(tr("Query Password Then Jump"), static_cast<int>(JumpType::Password));
+}
+
+void JumpTypeComboBox::setCurrentJumpType(JumpType type) {
+    int index = findData(static_cast<int>(type));
+    if (index >= 0) setCurrentIndex(index);
+}
+
+JumpType JumpTypeComboBox::currentJumpType() const {
+    return static_cast<JumpType>(currentData().toInt());
+}
+
+/*************************************************************
+ * TenderTypeComboBox Implementation
+ *************************************************************/
+TenderTypeComboBox::TenderTypeComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    addItem(tr("Cash"), 0);
+    addItem(tr("Check"), 1);
+    addItem(tr("Credit Card"), 2);
+    addItem(tr("Charge"), 3);
+    addItem(tr("Gift Certificate"), 4);
+    addItem(tr("Coupon"), 5);
+    addItem(tr("Discount"), 6);
+    addItem(tr("Comp"), 7);
+    addItem(tr("Employee Meal"), 8);
+    addItem(tr("Gratuity"), 9);
+    addItem(tr("Money Order"), 10);
+    addItem(tr("Room Charge"), 11);
+    addItem(tr("Debit Card"), 12);
+    addItem(tr("Expense"), 13);
+    addItem(tr("Account"), 14);
+    addItem(tr("Gift Card"), 15);
+    addItem(tr("Captured Tip"), 16);
+    addItem(tr("Change"), 17);
+    addItem(tr("Overage"), 18);
+}
+
+void TenderTypeComboBox::setCurrentTenderType(int type) {
+    int index = findData(type);
+    if (index >= 0) setCurrentIndex(index);
+}
+
+int TenderTypeComboBox::currentTenderType() const {
+    return currentData().toInt();
+}
+
+/*************************************************************
+ * ReportTypeComboBox Implementation
+ *************************************************************/
+ReportTypeComboBox::ReportTypeComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    addItem(tr("Server Report"), 0);
+    addItem(tr("Drawer Report"), 1);
+    addItem(tr("Audit Report"), 2);
+    addItem(tr("System Report"), 3);
+    addItem(tr("Balance Report"), 4);
+    addItem(tr("Check Display"), 5);
+    addItem(tr("Deposit Report"), 6);
+    addItem(tr("Work Order"), 7);
+    addItem(tr("Customer Report"), 8);
+    addItem(tr("Expense Report"), 9);
+    addItem(tr("Royalty Report"), 10);
+    addItem(tr("Exception Report"), 11);
+    addItem(tr("Table Status"), 12);
+    addItem(tr("Item Report"), 13);
+    addItem(tr("Zone Report"), 14);
+    addItem(tr("Credit Card Report"), 15);
+    addItem(tr("Data Report"), 16);
+}
+
+void ReportTypeComboBox::setCurrentReportType(int type) {
+    int index = findData(type);
+    if (index >= 0) setCurrentIndex(index);
+}
+
+int ReportTypeComboBox::currentReportType() const {
+    return currentData().toInt();
+}
+
+/*************************************************************
+ * SwitchTypeComboBox Implementation
+ *************************************************************/
+SwitchTypeComboBox::SwitchTypeComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    addItem(tr("Seat"), 0);
+    addItem(tr("Drawer"), 1);
+    addItem(tr("Page"), 2);
+    addItem(tr("User"), 3);
+    addItem(tr("Terminal"), 4);
+    addItem(tr("Printer"), 5);
+    addItem(tr("Video"), 6);
+    addItem(tr("Language"), 7);
+}
+
+void SwitchTypeComboBox::setCurrentSwitchType(int type) {
+    int index = findData(type);
+    if (index >= 0) setCurrentIndex(index);
+}
+
+int SwitchTypeComboBox::currentSwitchType() const {
+    return currentData().toInt();
+}
+
+/*************************************************************
+ * QualifierComboBox Implementation
+ *************************************************************/
+QualifierComboBox::QualifierComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    addItem(tr("No"), 0);
+    addItem(tr("Extra"), 1);
+    addItem(tr("Lite"), 2);
+    addItem(tr("Only"), 3);
+    addItem(tr("Side"), 4);
+    addItem(tr("Sub"), 5);
+    addItem(tr("Half 1"), 6);
+    addItem(tr("Half 2"), 7);
+}
+
+void QualifierComboBox::setCurrentQualifier(int type) {
+    int index = findData(type);
+    if (index >= 0) setCurrentIndex(index);
+}
+
+int QualifierComboBox::currentQualifier() const {
+    return currentData().toInt();
+}
+
+/*************************************************************
+ * CustomerTypeComboBox Implementation
+ *************************************************************/
+CustomerTypeComboBox::CustomerTypeComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    addItem(tr("None"), 0);
+    addItem(tr("Take Out"), 1);
+    addItem(tr("Delivery"), 2);
+    addItem(tr("Fast Food"), 3);
+    addItem(tr("Call In"), 4);
+    addItem(tr("Tab"), 5);
+    addItem(tr("Hotel"), 6);
+    addItem(tr("Retail"), 7);
+}
+
+void CustomerTypeComboBox::setCurrentCustomerType(int type) {
+    int index = findData(type);
+    if (index >= 0) setCurrentIndex(index);
+}
+
+int CustomerTypeComboBox::currentCustomerType() const {
+    return currentData().toInt();
+}
+
+/*************************************************************
+ * ItemTypeComboBox Implementation
+ *************************************************************/
+ItemTypeComboBox::ItemTypeComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    addItem(tr("Normal"), 0);
+    addItem(tr("Modifier"), 1);
+    addItem(tr("Method"), 2);
+    addItem(tr("Substitute"), 3);
+    addItem(tr("By Weight"), 4);
+    addItem(tr("Admission"), 5);
+}
+
+void ItemTypeComboBox::setCurrentItemType(int type) {
+    int index = findData(type);
+    if (index >= 0) setCurrentIndex(index);
+}
+
+int ItemTypeComboBox::currentItemType() const {
+    return currentData().toInt();
+}
+
+/*************************************************************
+ * ItemFamilyComboBox Implementation
+ *************************************************************/
+ItemFamilyComboBox::ItemFamilyComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    // These should be loaded from system settings, but for now use defaults
+    addItem(tr("Appetizers"), 1);
+    addItem(tr("Soups"), 2);
+    addItem(tr("Salads"), 3);
+    addItem(tr("Entrees"), 4);
+    addItem(tr("Pizza"), 5);
+    addItem(tr("Sandwiches"), 6);
+    addItem(tr("Sides"), 7);
+    addItem(tr("Desserts"), 8);
+    addItem(tr("Beverages"), 9);
+    addItem(tr("Beer"), 10);
+    addItem(tr("Wine"), 11);
+    addItem(tr("Liquor"), 12);
+    addItem(tr("Breakfast"), 13);
+    addItem(tr("Kids Menu"), 14);
+    addItem(tr("Specials"), 15);
+    addItem(tr("Retail"), 16);
+}
+
+void ItemFamilyComboBox::setCurrentFamily(int family) {
+    int index = findData(family);
+    if (index >= 0) setCurrentIndex(index);
+}
+
+int ItemFamilyComboBox::currentFamily() const {
+    return currentData().toInt();
+}
+
+/*************************************************************
+ * SalesTypeComboBox Implementation
+ *************************************************************/
+SalesTypeComboBox::SalesTypeComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    addItem(tr("Food"), 0);
+    addItem(tr("Beverage"), 1);
+    addItem(tr("Beer"), 2);
+    addItem(tr("Wine"), 3);
+    addItem(tr("Liquor"), 4);
+    addItem(tr("Merchandise"), 5);
+    addItem(tr("Room"), 6);
+    addItem(tr("Tax Exempt"), 7);
+}
+
+void SalesTypeComboBox::setCurrentSalesType(int type) {
+    int index = findData(type);
+    if (index >= 0) setCurrentIndex(index);
+}
+
+int SalesTypeComboBox::currentSalesType() const {
+    return currentData().toInt();
+}
+
+/*************************************************************
+ * PrinterComboBox Implementation
+ *************************************************************/
+PrinterComboBox::PrinterComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    addItem(tr("None"), 0);
+    addItem(tr("Kitchen 1"), 1);
+    addItem(tr("Kitchen 2"), 2);
+    addItem(tr("Kitchen 3"), 3);
+    addItem(tr("Bar"), 4);
+    addItem(tr("Expediter"), 5);
+    addItem(tr("Receipt"), 6);
+    addItem(tr("Report"), 7);
+}
+
+void PrinterComboBox::setCurrentPrinter(int id) {
+    int index = findData(id);
+    if (index >= 0) setCurrentIndex(index);
+}
+
+int PrinterComboBox::currentPrinter() const {
+    return currentData().toInt();
+}
+
+/*************************************************************
+ * CallOrderComboBox Implementation
+ *************************************************************/
+CallOrderComboBox::CallOrderComboBox(QWidget* parent)
+    : QComboBox(parent)
+{
+    addItem(tr("No Call"), 0);
+    addItem(tr("First"), 1);
+    addItem(tr("Second"), 2);
+    addItem(tr("Third"), 3);
+    addItem(tr("As Entree"), 4);
+    addItem(tr("At Once"), 5);
+}
+
+void CallOrderComboBox::setCurrentCallOrder(int order) {
+    int index = findData(order);
+    if (index >= 0) setCurrentIndex(index);
+}
+
+int CallOrderComboBox::currentCallOrder() const {
+    return currentData().toInt();
 }
 
 } // namespace vt
