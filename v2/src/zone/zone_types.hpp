@@ -239,99 +239,10 @@ private:
     int qualifierType_ = 0;
 };
 
-/*************************************************************
- * TenderZone - Payment tender button (ZONE_TENDER)
- * Handles payment processing
- *************************************************************/
-class TenderZone : public ButtonZone {
-    Q_OBJECT
-
-public:
-    TenderZone();
-    
-    const char* typeName() const override { return "TenderZone"; }
-    
-    void setTenderType(int type) { tenderType_ = type; }
-    int tenderType() const { return tenderType_; }
-
-signals:
-    void tenderSelected(int type);
-
-protected:
-    int touch(Terminal* term, int tx, int ty) override;
-    
-private:
-    int tenderType_ = 0;
-};
-
-/*************************************************************
- * TableZone - Table selection/status button (ZONE_TABLE)
- * Shows table status and handles table selection
- *************************************************************/
-class TableZone : public ButtonZone {
-    Q_OBJECT
-
-public:
-    TableZone();
-    
-    const char* typeName() const override { return "TableZone"; }
-    
-    void setTableId(int id) { tableId_ = id; }
-    int tableId() const { return tableId_; }
-    
-    // Table status
-    enum class Status { Empty, Occupied, Reserved, Dirty };
-    void setStatus(Status s) { status_ = s; }
-    Status status() const { return status_; }
-
-signals:
-    void tableSelected(int tableId);
-
-protected:
-    void renderContent(Renderer& renderer, Terminal* term) override;
-    int touch(Terminal* term, int tx, int ty) override;
-    
-private:
-    int tableId_ = 0;
-    Status status_ = Status::Empty;
-};
-
-/*************************************************************
- * LoginZone - User login button (ZONE_LOGIN)
- * Takes user ID input for authentication
- *************************************************************/
-class LoginZone : public ButtonZone {
-    Q_OBJECT
-
-public:
-    LoginZone();
-    
-    const char* typeName() const override { return "LoginZone"; }
-
-signals:
-    void loginRequested();
-
-protected:
-    int touch(Terminal* term, int tx, int ty) override;
-};
-
-/*************************************************************
- * LogoutZone - User logout button (ZONE_LOGOUT)
- *************************************************************/
-class LogoutZone : public ButtonZone {
-    Q_OBJECT
-
-public:
-    LogoutZone();
-    
-    const char* typeName() const override { return "LogoutZone"; }
-
-signals:
-    void logoutRequested();
-
-protected:
-    int touch(Terminal* term, int tx, int ty) override;
-};
+// TenderZone, TableZone, LoginZone, LogoutZone - see separate header files:
+// - zone/payment_zone.hpp (TenderZone and related payment zones)
+// - zone/table_zone.hpp (TableZone and related table zones)
+// - zone/login_zone.hpp (LoginZone, LogoutZone)
 
 /*************************************************************
  * CommandZone - System command button (ZONE_COMMAND)

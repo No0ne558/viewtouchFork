@@ -3,6 +3,9 @@
  */
 
 #include "zone/zone_types.hpp"
+#include "zone/login_zone.hpp"
+#include "zone/table_zone.hpp"
+#include "zone/payment_zone.hpp"
 #include "render/renderer.hpp"
 #include "terminal/terminal.hpp"
 
@@ -250,92 +253,10 @@ int QualifierZone::touch(Terminal* term, int tx, int ty) {
     return 1;
 }
 
-/*************************************************************
- * TenderZone Implementation (ZONE_TENDER)
- *************************************************************/
-TenderZone::TenderZone() {
-    setZoneType(ZoneType::Tender);
-    setBehavior(ZoneBehavior::Blink);
-}
-
-int TenderZone::touch(Terminal* term, int tx, int ty) {
-    Zone::touch(term, tx, ty);
-    emit tenderSelected(tenderType_);
-    
-    // Perform jump to payment page
-    return ButtonZone::touch(term, tx, ty);
-}
-
-/*************************************************************
- * TableZone Implementation (ZONE_TABLE)
- *************************************************************/
-TableZone::TableZone() {
-    setZoneType(ZoneType::Table);
-    setBehavior(ZoneBehavior::Blink);
-}
-
-void TableZone::renderContent(Renderer& renderer, Terminal* term) {
-    QRect r(region().x, region().y, region().w, region().h);
-    
-    // Color based on table status
-    uint8_t colorId;
-    switch (status_) {
-        case Status::Empty:
-            colorId = static_cast<uint8_t>(TextColor::Black);
-            break;
-        case Status::Occupied:
-            colorId = static_cast<uint8_t>(TextColor::Blue);
-            break;
-        case Status::Reserved:
-            colorId = static_cast<uint8_t>(TextColor::Orange);
-            break;
-        case Status::Dirty:
-            colorId = static_cast<uint8_t>(TextColor::Red);
-            break;
-    }
-    
-    uint8_t fontId = static_cast<uint8_t>(font());
-    if (fontId == 0) fontId = static_cast<uint8_t>(FontId::Times24B);
-    
-    QString displayText = name().isEmpty() ? QString::number(tableId_) : name();
-    renderer.drawText(displayText, r, fontId, colorId, TextAlign::Center);
-}
-
-int TableZone::touch(Terminal* term, int tx, int ty) {
-    Zone::touch(term, tx, ty);
-    emit tableSelected(tableId_);
-    return ButtonZone::touch(term, tx, ty);
-}
-
-/*************************************************************
- * LoginZone Implementation (ZONE_LOGIN)
- *************************************************************/
-LoginZone::LoginZone() {
-    setZoneType(ZoneType::Login);
-    setBehavior(ZoneBehavior::Blink);
-}
-
-int LoginZone::touch(Terminal* term, int tx, int ty) {
-    Zone::touch(term, tx, ty);
-    emit loginRequested();
-    
-    // Jump to login page
-    return ButtonZone::touch(term, tx, ty);
-}
-
-/*************************************************************
- * LogoutZone Implementation (ZONE_LOGOUT)
- *************************************************************/
-LogoutZone::LogoutZone() {
-    setZoneType(ZoneType::Logout);
-    setBehavior(ZoneBehavior::Blink);
-}
-
-int LogoutZone::touch(Terminal* term, int tx, int ty) {
-    Zone::touch(term, tx, ty);
-    emit logoutRequested();
-    return 1;
-}
+// TenderZone, TableZone, LoginZone, LogoutZone - implementations now in separate files:
+// - zone/payment_zone.cpp (TenderZone and related payment zones)  
+// - zone/table_zone.cpp (TableZone and related table zones)
+// - zone/login_zone.cpp (LoginZone, LogoutZone)
 
 /*************************************************************
  * CommandZone Implementation (ZONE_COMMAND)

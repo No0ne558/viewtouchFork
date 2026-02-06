@@ -29,6 +29,14 @@ set(ZONE_SOURCES
     src/zone/page.cpp
     src/zone/zone_db.hpp
     src/zone/zone_db.cpp
+    src/zone/login_zone.hpp
+    src/zone/login_zone.cpp
+    src/zone/table_zone.hpp
+    src/zone/table_zone.cpp
+    src/zone/order_zone.hpp
+    src/zone/order_zone.cpp
+    src/zone/payment_zone.hpp
+    src/zone/payment_zone.cpp
 )
 
 # Terminal and control
