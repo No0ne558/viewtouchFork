@@ -67,6 +67,30 @@ set(BUSINESS_SOURCES
     src/business/employee.cpp
     src/business/menu.hpp
     src/business/menu.cpp
+    src/business/sales.hpp
+    src/business/sales.cpp
+    src/business/customer.hpp
+    src/business/customer.cpp
+    src/business/inventory.hpp
+    src/business/inventory.cpp
+    src/business/labor.hpp
+    src/business/labor.cpp
+    src/business/tips.hpp
+    src/business/tips.cpp
+    src/business/reports.hpp
+    src/business/reports.cpp
+)
+
+# Hardware integration
+set(HARDWARE_SOURCES
+    src/hardware/printer.hpp
+    src/hardware/printer.cpp
+    src/hardware/creditcard.hpp
+    src/hardware/creditcard.cpp
+    src/hardware/cashdrawer.hpp
+    src/hardware/cashdrawer.cpp
+    src/hardware/kitchen_display.hpp
+    src/hardware/kitchen_display.cpp
 )
 
 # Data management
@@ -91,6 +115,7 @@ add_executable(viewtouch2
     ${RENDER_SOURCES}
     ${EDITOR_SOURCES}
     ${BUSINESS_SOURCES}
+    ${HARDWARE_SOURCES}
     ${DATA_SOURCES}
     ${APP_SOURCES}
 )
