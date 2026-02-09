@@ -16,8 +16,7 @@ Control::Control(QObject* parent)
     : QObject(parent)
     , zoneDb_(std::make_unique<ZoneDB>())
 {
-    // Initialize system pages
-    zoneDb_->initSystemPages();
+    // Start with 0 pages
 }
 
 Control::~Control() = default;

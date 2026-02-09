@@ -4,6 +4,7 @@
  */
 
 #include "editor/zone_properties.hpp"
+#include "editor/page_properties.hpp"
 #include "zone/zone.hpp"
 #include "zone/zone_types.hpp"
 #include "zone/page.hpp"
@@ -108,10 +109,8 @@ void ZonePropertiesDialog::setupUi() {
     shapeCombo_ = new ShapeComboBox();
     behaveLayout->addRow(tr("Button's Shape:"), shapeCombo_);
     
-    shadowSpinBox_ = new QSpinBox();
-    shadowSpinBox_->setRange(0, 1024);
-    shadowSpinBox_->setSpecialValueText(tr("Default"));
-    behaveLayout->addRow(tr("Shadow Intensity:"), shadowSpinBox_);
+    shadowCombo_ = new ShadowComboBox(true);  // Include "Default" option for zones
+    behaveLayout->addRow(tr("Shadow Intensity:"), shadowCombo_);
     
     keySpinBox_ = new QSpinBox();
     keySpinBox_->setRange(0, 255);
@@ -434,7 +433,7 @@ void ZonePropertiesDialog::loadFromZone() {
     behaviorCombo_->setCurrentBehavior(zone_->behavior());
     fontCombo_->setCurrentFontId(zone_->font());
     shapeCombo_->setCurrentShape(zone_->shape());
-    shadowSpinBox_->setValue(zone_->shadow());
+    shadowCombo_->setCurrentShadow(zone_->shadow());
     keySpinBox_->setValue(zone_->key());
     
     // Options
@@ -490,7 +489,7 @@ void ZonePropertiesDialog::saveToZone() {
     zone_->setBehavior(behaviorCombo_->currentBehavior());
     zone_->setFont(fontCombo_->currentFontId());
     zone_->setShape(shapeCombo_->currentShape());
-    zone_->setShadow(shadowSpinBox_->value());
+    zone_->setShadow(shadowCombo_->currentShadow());
     zone_->setKey(keySpinBox_->value());
     
     // Options
@@ -556,7 +555,7 @@ void ZonePropertiesDialog::replaceZoneIfTypeChanged() {
     newZone->setBehavior(behaviorCombo_->currentBehavior());
     newZone->setFont(fontCombo_->currentFontId());
     newZone->setShape(shapeCombo_->currentShape());
-    newZone->setShadow(shadowSpinBox_->value());
+    newZone->setShadow(shadowCombo_->currentShadow());
     newZone->setKey(keySpinBox_->value());
     newZone->setActive(activeCheck_->isChecked());
     newZone->setEdit(editCheck_->isChecked());
@@ -828,7 +827,7 @@ void ZonePropertiesDialog::updateFieldVisibility() {
 }
 
 void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
-    // Apply default frame, texture, color, font, behavior based on zone type
+    // Apply default frame, texture, color, font, behavior, and size based on zone type
     // This matches the original ViewTouch zone defaults
     
     ZoneFrame defaultFrame = ZoneFrame::Border;
@@ -836,6 +835,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
     uint8_t defaultColor = static_cast<uint8_t>(TextColor::White);
     FontId defaultFont = FontId::Times24;
     ZoneBehavior defaultBehavior = ZoneBehavior::Blink;
+    int defaultW = 140, defaultH = 100;
     
     switch (type) {
         // Basic buttons
@@ -863,6 +863,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = TEXTURE_CLEAR;
             defaultColor = static_cast<uint8_t>(TextColor::Gray);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 200; defaultH = 40;
             break;
             
         case ZoneType::Switch:
@@ -919,6 +920,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = static_cast<uint8_t>(TextureId::GrayMarble);
             defaultFont = FontId::Times24B;
             defaultBehavior = ZoneBehavior::Blink;
+            defaultW = 80; defaultH = 80;
             break;
             
         case ZoneType::TableAssign:
@@ -933,6 +935,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultFrame = ZoneFrame::DoubleBorder;
             defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 400; defaultH = 500;
             break;
             
         case ZoneType::SplitCheck:
@@ -947,6 +950,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
             defaultFont = FontId::Times34B;
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 300; defaultH = 200;
             break;
             
         case ZoneType::Logout:
@@ -960,6 +964,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultFrame = ZoneFrame::DoubleBorder;
             defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 400; defaultH = 500;
             break;
             
         case ZoneType::GuestCount:
@@ -967,6 +972,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = static_cast<uint8_t>(TextureId::GrayMarble);
             defaultFont = FontId::Times34B;
             defaultBehavior = ZoneBehavior::Blink;
+            defaultW = 80; defaultH = 80;
             break;
             
         // Order entry
@@ -976,6 +982,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = static_cast<uint8_t>(TextureId::Parchment);
             defaultColor = static_cast<uint8_t>(TextColor::Black);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 300; defaultH = 500;
             break;
             
         case ZoneType::OrderPage:
@@ -1018,12 +1025,14 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultFrame = ZoneFrame::DoubleBorder;
             defaultTexture = static_cast<uint8_t>(TextureId::GrayParchment);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 400; defaultH = 500;
             break;
             
         case ZoneType::Developer:
             defaultFrame = ZoneFrame::DoubleBorder;
             defaultTexture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 400; defaultH = 500;
             break;
             
         // Hardware
@@ -1035,6 +1044,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultFrame = ZoneFrame::DoubleBorder;
             defaultTexture = static_cast<uint8_t>(TextureId::GrayParchment);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 400; defaultH = 500;
             break;
             
         case ZoneType::CDU:
@@ -1042,6 +1052,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = static_cast<uint8_t>(TextureId::Black);
             defaultColor = static_cast<uint8_t>(TextColor::Green);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 300; defaultH = 100;
             break;
             
         case ZoneType::DrawerManage:
@@ -1057,6 +1068,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = static_cast<uint8_t>(TextureId::Parchment);
             defaultColor = static_cast<uint8_t>(TextColor::Black);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 500; defaultH = 600;
             break;
             
         case ZoneType::Chart:
@@ -1064,6 +1076,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = static_cast<uint8_t>(TextureId::WhiteTexture);
             defaultColor = static_cast<uint8_t>(TextColor::Black);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 500; defaultH = 400;
             break;
             
         case ZoneType::Search:
@@ -1077,6 +1090,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = static_cast<uint8_t>(TextureId::Parchment);
             defaultColor = static_cast<uint8_t>(TextColor::Black);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 400; defaultH = 400;
             break;
             
         // Inventory
@@ -1091,6 +1105,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = static_cast<uint8_t>(TextureId::TanParchment);
             defaultColor = static_cast<uint8_t>(TextColor::Black);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 400; defaultH = 500;
             break;
             
         case ZoneType::Expense:
@@ -1106,6 +1121,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = static_cast<uint8_t>(TextureId::TanParchment);
             defaultColor = static_cast<uint8_t>(TextColor::Black);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 400; defaultH = 500;
             break;
             
         case ZoneType::EndDay:
@@ -1123,6 +1139,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultTexture = static_cast<uint8_t>(TextureId::TanParchment);
             defaultColor = static_cast<uint8_t>(TextColor::Black);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 400; defaultH = 500;
             break;
             
         // System
@@ -1136,6 +1153,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultFrame = ZoneFrame::DoubleBorder;
             defaultTexture = static_cast<uint8_t>(TextureId::TanParchment);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 400; defaultH = 500;
             break;
             
         case ZoneType::License:
@@ -1143,6 +1161,7 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultFrame = ZoneFrame::DoubleBorder;
             defaultTexture = static_cast<uint8_t>(TextureId::GrayParchment);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 400; defaultH = 300;
             break;
             
         case ZoneType::KillSystem:
@@ -1158,12 +1177,14 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
             defaultFrame = ZoneFrame::Border;
             defaultTexture = static_cast<uint8_t>(TextureId::BlueParchment);
             defaultBehavior = ZoneBehavior::None;
+            defaultW = 200; defaultH = 40;
             break;
             
         case ZoneType::ImageButton:
             defaultFrame = ZoneFrame::None;
             defaultTexture = TEXTURE_CLEAR;
             defaultBehavior = ZoneBehavior::Blink;
+            defaultW = 200; defaultH = 200;
             break;
             
         case ZoneType::IndexTab:
@@ -1197,6 +1218,10 @@ void ZonePropertiesDialog::applyZoneTypeDefaults(ZoneType type) {
     // Apply font and behavior
     fontCombo_->setCurrentFontId(defaultFont);
     behaviorCombo_->setCurrentBehavior(defaultBehavior);
+    
+    // Apply size defaults
+    widthSpinBox_->setValue(defaultW);
+    heightSpinBox_->setValue(defaultH);
 }
 
 void ZonePropertiesDialog::updatePreview() {

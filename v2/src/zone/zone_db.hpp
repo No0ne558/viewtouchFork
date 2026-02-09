@@ -11,6 +11,7 @@
 #pragma once
 
 #include "zone/page.hpp"
+#include "core/fonts.hpp"
 
 #include <QString>
 #include <map>
@@ -104,11 +105,32 @@ public:
     // Data directory
     void setDataDir(const QString& dir) { dataDir_ = dir; }
     QString dataDir() const { return dataDir_; }
+    
+    // ===== Global zone defaults (matching v1 ZoneDB constructor) =====
+    // These are the ultimate fallback when Page defaults are also DEFAULT
+    ZoneFrame defaultFrame(int state) const { return (state >= 0 && state < 3) ? defaultFrame_[state] : ZoneFrame::Raised; }
+    uint8_t   defaultTexture(int state) const { return (state >= 0 && state < 3) ? defaultTexture_[state] : 0; }
+    uint8_t   defaultColor(int state) const { return (state >= 0 && state < 3) ? defaultColor_[state] : 0; }
+    FontId    defaultFont() const { return defaultFont_; }
+    int       defaultSpacing() const { return defaultSpacing_; }
+    int       defaultShadow() const { return defaultShadow_; }
+    uint8_t   defaultImage() const { return defaultImage_; }
+    uint8_t   defaultTitleColor() const { return defaultTitleColor_; }
 
 private:
     std::map<int, std::unique_ptr<Page>> pages_;
     int nextUserPageId_ = 1;  // User pages start at 1
     QString dataDir_;
+    
+    // Global zone defaults (v1 ZoneDB constructor values)
+    ZoneFrame defaultFrame_[3]   = { ZoneFrame::Raised, ZoneFrame::Raised, ZoneFrame::Hidden };
+    uint8_t   defaultTexture_[3] = { 0, 1, 0 };  // Sand, LitSand, Sand
+    uint8_t   defaultColor_[3]   = { 0, 0, 0 };  // Black, Black, Black
+    FontId    defaultFont_        = FontId::Times24;
+    int       defaultSpacing_     = 2;
+    int       defaultShadow_      = 0;
+    uint8_t   defaultImage_       = 7;   // GrayMarble
+    uint8_t   defaultTitleColor_  = 4;   // Blue
 };
 
 } // namespace vt

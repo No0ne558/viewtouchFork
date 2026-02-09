@@ -67,53 +67,7 @@ set(EDITOR_SOURCES
     src/editor/page_properties.cpp
 )
 
-# Business logic
-set(BUSINESS_SOURCES
-    src/business/check.hpp
-    src/business/check.cpp
-    src/business/employee.hpp
-    src/business/employee.cpp
-    src/business/menu.hpp
-    src/business/menu.cpp
-    src/business/sales.hpp
-    src/business/sales.cpp
-    src/business/customer.hpp
-    src/business/customer.cpp
-    src/business/inventory.hpp
-    src/business/inventory.cpp
-    src/business/labor.hpp
-    src/business/labor.cpp
-    src/business/tips.hpp
-    src/business/tips.cpp
-    src/business/reports.hpp
-    src/business/reports.cpp
-    src/business/tax.hpp
-    src/business/tax.cpp
-    src/business/archive.hpp
-    src/business/archive.cpp
-    src/business/exception.hpp
-    src/business/exception.cpp
-    src/business/discount.hpp
-    src/business/discount.cpp
-)
 
-# Hardware integration
-set(HARDWARE_SOURCES
-    src/hardware/printer.hpp
-    src/hardware/printer.cpp
-    src/hardware/creditcard.hpp
-    src/hardware/creditcard.cpp
-    src/hardware/cashdrawer.hpp
-    src/hardware/cashdrawer.cpp
-    src/hardware/kitchen_display.hpp
-    src/hardware/kitchen_display.cpp
-)
-
-# Data management
-set(DATA_SOURCES
-    src/data/settings.hpp
-    src/data/settings.cpp
-)
 
 # Main application
 set(APP_SOURCES
@@ -130,9 +84,6 @@ add_executable(viewtouch2
     ${TERMINAL_SOURCES}
     ${RENDER_SOURCES}
     ${EDITOR_SOURCES}
-    ${BUSINESS_SOURCES}
-    ${HARDWARE_SOURCES}
-    ${DATA_SOURCES}
     ${APP_SOURCES}
 )
 

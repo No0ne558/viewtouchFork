@@ -3,6 +3,7 @@
  */
 
 #include "zone/zone.hpp"
+#include "zone/page.hpp"
 #include "render/renderer.hpp"
 
 #include <QRect>
@@ -160,27 +161,60 @@ int Zone::update(Terminal* term, UpdateFlag flags, const QString& value) {
 }
 
 ZoneFrame Zone::effectiveFrame() const {
+    // Resolution chain: Zone → Page → ZoneDB (matches v1 Terminal::FrameID)
     ZoneFrame f = states_[currentState_].frame;
-    if (f == ZoneFrame::Default || f == ZoneFrame::Unchanged) {
-        f = ZoneFrame::Raised;  // Default frame style
+    if (f != ZoneFrame::Default && f != ZoneFrame::Unchanged)
+        return f;
+    
+    // Try page default
+    if (page_) {
+        ZoneFrame pf = page_->defaultFrame(currentState_);
+        if (pf != ZoneFrame::Default && pf != ZoneFrame::Unchanged)
+            return pf;
     }
-    return f;
+    
+    // Ultimate fallback: ZoneDB defaults (Raised for normal/selected, Hidden for alternate)
+    switch (currentState_) {
+        case 2: return ZoneFrame::Hidden;
+        default: return ZoneFrame::Raised;
+    }
 }
 
 uint8_t Zone::effectiveTexture() const {
+    // Resolution chain: Zone → Page → ZoneDB (matches v1 Terminal::TextureID)
     uint8_t t = states_[currentState_].texture;
-    if (t == TEXTURE_DEFAULT || t == TEXTURE_UNCHANGED) {
-        t = static_cast<uint8_t>(TextureId::Sand);  // Default texture
+    if (t != TEXTURE_DEFAULT && t != TEXTURE_UNCHANGED)
+        return t;
+    
+    // Try page default
+    if (page_) {
+        uint8_t pt = page_->defaultTexture(currentState_);
+        if (pt != TEXTURE_DEFAULT && pt != TEXTURE_UNCHANGED)
+            return pt;
     }
-    return t;
+    
+    // Ultimate fallback: ZoneDB defaults (Sand for normal/alternate, LitSand for selected)
+    switch (currentState_) {
+        case 1: return static_cast<uint8_t>(TextureId::LitSand);
+        default: return static_cast<uint8_t>(TextureId::Sand);
+    }
 }
 
 uint8_t Zone::effectiveColor() const {
+    // Resolution chain: Zone → Page → ZoneDB (matches v1 Terminal::ColorID)
     uint8_t c = states_[currentState_].color;
-    if (c == COLOR_DEFAULT || c == COLOR_UNCHANGED || c == COLOR_PAGE_DEFAULT) {
-        c = static_cast<uint8_t>(TextColor::Black);  // Default to black
+    if (c != COLOR_DEFAULT && c != COLOR_UNCHANGED && c != COLOR_PAGE_DEFAULT)
+        return c;
+    
+    // Try page default
+    if (page_) {
+        uint8_t pc = page_->defaultColor(currentState_);
+        if (pc != COLOR_DEFAULT && pc != COLOR_UNCHANGED && pc != COLOR_PAGE_DEFAULT)
+            return pc;
     }
-    return c;
+    
+    // Ultimate fallback: ZoneDB default = Black
+    return static_cast<uint8_t>(TextColor::Black);
 }
 
 } // namespace vt

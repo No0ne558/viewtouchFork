@@ -36,6 +36,322 @@
 namespace vt {
 
 /*************************************************************
+ * applyZoneDefaults - Set zone appearance based on type & page
+ * Matches v1 zone type defaults with page-aware fallbacks
+ *************************************************************/
+static void applyZoneDefaults(Zone* zone, ZoneType type, Page* page) {
+    // Defaults: v1 ZoneDB fallback values
+    ZoneFrame frame    = ZoneFrame::Default;
+    uint8_t   texture  = TEXTURE_DEFAULT;
+    uint8_t   color    = COLOR_DEFAULT;
+    FontId    font     = FontId::Default;
+    ZoneBehavior behave = ZoneBehavior::Blink;
+    int w = 140, h = 100;
+
+    switch (type) {
+        case ZoneType::Simple:
+        case ZoneType::Standard:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::BlueParchment);
+            break;
+        case ZoneType::Toggle:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::GreenTexture);
+            break;
+        case ZoneType::Conditional:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::BlueParchment);
+            break;
+        case ZoneType::Comment:
+            frame = ZoneFrame::None;
+            texture = TEXTURE_CLEAR;
+            color = static_cast<uint8_t>(TextColor::Gray);
+            behave = ZoneBehavior::None;
+            w = 200; h = 40;
+            break;
+        case ZoneType::Switch:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::GrayParchment);
+            break;
+        case ZoneType::Item:
+        case ZoneType::ItemNormal:
+        case ZoneType::ItemModifier:
+        case ZoneType::ItemMethod:
+        case ZoneType::ItemSubstitute:
+        case ZoneType::ItemPound:
+        case ZoneType::ItemAdmission:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::GreenTexture);
+            font = FontId::Times20;
+            break;
+        case ZoneType::Qualifier:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::GreenMarble);
+            font = FontId::Times20;
+            break;
+        case ZoneType::Tender:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::DarkWood);
+            font = FontId::Times24B;
+            break;
+        case ZoneType::TenderSet:
+        case ZoneType::PaymentEntry:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::DarkWood);
+            break;
+        case ZoneType::Payout:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            break;
+        case ZoneType::Table:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::GrayMarble);
+            font = FontId::Times24B;
+            w = 80; h = 80;
+            break;
+        case ZoneType::TableAssign:
+        case ZoneType::CheckDisplay:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::BlueParchment);
+            break;
+        case ZoneType::CheckList:
+        case ZoneType::CheckEdit:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::BlueParchment);
+            behave = ZoneBehavior::None;
+            w = 400; h = 500;
+            break;
+        case ZoneType::SplitCheck:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::GreenMarble);
+            break;
+        case ZoneType::Login:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::BlueParchment);
+            font = FontId::Times34B;
+            behave = ZoneBehavior::None;
+            w = 300; h = 200;
+            break;
+        case ZoneType::Logout:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            font = FontId::Times24B;
+            break;
+        case ZoneType::UserEdit:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::BlueParchment);
+            behave = ZoneBehavior::None;
+            w = 400; h = 500;
+            break;
+        case ZoneType::GuestCount:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::GrayMarble);
+            font = FontId::Times34B;
+            w = 80; h = 80;
+            break;
+        case ZoneType::OrderEntry:
+        case ZoneType::OrderDisplay:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::Parchment);
+            color = static_cast<uint8_t>(TextColor::Black);
+            behave = ZoneBehavior::None;
+            w = 300; h = 500;
+            break;
+        case ZoneType::OrderPage:
+        case ZoneType::OrderFlow:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::BlueParchment);
+            break;
+        case ZoneType::OrderAdd:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::GreenTexture);
+            break;
+        case ZoneType::OrderDelete:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            break;
+        case ZoneType::OrderComment:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::OrangeTexture);
+            break;
+        case ZoneType::Settings:
+        case ZoneType::TaxSettings:
+        case ZoneType::TaxSet:
+        case ZoneType::MoneySet:
+        case ZoneType::TimeSettings:
+        case ZoneType::CCSettings:
+        case ZoneType::CCMsgSettings:
+        case ZoneType::ReceiptSet:
+        case ZoneType::Receipts:
+        case ZoneType::CalculationSettings:
+        case ZoneType::JobSecurity:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::GrayParchment);
+            behave = ZoneBehavior::None;
+            w = 400; h = 500;
+            break;
+        case ZoneType::Developer:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            behave = ZoneBehavior::None;
+            w = 400; h = 500;
+            break;
+        case ZoneType::Hardware:
+        case ZoneType::PrintTarget:
+        case ZoneType::ItemTarget:
+        case ZoneType::VideoTarget:
+        case ZoneType::SplitKitchen:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::GrayParchment);
+            behave = ZoneBehavior::None;
+            w = 400; h = 500;
+            break;
+        case ZoneType::CDU:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::Black);
+            color = static_cast<uint8_t>(TextColor::Green);
+            behave = ZoneBehavior::None;
+            w = 300; h = 100;
+            break;
+        case ZoneType::DrawerManage:
+        case ZoneType::DrawerAssign:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::DarkWood);
+            break;
+        case ZoneType::Report:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::Parchment);
+            color = static_cast<uint8_t>(TextColor::Black);
+            behave = ZoneBehavior::None;
+            w = 500; h = 600;
+            break;
+        case ZoneType::Chart:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::WhiteTexture);
+            color = static_cast<uint8_t>(TextColor::Black);
+            behave = ZoneBehavior::None;
+            w = 500; h = 400;
+            break;
+        case ZoneType::Search:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::BlueParchment);
+            break;
+        case ZoneType::Read:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::Parchment);
+            color = static_cast<uint8_t>(TextColor::Black);
+            behave = ZoneBehavior::None;
+            w = 400; h = 400;
+            break;
+        case ZoneType::Inventory:
+        case ZoneType::Recipe:
+        case ZoneType::Vendor:
+        case ZoneType::ItemList:
+        case ZoneType::Invoice:
+        case ZoneType::Account:
+        case ZoneType::RevenueGroups:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::TanParchment);
+            color = static_cast<uint8_t>(TextColor::Black);
+            behave = ZoneBehavior::None;
+            w = 400; h = 500;
+            break;
+        case ZoneType::Expense:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            break;
+        case ZoneType::Schedule:
+        case ZoneType::Labor:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::TanParchment);
+            color = static_cast<uint8_t>(TextColor::Black);
+            behave = ZoneBehavior::None;
+            w = 400; h = 500;
+            break;
+        case ZoneType::EndDay:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::DarkOrangeTexture);
+            font = FontId::Times24B;
+            break;
+        case ZoneType::CustomerInfo:
+        case ZoneType::CreditCardList:
+        case ZoneType::Merchant:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::TanParchment);
+            color = static_cast<uint8_t>(TextColor::Black);
+            behave = ZoneBehavior::None;
+            w = 400; h = 500;
+            break;
+        case ZoneType::Command:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::BlueParchment);
+            break;
+        case ZoneType::Phrase:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::TanParchment);
+            behave = ZoneBehavior::None;
+            w = 400; h = 500;
+            break;
+        case ZoneType::License:
+        case ZoneType::ExpireMsg:
+            frame = ZoneFrame::DoubleBorder;
+            texture = static_cast<uint8_t>(TextureId::GrayParchment);
+            behave = ZoneBehavior::None;
+            w = 400; h = 300;
+            break;
+        case ZoneType::KillSystem:
+        case ZoneType::ClearSystem:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::Lava);
+            font = FontId::Times24B;
+            break;
+        case ZoneType::StatusButton:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::BlueParchment);
+            behave = ZoneBehavior::None;
+            w = 200; h = 40;
+            break;
+        case ZoneType::ImageButton:
+            frame = ZoneFrame::None;
+            texture = TEXTURE_CLEAR;
+            w = 200; h = 200;
+            break;
+        case ZoneType::IndexTab:
+        case ZoneType::LanguageButton:
+            frame = ZoneFrame::Border;
+            texture = static_cast<uint8_t>(TextureId::BlueParchment);
+            break;
+        default:
+            break;
+    }
+
+    zone->setRegion(Region{100, 100, w, h});
+    zone->setBehavior(behave);
+    zone->setFont(font);
+
+    // Normal state
+    ZoneState st0;
+    st0.frame = frame;
+    st0.texture = texture;
+    st0.color = color;
+    zone->setState(0, st0);
+
+    // Selected state — highlighted
+    ZoneState st1;
+    st1.frame = frame;
+    st1.texture = static_cast<uint8_t>(TextureId::LitSand);
+    st1.color = color;
+    zone->setState(1, st1);
+
+    // Alternate state — same as normal
+    ZoneState st2;
+    st2.frame = frame;
+    st2.texture = texture;
+    st2.color = color;
+    zone->setState(2, st2);
+}
+
+/*************************************************************
  * MainWindow Implementation
  *************************************************************/
 MainWindow::MainWindow(Control* control, QWidget* parent)
@@ -66,9 +382,6 @@ MainWindow::MainWindow(Control* control, QWidget* parent)
     renderer_->setFontManager(app()->fontManager());
     renderer_->setTextures(app()->textures());
     renderer_->setDesignSize(1024, 768);
-    
-    // Create demo pages
-    createDemoPages();
 }
 
 MainWindow::~MainWindow() = default;
@@ -145,252 +458,7 @@ void MainWindow::setupUi() {
 }
 
 void MainWindow::createDemoPages() {
-    ZoneDB* db = control_->zoneDb();
-    
-    // Create home page
-    auto homePage = std::make_unique<Page>();
-    homePage->setId(1);
-    homePage->setName(QStringLiteral("Home"));
-    homePage->setType(PageType::Index);
-    homePage->setSize(1024, 768);
-    homePage->setDefaultTexture(static_cast<uint8_t>(TextureId::Sand));
-    
-    // Create some demo buttons
-    int buttonW = 180;
-    int buttonH = 60;
-    int spacing = 20;
-    int startX = (1024 - (3 * buttonW + 2 * spacing)) / 2;
-    int startY = 150;
-    
-    // Title zone (just text, no interaction)
-    auto titleZone = std::make_unique<ButtonZone>();
-    titleZone->setRegion(Region{200, 40, 624, 80});
-    titleZone->setName(QStringLiteral("Title"));
-    titleZone->setBehavior(ZoneBehavior::None);
-    
-    ZoneState titleState;
-    titleState.frame = ZoneFrame::Double;
-    titleState.texture = static_cast<uint8_t>(TextureId::Wood);
-    titleState.color = static_cast<uint8_t>(TextColor::White);
-    titleZone->setState(0, titleState);
-    static_cast<ButtonZone*>(titleZone.get())->setLabel(QStringLiteral("ViewTouch POS System"));
-    
-    homePage->addZone(std::move(titleZone));
-    
-    // Row 1 buttons
-    const QString labels1[] = {QStringLiteral("Dine In"), 
-                               QStringLiteral("Take Out"), 
-                               QStringLiteral("Delivery")};
-    for (int i = 0; i < 3; ++i) {
-        auto btn = std::make_unique<ButtonZone>();
-        btn->setRegion(Region{startX + i * (buttonW + spacing), startY, buttonW, buttonH});
-        btn->setName(labels1[i]);
-        btn->setBehavior(ZoneBehavior::Toggle);
-        
-        ZoneState normal;
-        normal.frame = ZoneFrame::Raised;
-        normal.texture = static_cast<uint8_t>(TextureId::BlueTexture);
-        normal.color = static_cast<uint8_t>(TextColor::White);
-        btn->setState(0, normal);
-        
-        ZoneState selected;
-        selected.frame = ZoneFrame::Inset;
-        selected.texture = static_cast<uint8_t>(TextureId::BlueTexture);
-        selected.color = static_cast<uint8_t>(TextColor::Yellow);
-        btn->setState(1, selected);
-        
-        btn->setLabel(labels1[i]);
-        btn->setJumpTarget(2);
-        
-        homePage->addZone(std::move(btn));
-    }
-    
-    // Row 2 - More options
-    startY += buttonH + spacing;
-    const QString labels2[] = {QStringLiteral("Tables"), 
-                               QStringLiteral("Manager"), 
-                               QStringLiteral("Reports")};
-    for (int i = 0; i < 3; ++i) {
-        auto btn = std::make_unique<ButtonZone>();
-        btn->setRegion(Region{startX + i * (buttonW + spacing), startY, buttonW, buttonH});
-        btn->setName(labels2[i]);
-        btn->setBehavior(ZoneBehavior::Toggle);
-        
-        ZoneState normal;
-        normal.frame = ZoneFrame::Raised;
-        normal.texture = static_cast<uint8_t>(TextureId::GreenTexture);
-        normal.color = static_cast<uint8_t>(TextColor::White);
-        btn->setState(0, normal);
-        
-        ZoneState selected;
-        selected.frame = ZoneFrame::Inset;
-        selected.texture = static_cast<uint8_t>(TextureId::GreenTexture);
-        selected.color = static_cast<uint8_t>(TextColor::White);
-        btn->setState(1, selected);
-        
-        btn->setLabel(labels2[i]);
-        
-        homePage->addZone(std::move(btn));
-    }
-    
-    // Row 3 - Utilities
-    startY += buttonH + spacing;
-    const QString labels3[] = {QStringLiteral("Timeclock"), 
-                               QStringLiteral("Settings"), 
-                               QStringLiteral("Exit")};
-    for (int i = 0; i < 3; ++i) {
-        auto btn = std::make_unique<ButtonZone>();
-        btn->setRegion(Region{startX + i * (buttonW + spacing), startY, buttonW, buttonH});
-        btn->setName(labels3[i]);
-        btn->setBehavior(ZoneBehavior::Toggle);
-        
-        ZoneState normal;
-        normal.frame = ZoneFrame::Raised;
-        normal.texture = static_cast<uint8_t>(TextureId::Lava);
-        normal.color = static_cast<uint8_t>(TextColor::White);
-        btn->setState(0, normal);
-        
-        ZoneState selected;
-        selected.frame = ZoneFrame::Inset;
-        selected.texture = static_cast<uint8_t>(TextureId::OrangeTexture);
-        selected.color = static_cast<uint8_t>(TextColor::White);
-        btn->setState(1, selected);
-        
-        btn->setLabel(labels3[i]);
-        
-        homePage->addZone(std::move(btn));
-    }
-    
-    // Status bar at bottom
-    auto statusZone = std::make_unique<ButtonZone>();
-    statusZone->setRegion(Region{20, 700, 984, 48});
-    statusZone->setName(QStringLiteral("Status"));
-    statusZone->setBehavior(ZoneBehavior::None);
-    
-    ZoneState statusState;
-    statusState.frame = ZoneFrame::Inset;
-    statusState.texture = static_cast<uint8_t>(TextureId::Parchment);
-    statusState.color = static_cast<uint8_t>(TextColor::Black);
-    statusZone->setState(0, statusState);
-    static_cast<ButtonZone*>(statusZone.get())->setLabel(QStringLiteral("Ready - No Employee Signed In"));
-    
-    homePage->addZone(std::move(statusZone));
-    
-    // Add page to database
-    int homeId = homePage->id();
-    db->addPage(std::move(homePage));
-    
-    // Create order entry page
-    auto orderPage = std::make_unique<Page>();
-    orderPage->setId(2);
-    orderPage->setName(QStringLiteral("Order Entry"));
-    orderPage->setType(PageType::Item);
-    orderPage->setSize(1024, 768);
-    
-    // Back button
-    auto backBtn = std::make_unique<ButtonZone>();
-    backBtn->setRegion(Region{20, 20, 100, 50});
-    backBtn->setName(QStringLiteral("Back"));
-    backBtn->setBehavior(ZoneBehavior::Toggle);
-    
-    ZoneState backNormal;
-    backNormal.frame = ZoneFrame::Raised;
-    backNormal.texture = static_cast<uint8_t>(TextureId::Smoke);
-    backNormal.color = static_cast<uint8_t>(TextColor::Black);
-    backBtn->setState(0, backNormal);
-    
-    backBtn->setLabel(QStringLiteral("< Back"));
-    backBtn->setJumpTarget(1, JumpType::Return);
-    
-    orderPage->addZone(std::move(backBtn));
-    
-    // Order page title
-    auto orderTitle = std::make_unique<ButtonZone>();
-    orderTitle->setRegion(Region{200, 20, 624, 50});
-    orderTitle->setName(QStringLiteral("OrderTitle"));
-    orderTitle->setBehavior(ZoneBehavior::None);
-    
-    ZoneState orderTitleState;
-    orderTitleState.frame = ZoneFrame::Border;
-    orderTitleState.texture = static_cast<uint8_t>(TextureId::BlueTexture);
-    orderTitleState.color = static_cast<uint8_t>(TextColor::White);
-    orderTitle->setState(0, orderTitleState);
-    static_cast<ButtonZone*>(orderTitle.get())->setLabel(QStringLiteral("Order Entry"));
-    
-    orderPage->addZone(std::move(orderTitle));
-    
-    // Menu item buttons
-    const QString menuItems[] = {
-        QStringLiteral("Hamburger"), QStringLiteral("Cheeseburger"), 
-        QStringLiteral("Chicken"), QStringLiteral("Fish"),
-        QStringLiteral("Salad"), QStringLiteral("Soup"),
-        QStringLiteral("Fries"), QStringLiteral("Onion Rings"),
-        QStringLiteral("Soda"), QStringLiteral("Coffee"),
-        QStringLiteral("Tea"), QStringLiteral("Water")
-    };
-    
-    int cols = 4;
-    int rows = 3;
-    buttonW = 150;
-    buttonH = 80;
-    spacing = 15;
-    startX = 50;
-    startY = 100;
-    
-    for (int row = 0; row < rows; ++row) {
-        for (int col = 0; col < cols; ++col) {
-            int idx = row * cols + col;
-            if (idx >= 12) break;
-            
-            auto btn = std::make_unique<ButtonZone>();
-            btn->setRegion(Region{
-                startX + col * (buttonW + spacing),
-                startY + row * (buttonH + spacing),
-                buttonW, buttonH
-            });
-            btn->setName(menuItems[idx]);
-            btn->setBehavior(ZoneBehavior::Select);
-            
-            ZoneState normal;
-            normal.frame = ZoneFrame::Raised;
-            normal.texture = static_cast<uint8_t>(TextureId::TanParchment);
-            normal.color = static_cast<uint8_t>(TextColor::Black);
-            btn->setState(0, normal);
-            
-            ZoneState selected;
-            selected.frame = ZoneFrame::Inset;
-            selected.texture = static_cast<uint8_t>(TextureId::YellowTexture);
-            selected.color = static_cast<uint8_t>(TextColor::Black);
-            btn->setState(1, selected);
-            
-            btn->setLabel(menuItems[idx]);
-            
-            orderPage->addZone(std::move(btn));
-        }
-    }
-    
-    // Order list area
-    auto orderList = std::make_unique<ButtonZone>();
-    orderList->setRegion(Region{700, 100, 280, 500});
-    orderList->setName(QStringLiteral("OrderList"));
-    orderList->setBehavior(ZoneBehavior::None);
-    
-    ZoneState orderListState;
-    orderListState.frame = ZoneFrame::Inset;
-    orderListState.texture = static_cast<uint8_t>(TextureId::WhiteTexture);
-    orderListState.color = static_cast<uint8_t>(TextColor::Black);
-    orderList->setState(0, orderListState);
-    static_cast<ButtonZone*>(orderList.get())->setLabel(QStringLiteral("Order Items"));
-    
-    orderPage->addZone(std::move(orderList));
-    
-    db->addPage(std::move(orderPage));
-    
-    // Jump to home page
-    terminal_->jumpToPage(homeId, JumpType::Home);
-    
-    // Update terminal widget with terminal
-    terminalWidget_->requestRedraw();
+    // Start with 0 pages — pages are added via edit mode or loading saved UI
 }
 
 void MainWindow::toggleFullscreen() {
@@ -495,7 +563,29 @@ void MainWindow::onPagePropertiesRequested(Page* page) {
     
     PagePropertiesDialog dlg(page, this);
     if (dlg.exec() == QDialog::Accepted) {
-        dlg.applyChanges();
+        if (dlg.deleteRequested()) {
+            // Delete the page (like original ViewTouch KillPage)
+            int pageId = page->id();
+            ZoneDB* db = control_->zoneDb();
+            
+            // Find another page to jump to
+            auto ids = db->pageIds();
+            int jumpId = 0;
+            for (int id : ids) {
+                if (id != pageId) {
+                    jumpId = id;
+                    break;
+                }
+            }
+            
+            db->removePage(pageId);
+            
+            if (terminal_ && jumpId != 0) {
+                terminal_->jumpToPage(jumpId, JumpType::Stealth);
+            }
+        } else {
+            dlg.applyChanges();
+        }
         if (terminalWidget_) {
             terminalWidget_->update();
         }
@@ -505,28 +595,63 @@ void MainWindow::onPagePropertiesRequested(Page* page) {
 void MainWindow::onNewZoneRequested() {
     if (!terminal_ || !terminal_->currentPage()) return;
     
-    // Create a new button zone at a default position
+    Page* page = terminal_->currentPage();
+    
+    // Pick default zone type based on page type (matching v1 behavior)
+    ZoneType defaultZoneType = ZoneType::Simple;
+    switch (page->type()) {
+        case PageType::Item:
+        case PageType::Item2:
+            defaultZoneType = ZoneType::ItemNormal;
+            break;
+        case PageType::Table:
+        case PageType::Table2:
+            defaultZoneType = ZoneType::Table;
+            break;
+        case PageType::Index:
+        case PageType::IndexTabs:
+            defaultZoneType = ZoneType::Simple;
+            break;
+        case PageType::Scripted:
+        case PageType::Scripted2:
+        case PageType::Scripted3:
+        case PageType::ModifierKB:
+            defaultZoneType = ZoneType::ItemModifier;
+            break;
+        case PageType::Checks:
+            defaultZoneType = ZoneType::CheckList;
+            break;
+        case PageType::KitchenVid:
+        case PageType::KitchenVid2:
+            defaultZoneType = ZoneType::OrderDisplay;
+            break;
+        case PageType::Bar1:
+        case PageType::Bar2:
+            defaultZoneType = ZoneType::Simple;
+            break;
+        default:
+            defaultZoneType = ZoneType::Simple;
+            break;
+    }
+    
+    // Create zone with type-appropriate defaults
     auto zone = std::make_unique<ButtonZone>();
-    zone->setRegion(Region{100, 100, 150, 60});
-    zone->setName(QStringLiteral("New Zone"));
-    zone->setBehavior(ZoneBehavior::Toggle);
+    zone->setZoneType(defaultZoneType);
+    zone->setName(QString());
+    zone->setBehavior(ZoneBehavior::Blink);
+    zone->setFont(FontId::Default);
+    zone->setShape(ZoneShape::Rectangle);
+    zone->setShadow(256);  // SHADOW_DEFAULT
+    zone->setKey(0);
+    zone->setPage(page);
     
-    ZoneState normal;
-    normal.frame = ZoneFrame::Raised;
-    normal.texture = static_cast<uint8_t>(TextureId::Smoke);
-    normal.color = static_cast<uint8_t>(TextColor::Black);
-    zone->setState(0, normal);
+    // Apply type-specific appearance defaults
+    applyZoneDefaults(zone.get(), defaultZoneType, page);
     
-    ZoneState selected;
-    selected.frame = ZoneFrame::Inset;
-    selected.texture = static_cast<uint8_t>(TextureId::BlueTexture);
-    selected.color = static_cast<uint8_t>(TextColor::Black);
-    zone->setState(1, selected);
-    
-    static_cast<ButtonZone*>(zone.get())->setLabel(QStringLiteral("New Zone"));
+    static_cast<ButtonZone*>(zone.get())->setLabel(QString());
     
     Zone* rawPtr = zone.get();
-    terminal_->currentPage()->addZone(std::move(zone));
+    page->addZone(std::move(zone));
     
     // Select the new zone
     if (editMode_) {
@@ -543,23 +668,45 @@ void MainWindow::onNewPageRequested() {
     
     ZoneDB* db = control_->zoneDb();
     
-    // Find next available page ID
-    int nextId = 100;
+    // Find next available page ID (positive IDs for user pages)
+    int nextId = 1;
     while (db->page(nextId)) {
         nextId++;
     }
     
-    auto page = std::make_unique<Page>();
-    page->setId(nextId);
-    page->setName(QStringLiteral("New Page"));
-    page->setType(PageType::Index);
-    page->setSize(1024, 768);
-    page->setDefaultTexture(static_cast<uint8_t>(TextureId::Sand));
+    // Default type: Item for normal editing (like original ViewTouch)
+    PageType defaultType = PageType::Item;
+    
+    // Show page properties dialog for configuration (like original ViewTouch EditPage)
+    PagePropertiesDialog dlg(nextId, defaultType, this);
+    if (dlg.exec() != QDialog::Accepted) {
+        return;  // User cancelled
+    }
+    
+    // Take ownership of the new page
+    auto page = dlg.takeNewPage();
+    if (!page) return;
+    
+    int pageId = page->id();
+    
+    // Validate: ID must not be 0
+    if (pageId == 0) {
+        QMessageBox::warning(this, tr("Invalid Page"),
+            tr("Page ID cannot be 0."));
+        return;
+    }
+    
+    // Validate: ID must not already exist
+    if (db->page(pageId)) {
+        QMessageBox::warning(this, tr("Duplicate Page"),
+            tr("A page with ID %1 already exists.").arg(pageId));
+        return;
+    }
     
     db->addPage(std::move(page));
     
     if (terminal_) {
-        terminal_->jumpToPage(nextId);
+        terminal_->jumpToPage(pageId);
     }
     
     if (terminalWidget_) {
@@ -806,6 +953,10 @@ void TerminalWidget::drawGrid(QPainter& p) {
 
 void TerminalWidget::mousePressEvent(QMouseEvent* event) {
     if (!terminal_) {
+        MainWindow* mw = qobject_cast<MainWindow*>(window());
+        if (mw) terminal_ = mw->terminal();
+    }
+    if (!terminal_) {
         QWidget::mousePressEvent(event);
         return;
     }
@@ -918,6 +1069,10 @@ void TerminalWidget::mousePressEvent(QMouseEvent* event) {
 
 void TerminalWidget::mouseMoveEvent(QMouseEvent* event) {
     if (!terminal_) {
+        MainWindow* mw = qobject_cast<MainWindow*>(window());
+        if (mw) terminal_ = mw->terminal();
+    }
+    if (!terminal_) {
         QWidget::mouseMoveEvent(event);
         return;
     }
@@ -982,6 +1137,10 @@ void TerminalWidget::mouseMoveEvent(QMouseEvent* event) {
 
 void TerminalWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (!terminal_) {
+        MainWindow* mw = qobject_cast<MainWindow*>(window());
+        if (mw) terminal_ = mw->terminal();
+    }
+    if (!terminal_) {
         QWidget::mouseReleaseEvent(event);
         return;
     }
@@ -1008,6 +1167,10 @@ void TerminalWidget::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void TerminalWidget::mouseDoubleClickEvent(QMouseEvent* event) {
+    if (!terminal_) {
+        MainWindow* mw = qobject_cast<MainWindow*>(window());
+        if (mw) terminal_ = mw->terminal();
+    }
     if (!terminal_ || !editMode_ || !editMode_->isActive()) {
         QWidget::mouseDoubleClickEvent(event);
         return;

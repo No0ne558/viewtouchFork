@@ -39,6 +39,7 @@ class ReportTypeComboBox;
 class SwitchTypeComboBox;
 class QualifierComboBox;
 class CustomerTypeComboBox;
+class ShadowComboBox;
 class ItemTypeComboBox;
 class ItemFamilyComboBox;
 class SalesTypeComboBox;
@@ -120,7 +121,7 @@ private:
     // Font and shape
     FontComboBox* fontCombo_;
     ShapeComboBox* shapeCombo_;
-    QSpinBox* shadowSpinBox_;
+    ShadowComboBox* shadowCombo_;
     
     // Behavior tab
     BehaviorComboBox* behaviorCombo_;

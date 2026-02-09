@@ -33,10 +33,6 @@ void ZoneDB::addPage(std::unique_ptr<Page> page) {
 }
 
 void ZoneDB::removePage(int id) {
-    // Don't allow removing system pages
-    if (isSystemPage(id)) {
-        return;
-    }
     pages_.erase(id);
 }
 
@@ -77,17 +73,7 @@ Page* ZoneDB::createSystemPage(int id, const QString& name, PageType type) {
 }
 
 void ZoneDB::initSystemPages() {
-    // Create default system pages matching original ViewTouch
-    createSystemPage(PAGEID_LOGIN, "Login", PageType::System);
-    createSystemPage(PAGEID_LOGIN2, "Login 2", PageType::System);
-    createSystemPage(PAGEID_TABLE, "Tables", PageType::Table);
-    createSystemPage(PAGEID_TABLE2, "Tables 2", PageType::Table2);
-    createSystemPage(PAGEID_GUESTCOUNT, "Guest Count", PageType::System);
-    createSystemPage(PAGEID_GUESTCOUNT2, "Guest Count 2", PageType::System);
-    createSystemPage(PAGEID_LOGOUT, "Logout", PageType::System);
-    createSystemPage(PAGEID_BAR_SETTLE, "Bar Settlement", PageType::System);
-    createSystemPage(PAGEID_ITEM_TARGET, "Item Target", PageType::System);
-    createSystemPage(PAGEID_MANAGER, "Manager", PageType::System);
+    // Start with 0 pages — system pages will be created as needed
 }
 
 Page* ZoneDB::page(int id) {
