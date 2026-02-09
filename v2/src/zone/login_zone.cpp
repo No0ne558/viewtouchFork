@@ -45,43 +45,40 @@ void LoginZone::backspace() {
 }
 
 QString LoginZone::inputDisplay() const {
-    if (m_loginState == LoginState::GetPassword) {
-        // Show asterisks for password
-        return QString(m_inputBuffer.length(), '*');
-    }
-    return m_inputBuffer;
+    // Show X's for both user ID and password input (matching v1 behavior)
+    return QString(m_inputBuffer.length(), 'X');
 }
 
 QString LoginZone::promptText() const {
     switch (m_loginState) {
         case LoginState::GetUserId:
-            return "Enter Employee ID:";
+            return "Please Enter Your User ID";
         case LoginState::GetPassword:
             return "Enter Password:";
         case LoginState::UserOnline:
-            return QString("Welcome, %1").arg(m_userName);
+            return "Press START To Enter";
         case LoginState::PasswordFailed:
-            return "Wrong Password - Try Again";
+            return "Password Incorrect\nPlease Try Again";
         case LoginState::UnknownUser:
-            return "Unknown Employee ID";
+            return "Unknown User ID\nPlease Try Again";
         case LoginState::OnAnotherTerminal:
-            return "Already Logged In Elsewhere";
+            return "You're Using Another Terminal";
         case LoginState::AlreadyOnClock:
-            return "Already Clocked In";
+            return "You're Already On The Clock";
         case LoginState::NotOnClock:
-            return "Not Clocked In";
+            return "You're Not On The Clock";
         case LoginState::ClockNotUsed:
-            return "Time Clock Not Used";
+            return "You Don't Use The Clock";
         case LoginState::OpenCheck:
-            return "Has Open Checks";
+            return "You Still Have Open Checks";
         case LoginState::AssignedDrawer:
-            return "Has Assigned Drawer";
+            return "You Still Have An Assigned Drawer";
         case LoginState::UserInactive:
-            return "Account Disabled";
+            return "Your Record Is Inactive\nContact a manager to be reactivated";
         case LoginState::NeedBalance:
-            return "Must Balance Drawer";
+            return "You Need to Balance Your Drawer";
         case LoginState::NotAllowedIn:
-            return "Access Denied";
+            return "User is not allowed into the system";
         default:
             return "";
     }
@@ -153,13 +150,23 @@ void LoginZone::renderContent(Renderer& renderer, Terminal* term) {
     int lineHeight = 30;
     int topMargin = 20;
     
-    // Title at top
-    QString title = "Welcome";
+    // Dynamic title based on state
+    QString title;
+    if (m_loginState == LoginState::UserOnline) {
+        title = QString("Hello, %1").arg(m_userName);
+    } else {
+        title = "Welcome";
+    }
     renderer.drawText(title, x() + leftMargin, y() + topMargin + baselineOffset, static_cast<uint8_t>(font()), textColor);
     
     // Prompt text in middle
     QString prompt = promptText();
-    renderer.drawText(prompt, x() + leftMargin, y() + h() / 3 + baselineOffset, static_cast<uint8_t>(font()), textColor);
+    QStringList promptLines = prompt.split('\n');
+    int promptY = y() + h() / 3 + baselineOffset;
+    for (const QString& line : promptLines) {
+        renderer.drawText(line, x() + leftMargin, promptY, static_cast<uint8_t>(font()), textColor);
+        promptY += lineHeight;
+    }
     
     // Input display area - show X's for digits, underscore for cursor
     if (m_loginState == LoginState::GetUserId || 
@@ -167,10 +174,6 @@ void LoginZone::renderContent(Renderer& renderer, Terminal* term) {
         QString display = inputDisplay();
         QString inputLine = display + "_";  // Add cursor
         renderer.drawText(inputLine, x() + leftMargin, y() + h() / 2 + lineHeight + baselineOffset, static_cast<uint8_t>(font()), textColor);
-    } else if (m_loginState == LoginState::UserOnline) {
-        // Show user name when logged in
-        QString hello = QString("Hello, %1").arg(m_userName);
-        renderer.drawText(hello, x() + leftMargin, y() + h() / 2 + baselineOffset, static_cast<uint8_t>(font()), textColor);
     }
 }
 
