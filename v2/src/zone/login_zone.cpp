@@ -148,28 +148,28 @@ void LoginZone::renderContent(Renderer& renderer, Terminal* term) {
     Q_UNUSED(term);
     
     int textColor = static_cast<int>(effectiveColor());
-    int cx = x() + w() / 2;  // Center X
+    int leftMargin = 10;
     int lineHeight = 30;
     int topMargin = 20;
     
     // Title at top
     QString title = "Welcome";
-    renderer.drawTextCentered(title, cx, y() + topMargin, static_cast<uint8_t>(font()), textColor);
+    renderer.drawText(title, x() + leftMargin, y() + topMargin, static_cast<uint8_t>(font()), textColor);
     
     // Prompt text in middle
     QString prompt = promptText();
-    renderer.drawTextCentered(prompt, cx, y() + h() / 3, static_cast<uint8_t>(font()), textColor);
+    renderer.drawText(prompt, x() + leftMargin, y() + h() / 3, static_cast<uint8_t>(font()), textColor);
     
     // Input display area - show X's for digits, underscore for cursor
     if (m_loginState == LoginState::GetUserId || 
         m_loginState == LoginState::GetPassword) {
         QString display = inputDisplay();
         QString inputLine = display + "_";  // Add cursor
-        renderer.drawTextCentered(inputLine, cx, y() + h() / 2 + lineHeight, static_cast<uint8_t>(font()), textColor);
+        renderer.drawText(inputLine, x() + leftMargin, y() + h() / 2 + lineHeight, static_cast<uint8_t>(font()), textColor);
     } else if (m_loginState == LoginState::UserOnline) {
         // Show user name when logged in
         QString hello = QString("Hello, %1").arg(m_userName);
-        renderer.drawTextCentered(hello, cx, y() + h() / 2, static_cast<uint8_t>(font()), textColor);
+        renderer.drawText(hello, x() + leftMargin, y() + h() / 2, static_cast<uint8_t>(font()), textColor);
     }
 }
 
