@@ -4,6 +4,7 @@
 
 #include "zone/page.hpp"
 #include "render/renderer.hpp"
+#include "terminal/terminal.hpp"
 
 namespace vt {
 
@@ -82,6 +83,11 @@ std::vector<Zone*> Page::findZonesByGroup(int groupId) {
 }
 
 void Page::render(Renderer& renderer, Terminal* term) {
+    // Draw page background if set
+    if (term && defaultTexture_[0] != TEXTURE_DEFAULT) {
+        renderer.fillRect(QRect(0, 0, term->width(), term->height()), defaultTexture_[0]);
+    }
+    
     // Render all zones in order (back to front)
     for (auto& z : zones_) {
         z->render(renderer, term);
