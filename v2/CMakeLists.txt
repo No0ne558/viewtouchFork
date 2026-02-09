@@ -26,10 +26,3 @@ qt_add_qml_module(ViewTouchV2
 target_link_libraries(ViewTouchV2
     PRIVATE Qt6::Core Qt6::Quick
 )
-
-# Copy QML files to build directory for development
-add_custom_command(TARGET ViewTouchV2 POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}
-    $<TARGET_FILE_DIR:ViewTouchV2>
-)
