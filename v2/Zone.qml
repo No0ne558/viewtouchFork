@@ -8,14 +8,18 @@ Rectangle {
     property string zoneText: ""
     property int zoneId: 0
     property bool editMode: false
+    property color zoneColor: "#81A1C1"
+    property color zoneBorderColor: "#4C566A"
+    property int zoneBorderWidth: 1
+    property int zoneRadius: 8
 
     signal zoneClicked(int zoneId)
     signal zoneEdited(int zoneId, var properties)
 
-    color: editMode ? "#88C0D0" : "#81A1C1"
-    border.color: editMode ? "#5E81AC" : "#4C566A"
-    border.width: editMode ? 3 : 1
-    radius: 8
+    color: editMode ? "#88C0D0" : zoneColor
+    border.color: editMode ? "#5E81AC" : zoneBorderColor
+    border.width: editMode ? 3 : zoneBorderWidth
+    radius: zoneRadius
 
     // Zone content based on type
     Loader {
@@ -27,6 +31,8 @@ Rectangle {
             switch (zoneType) {
                 case "button":
                     return buttonComponent
+                case "login":
+                    return loginButtonComponent
                 case "label":
                     return labelComponent
                 case "input":
@@ -43,6 +49,32 @@ Rectangle {
         Button {
             text: zoneText
             font.pixelSize: 16
+            flat: true
+
+            background: Rectangle {
+                color: "transparent"
+            }
+
+            contentItem: Text {
+                text: parent.text
+                color: "white"
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                font: parent.font
+                wrapMode: Text.Wrap
+            }
+
+            onClicked: zoneClicked(zoneId)
+        }
+    }
+
+    // Login button zone component
+    Component {
+        id: loginButtonComponent
+        Button {
+            text: zoneText || "Login"
+            font.pixelSize: 18
+            font.bold: true
             flat: true
 
             background: Rectangle {
@@ -161,11 +193,19 @@ Rectangle {
     }
 
     function showZoneEditor() {
-        // Simple property editor - in a real implementation, this would open a dialog
-        var newText = prompt("Edit zone text:", zoneText)
-        if (newText !== null) {
-            zoneText = newText
-            zoneEdited(zoneId, {text: newText})
-        }
+        // Open a comprehensive zone properties dialog
+        zoneEdited(zoneId, {
+            action: "openPropertiesDialog",
+            zoneType: zoneType,
+            text: zoneText,
+            color: zoneColor,
+            borderColor: zoneBorderColor,
+            borderWidth: zoneBorderWidth,
+            radius: zoneRadius,
+            x: zone.x,
+            y: zone.y,
+            width: zone.width,
+            height: zone.height
+        })
     }
 }

@@ -54,6 +54,14 @@ Rectangle {
         anchors.right: parent.right
         visible: editMode
         mainWindow: terminal.mainWindow
+
+        onCreateNewPage: function(properties) {
+            createNewPage(properties)
+        }
+
+        onCreateNewZone: function(properties) {
+            createNewZone(properties)
+        }
     }
 
     // Main content area
@@ -84,6 +92,10 @@ Rectangle {
                     zoneText: modelData.text || ""
                     zoneId: modelData.id
                     editMode: terminal.editMode
+                    zoneColor: modelData.color || "#81A1C1"
+                    zoneBorderColor: modelData.borderColor || "#4C566A"
+                    zoneBorderWidth: modelData.borderWidth || 1
+                    zoneRadius: modelData.radius || 8
 
                     onZoneClicked: function(zoneId) {
                         if (terminal.editMode) {
@@ -110,7 +122,7 @@ Rectangle {
                 MouseArea {
                     anchors.fill: parent
                     onClicked: function(mouse) {
-                        createNewZone(mouse.x, mouse.y)
+                        createNewZoneAtPosition(mouse.x, mouse.y)
                     }
                 }
 
@@ -167,7 +179,7 @@ Rectangle {
         return pages[currentPage]
     }
 
-    function createNewZone(x, y) {
+    function createNewZoneAtPosition(x, y) {
         var pageZones = pages[currentPage] || []
         var newId = Math.max(...pageZones.map(z => z.id), 0) + 1
 
@@ -190,16 +202,6 @@ Rectangle {
     function editZone(zoneId) {
         // This will be implemented when we add zone editing dialog
         messageText.text = "Editing zone " + zoneId + " (not implemented yet)"
-    }
-
-    function updateZoneProperties(zoneId, newProperties) {
-        var pageZones = pages[currentPage] || []
-        var zoneIndex = pageZones.findIndex(z => z.id === zoneId)
-        if (zoneIndex >= 0) {
-            pageZones[zoneIndex] = Object.assign(pageZones[zoneIndex], newProperties)
-            pages[currentPage] = pageZones
-            zoneRepeater.model = getCurrentPageZones() // Refresh
-        }
     }
 
     function handleZoneClick(zoneId) {
@@ -236,6 +238,93 @@ Rectangle {
 
         messageText.text = "Created new page " + newPageNumber + ": " + properties.pageName
         console.log("Created page", newPageNumber, "with properties:", JSON.stringify(properties))
+    }
+
+    function createNewZone(properties) {
+        // Ensure we have a current page
+        if (currentPage === -1) {
+            messageText.text = "No active page! Create a page first."
+            return
+        }
+
+        // Initialize page zones array if it doesn't exist
+        if (!pages[currentPage]) {
+            pages[currentPage] = []
+        }
+
+        // Generate a unique zone ID
+        var zoneId = 1
+        var existingIds = pages[currentPage].map(function(zone) { return zone.id })
+        while (existingIds.includes(zoneId)) {
+            zoneId++
+        }
+
+        // Create new zone object
+        var newZone = {
+            id: zoneId,
+            type: properties.zoneType,
+            text: properties.text,
+            x: properties.x,
+            y: properties.y,
+            width: properties.width,
+            height: properties.height,
+            color: properties.color,
+            borderColor: properties.borderColor,
+            borderWidth: properties.borderWidth,
+            radius: properties.radius
+        }
+
+        // Add to current page
+        pages[currentPage].push(newZone)
+
+        // Refresh the zone repeater
+        zoneRepeater.model = getCurrentPageZones()
+
+        messageText.text = "Created new " + properties.zoneType + " zone (ID: " + zoneId + ")"
+        console.log("Created zone", zoneId, "with properties:", JSON.stringify(properties))
+    }
+
+    function updateZoneProperties(zoneId, newProperties) {
+        if (newProperties.action === "openPropertiesDialog") {
+            // Open zone properties dialog for editing
+            openZonePropertiesDialog(zoneId, newProperties)
+        } else {
+            // Update zone properties directly
+            var pageZones = pages[currentPage] || []
+            for (var i = 0; i < pageZones.length; i++) {
+                if (pageZones[i].id === zoneId) {
+                    // Update properties
+                    if (newProperties.text !== undefined) pageZones[i].text = newProperties.text
+                    if (newProperties.width !== undefined) pageZones[i].width = newProperties.width
+                    if (newProperties.height !== undefined) pageZones[i].height = newProperties.height
+                    if (newProperties.x !== undefined) pageZones[i].x = newProperties.x
+                    if (newProperties.y !== undefined) pageZones[i].y = newProperties.y
+                    if (newProperties.color !== undefined) pageZones[i].color = newProperties.color
+                    if (newProperties.borderColor !== undefined) pageZones[i].borderColor = newProperties.borderColor
+                    if (newProperties.borderWidth !== undefined) pageZones[i].borderWidth = newProperties.borderWidth
+                    if (newProperties.radius !== undefined) pageZones[i].radius = newProperties.radius
+
+                    // Refresh the zone repeater
+                    zoneRepeater.model = getCurrentPageZones()
+                    messageText.text = "Updated zone " + zoneId + " properties"
+                    console.log("Updated zone", zoneId, "with properties:", JSON.stringify(newProperties))
+                    return
+                }
+            }
+        }
+    }
+
+    function openZonePropertiesDialog(zoneId, currentProperties) {
+        // Find the zone
+        var pageZones = pages[currentPage] || []
+        for (var i = 0; i < pageZones.length; i++) {
+            if (pageZones[i].id === zoneId) {
+                // Open zone properties dialog with current values
+                // For now, just show a message - full dialog implementation would be more complex
+                messageText.text = "Zone properties dialog for zone " + zoneId + " (not yet implemented)"
+                return
+            }
+        }
     }
 
     function updatePageStyling(properties) {

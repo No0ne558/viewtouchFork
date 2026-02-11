@@ -21,6 +21,7 @@ qt_add_qml_module(ViewTouchV2
         Zone.qml
         EditToolbar.qml
         PagePropertiesDialog.qml
+        ZonePropertiesDialog.qml
 )
 
 target_link_libraries(ViewTouchV2

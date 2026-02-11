@@ -32,6 +32,31 @@ Rectangle {
             Layout.fillWidth: true
         }
 
+        // Create Button button
+        Button {
+            text: "Create Button"
+            font.pixelSize: 12
+            Layout.preferredWidth: 120
+            Layout.preferredHeight: 35
+
+            background: Rectangle {
+                color: parent.pressed ? "#5E81AC" : "#88C0D0"
+                radius: 4
+            }
+
+            contentItem: Text {
+                text: parent.text
+                color: "white"
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                font: parent.font
+            }
+
+            onClicked: {
+                createNewButton()
+            }
+        }
+
         // Create New Page button
         Button {
             text: "Create New Page"
@@ -58,12 +83,29 @@ Rectangle {
         }
     }
 
+    // Signal handlers (to be connected from parent)
+    signal createNewPage(var properties)
+    signal createNewZone(var properties)
+
+    function createNewButton() {
+        zonePropertiesDialog.visible = true
+    }
+
     // Page Properties Dialog
     PagePropertiesDialog {
         id: pagePropertiesDialog
         transientParent: mainWindow
         onPageCreated: {
             createNewPage(properties)
+        }
+    }
+
+    // Button Properties Dialog
+    ZonePropertiesDialog {
+        id: zonePropertiesDialog
+        transientParent: mainWindow
+        onZoneCreated: {
+            createNewZone(properties)
         }
     }
 }
