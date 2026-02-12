@@ -7,6 +7,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Fixed
+- **Manager Module: Critical Bug Fixes in File Download and Configuration (2026-02-12)**
+  - Fixed three critical bugs in the manager module affecting file downloads, error handling, and logging accuracy
+  - **Bug 1: Double File Stream Closure in DownloadFile**
+    - **Root Cause**: `fout.close()` was called unconditionally in the try block, then again in all catch blocks, potentially causing undefined behavior from double-closing a file stream
+    - **Solution**: Modified catch blocks to check `if (fout.is_open())` before calling `close()` to prevent double closure
+    - **Impact**: File download operations are now more robust and won't crash on error conditions
+  - **Bug 2: Missing Error Return in ReadViewTouchConfig**
+    - **Root Cause**: When the configuration file couldn't be read (exception caught), the function still returned 0 (success) instead of indicating failure
+    - **Solution**: Set return value to 1 in the catch block to properly indicate configuration read failure
+    - **Impact**: Configuration loading failures are now properly detected and can be handled appropriately
+  - **Bug 3: Incorrect Error Messages for vt_data Download Attempts**
+    - **Root Cause**: Log messages claimed to attempt "http://" URLs first, but the code actually tries "https://" first via `DownloadFileWithFallback`
+    - **Solution**: Updated all error messages to accurately reflect that "https://" is attempted first
+    - **Impact**: Log messages now accurately represent the actual download behavior, improving debugging and monitoring
+  - **Files modified**: `main/data/manager.cc`
 - **Auto-Update vt_data Inconsistency Between Displays (2026-02-12)**
   - Fixed bug where vt_data auto-update setting behaved differently on server display vs external displays
   - **Root Cause**: The auto_update_vt_data setting was loaded from the settings file in the data directory, which could be different for different displays in multi-display setups

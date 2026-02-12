@@ -384,21 +384,21 @@ bool DownloadFile(const std::string &url, const std::string &destination)
     catch (const curlpp::LogicError & e)
     {
         std::cerr << "Logic error downloading file from '" << url << "': " << e.what() << '\n';
-        fout.close();
+        if (fout.is_open()) fout.close();
         std::remove(temp_file.c_str());  // Remove partial temp file
         return false;
     }
     catch (const curlpp::RuntimeError &e)
     {
         std::cerr << "Runtime error downloading file from '" << url << "': " << e.what() << '\n';
-        fout.close();
+        if (fout.is_open()) fout.close();
         std::remove(temp_file.c_str());  // Remove partial temp file
         return false;
     }
     catch (const std::exception &e)
     {
         std::cerr << "Unexpected error downloading file from '" << url << "': " << e.what() << '\n';
-        fout.close();
+        if (fout.is_open()) fout.close();
         std::remove(temp_file.c_str());  // Remove partial temp file
         return false;
     }
@@ -466,6 +466,7 @@ int ReadViewTouchConfig()
         ReportError(
                     std::string("ReadViewTouchConfig: ")
                     + "Exception: " + e.what());
+        retval = 1;  // Indicate failure
     }
 
     return retval;
@@ -707,13 +708,13 @@ int main(int argc, genericChar* argv[])
         if (auto_update_enabled) {
             ReportError(GlobalTranslate("Local vt_data not found, attempting to download from update servers..."));
             
-            // Try first URL: http://www.viewtouch.com/vt_data  
-            ReportError("Attempting to download vt_data from http://www.viewtouch.com/vt_data");
+            // Try first URL: https://www.viewtouch.com/vt_data (tries HTTPS first, then HTTP)
+            ReportError("Attempting to download vt_data from https://www.viewtouch.com/vt_data");
             if (DownloadFileWithFallback("www.viewtouch.com/vt_data", SYSTEM_DATA_FILE)) {
-                ReportError("Successfully downloaded vt_data from http update server");
+                ReportError("Successfully downloaded vt_data from update server");
                 vt_data_updated = true;
             } else {
-                // Try second URL: https://www.viewtouch.com/vt_data
+                // Try second URL: https://www.viewtouch.com/vt_data (fallback)
                 ReportError("First URL failed, attempting https://www.viewtouch.com/vt_data");
                 if (DownloadFileWithFallback("https://www.viewtouch.com/vt_data", SYSTEM_DATA_FILE)) {
                     ReportError("Successfully downloaded vt_data from https update server");
@@ -733,13 +734,13 @@ int main(int argc, genericChar* argv[])
         if (auto_update_enabled) {
             ReportError("Local vt_data found, attempting to download latest version...");
             
-            // Try first URL: http://www.viewtouch.com/vt_data  
-            ReportError("Attempting to download latest vt_data from http://www.viewtouch.com/vt_data");
+            // Try first URL: https://www.viewtouch.com/vt_data (tries HTTPS first, then HTTP)
+            ReportError("Attempting to download latest vt_data from https://www.viewtouch.com/vt_data");
             if (DownloadFileWithFallback("www.viewtouch.com/vt_data", SYSTEM_DATA_FILE)) {
-                ReportError("Successfully downloaded latest vt_data from http update server");
+                ReportError("Successfully downloaded latest vt_data from update server");
                 vt_data_updated = true;
             } else {
-                // Try second URL: https://www.viewtouch.com/vt_data
+                // Try second URL: https://www.viewtouch.com/vt_data (fallback)
                 ReportError("First URL failed, attempting https://www.viewtouch.com/vt_data");
                 if (DownloadFileWithFallback("https://www.viewtouch.com/vt_data", SYSTEM_DATA_FILE)) {
                     ReportError("Successfully downloaded latest vt_data from https update server");
