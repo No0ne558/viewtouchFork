@@ -198,7 +198,7 @@ ViewTouch released under GNU Public License (GPL v3) with code hosted on GitHub.
 | 2016+ | Raspberry Pi | Default platform (Pi 4/5) |
 
 **Current Stack:**
-- **OS:** Debian Linux with XFCE desktop
+- **OS:** Debian Linux with XFCE desktop, And Ubuntu 24.04 Support
 - **Display:** X Window System (network-transparent)
 - **Default Hardware:** Raspberry Pi family
 - **Auto-update:** Desktop icon compiles and installs latest code from GitHub
