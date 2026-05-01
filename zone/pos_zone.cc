@@ -396,10 +396,10 @@ Zone *NewPosZone(int type)
 	return pNewZone;
 }
 
-Page *NewPosPage()
+std::unique_ptr<Page> NewPosPage()
 {
-    PosPage *p = new PosPage;
-    if (p == nullptr)
+    auto p = std::make_unique<PosPage>();
+    if (!p)
         ReportError("Creation of PosPage object failed");
 
     return p;

@@ -2002,16 +2002,15 @@ int LoadSystemData()
     }
 
     // Read System Page Data
-    Page *p = nullptr;
     int zone_version = 0, count = 0;
     auto zone_db = std::make_unique<ZoneDB>();
     df.Read(zone_version);
     df.Read(count);
     for (i = 0; i < count; ++i)
     {
-        p = NewPosPage();
+        auto p = NewPosPage();
         p->Read(df, zone_version);
-        zone_db->Add(p);
+        zone_db->Add(p.release());
     }
 
     // Read Default Accounts Data

@@ -6188,10 +6188,12 @@ int Terminal::ReadPage()
 
     Page *currPage = edit_page;
     edit_page = nullptr;
+    std::unique_ptr<Page> newPageOwner;
 
     if (currPage == nullptr)
     {
-        currPage = NewPosPage();
+        newPageOwner = NewPosPage();
+        currPage = newPageOwner.get();
     }
 
     currPage->size = RInt8();
@@ -6215,13 +6217,22 @@ int Terminal::ReadPage()
     currPage->index = RInt8();
 
     if (my_id == 0 || (my_id < 0 && !CanEditSystem())) {
-   	//TerminalError("Invalid page number");
-	if (currPage->id == 0)	// just created it
-	    delete currPage;
-	return 0;
+    	//TerminalError("Invalid page number");
+    	if (currPage->id == 0) { // just created it
+    	    if (newPageOwner)
+    	        newPageOwner.reset();
+    	    else
+    	        delete currPage;
+    	}
+    	return 0;
     }
     if (currPage->id == 0)
-        zone_db->Add(currPage);
+    {
+        if (newPageOwner)
+            zone_db->Add(newPageOwner.release());
+        else
+            zone_db->Add(currPage);
+    }
 
     if (currPage->id != my_id && zone_db->IsPageDefined(my_id, currPage->size) == 0)
     {

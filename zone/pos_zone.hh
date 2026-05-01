@@ -151,7 +151,7 @@ public:
 /**** Functions ****/
 Zone *NewPosZone(int type);
 // Calls the proper function for creating a particular zone
-Page *NewPosPage();
-// returns a new POS page
+std::unique_ptr<Page> NewPosPage();
+// returns a new POS page (as a unique_ptr)
 
 #endif

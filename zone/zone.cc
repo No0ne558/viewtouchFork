@@ -1276,7 +1276,7 @@ int ZoneDB::Init()
     if (page60 == nullptr)
     {
         // Create default Index page on page 60
-        Page *newPage = NewPosPage();
+        auto newPage = NewPosPage();
         if (newPage)
         {
             newPage->id = 60;
@@ -1285,7 +1285,7 @@ int ZoneDB::Init()
             newPage->name.Set("Index");
             newPage->index = INDEX_GENERAL;
             newPage->Init(this);
-            Add(newPage);
+            Add(newPage.release());
         }
     }
 
@@ -1324,31 +1324,29 @@ int ZoneDB::Load(const char* filename)
             return 1;  // Error
         }
 
-        Page *currPage = NewPosPage();
+        auto currPage = NewPosPage();
         if (currPage)
-		{
-			if (currPage->Read(infile, version))
-			{
-				vt_safe_string::safe_format(str, STRLENGTH, "Error in page %d '%s' of file '%s'",
-						currPage->id, currPage->name.Value(), filename);
+        {
+            if (currPage->Read(infile, version))
+            {
+                vt_safe_string::safe_format(str, STRLENGTH, "Error in page %d '%s' of file '%s',",
+                        currPage->id, currPage->name.Value(), filename);
 
-				ReportError(str);
-				delete currPage;
-				return 1;  // Error;
-			}
+                ReportError(str);
+                return 1;  // Error; unique_ptr will clean up
+            }
             if (currPage->id > 100000)
             {
                 vt::cpp23::format_to_buffer(str, STRLENGTH, "Bad Page ID:  {}", currPage->id);
                 ReportError(str);
-                delete currPage;
+                continue; // skip adding; unique_ptr will clean up
             }
-			else if (Add(currPage))
-			{
-				ReportError("Error adding page to ZoneDB");
-				delete currPage;
-				return 1;  // Error;
-			}
-		}
+            else if (Add(currPage.release()))
+            {
+                ReportError("Error adding page to ZoneDB");
+                return 1;  // Error;
+            }
+        }
     }
 
 	// read global default properties
@@ -1441,7 +1439,7 @@ int ZoneDB::ImportPage(const char* filename)
     int pagenum;
     int idx;
     int len = static_cast<int>(strlen(filename));
-    Page *newpage = nullptr;
+    std::unique_ptr<Page> newpage;
     InputDataFile infile;
     int version = 0;
     char str[STRLONG];
@@ -1467,11 +1465,11 @@ int ZoneDB::ImportPage(const char* filename)
         return 1;  // Error
     }
     newpage = NewPosPage();
-    if (newpage != nullptr)
+    if (newpage)
     {
         newpage->Read(infile, version);
         newpage->id = pagenum;
-        AddUnique(newpage);
+        AddUnique(newpage.release());
     }
     // now read the SalesItems
     infile.Read(count);
