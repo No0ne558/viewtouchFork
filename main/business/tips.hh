@@ -84,6 +84,7 @@ public:
 
     int Add(TipEntry *te);
     int Remove(TipEntry *te);
+    [[nodiscard]] std::unique_ptr<TipEntry> RemoveReturningUnique(TipEntry *te);
     int Purge();
     TipEntry *FindByUser(int id);
     TipEntry *FindByRecord(int record, Employee *e = nullptr);

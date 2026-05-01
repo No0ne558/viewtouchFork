@@ -34,6 +34,8 @@
 #include <dirent.h>
 #include <cstring>
 
+#include <memory>
+
 #ifdef DMALLOC
 #include <dmalloc.h>
 #endif
@@ -223,17 +225,16 @@ int Drawer::Read(InputDataFile &df, int version)
             return 1;
         }
 
-        DrawerBalance *db = new DrawerBalance;
-        error += db->Read(df, version);
+        auto db_up = std::make_unique<DrawerBalance>();
+        error += db_up->Read(df, version);
         if (error)
         {
-            delete db;
             vt_safe_string::safe_format(str, 256, "Error reading DrawerBalance %d of %d", i+1, n);
             ReportError(str);
             return 1;
         }
         else
-            Add(db);
+            Add(db_up.release());
     }
 
     error += df.Read(n);
@@ -247,17 +248,16 @@ int Drawer::Read(InputDataFile &df, int version)
             return 1;
         }
 
-        DrawerPayment *dp = new DrawerPayment;
-        error += dp->Read(df, version);
+        auto dp_up = std::make_unique<DrawerPayment>();
+        error += dp_up->Read(df, version);
         if (error)
         {
-            delete dp;
             vt_safe_string::safe_format(str, 256, "Error reading DrawerPayment %d of %d", i+1, n);
             ReportError(str);
             return 1;
         }
         else
-            Add(dp);
+            Add(dp_up.release());
     }
     return error;
 }
@@ -1141,9 +1141,8 @@ int Drawer::RecordPayment(int tender, int amount, int user, TimeInfo &timevar, i
     FnTrace("Drawer::RecordPayment()");
     if (tender != TENDER_PAID_TIP)
         return 1;
-
-    DrawerPayment *dp = new DrawerPayment(tender, amount, user, timevar, target);
-    Add(dp);
+    auto dp_up = std::make_unique<DrawerPayment>(tender, amount, user, timevar, target);
+    Add(dp_up.release());
     return 0;
 }
 
@@ -1212,9 +1211,10 @@ DrawerBalance *Drawer::FindBalance(int tender, int id, int make_new)
 
     if (make_new)
     {
-        balance = new DrawerBalance(tender, id);
-        Add(balance);
-        return balance;
+        auto balance_up = std::make_unique<DrawerBalance>(tender, id);
+        DrawerBalance *balance_ptr = balance_up.get();
+        Add(balance_up.release());
+        return balance_ptr;
     }
     return nullptr;
 }
@@ -1336,14 +1336,15 @@ int Drawer::Pull(int user_id)
 
     // replace with fresh drawer
     // FIX - should confirm physical drawer exists in system
-    Drawer *d = new Drawer(SystemTime);
+    auto d_up = std::make_unique<Drawer>(SystemTime);
+    Drawer *d = d_up.get();
     d->host     = host;
     if (!term || term->GetSettings()->drawer_mode != DRAWER_ASSIGNED)
-    	d->owner_id =  owner_id;
+        d->owner_id = owner_id;
     d->term     = term;
     d->number   = number;
     d->position = position;
-    MasterSystem->Add(d);
+    MasterSystem->Add(d_up.release());
     d->Save();
 
     return 0;
@@ -1422,14 +1423,15 @@ int Drawer::MergeServerBanks()
             if (archive)
             {
                 archive->changed = 1;
-                archive->Remove(d);
+                (void)archive->RemoveReturningUnique(d);
             }
             else
             {
-                sys->Remove(d);
-                d->DestroyFile();
+                auto _up = sys->RemoveReturningUnique(d);
+                if (_up)
+                    _up->DestroyFile();
             }
-            delete d;
+            // ownership handled by RemoveReturningUnique; local unique_ptr will delete when out of scope
         }
         d = d_next;
     }
@@ -1515,14 +1517,15 @@ int Drawer::MergeSystems(int mergeall)
             if (archive)
             {
                 archive->changed = 1;
-                archive->Remove(d);
+                (void)archive->RemoveReturningUnique(d);
             }
             else
             {
-                sys->Remove(d);
-                d->DestroyFile();
+                auto _up = sys->RemoveReturningUnique(d);
+                if (_up)
+                    _up->DestroyFile();
             }
-            delete d;
+            // ownership handled by RemoveReturningUnique; local unique_ptr will delete when out of scope
         }
         d = d_next;
     }

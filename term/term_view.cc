@@ -2458,8 +2458,7 @@ int KillLayer(int id)
         l = Layers.FindByID(id);
         if (l)
         {
-            Layers.Remove(l);
-            delete l;
+            (void)Layers.RemoveReturningUnique(l);
         }
     }
     while (l);

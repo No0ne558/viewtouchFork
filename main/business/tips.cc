@@ -33,6 +33,8 @@
 #include <dmalloc.h>
 #endif
 
+#include <memory>
+
 
 /**** TipEntry Class ****/
 // Constructor
@@ -71,14 +73,14 @@ int TipEntry::Write(OutputDataFile &df, int version)
 TipEntry *TipEntry::Copy()
 {
     FnTrace("TipEntry::Copy()");
-    auto *te = new TipEntry;
-    if (te == nullptr)
+    auto te_up = std::make_unique<TipEntry>();
+    if (!te_up)
         return nullptr;
 
-    te->user_id = user_id;
-    te->amount  = amount;
-    te->paid    = paid;
-    return te;
+    te_up->user_id = user_id;
+    te_up->amount  = amount;
+    te_up->paid    = paid;
+    return te_up.release();
 }
 
 int TipEntry::Count()
@@ -114,11 +116,10 @@ int TipDB::Add(TipEntry *te)
     {
         if (ptr->user_id == te->user_id)
         {
-            Remove(ptr);
-            te->amount += ptr->amount;
-            te->paid   += ptr->paid;
+            auto _old = RemoveReturningUnique(ptr);
+            te->amount += _old->amount;
+            te->paid   += _old->paid;
             Add(te);
-            delete ptr;
             return 0;
         }
         ptr = ptr->next;
@@ -132,6 +133,12 @@ int TipDB::Remove(TipEntry *te)
 {
     FnTrace("TipDB::Remove()");
     return tip_list.Remove(te);
+}
+
+std::unique_ptr<TipEntry> TipDB::RemoveReturningUnique(TipEntry *te)
+{
+    FnTrace("TipDB::RemoveReturningUnique()");
+    return tip_list.RemoveReturningUnique(te);
 }
 
 int TipDB::Purge()
@@ -179,16 +186,15 @@ int TipDB::CaptureTip(int user_id, int amount)
         te->amount += amount;
         if (te->amount == 0 && te->paid == 0)
         {
-            Remove(te);
-            delete te;
+            (void)RemoveReturningUnique(te);
         }
     }
     else
     {
-        te = new TipEntry;
-        te->user_id = user_id;
-        te->amount  = amount;
-        Add(te);
+        auto te_up = std::make_unique<TipEntry>();
+        te_up->user_id = user_id;
+        te_up->amount  = amount;
+        Add(te_up.release());
     }
     return 0;
 }
@@ -203,17 +209,16 @@ int TipDB::TransferTip(int user_id, int amount)
         te->previous_amount += amount;
         if (te->amount == 0 && te->paid == 0)
         {
-            Remove(te);
-            delete te;
+            (void)RemoveReturningUnique(te);
         }
     }
     else
     {
-        te = new TipEntry;
-        te->user_id         = user_id;
-        te->amount          = amount;
-        te->previous_amount = amount;
-        Add(te);
+        auto te_up = std::make_unique<TipEntry>();
+        te_up->user_id         = user_id;
+        te_up->amount          = amount;
+        te_up->previous_amount = amount;
+        Add(te_up.release());
     }
     return 0;
 }

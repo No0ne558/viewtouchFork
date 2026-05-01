@@ -40,6 +40,7 @@
 #include "cdu_att.hh"
 #include "utility.hh"
 #include "safe_string_utils.hh"
+#include <memory>
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -260,6 +261,14 @@ int CDUStrings::Remove(CDUString *cdustring)
     return 0;
 }
 
+std::unique_ptr<CDUString> CDUStrings::RemoveReturningUnique(CDUString *cdustring)
+{
+    FnTrace("CDUStrings::RemoveReturningUnique()");
+    if (cdustring == nullptr)
+        return nullptr;
+    return strings.RemoveReturningUnique(cdustring);
+}
+
 CDUString *CDUStrings::GetString(int idx)
 {
     FnTrace("CDUStrings::GetString()");
@@ -319,14 +328,15 @@ int CDUStrings::FindRecordByWord(const genericChar* word, int record)
 CDUString *CDUStrings::NewString()
 {
     FnTrace("CDUStrings::NewString()");
-    CDUString *newstring = new CDUString();
+    auto newstring_up = std::make_unique<CDUString>();
+    CDUString *newstring = newstring_up.get();
     CDUString *laststring = strings.Tail();
 
     if (laststring == nullptr)
         newstring->id = 1;
     else
         newstring->id = laststring->id + 1;
-    strings.AddToTail(newstring);
+    strings.AddToTail(std::move(newstring_up));
     return newstring;
 }
 
@@ -981,9 +991,15 @@ CustDispUnit *NewCDUObject(const char* filename, int type)
     FnTrace("NewCDUObject()");
     CustDispUnit *CDURetval = nullptr;
     if (type == CDU_TYPE_EPSON)
-        CDURetval = new EpsonDispUnit(filename);
+    {
+        auto up = std::make_unique<EpsonDispUnit>(filename);
+        CDURetval = up.release();
+    }
     if (type == CDU_TYPE_BA63)
-        CDURetval = new BA63DispUnit(filename);
+    {
+        auto up = std::make_unique<BA63DispUnit>(filename);
+        CDURetval = up.release();
+    }
     
     return CDURetval;
 }

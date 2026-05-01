@@ -286,6 +286,7 @@ public:
     int Add(SalesItem *mi);
     // Adds SalesItem to object (sorted by name)
     int Remove(SalesItem *mi);
+    [[nodiscard]] std::unique_ptr<SalesItem> RemoveReturningUnique(SalesItem *mi);
     // Removes SalesItem from object
     int Purge();
     // Ends the day

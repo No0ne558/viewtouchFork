@@ -23,6 +23,7 @@
 
 #include "utility.hh"
 #include "list_utility.hh"
+#include <memory>
 
 
 /**** Definitions & Global Data ****/
@@ -141,6 +142,7 @@ public:
     // write employee data to file
     int Add(JobInfo *j);
     int Remove(JobInfo *j);
+    [[nodiscard]] std::unique_ptr<JobInfo> RemoveReturningUnique(JobInfo *j);
     JobInfo *FindJobByType(int job = -1);
     JobInfo *FindJobByNumber(int no);
     const genericChar* JobTitle(Terminal *t);
@@ -185,8 +187,8 @@ class UserDB
     DList<Employee> user_list;
 
 public:
-    Employee *super_user;
-    Employee *developer;
+    std::unique_ptr<Employee> super_user;
+    std::unique_ptr<Employee> developer;
     Str       filename;
     int       changed;
 
@@ -207,6 +209,7 @@ public:
     int       Save();
     int       Add(Employee *e);
     int       Remove(Employee *e);
+    [[nodiscard]] std::unique_ptr<Employee> RemoveReturningUnique(Employee *e);
     int       Purge();
     int       Init(LaborDB *db);            // sets last_job flags
     Employee *FindByID(int id);

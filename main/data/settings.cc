@@ -38,6 +38,8 @@
 #include "report.hh"
 #include "sales.hh"
 #include "settings.hh"
+
+#include <memory>
 #include "settings_zone.hh"
 #include "system.hh"
 #include "terminal.hh"
@@ -47,6 +49,8 @@
 #include "src/utils/cpp23_utils.hh"
 
 
+
+#include <memory>
 
 #define CONFIG_DIR VIEWTOUCH_PATH "/dat/conf"
 #define CONFIG_TAX_FILE VIEWTOUCH_PATH "/dat/conf/tax.ini"
@@ -276,13 +280,14 @@ DiscountInfo::DiscountInfo()
 DiscountInfo *DiscountInfo::Copy()
 {
     FnTrace("DiscountInfo::Copy()");
-    auto *retdiscount = new DiscountInfo();
+    auto retdiscount_up = std::make_unique<DiscountInfo>();
+    DiscountInfo *retdiscount = retdiscount_up.get();
     retdiscount->name.Set(name);
     retdiscount->id = id;
     retdiscount->amount = amount;
     retdiscount->flags = flags;
     retdiscount->local = local;
-    return retdiscount;
+    return retdiscount_up.release();
 }
 
 int DiscountInfo::Read(InputDataFile &df, int version)
@@ -327,12 +332,13 @@ CompInfo::CompInfo()
 CompInfo *CompInfo::Copy()
 {
     FnTrace("CompInfo::Copy()");
-    auto *retcomp = new CompInfo();
+    auto retcomp_up = std::make_unique<CompInfo>();
+    CompInfo *retcomp = retcomp_up.get();
     retcomp->name.Set(name);
     retcomp->id = id;
     retcomp->flags = flags;
     retcomp->local = local;
-    return retcomp;
+    return retcomp_up.release();
 }
 
 int CompInfo::Read(InputDataFile &df, int version)
@@ -391,7 +397,8 @@ CouponInfo::CouponInfo()
 CouponInfo *CouponInfo::Copy()
 {
     FnTrace("CouponInfo::Copy()");
-    auto *retcoupon = new CouponInfo();
+    auto retcoupon_up = std::make_unique<CouponInfo>();
+    CouponInfo *retcoupon = retcoupon_up.get();
 
     retcoupon->name.Set(name);
     retcoupon->id = id;
@@ -409,7 +416,7 @@ CouponInfo *CouponInfo::Copy()
     retcoupon->months = months;
     retcoupon->automatic = automatic;
 
-    return retcoupon;
+    return retcoupon_up.release();
 }
 
 int CouponInfo::Read(InputDataFile &df, int version)
@@ -784,11 +791,11 @@ CreditCardInfo::CreditCardInfo()
 CreditCardInfo *CreditCardInfo::Copy()
 {
     FnTrace("CreditCardInfo::Copy()");
-    auto *retcreditcard = new CreditCardInfo();
-    retcreditcard->name.Set(name);
-    retcreditcard->id = id;
-    retcreditcard->local = local;
-    return retcreditcard;
+    auto retcreditcard_up = std::make_unique<CreditCardInfo>();
+    retcreditcard_up->name.Set(name);
+    retcreditcard_up->id = id;
+    retcreditcard_up->local = local;
+    return retcreditcard_up.release();
 }
 
 int CreditCardInfo::Read(InputDataFile &df, int version)
@@ -830,13 +837,13 @@ MealInfo::MealInfo()
 MealInfo *MealInfo::Copy()
 {
     FnTrace("MealInfo::Copy()");
-    auto *retmeal = new MealInfo();
-    retmeal->name.Set(name);
-    retmeal->id = id;
-    retmeal->amount = amount;
-    retmeal->flags = flags;
-    retmeal->local = local;
-    return retmeal;
+    auto retmeal_up = std::make_unique<MealInfo>();
+    retmeal_up->name.Set(name);
+    retmeal_up->id = id;
+    retmeal_up->amount = amount;
+    retmeal_up->flags = flags;
+    retmeal_up->local = local;
+    return retmeal_up.release();
 }
 
 int MealInfo::Read(InputDataFile &df, int version)
@@ -1615,7 +1622,8 @@ int Settings::Load(const char* file)
         df.Read(tmp);
         if (tmp != MODEL_NONE)
         {
-            auto *pi = new PrinterInfo;
+            auto pi_up = std::make_unique<PrinterInfo>();
+            PrinterInfo *pi = pi_up.get();
             pi->type = PRINTER_REPORT;
 
 #ifdef LINUX
@@ -1628,7 +1636,7 @@ int Settings::Load(const char* file)
 
             pi->port = 0;
             pi->model = tmp;
-            Add(pi);
+            Add(pi_up.release());
         }
     }
     if (version >= 104)
@@ -1761,60 +1769,62 @@ int Settings::Load(const char* file)
         // So we don't need to convert anything - just preserve what was saved
     }
 
-    if (version <= 26)
-    {
-        Str phost;
-        int pport;
-        int pmodel;
-        for (i = 0; i < 16; ++i)
+        if (version <= 26)
         {
-            df.Read(phost);
-            df.Read(pport);
-            df.Read(pmodel);
-            if (phost.size() > 0)
+            Str phost;
+            int pport;
+            int pmodel;
+            for (i = 0; i < 16; ++i)
             {
-                auto *pi = new PrinterInfo;
-                pi->host.Set(phost);
-                pi->port = pport;
-                pi->model = pmodel;
-                pi->type = i + 1;
-                Add(pi);
-            }
-        }
-
-        Str thost;
-        int thardware;
-        int ttype;
-        int tkitchen;
-        for (i = 0; i < 16; ++i)
-        {
-            df.Read(thost);
-            df.Read(thardware);
-            df.Read(ttype);
-            df.Read(tkitchen);
-
-            if (thost.size() > 0)
-            {
-                auto *ti = new TermInfo;
-                vt_safe_string::safe_format(str, 256, "Term %d", i + 1);
-                ti->name.Set(str);
-                ti->type = ttype;
-                ti->display_host.Set(thost);
-                ti->printer_host.Clear();
-                ti->printer_model = MODEL_EPSON;
-                switch (thardware)
+                df.Read(phost);
+                df.Read(pport);
+                df.Read(pmodel);
+                if (phost.size() > 0)
                 {
-                case 0: ti->printer_model = MODEL_NONE; break;
-                case 1: break;
-                case 2: ti->drawers = 1; break;
-                case 3: ti->drawers = 2; break;
-                default: break;
+                    auto pi_up = std::make_unique<PrinterInfo>();
+                    PrinterInfo *pi = pi_up.get();
+                    pi->host.Set(phost);
+                    pi->port = pport;
+                    pi->model = pmodel;
+                    pi->type = i + 1;
+                    Add(pi_up.release());
                 }
-                ti->kitchen = tkitchen;
-                Add(ti);
+            }
+
+            Str thost;
+            int thardware;
+            int ttype;
+            int tkitchen;
+            for (i = 0; i < 16; ++i)
+            {
+                df.Read(thost);
+                df.Read(thardware);
+                df.Read(ttype);
+                df.Read(tkitchen);
+
+                if (thost.size() > 0)
+                {
+                    auto ti_up = std::make_unique<TermInfo>();
+                    TermInfo *ti = ti_up.get();
+                    vt_safe_string::safe_format(str, 256, "Term %d", i + 1);
+                    ti->name.Set(str);
+                    ti->type = ttype;
+                    ti->display_host.Set(thost);
+                    ti->printer_host.Clear();
+                    ti->printer_model = MODEL_EPSON;
+                    switch (thardware)
+                    {
+                    case 0: ti->printer_model = MODEL_NONE; break;
+                    case 1: break;
+                    case 2: ti->drawers = 1; break;
+                    case 3: ti->drawers = 2; break;
+                    default: break;
+                    }
+                    ti->kitchen = tkitchen;
+                    Add(ti_up.release());
+                }
             }
         }
-    }
 
     int count = 0;
     if (version >= 27)
@@ -1827,9 +1837,9 @@ int Settings::Load(const char* file)
                 ReportError("Unexpected end of terminals in settings");
                 return 1;
             }
-            auto *ti = new TermInfo;
-            ti->Read(df, version);
-            Add(ti);
+            auto ti_up = std::make_unique<TermInfo>();
+            ti_up->Read(df, version);
+            Add(ti_up.release());
         }
 
         df.Read(count);
@@ -1840,9 +1850,9 @@ int Settings::Load(const char* file)
                 ReportError("Unexpected end of printers in settings");
                 return 1;
             }
-            auto *pi = new PrinterInfo;
-            pi->Read(df, version);
-            Add(pi);
+            auto pi_up = std::make_unique<PrinterInfo>();
+            pi_up->Read(df, version);
+            Add(pi_up.release());
         }
     }
 
@@ -1855,13 +1865,13 @@ int Settings::Load(const char* file)
             ReportError("Unexpected end of discounts in settings");
             return 1;
         }
-        auto *ds = new DiscountInfo;
-        ds->Read(df, version);
-        if (ds->name.size() > 0)
+        auto ds_up = std::make_unique<DiscountInfo>();
+        ds_up->Read(df, version);
+        if (ds_up->name.size() > 0)
         {
-            if (MediaIsDupe(discount_list.Head(), ds->id))
-                ds->id = MediaFirstID(discount_list.Head(), 1);
-            Add(ds);
+            if (MediaIsDupe(discount_list.Head(), ds_up->id))
+                ds_up->id = MediaFirstID(discount_list.Head(), 1);
+            Add(ds_up.release());
         }
     }
 
@@ -1874,13 +1884,13 @@ int Settings::Load(const char* file)
             ReportError("Unexpected end of coupons in settings");
             return 1;
         }
-        auto *cp = new CouponInfo;
-        cp->Read(df, version);
-        if (cp->name.size() > 0)
+        auto cp_up = std::make_unique<CouponInfo>();
+        cp_up->Read(df, version);
+        if (cp_up->name.size() > 0)
         {
-            if (MediaIsDupe(coupon_list.Head(), cp->id))
-                cp->id = MediaFirstID(coupon_list.Head(), 1);
-            Add(cp);
+            if (MediaIsDupe(coupon_list.Head(), cp_up->id))
+                cp_up->id = MediaFirstID(coupon_list.Head(), 1);
+            Add(cp_up.release());
         }
     }
 
@@ -1893,13 +1903,13 @@ int Settings::Load(const char* file)
             ReportError("Unexpected end of credit cards in settings");
             return 1;
         }
-        auto *cc = new CreditCardInfo;
-        cc->Read(df, version);
-        if (cc->name.size() > 0)
+        auto cc_up = std::make_unique<CreditCardInfo>();
+        cc_up->Read(df, version);
+        if (cc_up->name.size() > 0)
         {
-            if (MediaIsDupe(creditcard_list.Head(), cc->id))
-                cc->id = MediaFirstID(creditcard_list.Head(), 1);
-            Add(cc);
+            if (MediaIsDupe(creditcard_list.Head(), cc_up->id))
+                cc_up->id = MediaFirstID(creditcard_list.Head(), 1);
+            Add(cc_up.release());
         }
     }
 
@@ -1912,13 +1922,13 @@ int Settings::Load(const char* file)
             ReportError("Unexpected end of comps in settings");
             return 1;
         }
-        auto *cm = new CompInfo;
-        cm->Read(df, version);
-        if (cm->name.size() > 0)
+        auto cm_up = std::make_unique<CompInfo>();
+        cm_up->Read(df, version);
+        if (cm_up->name.size() > 0)
         {
-            if (MediaIsDupe(comp_list.Head(), cm->id))
-                cm->id = MediaFirstID(comp_list.Head(), 1);
-            Add(cm);
+            if (MediaIsDupe(comp_list.Head(), cm_up->id))
+                cm_up->id = MediaFirstID(comp_list.Head(), 1);
+            Add(cm_up.release());
         }
     }
 
@@ -1931,13 +1941,13 @@ int Settings::Load(const char* file)
             ReportError("Unexpected end of employee meals in settings");
             return 1;
         }
-        auto *mi = new MealInfo;
-        mi->Read(df, version);
-        if (mi->name.size() > 0)
+        auto mi_up = std::make_unique<MealInfo>();
+        mi_up->Read(df, version);
+        if (mi_up->name.size() > 0)
         {
-            if (MediaIsDupe(meal_list.Head(), mi->id))
-                mi->id = MediaFirstID(meal_list.Head(), 1);
-            Add(mi);
+            if (MediaIsDupe(meal_list.Head(), mi_up->id))
+                mi_up->id = MediaFirstID(meal_list.Head(), 1);
+            Add(mi_up.release());
         }
     }
 
@@ -1952,9 +1962,9 @@ int Settings::Load(const char* file)
                 ReportError("Unexpected end of tax definitions in settings");
                 return 1;
             }
-            auto *tx = new TaxInfo;
-            tx->Read(df, version);
-            Add(tx);
+            auto tx_up = std::make_unique<TaxInfo>();
+            tx_up->Read(df, version);
+            Add(tx_up.release());
         }
 
         df.Read(last_money_id);
@@ -1966,9 +1976,9 @@ int Settings::Load(const char* file)
                 ReportError("Unexpected end of money definitions in settings");
                 return 1;
             }
-            auto *my = new MoneyInfo;
-            my->Read(df, version);
-            Add(my);
+            auto my_up = std::make_unique<MoneyInfo>();
+            my_up->Read(df, version);
+            Add(my_up.release());
         }
     }
     if (version >= 29)
@@ -2820,18 +2830,18 @@ int Settings::LoadMedia(const char* file)
             ReportError("Unexpected end of discounts in media file");
             return 1;
         }
-        auto *ds = new DiscountInfo;
-        ds->Read(df, version);
-        if (ds->id < GLOBAL_MEDIA_ID || MediaIsDupe(discount_list.Head(), ds->id))
+        auto ds_up = std::make_unique<DiscountInfo>();
+        ds_up->Read(df, version);
+        if (ds_up->id < GLOBAL_MEDIA_ID || MediaIsDupe(discount_list.Head(), ds_up->id))
         {
             last_discount_id += 1;
-            ds->id = last_discount_id;
+            ds_up->id = last_discount_id;
         }
         else
         {
-            last_discount_id = ds->id;
+            last_discount_id = ds_up->id;
         }
-        Add(ds);
+        Add(ds_up.release());
     }
 
     df.Read(my_coupon_id);
@@ -2847,18 +2857,18 @@ int Settings::LoadMedia(const char* file)
             ReportError("Unexpected end of coupons in media file");
             return 1;
         }
-        auto *cp = new CouponInfo;
-        cp->Read(df, version);
-        if (cp->id < GLOBAL_MEDIA_ID || MediaIsDupe(coupon_list.Head(), cp->id))
+        auto cp_up = std::make_unique<CouponInfo>();
+        cp_up->Read(df, version);
+        if (cp_up->id < GLOBAL_MEDIA_ID || MediaIsDupe(coupon_list.Head(), cp_up->id))
         {
             last_coupon_id += 1;
-            cp->id = last_coupon_id;
+            cp_up->id = last_coupon_id;
         }
         else
         {
-            last_coupon_id = cp->id;
+            last_coupon_id = cp_up->id;
         }
-        Add(cp);
+        Add(cp_up.release());
     }
 
     df.Read(my_creditcard_id);
@@ -2874,18 +2884,18 @@ int Settings::LoadMedia(const char* file)
             ReportError("Unexpected end of credit cards in media file");
             return 1;
         }
-        auto *cc = new CreditCardInfo;
-        cc->Read(df, version);
-        if (cc->id < GLOBAL_MEDIA_ID || MediaIsDupe(creditcard_list.Head(), cc->id))
+        auto cc_up = std::make_unique<CreditCardInfo>();
+        cc_up->Read(df, version);
+        if (cc_up->id < GLOBAL_MEDIA_ID || MediaIsDupe(creditcard_list.Head(), cc_up->id))
         {
             last_creditcard_id += 1;
-            cc->id = last_creditcard_id;
+            cc_up->id = last_creditcard_id;
         }
         else
         {
-            last_creditcard_id = cc->id;
+            last_creditcard_id = cc_up->id;
         }
-        Add(cc);
+        Add(cc_up.release());
     }
 
     df.Read(my_comp_id);
@@ -2901,18 +2911,18 @@ int Settings::LoadMedia(const char* file)
             ReportError("Unexpected end of comps in media file");
             return 1;
         }
-        auto *cm = new CompInfo;
-        cm->Read(df, version);
-        if (cm->id < GLOBAL_MEDIA_ID || MediaIsDupe(comp_list.Head(), cm->id))
+        auto cm_up = std::make_unique<CompInfo>();
+        cm_up->Read(df, version);
+        if (cm_up->id < GLOBAL_MEDIA_ID || MediaIsDupe(comp_list.Head(), cm_up->id))
         {
             last_comp_id += 1;
-            cm->id = last_comp_id;
+            cm_up->id = last_comp_id;
         }
         else
         {
-            last_comp_id = cm->id;
+            last_comp_id = cm_up->id;
         }
-        Add(cm);
+        Add(cm_up.release());
     }
 
     if (version >= 44)
@@ -2930,18 +2940,18 @@ int Settings::LoadMedia(const char* file)
                 ReportError("Unexpected end of meals in media file");
                 return 1;
             }
-            auto *mi = new MealInfo;
-            mi->Read(df, version);
-            if (mi->id < GLOBAL_MEDIA_ID || MediaIsDupe(meal_list.Head(), mi->id))
+            auto mi_up = std::make_unique<MealInfo>();
+            mi_up->Read(df, version);
+            if (mi_up->id < GLOBAL_MEDIA_ID || MediaIsDupe(meal_list.Head(), mi_up->id))
             {
                 last_meal_id += 1;
-                mi->id = last_meal_id;
+                mi_up->id = last_meal_id;
             }
             else
             {
-                last_meal_id = mi->id;
+                last_meal_id = mi_up->id;
             }
-            Add(mi);
+            Add(mi_up.release());
         }
     }
 
@@ -3957,10 +3967,22 @@ int Settings::Remove(TermInfo *ti)
     return term_list.Remove(ti);
 }
 
+std::unique_ptr<TermInfo> Settings::RemoveReturningUnique(TermInfo *ti)
+{
+    FnTrace("Settings::RemoveReturningUnique(TermInfo)");
+    return term_list.RemoveReturningUnique(ti);
+}
+
 int Settings::Remove(PrinterInfo *pr)
 {
     FnTrace("Settings::Remove(PrinterInfo)");
     return printer_list.Remove(pr);
+}
+
+std::unique_ptr<PrinterInfo> Settings::RemoveReturningUnique(PrinterInfo *pr)
+{
+    FnTrace("Settings::RemoveReturningUnique(PrinterInfo)");
+    return printer_list.RemoveReturningUnique(pr);
 }
 
 bool Settings::IsPrinterShared(const genericChar* host, int port, TermInfo *exclude)
@@ -4581,15 +4603,18 @@ TermInfo *Settings::FindServer(const genericChar* displaystr)
         else
         {
             // No terminals exist - create the server terminal
-            found = new TermInfo;
-            found->name.Set("Server");
-            found->display_host.Set(displaystr);
-            found->type = TERMINAL_NORMAL;
-            found->printer_model = 0;
-            found->printer_port = 0;
-            found->IsServer(1);
-            AddFront(found);
-            return found;
+            {
+                auto found_up = std::make_unique<TermInfo>();
+                TermInfo *found_ptr = found_up.get();
+                found_ptr->name.Set("Server");
+                found_ptr->display_host.Set(displaystr);
+                found_ptr->type = TERMINAL_NORMAL;
+                found_ptr->printer_model = 0;
+                found_ptr->printer_port = 0;
+                found_ptr->IsServer(1);
+                AddFront(found_up.release());
+                return found_ptr;
+            }
         }
     }
 
@@ -4622,8 +4647,7 @@ TermInfo *Settings::FindServer(const genericChar* displaystr)
             (ti->display_host.empty() || 
              strcmp(ti->display_host.Value(), displaystr) == 0))
         {
-            Remove(ti);
-            delete ti;
+            (void)RemoveReturningUnique(ti);
         }
         ti = next_ti;
     }

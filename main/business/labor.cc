@@ -37,6 +37,8 @@
 #include <dmalloc.h>
 #endif
 
+#include <memory>
+
 
 /**** WorkEntry Class ****/
 // Constructors
@@ -97,9 +99,8 @@ WorkEntry::~WorkEntry()
 // Member Functions
 WorkEntry *WorkEntry::Copy()
 {
-    auto *w = new WorkEntry;
-    if (w == nullptr)
-        return nullptr;
+    auto w_up = std::make_unique<WorkEntry>();
+    WorkEntry *w = w_up.get();
 
     w->user_id    = user_id;
     w->job        = job;
@@ -110,7 +111,7 @@ WorkEntry *WorkEntry::Copy()
     w->start      = start;
     w->end        = end;
     w->edit_id    = edit_id;
-    return w;
+    return w_up.release();
 }
 
 int WorkEntry::IsWorkDone()
@@ -251,8 +252,9 @@ int WorkEntry::Read(InputDataFile &df, int version)
     error += df.Read(edit_id);
     if (edit_id > 0)
     {
-        original = new WorkEntry;
-        error += original->Read(df, version);
+        auto orig_up = std::make_unique<WorkEntry>();
+        error += orig_up->Read(df, version);
+        original = orig_up.release();
     }
     return error;
 }
@@ -484,9 +486,10 @@ int LaborPeriod::Load()
             return 1;
         }
 
-        auto *work_entry = new WorkEntry;
-        error += work_entry->Read(df, version);
-        Add(work_entry);
+        auto work_entry_up = std::make_unique<WorkEntry>();
+        error += work_entry_up->Read(df, version);
+        WorkEntry *work_entry = work_entry_up.get();
+        Add(work_entry_up.release());
         work_entry->Update(this);
     }
 
@@ -830,14 +833,15 @@ int LaborDB::Load(const char* path)
 			if (strncmp(name, "labor_", 6) == 0)
 			{
 				vt_safe_string::safe_format(str, 256, "%s/%s", pathname.Value(), name);
-				auto *lp = new LaborPeriod;
-				if (lp->Scan(str))
-				{
-					ReportError("Couldn't load labor period");
-					delete lp;
-				}
-				else
-					Add(lp);
+                auto lp_up = std::make_unique<LaborPeriod>();
+                LaborPeriod *lp = lp_up.get();
+                if (lp->Scan(str))
+                {
+                    ReportError("Couldn't load labor period");
+                    // lp_up will be destroyed automatically
+                }
+                else
+                    Add(lp_up.release());
 			}
 		}
 	}while (record);
@@ -883,7 +887,9 @@ int LaborDB::Purge()
 int LaborDB::NewLaborPeriod()
 {
     FnTrace("LaborDB::NewLaborPerion()");
-    auto *lp = new LaborPeriod;
+    auto lp_up = std::make_unique<LaborPeriod>();
+    LaborPeriod *lp = lp_up.get();
+
     if (lp == nullptr)
         return 1;
 
@@ -896,13 +902,14 @@ int LaborDB::NewLaborPeriod()
             if (!work_entry->IsWorkDone())
             {
                 work_entry->EndEntry(SystemTime);
-                auto *nw = new WorkEntry;
+                auto nw_up = std::make_unique<WorkEntry>();
+                WorkEntry *nw = nw_up.get();
                 nw->user_id    = work_entry->user_id;
                 nw->start      = SystemTime;
                 nw->job        = work_entry->job;
                 nw->pay_rate   = work_entry->pay_rate;
                 nw->pay_amount = work_entry->pay_amount;
-                lp->Add(nw);
+                lp->Add(nw_up.release());
             }
             work_entry = work_entry->next;
         }
@@ -911,7 +918,7 @@ int LaborDB::NewLaborPeriod()
         end->Save();
     }
 
-    Add(lp);
+    Add(lp_up.release());
     char str[256];
     vt_safe_string::safe_format(str, 256, "%s/labor_%09d", pathname.Value(), lp->serial_number);
     lp->file_name.Set(str);
@@ -1403,6 +1410,12 @@ int WorkDB::Remove(WorkEntry *we)
     return work_list.Remove(we);
 }
 
+std::unique_ptr<WorkEntry> WorkDB::RemoveReturningUnique(WorkEntry *we)
+{
+    FnTrace("WorkDB::RemoveReturningUnique()");
+    return work_list.RemoveReturningUnique(we);
+}
+
 int WorkDB::Purge()
 {
     FnTrace("WorkDB::Purge()");
@@ -1448,9 +1461,10 @@ int WorkDB::Read(InputDataFile &df, int version)
     df.Read(count);
     for (int i = 0; i < count; ++i)
     {
-        auto *we = new WorkEntry;
+        auto we_up = std::make_unique<WorkEntry>();
+        WorkEntry *we = we_up.get();
         we->Read(df, version);
-        Add(we);
+        Add(we_up.release());
     }
     return 0;
 }

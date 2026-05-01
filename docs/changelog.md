@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Work In Progress
+- **Modernize memory ownership to std::unique_ptr** (2026-05-01)
+  - Replaced raw `new`/`delete` allocation sites with `std::make_unique` and `std::unique_ptr` while preserving legacy raw-pointer APIs by transferring ownership with `.release()` or using `(void)RemoveReturningUnique(x)` for deletion-only sites.
+  - Files modified: `main/data/manager.cc`, `main/hardware/terminal.cc`, `main/ui/system_salesmix.cc`, `main/data/expense.cc`, `main/business/check.cc`, `main/business/tips.cc`, `main/hardware/printer.cc`, `main/business/inventory.cc`, `main/data/settings.cc`, `main/data/locale.cc`
+  - Tests: Ran unit tests locally — 83/83 tests passed.
 - **Allow Multiple Terminal Logins (experimental)** (2026-04-12)
   - Added a persisted soft-switch `allow_multi_login` (bumped `SETTINGS_VERSION` to 107) which allows the same `Employee` to be logged into multiple terminals when enabled.
   - Exposed a new Settings switch **Allow Multiple Logins** in the Settings UI (toggles and persists immediately).

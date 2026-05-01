@@ -272,12 +272,18 @@ public:
 
 	int Init(ZoneDB *zone_db);
 	// Initializes page data
-	int Add(Zone *tz);
-	// Adds zone to page (end of list)
-	int AddFront(Zone *tz);
-	// Adds zone to front of zone list
+    int Add(Zone *tz);
+    // Adds zone to page (end of list)
+    int Add(std::unique_ptr<Zone> tz);
+    // Adds zone to page (end of list) - ownership overload
+    int AddFront(Zone *tz);
+    // Adds zone to front of zone list
+    int AddFront(std::unique_ptr<Zone> tz);
+    // Adds zone to front of zone list - ownership overload
 	int Remove(Zone *tz);
 	// Removes zone from zone list (does not delete)
+    // Removes zone from zone list and returns ownership as unique_ptr
+    std::unique_ptr<Zone> RemoveReturningUnique(Zone *tz);
 	int Purge();
 	// Removes and deletes all zones from page
 	Zone *FindZone(Terminal *t, int x, int y);
@@ -353,8 +359,12 @@ public:
     int ImportPages();
     int ExportPage(Page *page);
     int Add(Page *p);
+    int Add(std::unique_ptr<Page> p);
     int AddUnique(Page *p);
+    int AddUnique(std::unique_ptr<Page> page);
     int Remove(Page *p);
+    // Removes page from page_list and returns ownership
+    std::unique_ptr<Page> RemoveReturningUnique(Page *p);
     int Purge();
     int ChangePageID(Page *p, int new_id);
     int IsPageDefined(int page_id, int size);

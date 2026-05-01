@@ -71,6 +71,7 @@
 #include <map>
 #include <array>
 #include <algorithm>
+#include <memory>
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -102,33 +103,22 @@ static Employee* GetOrCreateCustomerUser(UserDB& user_db, Settings* settings)
     if (customer_user != nullptr)
         return customer_user;  // Already exists
     
-    // Create new Customer user
-    customer_user = new Employee;
-    if (customer_user == nullptr)
-    {
-        fprintf(stderr, "ERROR: Failed to allocate Employee for Customer user\n");
-        return nullptr;
-    }
-    
+    // Create new Customer user (use unique_ptr locally and release on success)
+    auto customer_user_up = std::make_unique<Employee>();
+    customer_user = customer_user_up.get();
+
     // Initialize Customer user properties
     customer_user->system_name.Set("Customer");
     customer_user->id = 999;  // Special ID for Customer
     customer_user->key = 999;
     customer_user->training = 0;
     customer_user->active = 1;
-    
+
     // Create and add basic job for Customer
-    JobInfo *j = new JobInfo;
-    if (j == nullptr)
-    {
-        // JobInfo allocation failed - clean up and return error
-        delete customer_user;
-        fprintf(stderr, "ERROR: Failed to allocate JobInfo for Customer user\n");
-        return nullptr;
-    }
-    
+    auto j_up = std::make_unique<JobInfo>();
+    JobInfo *j = j_up.get();
     j->job = JOB_SERVER;  // Basic server job
-    customer_user->Add(j);
+    customer_user->Add(j_up.release());
     
     // Set job flags for Customer user to allow system access
     if (settings)
@@ -137,9 +127,9 @@ static Employee* GetOrCreateCustomerUser(UserDB& user_db, Settings* settings)
         settings->job_flags[JOB_SERVER] = SECURITY_TABLES | SECURITY_ORDER | SECURITY_SETTLE;
     }
     
-    // Add to user database
-    user_db.Add(customer_user);
-    
+    // Add to user database (transfer ownership to UserDB)
+    user_db.Add(customer_user_up.release());
+
     return customer_user;
 }
 
@@ -410,8 +400,9 @@ void TermCB(XtPointer client_data, int *fid, XtInputId * /*id*/)
                     Zone *next = z->next;
                     if (z == term->edit_zone)
                         term->edit_zone = nullptr;
-                    term->edit_page->Remove(z);
-                    delete z;
+                        // take ownership of the removed zone and let unique_ptr delete it
+                        auto _removed_zone = term->edit_page->RemoveReturningUnique(z);
+                        (void)_removed_zone;
                     z = next;
                 }
                 term->Draw(RENDER_NEW);
@@ -758,8 +749,6 @@ Terminal::~Terminal()
 	if (dialog)
 		delete dialog;
 
-	if (zone_db)
-		delete zone_db;
 
     if (cdu)
     {
@@ -785,9 +774,9 @@ int Terminal::TerminalError(const genericChar* message)
 
     if (page)
     {
-        SimpleDialog *d = new SimpleDialog(message);
-        d->Button(Translate("Okay"), "okay");
-        OpenDialog(d);
+        auto d_up = std::make_unique<SimpleDialog>(message);
+        d_up->Button(Translate("Okay"), "okay");
+        OpenDialog(d_up.release());
     }
     else
     {
@@ -939,7 +928,8 @@ int Terminal::Jump(int jump_type, int jump_id)
         if (user->UsePassword(settings) && (! password_given))
         {
             password_jump = jump_id;
-            OpenDialog(new PasswordDialog(user->password.Value()));
+            auto pd_up = std::make_unique<PasswordDialog>(user->password.Value());
+            OpenDialog(pd_up.release());
             return 0;
         }
         else
@@ -1228,9 +1218,9 @@ int Terminal::FastStartLogin()
         if (reason == nullptr)
             reason = "No drawer available for payments";
         
-        DialogZone *diag = new SimpleDialog(Translate(reason));
-        diag->Button(Translate("Okay"));
-        return OpenDialog(diag);
+        auto diag_up = std::make_unique<SimpleDialog>(Translate(reason));
+        diag_up->Button(Translate("Okay"));
+        return OpenDialog(diag_up.release());
     }
 
     mealindex = settings->MealPeriod(SystemTime);
@@ -1252,8 +1242,8 @@ int Terminal::OpenTab(int phase, const char* message)
         QuickMode(CHECK_BAR);
         if (check != nullptr && check->customer != nullptr)
         {
-            OpenTabDialog *otd = new OpenTabDialog(check->customer);
-            OpenDialog(otd);  // OpenDialog takes ownership and will delete 'otd' when done
+            auto otd_up = std::make_unique<OpenTabDialog>(check->customer);
+            OpenDialog(otd_up.release());  // OpenDialog takes ownership and will delete 'otd' when done
         }
     }
     else if (phase == TABOPEN_AMOUNT)
@@ -1273,10 +1263,10 @@ int Terminal::OpenTab(int phase, const char* message)
             else
                 auth_amount = 5000;  // $50.00
             auth_action = AUTH_PREAUTH;
-            CreditCardDialog *ccd = new CreditCardDialog(this, sc, nullptr);
-            ccd->ClosingAction(ACTION_SUCCESS, ACTION_JUMPINDEX, INDEX_BAR);
-            ccd->ClosingAction(ACTION_CANCEL, ACTION_SIGNAL, "opentabfailed");
-            OpenDialog(ccd);
+            auto ccd_up = std::make_unique<CreditCardDialog>(this, sc, nullptr);
+            ccd_up->ClosingAction(ACTION_SUCCESS, ACTION_JUMPINDEX, INDEX_BAR);
+            ccd_up->ClosingAction(ACTION_CANCEL, ACTION_SIGNAL, "opentabfailed");
+            OpenDialog(ccd_up.release());
         }
     }
     else if (phase == TABOPEN_CANCEL)
@@ -1350,7 +1340,7 @@ int Terminal::OpenTabList(const char* message)
 {
     FnTrace("Terminal::OpenTabList()");
     int retval = 0;
-    SimpleDialog *sd = nullptr;
+    std::unique_ptr<SimpleDialog> sd_up;
     Check *currcheck = system_data->CheckList();
     SubCheck *subcheck = nullptr;
     Payment *payment = nullptr;
@@ -1360,7 +1350,7 @@ int Terminal::OpenTabList(const char* message)
     char bmesg[STRLENGTH];
     int count = 0;
 
-    sd = new SimpleDialog(Translate("Select a Bar Tab"), 2);
+    sd_up = std::make_unique<SimpleDialog>(Translate("Select a Bar Tab"), 2);
     while (currcheck != nullptr)
     {
         if (currcheck->type == CHECK_BAR &&
@@ -1388,18 +1378,18 @@ int Terminal::OpenTabList(const char* message)
             }
             vt::cpp23::format_to_buffer(btitle, STRLENGTH, "{}\\{}", fname, four);
             vt::cpp23::format_to_buffer(bmesg, STRLENGTH, "{} {}", message, currcheck->serial_number);
-            sd->Button(btitle, bmesg);
+            sd_up->Button(btitle, bmesg);
         }
         currcheck = currcheck->next;
     }
     if (count)
-        sd->Button(GlobalTranslate("Cancel"));
+        sd_up->Button(GlobalTranslate("Cancel"));
     else
     {
-        sd->SetTitle(Translate("There are no open tabs."));
-        sd->Button(GlobalTranslate("Okay"));
+        sd_up->SetTitle(Translate("There are no open tabs."));
+        sd_up->Button(GlobalTranslate("Okay"));
     }
-    OpenDialog(sd);
+    OpenDialog(sd_up.release());
 
     return retval;
 }
@@ -1526,8 +1516,11 @@ SignalResult Terminal::Signal(const genericChar* message, int group_id)
         break;
 
     case WAGE_FILTER_DIALOG: // wagefilterdialog
-        OpenDialog(new JobFilterDialog);
-        break;
+    {
+        auto jfd_up = std::make_unique<JobFilterDialog>();
+        OpenDialog(jfd_up.release());
+    }
+    break;
 
     case SERVER_NEXT: // servernext
         if (server && system_data != nullptr)
@@ -1557,9 +1550,11 @@ SignalResult Terminal::Signal(const genericChar* message, int group_id)
         system(msg);
         msg[0] = '\0';
         vt_safe_string::safe_copy(msg, STRLONG, Translate("Connection reset.\\Please wait 60 seconds\\and try again."));
-        sd = new SimpleDialog(msg);
-        sd->Button(Translate("Okay"));
-        OpenDialog(sd);
+        {
+            auto sd_up = std::make_unique<SimpleDialog>(msg);
+            sd_up->Button(Translate("Okay"));
+            OpenDialog(sd_up.release());
+        }
         return SIGNAL_OKAY;
     case CC_ADDBATCH:
         if (strlen(message) > 10)
@@ -1571,19 +1566,19 @@ SignalResult Terminal::Signal(const genericChar* message, int group_id)
     case ADMINFORCE1:
         if (admin_forcing == 0)
         {
-            CreditCardVoiceDialog *ccvd = new CreditCardVoiceDialog(GlobalTranslate("Enter TTID"), "adminforceauth2");
-            OpenDialog(ccvd);  // OpenDialog takes ownership and will delete 'ccvd' when done
+            auto ccvd_up = std::make_unique<CreditCardVoiceDialog>(GlobalTranslate("Enter TTID"), "adminforceauth2");
+            OpenDialog(ccvd_up.release());  // OpenDialog takes ownership and will delete 'ccvd' when done
             admin_forcing = 1;
         }
         return SIGNAL_OKAY;
     case ADMINFORCE2:
         if (admin_forcing == 1)
         {
-            TenKeyDialog *tkd = new TenKeyDialog(GlobalTranslate("Enter Final Amount"), "adminforceauth3", 0, 1);
+            auto tkd_up = std::make_unique<TenKeyDialog>(GlobalTranslate("Enter Final Amount"), "adminforceauth3", 0, 1);
             if (dialog != nullptr)
-                NextDialog(tkd);  // NextDialog takes ownership and will delete 'tkd' when done
+                NextDialog(tkd_up.release());  // NextDialog takes ownership and will delete 'tkd' when done
             else
-                OpenDialog(tkd);  // OpenDialog takes ownership and will delete 'tkd' when done
+                OpenDialog(tkd_up.release());  // OpenDialog takes ownership and will delete 'tkd' when done
             admin_forcing = 2;
             return SIGNAL_OKAY;
         }
@@ -1593,9 +1588,12 @@ SignalResult Terminal::Signal(const genericChar* message, int group_id)
         {
             int ttid   = atoi(auth_voice.Value());
             int amount = (message != nullptr && strlen(message) > 16) ? atoi(&message[16]) : 0;
-            credit = new Credit();
-            credit->SetTTID(ttid);
-            credit->Amount(amount);
+            {
+                auto credit_up = std::make_unique<Credit>();
+                credit_up->SetTTID(ttid);
+                credit_up->Amount(amount);
+                credit = credit_up.release();
+            }
             CC_GetFinalApproval();
             admin_forcing = 3;
         }
@@ -2170,7 +2168,8 @@ int Terminal::GetCheck(const genericChar* label, int customer_type)
     if (thisCheck == nullptr)
     {
         // Create new thisCheck
-        thisCheck = new Check(settings, customer_type, user);
+        auto thisCheck_up = std::make_unique<Check>(settings, customer_type, user);
+        thisCheck = thisCheck_up.get();
         if (thisCheck == nullptr)
             return 1;
 
@@ -2179,7 +2178,7 @@ int Terminal::GetCheck(const genericChar* label, int customer_type)
         if (type == TERMINAL_BAR || type == TERMINAL_BAR2 || type == TERMINAL_FASTFOOD)
             thisCheck->Guests(1);
 
-        system_data->Add(thisCheck);
+        system_data->Add(thisCheck_up.release());
     }
     else if (thisCheck->user_current > 0 && thisCheck->user_current != user->id)
         // thisCheck in use by another user
@@ -2200,12 +2199,13 @@ int Terminal::NewTakeOut(int customer_type)
         return 1;
 
     Settings *settings = GetSettings();
-    Check *thisCheck = new Check(settings, customer_type, user);
+    auto thisCheck_up = std::make_unique<Check>(settings, customer_type, user);
+    Check *thisCheck = thisCheck_up.get();
     if (thisCheck == nullptr)
         return 1;
 
     thisCheck->Guests(0);  // No guests for takeout
-    system_data->Add(thisCheck);
+    system_data->Add(thisCheck_up.release());
 
     return SetCheck(thisCheck);
 }
@@ -2217,12 +2217,13 @@ int Terminal::NewFastFood(int customer_type)
         return 1;
 
     Settings *settings = GetSettings();
-    Check *thisCheck = new Check(settings, customer_type, user);
+    auto thisCheck_up = std::make_unique<Check>(settings, customer_type, user);
+    Check *thisCheck = thisCheck_up.get();
     if (thisCheck == nullptr)
         return 1;
 
     thisCheck->Guests(0);  // No guest
-    system_data->Add(thisCheck);
+    system_data->Add(thisCheck_up.release());
     return SetCheck(thisCheck);
 }
 
@@ -2241,13 +2242,16 @@ int Terminal::NewSelfOrder(int customer_type)
         return 1;  // Failed to create Customer user
     
     // Create check with Customer user
-    Check *thisCheck = new Check(settings, customer_type, customer_user);
-    if (thisCheck == nullptr)
-        return 1;
+    {
+        auto thisCheck_up = std::make_unique<Check>(settings, customer_type, customer_user);
+        Check *thisCheck = thisCheck_up.get();
+        if (thisCheck == nullptr)
+            return 1;
 
-    thisCheck->Guests(0);  // No guest
-    system_data->Add(thisCheck);
-    return SetCheck(thisCheck);
+        thisCheck->Guests(0);  // No guest
+        system_data->Add(thisCheck_up.release());
+        return SetCheck(thisCheck);
+    }
 }
 
 /****
@@ -2319,13 +2323,16 @@ int Terminal::QuickMode(int customer_type)
             }
             
             // Create a new check
-            thisCheck = new Check(settings, customer_type, customer_user);
-            if (thisCheck == nullptr)
-                return 1;
+            {
+                auto thisCheck_up = std::make_unique<Check>(settings, customer_type, customer_user);
+                thisCheck = thisCheck_up.get();
+                if (thisCheck == nullptr)
+                    return 1;
 
-            thisCheck->Guests(0);  // No guest
-            thisCheck->date.Set();
-            system_data->Add(thisCheck);
+                thisCheck->Guests(0);  // No guest
+                thisCheck->date.Set();
+                system_data->Add(thisCheck_up.release());
+            }
         }
         
         type = TERMINAL_SELFORDER;
@@ -2350,7 +2357,8 @@ int Terminal::QuickMode(int customer_type)
         customer->Save();
 
     Settings *settings = GetSettings();
-    Check *thisCheck = new Check(settings, customer_type, user);
+    auto thisCheck_up = std::make_unique<Check>(settings, customer_type, user);
+    Check *thisCheck = thisCheck_up.get();
     if (thisCheck->customer != nullptr)
     {
         customer = thisCheck->customer;
@@ -2386,7 +2394,7 @@ int Terminal::QuickMode(int customer_type)
     thisCheck->date.Set();
     if (system_data == nullptr)
         return 1;
-    system_data->Add(thisCheck);
+    system_data->Add(thisCheck_up.release());
 
     return SetCheck(thisCheck);
 }
@@ -2805,12 +2813,13 @@ int Terminal::StackCheck(int customer_type)
         return 1;
 
     Settings *s = GetSettings();
-    Check *c = new Check(s, customer_type, user);
+    auto c_up = std::make_unique<Check>(s, customer_type, user);
+    Check *c = c_up.get();
     if (c == nullptr)
         return 1;
 
     c->Table(check->Table());
-    system_data->Add(c);
+    system_data->Add(c_up.release());
     SetCheck(c);
     UpdateAllTerms(UPDATE_CHECKS | UPDATE_TABLE, c->Table());
 
@@ -2857,7 +2866,8 @@ int Terminal::OpenDialog(Zone *currZone)
 int Terminal::OpenDialog(const genericChar* message)
 {
     FnTrace("Terminal::OpenDialog()");
-    return OpenDialog(new MessageDialog(message));  // OpenDialog takes ownership and will delete the MessageDialog when done
+    auto md_up = std::make_unique<MessageDialog>(message);
+    return OpenDialog(md_up.release());  // OpenDialog takes ownership and will delete the MessageDialog when done
 }
 
 int Terminal::NextDialog(Zone *currZone)
@@ -2967,9 +2977,11 @@ int Terminal::HomePage()
     if (user == nullptr || (! user->CanEnterSystem(settings)))
     {
         fprintf(stderr, "%s\n", not_allowed);
-        sd = new SimpleDialog(not_allowed);
-        sd->Button("Okay");
-        OpenDialog(sd);
+        {
+            auto sd_up = std::make_unique<SimpleDialog>(not_allowed);
+            sd_up->Button("Okay");
+            OpenDialog(sd_up.release());
+        }
         return GetDefaultLoginPage();
     }
 
@@ -3129,7 +3141,7 @@ int Terminal::EditTerm(int save_data, int edit_mode)
         {
             parent->SetAllMessages("Saving...");
             parent->zone_db = zone_db->Copy();
-            system_data->menu.DeleteUnusedItems(zone_db);
+            system_data->menu.DeleteUnusedItems(zone_db.get());
             system_data->menu.Save();
             system_data->inventory.ScanItems(&(system_data->menu));
             parent->ClearAllFocus();
@@ -3173,9 +3185,9 @@ int Terminal::EditTerm(int save_data, int edit_mode)
     {
         if (t->edit)
         {
-            SimpleDialog *d = new SimpleDialog(Translate("Someone else is already in Edit Mode"));
-            d->Button(GlobalTranslate("Okay"));
-            OpenDialog(d);
+            auto d_up = std::make_unique<SimpleDialog>(Translate("Someone else is already in Edit Mode"));
+            d_up->Button(GlobalTranslate("Okay"));
+            OpenDialog(d_up.release());
             return 1;  // another terminal already being edited
         }
     }
@@ -3183,9 +3195,9 @@ int Terminal::EditTerm(int save_data, int edit_mode)
     // currently on a system page and not system editing?
     if (edit_mode != 2 && page->id < 0)
     {
-        SimpleDialog *d = new SimpleDialog(Translate("System Page - Can't Edit"));
-        d->Button(GlobalTranslate("Continue"));
-        OpenDialog(d);
+        auto d_up = std::make_unique<SimpleDialog>(Translate("System Page - Can't Edit"));
+        d_up->Button(GlobalTranslate("Continue"));
+        OpenDialog(d_up.release());
         return 1;
     }
 
@@ -3303,8 +3315,7 @@ int Terminal::UpdateZoneDB(Control *con)
         LogoutUser(0);
     KillDialog();
 
-    delete zone_db;
-    zone_db = nullptr;
+    zone_db.reset();
 
     reload_zone_db = 0;
     zone_db = con->NewZoneDB();
@@ -4906,9 +4917,9 @@ int Terminal::KeyboardInput(genericChar key, int my_code, int state)
         }
         else if (edit)
         {
-            sd = new SimpleDialog(Translate("Cannot export pages while in edit mode."));
-            sd->Button(Translate("Okay"));
-            OpenDialog(sd);
+            auto sd_up = std::make_unique<SimpleDialog>(Translate("Cannot export pages while in edit mode."));
+            sd_up->Button(Translate("Okay"));
+            OpenDialog(sd_up.release());
         }
         return 0;
     case XK_F9:
@@ -5857,8 +5868,9 @@ int Terminal::ReadZone()
         if (si == nullptr)
         {
             // We don't have a match, so create new menu item
-            si = new SalesItem(iname.c_str());
-            system_data->menu.Add(si);
+            auto si_up = std::make_unique<SalesItem>(iname.c_str());
+            si = si_up.get();
+            system_data->menu.Add(si_up.release());
             // Now see if we have an old copy of the item so we can move its
             // members over and delete the old item.  The old item must be
             // deleted because SalesItem::FindByName() does a binary search;
@@ -5938,12 +5950,11 @@ int Terminal::ReadZone()
     if (edit_zone)
     {
         if (edit_zone->page)
-            edit_zone->page->Remove(edit_zone);
+            (void)edit_zone->page->RemoveReturningUnique(edit_zone);
         if (selected_zone == edit_zone)
             selected_zone = nullptr;
         if (active_zone == edit_zone)
             active_zone = nullptr;
-        delete edit_zone;
         edit_zone = nullptr;
     }
 
@@ -6020,8 +6031,8 @@ int Terminal::ReadZone()
     {
         FILE *debugfile2 = fopen("/tmp/viewtouch_debug.log", "a");
         if (debugfile2) {
-            fprintf(debugfile2, "ReadZone: edit=%d, zone_db=%p, parent->zone_db.get()=%p\n",
-                    edit, (void*)zone_db, (void*)parent->zone_db.get());
+                fprintf(debugfile2, "ReadZone: edit=%d, zone_db=%p, parent->zone_db.get()=%p\n",
+                    edit, (void*)zone_db.get(), (void*)parent->zone_db.get());
             
             // Count pages in each zone_db
             int term_page_count = 0;
@@ -6050,7 +6061,7 @@ int Terminal::ReadZone()
         }
         
         // Only copy zone_db if we're in edit mode and the zone_dbs are different
-        if (edit && zone_db != parent->zone_db.get())
+        if (edit && zone_db.get() != parent->zone_db.get())
         {
             FILE *debugfile3 = fopen("/tmp/viewtouch_debug.log", "a");
             if (debugfile3) {
@@ -6105,8 +6116,7 @@ int Terminal::KillZone()
     if (edit_zone)
     {
         if (edit_zone->page)
-            edit_zone->page->Remove(edit_zone);
-        delete edit_zone;
+            (void)edit_zone->page->RemoveReturningUnique(edit_zone);
 
         edit_zone = nullptr;
         Draw(RENDER_NEW);
@@ -6229,7 +6239,7 @@ int Terminal::ReadPage()
     if (currPage->id == 0)
     {
         if (newPageOwner)
-            zone_db->Add(newPageOwner.release());
+            zone_db->Add(std::move(newPageOwner));
         else
             zone_db->Add(currPage);
     }
@@ -6240,7 +6250,7 @@ int Terminal::ReadPage()
         system_data->user_db.ChangePageID(currPage->id, my_id);
     }
 
-    currPage->Init(zone_db);
+    currPage->Init(zone_db.get());
     ChangePage(currPage);
     UserInput();
 
@@ -6261,8 +6271,8 @@ int Terminal::KillPage()
 			return 1;
 	}
 
-	zone_db->Remove(currPage);
-	delete currPage;
+    // remove page and take ownership; unique_ptr will delete it
+    (void)zone_db->RemoveReturningUnique(currPage);
 
 	zone_db->Init();
 	page = nullptr;
@@ -6800,15 +6810,15 @@ int Terminal::CC_GetTermIDList(Terminal *start_term)
         if (curr_term->cc_debit_termid.size() > 0 &&
             CC_TermIDIsDupe(curr_term->cc_debit_termid.Value()) == 0)
         {
-            term_id = new Str(curr_term->cc_debit_termid);
-            term_id_list.AddToTail(term_id);
+            auto term_id_up = std::make_unique<Str>(curr_term->cc_debit_termid);
+            term_id_list.AddToTail(term_id_up.release());
             retval += 1;
         }
         if (curr_term->cc_credit_termid.size() > 0 &&
             CC_TermIDIsDupe(curr_term->cc_credit_termid.Value()) == 0)
         {
-            term_id = new Str(curr_term->cc_credit_termid);
-            term_id_list.AddToTail(term_id);
+            auto term_id_up = std::make_unique<Str>(curr_term->cc_credit_termid);
+            term_id_list.AddToTail(term_id_up.release());
             retval += 1;
         }
         curr_term = curr_term->next;
@@ -7439,12 +7449,18 @@ Terminal* NewTerminal(const genericChar* hostname, int hardware_type, int isserv
     socket_no = OpenTerminalSocket(hostname, hardware_type, isserver);
     if (socket_no > 0)
     {
-        term = new Terminal;
-        term->socket_no = socket_no;
-        term->buffer_in  = new CharQueue(QUEUE_SIZE);
-        term->buffer_out = new CharQueue(QUEUE_SIZE);
-        term->host.Set(hostname);
-        term->input_id = AddInputFn((InputFn) TermCB, term->socket_no, term);
+        std::unique_ptr<Terminal> term_up(new Terminal());
+        term_up->socket_no = socket_no;
+
+        auto in_up = std::make_unique<CharQueue>(QUEUE_SIZE);
+        auto out_up = std::make_unique<CharQueue>(QUEUE_SIZE);
+
+        term_up->buffer_in = in_up.release();
+        term_up->buffer_out = out_up.release();
+        term_up->host.Set(hostname);
+        term_up->input_id = AddInputFn((InputFn) TermCB, term_up->socket_no, term_up.get());
+
+        term = term_up.release();
     }
 
     return term;
@@ -7460,17 +7476,17 @@ int CloneTerminal(Terminal *term, const char* dest, const char* name)
     socket_no = OpenTerminalSocket(dest, 0, 0, term->width, term->height);
     if (socket_no > 0)
     {
-        new_term = new Terminal;
-        new_term->socket_no = socket_no;
-        new_term->buffer_in = nullptr;
-        new_term->buffer_out = nullptr;
-        new_term->host.Set(name);
+        std::unique_ptr<Terminal> new_term_up(new Terminal());
+        new_term_up->socket_no = socket_no;
+        new_term_up->buffer_in = nullptr;
+        new_term_up->buffer_out = nullptr;
+        new_term_up->host.Set(name);
         // Register the clone's socket with the original terminal's
         // input handler. Clones share the primary terminal's input
         // buffer, so TermCB expects the primary `term` as client_data
         // and will map the file descriptor to the correct clone.
-        new_term->input_id = AddInputFn((InputFn) TermCB, new_term->socket_no, term);
-        term->AddClone(new_term);
+        new_term_up->input_id = AddInputFn((InputFn) TermCB, new_term_up->socket_no, term);
+        term->AddClone(new_term_up.release());
     }
 
     return retval;

@@ -218,6 +218,7 @@ public:
     int Add(Layer *l, int update = 1);
     int AddInactive(Layer *l);
     int Remove(Layer *l, int update = 1);
+    [[nodiscard]] std::unique_ptr<Layer> RemoveReturningUnique(Layer *l, int update = 1);
     int Purge();
     Layer *FindByPoint(int x, int y);
     Layer *FindByID(int id);

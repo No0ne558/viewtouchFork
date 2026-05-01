@@ -28,6 +28,7 @@
 #include "safe_string_utils.hh"
 #include <cctype>
 #include <cstring>
+#include <memory>
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -196,24 +197,24 @@ UserDB::UserDB()
     FnTrace("UserDB::UserDB()");
     changed = 0;
 
-    super_user = new Employee;
+    super_user = std::make_unique<Employee>();
     if (super_user)
     {
-        auto *j = new JobInfo;
-        j->job = JOB_SUPERUSER;
-        super_user->Add(j);
+        auto j_up = std::make_unique<JobInfo>();
+        j_up->job = JOB_SUPERUSER;
+        super_user->Add(j_up.release());
         super_user->system_name.Set("Super User");
         super_user->id       = 1;
         super_user->key      = SUPERUSER_KEY;
         super_user->training = 1;
     }
 
-    developer = new Employee;
+    developer = std::make_unique<Employee>();
     if (developer)
     {
-        auto *j = new JobInfo;
-        j->job = JOB_DEVELOPER;
-        developer->Add(j);
+        auto j_up = std::make_unique<JobInfo>();
+        j_up->job = JOB_DEVELOPER;
+        developer->Add(j_up.release());
         developer->system_name.Set("Editor");
         developer->id       = 2;
         developer->training = 1;
@@ -228,8 +229,6 @@ UserDB::~UserDB()
 {
     FnTrace("UserDB::~UserDB()");
     Purge();
-    if (super_user) delete super_user;
-    if (developer)  delete developer;
 }
 
 // Member Functions
@@ -262,18 +261,18 @@ int UserDB::Load(const char* file)
             return 1;
         }
 
-        auto *e = new Employee;
-        if (e == nullptr)
+        auto e_up = std::make_unique<Employee>();
+        if (e_up == nullptr)
         {
             ReportError("Couldn't create employee record");
             return 1;
         }
-        if (e->Read(df, version))
+        if (e_up->Read(df, version))
         {
             ReportError("Error reading employee record");
             return 1;
         }
-        Add(e);
+        Add(e_up.release());
     }
     return 0;
 }
@@ -350,6 +349,12 @@ int UserDB::Remove(Employee *e)
     return user_list.Remove(e);
 }
 
+std::unique_ptr<Employee> UserDB::RemoveReturningUnique(Employee *e)
+{
+    FnTrace("UserDB::RemoveReturningUnique(Employee)");
+    return user_list.RemoveReturningUnique(e);
+}
+
 int UserDB::Purge()
 {
 
@@ -387,9 +392,9 @@ Employee *UserDB::FindByID(int user_id)
     }
 
     if (developer && developer->id == user_id)
-        return developer;
+        return developer.get();
     else if (super_user && super_user->id == user_id)
-        return super_user;
+        return super_user.get();
 
     return nullptr;
 }
@@ -398,14 +403,14 @@ Employee *UserDB::FindByKey(int key)
 {
     FnTrace("UserDB::FindByKey()");
     if (developer && key == developer->key)
-        return developer;
+        return developer.get();
 
     for (Employee *e = UserList(); e != nullptr; e = e->next)
         if (e->key == key)
             return e;
 
     if (super_user && super_user->key == key)
-        return super_user;
+        return super_user.get();
 
     return nullptr;
 }
@@ -622,7 +627,7 @@ Employee *UserDB::NextUser(Terminal *term, Employee *employee, int active)
     if (employee == nullptr || UserList() == nullptr)
         return nullptr;
 
-    if (employee == super_user || employee == developer)
+    if (employee == super_user.get() || employee == developer.get())
         return NextUser(term, UserListEnd(), active);
 
     Settings *s = term->GetSettings();
@@ -651,7 +656,7 @@ Employee *UserDB::ForeUser(Terminal *t, Employee *e, int active)
     if (e == nullptr || UserListEnd() == nullptr)
         return nullptr;
 
-    if (e == super_user || e == developer)
+    if (e == super_user.get() || e == developer.get())
         return ForeUser(t, UserList(), active);
 
     Settings *s = t->GetSettings();
@@ -702,32 +707,33 @@ Employee *UserDB::NewUser()
         enext = e->next;
         if (e->IsBlank())
         {
-            Remove(e);
-            delete e;
+            (void)RemoveReturningUnique(e);
         }
         e = enext;
     }
-    e = new Employee;
-    if (e)
     {
-        auto *j = new JobInfo;
-        if (j)
+        auto e_up = std::make_unique<Employee>();
+        if (e_up)
         {
-            e->Add(j);
-            Add(e);
+            auto j_up = std::make_unique<JobInfo>();
+            if (j_up)
+            {
+                // link job into employee, then add employee to DB
+                e_up->Add(j_up.release());
+                Add(e_up.release());
+                e = nullptr; // caller expects a raw pointer return; Add() took ownership
+            }
+            else
+            {
+                // Memory allocation failed for JobInfo
+                fprintf(stderr, "ERROR: Failed to allocate JobInfo in NewUser()\n");
+            }
         }
         else
         {
-            // Memory allocation failed for JobInfo
-            delete e;
-            e = nullptr;
-            fprintf(stderr, "ERROR: Failed to allocate JobInfo in NewUser()\n");
+            // Memory allocation failed for Employee
+            fprintf(stderr, "ERROR: Failed to allocate Employee in NewUser()\n");
         }
-    }
-    else
-    {
-        // Memory allocation failed for Employee
-        fprintf(stderr, "ERROR: Failed to allocate Employee in NewUser()\n");
     }
     return e;
 }
@@ -900,6 +906,12 @@ int Employee::Remove(JobInfo *j)
 {
     FnTrace("Employee::Remove()");
     return job_list.Remove(j);
+}
+
+std::unique_ptr<JobInfo> Employee::RemoveReturningUnique(JobInfo *j)
+{
+    FnTrace("Employee::RemoveReturningUnique()");
+    return job_list.RemoveReturningUnique(j);
 }
 
 JobInfo *Employee::FindJobByType(int job)

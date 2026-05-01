@@ -45,6 +45,8 @@
 #include <cstring>
 #include <cctype>
 
+#include <memory>
+
 #ifdef DMALLOC
 #include <dmalloc.h>
 #endif
@@ -2681,7 +2683,7 @@ int ParseDestination(int &type, genericChar* target, int &port, const genericCha
 Printer *NewPrinterObj(const genericChar* destination, int port, int model, int no)
 {
     FnTrace("NewPrinterObj()");
-    Printer *retPrinter = nullptr;
+    std::unique_ptr<Printer> retPrinter_up;
     genericChar target[STRLENGTH] = "";
     int target_type;
 
@@ -2695,42 +2697,42 @@ Printer *NewPrinterObj(const genericChar* destination, int port, int model, int 
         switch (model)
         {
         case MODEL_ITHACA:
-            retPrinter = new PrinterIthaca(destination, port, target, target_type);
+            retPrinter_up.reset(new PrinterIthaca(destination, port, target, target_type));
             break;
         case MODEL_STAR:
-            retPrinter = new PrinterStar(destination, port, target, target_type);
+            retPrinter_up.reset(new PrinterStar(destination, port, target, target_type));
             break;
         case MODEL_EPSON:
-            retPrinter = new PrinterEpson(destination, port, target, target_type);
+            retPrinter_up.reset(new PrinterEpson(destination, port, target, target_type));
             break;
         case MODEL_HP:
-            retPrinter = new PrinterHP(destination, port, target, target_type);
+            retPrinter_up.reset(new PrinterHP(destination, port, target, target_type));
             break;
         case MODEL_HTML:
-            retPrinter = new PrinterHTML(destination, port, target, target_type);
+            retPrinter_up.reset(new PrinterHTML(destination, port, target, target_type));
             break;
         case MODEL_POSTSCRIPT:
-            retPrinter = new PrinterPostScript(destination, port, target, target_type);
+            retPrinter_up.reset(new PrinterPostScript(destination, port, target, target_type));
             break;
         case MODEL_PDF:
-            retPrinter = new PrinterPDF(destination, port, target, target_type);
+            retPrinter_up.reset(new PrinterPDF(destination, port, target, target_type));
             break;
         case MODEL_RECEIPT_TEXT:
-            retPrinter = new PrinterReceiptText(destination, port, target, target_type);
+            retPrinter_up.reset(new PrinterReceiptText(destination, port, target, target_type));
             break;
         case MODEL_REPORT_TEXT:
-            retPrinter = new PrinterReportText(destination, port, target, target_type);
+            retPrinter_up.reset(new PrinterReportText(destination, port, target, target_type));
             break;
         case MODEL_QUICKBOOKS_CSV:
-            retPrinter = new PrinterQuickBooksCSV(destination, port, target, target_type);
+            retPrinter_up.reset(new PrinterQuickBooksCSV(destination, port, target, target_type));
             break;
         default:
-            retPrinter = nullptr;
+            retPrinter_up.reset();
             break;
         }
     }
     
-    return retPrinter;
+    return retPrinter_up.release();
 }
 
 Printer *NewPrinterFromString(const genericChar* specification)

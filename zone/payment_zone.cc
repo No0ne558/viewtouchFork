@@ -532,8 +532,7 @@ SignalResult PaymentZone::Signal(Terminal *term, const genericChar* message)
             int room = atoi(&message[7]);
             if (room == 0)
             {
-                sc->Remove(current_payment);
-                delete current_payment;
+                (void)sc->RemoveReturningUnique(current_payment);
                 current_payment = nullptr;
             }
             else
@@ -707,7 +706,7 @@ SignalResult PaymentZone::Signal(Terminal *term, const genericChar* message)
                         currpay = currpay->next;
                 }
             }
-            sc->Remove(current_payment);
+            
             if (current_payment->credit != nullptr)
             {
                 if (!current_payment->credit->IsVoided() &&
@@ -716,7 +715,7 @@ SignalResult PaymentZone::Signal(Terminal *term, const genericChar* message)
                     MasterSystem->cc_exception_db->Add(term, current_payment->credit->Copy());
                 }
             }
-            delete current_payment;
+            (void)sc->RemoveReturningUnique(current_payment);
             current_payment = nullptr;
             sc->FigureTotals(settings);
             if (sc->IsBalanced())
@@ -792,8 +791,7 @@ SignalResult PaymentZone::Signal(Terminal *term, const genericChar* message)
                     {
                         if (currpay->tender_type == TENDER_CHARGED_TIP)
                         {
-                            sc->Remove(currpay);
-                            delete currpay;
+                            (void)sc->RemoveReturningUnique(currpay);
                             currpay = nullptr;
                         }
                         else

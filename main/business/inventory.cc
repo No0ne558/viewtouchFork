@@ -31,6 +31,8 @@
 #include <dirent.h>
 #include <cstring>
 
+#include <memory>
+
 #ifdef DMALLOC
 #include <dmalloc.h>
 #endif
@@ -440,9 +442,9 @@ int Recipe::Read(Inventory *inv, InputDataFile &df, int version)
     {
         if (df.end_of_file)
             return 1;
-        auto *rp = new RecipePart;
-        error += rp->Read(inv, df, version);
-        Add(rp);
+        auto rp_up = std::make_unique<RecipePart>();
+        error += rp_up->Read(inv, df, version);
+        Add(rp_up.release());
     }
     if (version == 5)
     {
@@ -481,6 +483,12 @@ int Recipe::Remove(RecipePart *rp)
     return part_list.Remove(rp);
 }
 
+std::unique_ptr<RecipePart> Recipe::RemoveReturningUnique(RecipePart *rp)
+{
+    FnTrace("Recipe::RemoveReturningUnique()");
+    return part_list.RemoveReturningUnique(rp);
+}
+
 int Recipe::Purge()
 {
     FnTrace("Recipe::Purge()");
@@ -508,10 +516,10 @@ int Recipe::AddIngredient(int part_id, UnitAmount &ua)
     if (PartCount() >= MAX_PARTS)
         return 1;
 
-    rp = new RecipePart;
-    rp->part_id = part_id;
-    rp->amount  = ua;
-    Add(rp);
+    auto rp_up = std::make_unique<RecipePart>();
+    rp_up->part_id = part_id;
+    rp_up->amount  = ua;
+    Add(rp_up.release());
     return 0;
 }
 
@@ -526,8 +534,7 @@ int Recipe::RemoveIngredient(int part_id, UnitAmount &ua)
             rp->amount -= ua;
             if (rp->amount.amount <= 0)
             {
-                Remove(rp);
-                delete rp;
+                (void)RemoveReturningUnique(rp);
             }
             return 0;
         }
@@ -618,9 +625,9 @@ int Inventory::Load(const char* file)
             return 1;
         }
 
-        auto *pr = new Product;
-        error += pr->Read(df, version);
-        Add(pr);
+        auto pr_up = std::make_unique<Product>();
+        error += pr_up->Read(df, version);
+        Add(pr_up.release());
     }
 
     error += df.Read(n);
@@ -632,9 +639,9 @@ int Inventory::Load(const char* file)
             return 1;
         }
 
-        auto *rc = new Recipe;
-        error += rc->Read(this, df, version);
-        Add(rc);
+        auto rc_up = std::make_unique<Recipe>();
+        error += rc_up->Read(this, df, version);
+        Add(rc_up.release());
     }
 
     error += df.Read(n);
@@ -646,9 +653,9 @@ int Inventory::Load(const char* file)
             return 1;
         }
 
-        auto *v = new Vendor;
-        error += v->Read(df, version);
-        Add(v);
+        auto v_up = std::make_unique<Vendor>();
+        error += v_up->Read(df, version);
+        Add(v_up.release());
     }
     return error;
 }
@@ -769,6 +776,30 @@ int Inventory::Remove(Product *pr)
     return product_list.Remove(pr);
 }
 
+std::unique_ptr<Product> Inventory::RemoveReturningUnique(Product *pr)
+{
+    FnTrace("Inventory::RemoveReturningUnique(Product)");
+    return product_list.RemoveReturningUnique(pr);
+}
+
+std::unique_ptr<Recipe> Inventory::RemoveReturningUnique(Recipe *rc)
+{
+    FnTrace("Inventory::RemoveReturningUnique(Recipe)");
+    return recipe_list.RemoveReturningUnique(rc);
+}
+
+std::unique_ptr<Vendor> Inventory::RemoveReturningUnique(Vendor *v)
+{
+    FnTrace("Inventory::RemoveReturningUnique(Vendor)");
+    return vendor_list.RemoveReturningUnique(v);
+}
+
+std::unique_ptr<Stock> Inventory::RemoveReturningUnique(Stock *s)
+{
+    FnTrace("Inventory::RemoveReturningUnique(Stock)");
+    return stock_list.RemoveReturningUnique(s);
+}
+
 int Inventory::Remove(Recipe *rc)
 {
     FnTrace("Inventory::Remove(Recipe)");
@@ -823,14 +854,15 @@ int Inventory::LoadStock(const char* path)
             {
                 genericChar str[256];
                 vt_safe_string::safe_format(str, 256, "%s/%s", stock_path.Value(), name);
-                auto *s = new Stock;
-                if (s == nullptr)
-                    ReportError("Couldn't create stock");
-                else
-                {
-                    s->Load(str);
-                    Add(s);
-                }
+                        auto s_up = std::make_unique<Stock>();
+                        Stock *s = s_up.get();
+                        if (s == nullptr)
+                            ReportError("Couldn't create stock");
+                        else
+                        {
+                            s->Load(str);
+                            Add(s_up.release());
+                        }
             }
         }
     }
@@ -1113,10 +1145,13 @@ int Inventory::ScanItems(ItemDB *db)
         if (found == 0 && si->type != ITEM_METHOD)
         {
             change = 1;
-            rc = new Recipe;
-            rc->name    = si->item_name;
-            rc->in_menu = 1;
-            Add(rc);
+                {
+                    auto rc_up = std::make_unique<Recipe>();
+                    Recipe *rc = rc_up.get();
+                    rc->name    = si->item_name;
+                    rc->in_menu = 1;
+                    Add(rc_up.release());
+                }
         }
         si = si->next;
     }
@@ -1129,8 +1164,7 @@ int Inventory::ScanItems(ItemDB *db)
         if (rc->in_menu == 0 && rc->PartCount() <= 0)
         {
             change = 1;
-            Remove(rc);
-            delete rc;
+            (void)RemoveReturningUnique(rc);
         }
         rc = rcnext;
     }
@@ -1165,8 +1199,9 @@ Stock *Inventory::CurrentStock()
     Stock *end = StockListEnd();
     if (end == nullptr || end->end_time.IsSet())
     {
-        auto *s = new Stock;
-        Add(s);
+        auto s_up = std::make_unique<Stock>();
+        Stock *s = s_up.get();
+        Add(s_up.release());
 
         genericChar str[256];
         vt_safe_string::safe_format(str, 256, "%s/stock_%09d", stock_path.Value(), s->id);
@@ -1336,9 +1371,9 @@ int Invoice::Read(InputDataFile &df, int version)
         if (df.end_of_file)
             return 1;
 
-        auto *ie = new InvoiceEntry;
-        error += ie->Read(df, version);
-        Add(ie);
+        auto ie_up = std::make_unique<InvoiceEntry>();
+        error += ie_up->Read(df, version);
+        Add(ie_up.release());
     }
     return 0;
 }
@@ -1390,9 +1425,12 @@ InvoiceEntry *Invoice::FindEntry(int product_id, int create)
     if (create <= 0)
         return nullptr;
 
-    ie = new InvoiceEntry;
-    ie->product_id = product_id;
-    Add(ie);
+    {
+        auto ie_up = std::make_unique<InvoiceEntry>();
+        InvoiceEntry *ie = ie_up.get();
+        ie->product_id = product_id;
+        Add(ie_up.release());
+    }
     return ie;
 }
 
@@ -1452,9 +1490,9 @@ int Stock::Read(InputDataFile &df, int version)
         if (df.end_of_file)
             return 1;
 
-        auto *se = new StockEntry;
-        error += se->Read(df, version);
-        Add(se);
+        auto se_up = std::make_unique<StockEntry>();
+        error += se_up->Read(df, version);
+        Add(se_up.release());
     }
 
     n = 0;
@@ -1464,9 +1502,9 @@ int Stock::Read(InputDataFile &df, int version)
         if (df.end_of_file)
             return 1;
 
-        auto *in = new Invoice;
-        error += in->Read(df, version);
-        Add(in);
+        auto in_up = std::make_unique<Invoice>();
+        error += in_up->Read(df, version);
+        Add(in_up.release());
     }
     return error;
 }
@@ -1510,6 +1548,18 @@ int Stock::Remove(Invoice *in)
 {
     FnTrace("Stock::Remove(Invoice)");
     return invoice_list.Remove(in);
+}
+
+std::unique_ptr<StockEntry> Stock::RemoveReturningUnique(StockEntry *se)
+{
+    FnTrace("Stock::RemoveReturningUnique(StockEntry)");
+    return entry_list.RemoveReturningUnique(se);
+}
+
+std::unique_ptr<Invoice> Stock::RemoveReturningUnique(Invoice *in)
+{
+    FnTrace("Stock::RemoveReturningUnique(Invoice)");
+    return invoice_list.RemoveReturningUnique(in);
 }
 
 int Stock::Purge()
@@ -1558,10 +1608,10 @@ StockEntry *Stock::FindStock(int product_id, int create)
 
     if (create <= 0)
         return nullptr;
-
-    se = new StockEntry;
-    se->product_id = product_id;
-    Add(se);
+    auto se_up = std::make_unique<StockEntry>();
+    se_up->product_id = product_id;
+    se = se_up.get();
+    Add(se_up.release());
     return se;
 }
 
@@ -1630,9 +1680,10 @@ Invoice *Stock::NewInvoice(int vendor_id)
         }
     }
 
-    auto *in = new Invoice;
-    in->vendor_id = vendor_id;
-    in->time      = SystemTime;
-    Add(in);
+    auto in_up = std::make_unique<Invoice>();
+    in_up->vendor_id = vendor_id;
+    in_up->time      = SystemTime;
+    Invoice *in = in_up.get();
+    Add(in_up.release());
     return in;
 }

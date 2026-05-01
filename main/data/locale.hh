@@ -98,7 +98,9 @@ public:
     int Save();
     int Load(const char* file);
     int Add(PhraseInfo *ph);
+    int Add(std::unique_ptr<PhraseInfo> ph);
     int Remove(PhraseInfo *ph);
+    [[nodiscard]] std::unique_ptr<PhraseInfo> RemoveReturningUnique(PhraseInfo *ph);
     int Purge();
 
     int BuildSearchArray();

@@ -684,8 +684,7 @@ int OrderEntryZone::DeleteOrder(Terminal *term, int is_void)
 			Order *o = term->order->modifier_list;
 			Order *next_modifier = o->next;  // Save next before removal
 			
-			sc->Remove(o);
-			delete o;
+            (void)sc->RemoveReturningUnique(o);
 			
 			// Verify the list was properly updated
 			if (term->order->modifier_list == o)
@@ -726,8 +725,7 @@ int OrderEntryZone::DeleteOrder(Terminal *term, int is_void)
             else
                 term->order = nullptr; // next order isn'term on same seat
         }
-        sc->Remove(o);
-        delete o;
+        (void)sc->RemoveReturningUnique(o);
     }
 
     sc->FigureTotals(term->GetSettings());

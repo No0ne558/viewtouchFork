@@ -348,9 +348,13 @@ public:
     int       Read(Settings *settings, InputDataFile &df, int version);  // Reads subcheck from file
     int       Write(OutputDataFile &df, int version);  // Writes subcheck to file
     int       Add(Order *o, Settings *settings = nullptr);  // Adds an order - recalculates if settings are given
+    int       Add(std::unique_ptr<Order> o, Settings *settings = nullptr);  // Adds an order taking ownership
     int       Add(Payment *p, Settings *settings = nullptr);  // Adds a payment - recalculates if settings are given
+    int       Add(std::unique_ptr<Payment> p, Settings *settings = nullptr);  // Adds a payment taking ownership
     int       Remove(Order *o, Settings *settings = nullptr);  // Removes an order - recalculates if settings are given
+    [[nodiscard]] std::unique_ptr<Order> RemoveReturningUnique(Order *o, Settings *settings = nullptr);
     int       Remove(Payment *p, Settings *settings = nullptr);  // Removes a payment - recalculates if settings are given
+    [[nodiscard]] std::unique_ptr<Payment> RemoveReturningUnique(Payment *p, Settings *settings = nullptr);
     int       Purge(int restore = 0);  // Removes all payments & orders
     Order    *RemoveOne(Order *o);  // Removes one order & returns it
     Order    *RemoveCount(Order *o, int count = 1);
@@ -456,7 +460,9 @@ public:
     int       ReadFix(InputDataFile &datFile, int version);
     int       Write(OutputDataFile &df, int version);  // Writes check data to file
     int       Add(SubCheck *sc);  // Adds check to check
+    int       Add(std::unique_ptr<SubCheck> sc);  // Adds check taking ownership
     int       Remove(SubCheck *sc);  // Removes check from check
+    [[nodiscard]] std::unique_ptr<SubCheck> RemoveReturningUnique(SubCheck *sc);
     int       Purge();  // Removes & deletes all subchecks from check
     int       Count();  // counts number of checks in list starting with current check
     int       DestroyFile();  // Deletes check's file from disk

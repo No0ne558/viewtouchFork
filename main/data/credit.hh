@@ -24,6 +24,7 @@
 #include "list_utility.hh"
 #include "printer.hh"
 #include "utility.hh"
+#include <memory>
 
 class Archive;
 class ReportZone;
@@ -411,7 +412,7 @@ public:
     Credit  *CreditListEnd() { return credit_list.Tail(); }
     int      Count() { return credit_list.Count(); }
     void     Purge() { credit_list.Purge(); }
-    CreditDB *Copy();
+    std::unique_ptr<CreditDB> Copy();
 
     int      Read(InputDataFile &infile);
     int      Write(OutputDataFile &outfile);

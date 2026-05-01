@@ -20,6 +20,7 @@
 
 #include "chart.hh"
 #include "terminal.hh"
+#include <memory>
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -62,9 +63,9 @@ int Chart::Clear()
 
 int Chart::AddColumn(const char* name)
 {
-    ChartCell *c = new ChartCell;
-    c->text.Set(name);
-    header_list.AddToTail(c);
+    auto c_up = std::make_unique<ChartCell>();
+    c_up->text.Set(name);
+    header_list.AddToTail(c_up.release());
     return 0;
 }
 
@@ -77,19 +78,19 @@ int Chart::AddRowCell(const char* text)
 {
     if (current_row == nullptr)
     {
-        ChartRow *r = new ChartRow();
+        auto r_up = std::make_unique<ChartRow>();
         if (row_list.Tail())
-            r->id = row_list.Tail()->id + 1;
+            r_up->id = row_list.Tail()->id + 1;
         else
-            r->id = 1;
-        row_list.AddToTail(r);
-        current_row = r;
+            r_up->id = 1;
+        row_list.AddToTail(r_up.release());
+        current_row = row_list.Tail();
     }
 
     ChartRow *r = current_row;
-    ChartCell *c = new ChartCell;
-    c->text.Set(text);
-    r->cell_list.AddToTail(c);
+    auto c_up = std::make_unique<ChartCell>();
+    c_up->text.Set(text);
+    r->cell_list.AddToTail(c_up.release());
     return 0;
 }
 

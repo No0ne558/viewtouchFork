@@ -701,7 +701,7 @@ std::unique_ptr<Page> PosPage::Copy()
             fclose(debugCopy);
         }
         auto zone_copy = std::unique_ptr<Zone>(z->Copy());
-        p->Add(zone_copy.release());
+        p->Add(std::move(zone_copy));
     }
 
     return p;

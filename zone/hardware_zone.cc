@@ -683,7 +683,7 @@ int HardwareZone::KillRecord(Terminal *term, int record)
                 if (printer && db)
                     db->KillPrinter(printer);
             }
-            settings->Remove(ti);
+            (void)settings->RemoveReturningUnique(ti);
             Terminal *tmp = ti->FindTerm(db);
             if (tmp)
                 tmp->kill_me = 1;
@@ -699,8 +699,7 @@ int HardwareZone::KillRecord(Terminal *term, int record)
             Printer *printer = pi->FindPrinter(db);
             if (printer && db)
                 db->KillPrinter(printer);
-            settings->Remove(pi);
-            delete pi;
+            (void)settings->RemoveReturningUnique(pi);
         }
         break;
     }

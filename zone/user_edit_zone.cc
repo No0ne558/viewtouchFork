@@ -248,8 +248,7 @@ SignalResult UserEditZone::Signal(Terminal *term, const char* message)
         {
             SaveRecord(term, record_no, 0);
             JobInfo *j = user->JobList();
-            user->Remove(j);
-            delete j;
+            (void)user->RemoveReturningUnique(j);
             LoadRecord(term, record_no);
             keyboard_focus = nullptr;
             Draw(term, 0);
@@ -260,8 +259,7 @@ SignalResult UserEditZone::Signal(Terminal *term, const char* message)
         {
             SaveRecord(term, record_no, 0);
             JobInfo *j = user->JobList()->next;
-            user->Remove(j);
-            delete j;
+            (void)user->RemoveReturningUnique(j);
             LoadRecord(term, record_no);
             keyboard_focus = nullptr;
             Draw(term, 0);
@@ -272,8 +270,7 @@ SignalResult UserEditZone::Signal(Terminal *term, const char* message)
         {
             SaveRecord(term, record_no, 0);
             JobInfo *j = user->JobList()->next->next;
-            user->Remove(j);
-            delete j;
+            (void)user->RemoveReturningUnique(j);
             LoadRecord(term, record_no);
             keyboard_focus = nullptr;
             Draw(term, 0);
@@ -512,8 +509,7 @@ int UserEditZone::KillRecord(Terminal *term, int record)
     FnTrace("UserEditZone::KillRecord()");
     if (user == nullptr || term->IsUserOnline(user))
         return 1;
-    term->system_data->user_db.Remove(user);
-    delete user;
+    (void)term->system_data->user_db.RemoveReturningUnique(user);
     user = nullptr;
     return 0;
 }

@@ -26,6 +26,7 @@
 
 #include <cctype>
 #include <cstring>
+#include <memory>
 #include <dirent.h>
 #include <unistd.h>
 
@@ -448,9 +449,9 @@ int ExpenseDB::Read(InputDataFile &infile, int version)
     infile.Read(count);
     for (idx = 0; idx < count; idx++)
     {
-        currExp = new Expense;
-        currExp->Read(infile, version);
-        Add(currExp);
+        auto currExp_up = std::make_unique<Expense>();
+        currExp_up->Read(infile, version);
+        Add(currExp_up.release());
     }
     return 0;
 }
@@ -518,11 +519,11 @@ int ExpenseDB::Load(const char* path)
                 if (strcmp(&name[len-4], ".fmt") == 0)
                     break;
                 vt::cpp23::format_to_buffer(fullpath, STRLENGTH, "{}/{}", pathname.Value(), name);
-                auto *exp = new Expense();
-                if (exp->Load(fullpath))
+                auto exp_up = std::make_unique<Expense>();
+                if (exp_up->Load(fullpath))
                     ReportError("Error loading expense");
                 else
-                    Add(exp);
+                    Add(exp_up.release());
             }
         }
     }
@@ -549,8 +550,7 @@ int ExpenseDB::RemoveBlank()
         next = curr->next;
         if (curr->IsBlank())
         {
-            Remove(curr);
-            delete(curr);
+            (void)RemoveReturningUnique(curr);
         }
         else if (curr->eid > new_id)
         {
@@ -560,6 +560,12 @@ int ExpenseDB::RemoveBlank()
     }
     new_id += 1;
     return new_id;
+}
+
+std::unique_ptr<Expense> ExpenseDB::RemoveReturningUnique(Expense *expense)
+{
+    FnTrace("ExpenseDB::RemoveReturningUnique()");
+    return expense_list.RemoveReturningUnique(expense);
 }
 
 /****
@@ -636,10 +642,11 @@ Expense *ExpenseDB::NewExpense()
     Expense *newExp;
     int new_id = RemoveBlank();
     // create a new one
-    newExp = new Expense(new_id);
-    newExp->exp_date.Set();
-    // add it to the DB
-    Add(newExp);
+    auto newExp_up = std::make_unique<Expense>(new_id);
+    newExp_up->exp_date.Set();
+    newExp = newExp_up.get();
+    // add it to the DB (transfer ownership)
+    Add(newExp_up.release());
     return newExp;
 }
 

@@ -28,6 +28,8 @@
 
 #include "src/utils/cpp23_utils.hh"
 
+#include <memory>
+
 #ifdef DMALLOC
 #include <dmalloc.h>
 #endif
@@ -586,12 +588,13 @@ int CustomerInfoDB::Load(const genericChar* filepath)
             if (strncmp("customer_", name, 9) == 0)
             {
                 vt_safe_string::safe_format(buffer, STRLONG, "%s/%s", pathname.Value(), name);
-                auto *custinfo = new CustomerInfo();
+                auto cust_up = std::make_unique<CustomerInfo>();
+                CustomerInfo *custinfo = cust_up.get();
                 if (custinfo->Load(buffer))
                     ReportError("Error loading customer");
                 else
                 {
-                    Add(custinfo);
+                    Add(cust_up.release());
                     if (custinfo->id > last_id)
                         last_id = custinfo->id;
                 }
@@ -608,10 +611,11 @@ CustomerInfo *CustomerInfoDB::NewCustomer(int type)
 {
     FnTrace("CustomerInfoDB::NewCustomer()");
 
-    auto *ci = new CustomerInfo(type);
+    auto ci_up = std::make_unique<CustomerInfo>(type);
+    CustomerInfo *ci = ci_up.get();
     if (ci != nullptr)
     {
-        Add(ci);
+        Add(ci_up.release());
         ci->SetFileName(pathname.Value());
     }
 

@@ -462,8 +462,7 @@ int ProductZone::KillRecord(Terminal *t, int record)
     Product *pr = sys->inventory.FindProductByRecord(record);
     if (pr == nullptr)
         return 1;
-    sys->inventory.Remove(pr);
-    delete pr;
+    (void)sys->inventory.RemoveReturningUnique(pr);
     sys->inventory.Save();
     return 0;
 }
@@ -598,8 +597,7 @@ int RC_Part::RemoveIngredient(Recipe *r)
         return r->RemoveIngredient(pr->id, pr->serving);
     else if (rp)
     {
-        r->Remove(rp);
-        delete rp;
+        (void)r->RemoveReturningUnique(rp);
         rp = nullptr;
         return 0;
     }
@@ -833,8 +831,7 @@ int RecipeZone::KillRecord(Terminal *t, int record)
     Recipe *rc = sys->inventory.FindRecipeByRecord(record);
     if (rc == nullptr)
         return 1;
-    sys->inventory.Remove(rc);
-    delete rc;
+    (void)sys->inventory.RemoveReturningUnique(rc);
     sys->inventory.Save();
     return 0;
 }
@@ -1080,8 +1077,7 @@ int VendorZone::KillRecord(Terminal *t, int record)
     Vendor *v = sys->inventory.FindVendorByRecord(record);
     if (v == nullptr)
         return 1;
-    sys->inventory.Remove(v);
-    delete v;
+    (void)sys->inventory.RemoveReturningUnique(v);
     sys->inventory.Save();
     return 0;
 }
@@ -1752,8 +1748,7 @@ SignalResult InvoiceZone::Signal(Terminal *t, const genericChar* message)
         {
             show_list = 1;
             record_no = 0;
-            t->stock->Remove(in);
-            delete in;
+            (void)t->stock->RemoveReturningUnique(in);
             Draw(t, 1);
             return SIGNAL_OKAY;
         }

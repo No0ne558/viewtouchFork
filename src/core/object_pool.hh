@@ -86,10 +86,10 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         
         if (!pool_.empty()) {
-            T* obj = pool_.back().release();
+            auto up = std::move(pool_.back());
             pool_.pop_back();
             ++total_reused_;
-            return obj;
+            return up.release();
         }
         
         // Pool empty - allocate new

@@ -24,6 +24,7 @@
 
 #include "list_utility.hh"
 #include "data_file.hh"
+#include <memory>
 
 #define CDU_VERSION        1
 
@@ -96,6 +97,7 @@ public:
     int             Save(const char* path = nullptr);
     int             RemoveBlank();
     int             Remove(CDUString *cdustr);
+    [[nodiscard]] std::unique_ptr<CDUString> RemoveReturningUnique(CDUString *cdustr);
     CDUString      *GetString(int idx = -1);
     CDUString      *FindByRecord(int record);
     CDUString      *FindByID(int id);

@@ -123,37 +123,35 @@ int System::LoadCurrentData(const char* path)
                 continue;
 			if (strncmp(name, "check_", 6) == 0)
 			{
-				vt_safe_string::safe_format(str, 256, "%s/%s", path, name);
-				auto *check = new Check;
-				if (check == nullptr)
-					ReportError("Couldn't create check");
-				else
-				{
-					if (check->Load(&settings, str))
-					{
-						ReportError("Error in loading check");
-						delete check;
-					}
-					else
-						Add(check);
-				}
+                    vt_safe_string::safe_format(str, 256, "%s/%s", path, name);
+                    auto check_up = std::make_unique<Check>();
+                    if (!check_up)
+                        ReportError("Couldn't create check");
+                    else
+                    {
+                        if (check_up->Load(&settings, str))
+                        {
+                            ReportError("Error in loading check");
+                        }
+                        else
+                            Add(check_up.release());
+                    }
 			}
 			else if (strncmp(name, "drawer_", 7) == 0)
 			{
-				vt_safe_string::safe_format(str, 256, "%s/%s", path, name);
-				auto *drawer = new Drawer;
-				if (drawer == nullptr)
-					ReportError("Couldn't Create Drawer");
-				else
-				{
-					if (drawer->Load(str))
-					{
-						ReportError("Error in loading drawer");
-						delete drawer;
-					}
-					else
-						Add(drawer);
-				}
+                vt_safe_string::safe_format(str, 256, "%s/%s", path, name);
+                auto drawer_up = std::make_unique<Drawer>();
+                if (!drawer_up)
+                    ReportError("Couldn't Create Drawer");
+                else
+                {
+                    if (drawer_up->Load(str))
+                    {
+                        ReportError("Error in loading drawer");
+                    }
+                    else
+                        Add(drawer_up.release());
+                }
 			}
             else if (strcmp(name, "ccvoiddb") == 0)
             {
@@ -237,7 +235,8 @@ int System::ScanArchives(const char* path, const char* altmedia)
 
                 genericChar str[256];
                 vt_safe_string::safe_format(str, 256, "%s/%s", archive_path.Value(), name);
-                auto *archive = new Archive(&settings, str);
+                auto archive_up = std::make_unique<Archive>(&settings, str);
+                Archive *archive = archive_up.get();
                 archive->altmedia.Set(altmedia);
                 if (archive == nullptr)
                     ReportError("Couldn't create archive");
@@ -245,7 +244,7 @@ int System::ScanArchives(const char* path, const char* altmedia)
                 {
                     if (archive->id > last_archive_id)
                         last_archive_id = archive->id;
-                    Add(archive);
+                    Add(archive_up.release());
                 }
             }
         }
@@ -316,7 +315,8 @@ int System::Remove(Archive *archive)
 Archive *System::NewArchive()
 {
     FnTrace("System::NewArchive()");
-    auto *archive = new Archive(SystemTime);
+    auto archive_up = std::make_unique<Archive>(SystemTime);
+    Archive *archive = archive_up.get();
     if (archive == nullptr)
         return nullptr;
 
@@ -327,7 +327,7 @@ Archive *System::NewArchive()
 
     if (ArchiveListEnd())
         archive->start_time = ArchiveListEnd()->end_time;
-    Add(archive);
+    Add(archive_up.release());
     return archive;
 }
 
@@ -452,6 +452,20 @@ int System::Remove(Drawer *drawer)
     return drawer_list.Remove(drawer);
 }
 
+std::unique_ptr<Check> System::RemoveReturningUnique(Check *check)
+{
+    if (check == nullptr || check->archive)
+        return nullptr;
+    return check_list.RemoveReturningUnique(check);
+}
+
+std::unique_ptr<Drawer> System::RemoveReturningUnique(Drawer *drawer)
+{
+    if (drawer == nullptr || drawer->archive)
+        return nullptr;
+    return drawer_list.RemoveReturningUnique(drawer);
+}
+
 /****
  * EndDay:  Copies all of today's data into a new archive and adds the archive
  *  to the list.
@@ -483,8 +497,8 @@ int System::EndDay()
         check_next = check->next;
         if (check->IsTraining())
         {
-            Remove(check);
-            delete check;
+            // remove and take ownership; unique_ptr will delete
+            (void)RemoveReturningUnique(check);
         }
         // Also delete empty checks owned by Customer user (self-order checks that were never used)
         else if (customer_user_id > 0 && 
@@ -492,9 +506,8 @@ int System::EndDay()
                  check->IsEmpty() && 
                  check->GetStatus() == CHECK_OPEN)
         {
-            Remove(check);
+            // DestroyCheck handles removal and deletion
             DestroyCheck(check);
-            delete check;
         }
         check = check_next;
     }
@@ -513,19 +526,19 @@ int System::EndDay()
     archive->cc_void_db = cc_void_db->Copy();
     cc_void_db->Purge();
 
-    archive->cc_init_results = cc_init_results.release();
+    archive->cc_init_results = std::move(cc_init_results);
     cc_init_results = std::make_unique<CCInit>();
 
     // For SAF Details and Settlement, we run those actions and then
     // move them into an archive.  If a user then goes directly to the
     // credit card reports, he or she should see these reports.  AKA,
     // we need to set archive and current in each.
-    archive->cc_saf_details_results = cc_saf_details_results.release();
+    archive->cc_saf_details_results = std::move(cc_saf_details_results);
     cc_saf_details_results          = std::make_unique<CCSAFDetails>();
     cc_saf_details_results->archive = archive;
     cc_saf_details_results->current = archive->cc_saf_details_results->Last();
 
-    archive->cc_settle_results      = cc_settle_results.release();
+    archive->cc_settle_results      = std::move(cc_settle_results);
     cc_settle_results               = std::make_unique<CCSettle>();
     cc_settle_results->archive      = archive;
     cc_settle_results->current      = archive->cc_settle_results->Last();
@@ -536,12 +549,18 @@ int System::EndDay()
     {
         Drawer *d_next = drawer->next;
         drawer->Total(CheckList());
-        Remove(drawer);
-        drawer->DestroyFile();
-        if (drawer->IsEmpty())
-            delete drawer;
-        else
-            archive->Add(drawer);
+        {
+            auto _up = RemoveReturningUnique(drawer);
+            _up->DestroyFile();
+            if (_up->IsEmpty())
+            {
+                // _up will be destroyed here and deletes drawer
+            }
+            else
+            {
+                archive->Add(_up.release());
+            }
+        }
         drawer = d_next;
     }
 
@@ -568,12 +587,18 @@ int System::EndDay()
     while (check)
     {
         check_next = check->next;
-        Remove(check);
-        check->DestroyFile();
-        if (archive->Add(check))
         {
-            ReportError("Error in adding check to archive");
-            delete check;
+            auto _up = RemoveReturningUnique(check);
+            _up->DestroyFile();
+            if (archive->Add(_up.get()))
+            {
+                ReportError("Error in adding check to archive");
+                // _up will delete the check on scope exit
+            }
+            else
+            {
+                _up.release();
+            }
         }
         check = check_next;
     }
@@ -1094,7 +1119,8 @@ Check *System::ExtractOpenCheck(Check *check)
     else if (count <= 0)
         return nullptr; // no closed sub-checks
 
-    auto *oc = new Check;
+    auto oc_up = std::make_unique<Check>();
+    Check *oc = oc_up.get();
     oc->Table(check->Table());
     oc->time_open     = check->time_open;
     oc->user_open     = check->user_open;
@@ -1120,7 +1146,7 @@ Check *System::ExtractOpenCheck(Check *check)
     // guest count will be off but oh well...
     if (check->Guests() <= 0 && ! (check->IsTakeOut() || check->IsFastFood()))
         check->Guests(1);
-    return oc;
+    return oc_up.release();
 }
 
 int System::SaveCheck(Check *check)
@@ -1171,18 +1197,21 @@ int System::DestroyCheck(Check *check)
     Archive *archive = check->archive;
     if (archive)
     {
-        if (archive->Remove(check))
+        auto _up = archive->RemoveReturningUnique(check);
+        if (_up == nullptr)
             return 1;
+        _up->customer = nullptr;
+        return 0;
     }
     else
     {
-        if (Remove(check))
+        auto _up = RemoveReturningUnique(check);
+        if (_up == nullptr)
             return 1;
-        check->DestroyFile();
+        _up->DestroyFile();
+        _up->customer = nullptr;
+        return 0;
     }
-    check->customer = nullptr;
-    delete check;
-    return 0;
 }
 
 Drawer *System::GetServerBank(Employee *e)
@@ -1197,12 +1226,15 @@ Drawer *System::GetServerBank(Employee *e)
     if (drawer)
         return drawer;  // already have drawer
 
-    drawer = new Drawer(SystemTime);
-    drawer->owner_id =  e->id;
-    drawer->number   = -e->id;
-    Add(drawer);
-    drawer->Save();
-    return drawer;
+    {
+        auto drawer_up = std::make_unique<Drawer>(SystemTime);
+        drawer = drawer_up.get();
+        drawer->owner_id =  e->id;
+        drawer->number   = -e->id;
+        Add(drawer_up.release());
+        drawer->Save();
+        return drawer;
+    }
 }
 
 int System::CreateFixedDrawers()
@@ -1220,8 +1252,9 @@ int System::CreateFixedDrawers()
                 drawer = DrawerList()->FindByNumber(drawer_no);
             if (drawer == nullptr)
             {
-                drawer = new Drawer(SystemTime);
-                Add(drawer);
+                auto drawer_up = std::make_unique<Drawer>(SystemTime);
+                drawer = drawer_up.get();
+                Add(drawer_up.release());
                 drawer->number = drawer_no;
             }
             drawer->host     = term->host;
@@ -1285,8 +1318,8 @@ int System::AddBatch(long long batchnum)
     {
         if (currbatch == nullptr)
         {
-            newbatch = new BatchItem(batchnum);
-            BatchList.AddToHead(newbatch);
+            auto newbatch_up = std::make_unique<BatchItem>(batchnum);
+            BatchList.AddToHead(std::move(newbatch_up));
         }
         else
         {
@@ -1294,8 +1327,8 @@ int System::AddBatch(long long batchnum)
             {
                 if (currbatch == nullptr)
                 {  // add to tail
-                    newbatch = new BatchItem(batchnum);
-                    BatchList.AddToTail(newbatch);
+                    auto newbatch_up = std::make_unique<BatchItem>(batchnum);
+                    BatchList.AddToTail(std::move(newbatch_up));
                     done = 1;
                     retval = 1;
                 }
@@ -1309,8 +1342,8 @@ int System::AddBatch(long long batchnum)
                 }
                 else
                 {  // add to head
-                    newbatch = new BatchItem(batchnum);
-                    BatchList.AddToHead(newbatch);
+                    auto newbatch_up = std::make_unique<BatchItem>(batchnum);
+                    BatchList.AddToHead(std::move(newbatch_up));
                     done = 1;
                     retval = 1;
                 }

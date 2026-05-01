@@ -319,7 +319,7 @@ public:
     Terminal *next;
     Terminal *fore;           // linked list pointers
     Control  *parent;         // parent Control class
-    ZoneDB *zone_db; // general & system zone_db
+    std::unique_ptr<ZoneDB> zone_db; // general & system zone_db
     Page     *page;           // Current page for terminal
     int       org_page_id;    // For Shift-F1, exit edit without save
     Zone     *dialog;         // active dialog zone

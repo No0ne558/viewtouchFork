@@ -31,7 +31,7 @@
 class ExpenseZone : public FormZone
 {
     Expense *expense;
-    Expense *saved_expense;
+    std::unique_ptr<Expense> saved_expense;
     int show_expense;  // whether to display the edit form with expense
     Flt list_header;
     Flt list_footer;
@@ -42,7 +42,7 @@ class ExpenseZone : public FormZone
     int allow_balanced;
 public:
     ExpenseZone();
-    ~ExpenseZone() override;
+    ~ExpenseZone() override = default;
 
     int          Type() override { return ZONE_EXPENSE; }
     RenderResult Render(Terminal *term, int update_flag) override;

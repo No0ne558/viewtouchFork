@@ -1989,6 +1989,52 @@ int LayerList::Remove(Layer *l, int update)
     return 0;
 }
 
+std::unique_ptr<Layer> LayerList::RemoveReturningUnique(Layer *l, int update)
+{
+    FnTrace("LayerList::RemoveReturningUnique()");
+    if (l == nullptr)
+        return nullptr;
+
+    int was_active = 0;
+    if (update)
+    {
+        Layer *tmp = list.Head();
+        while (tmp)
+        {
+            if (tmp == l)
+            {
+                was_active = 1;
+                break;
+            }
+            tmp = tmp->next;
+        }
+    }
+
+    std::unique_ptr<Layer> ret = list.RemoveReturningUnique(l);
+    if (!ret)
+    {
+        ret = inactive.RemoveReturningUnique(l);
+    }
+    else
+    {
+        // Ensure inactive doesn't hold a stale reference
+        inactive.RemoveSafe(l);
+    }
+
+    if (was_active && ret)
+    {
+        UpdateArea(ret->x, ret->y, ret->w, ret->h);
+        if (last_layer == ret.get())
+        {
+            last_object = nullptr;
+            last_layer  = FindByPoint(mouse_x, mouse_y);
+            if (last_layer)
+                last_layer->MouseEnter(this);
+        }
+    }
+    return ret;
+}
+
 int LayerList::Purge()
 {
     FnTrace("LayerList::Purge()");

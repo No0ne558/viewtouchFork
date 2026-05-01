@@ -27,12 +27,11 @@ namespace vt {
  */
 template<typename T>
 T* transfer_ownership(std::unique_ptr<T>& ptr) {
-    T* raw = ptr.get();
+    T* raw = ptr.release();
     if (!raw) {
         // Log warning about null transfer
         // vt::Logger::warn("Attempted to transfer ownership of null pointer");
     }
-    ptr.release();
     return raw;
 }
 

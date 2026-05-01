@@ -32,6 +32,8 @@
 #include <cctype>
 #include <clocale>
 
+#include <memory>
+
 #ifdef DMALLOC
 #include <dmalloc.h>
 #endif
@@ -4224,9 +4226,9 @@ int Locale::Load(const char* file)
     df.Read(count);
     for (int i = 0; i < count; ++i)
     {
-        auto *ph = new PhraseInfo;
-        ph->Read(df, 1);
-        Add(ph);
+        auto ph_up = std::make_unique<PhraseInfo>();
+        ph_up->Read(df, 1);
+        Add(ph_up.release());
     }
     return 0;
 }
@@ -4279,6 +4281,29 @@ int Locale::Add(PhraseInfo *ph)
     return phrase_list.AddAfterNode(ptr, ph);
 }
 
+int Locale::Add(std::unique_ptr<PhraseInfo> ph)
+{
+    FnTrace("Locale::Add(unique_ptr)");
+    if (!ph)
+        return 1;
+
+    if (search_array)
+    {
+	free(search_array);
+        search_array = nullptr;
+        array_size = 0;
+    }
+
+    // start at end of list and work backwords
+    const genericChar* n = ph->key.Value();
+    PhraseInfo *ptr = PhraseListEnd();
+    while (ptr && StringCompare(n, ptr->key.Value()) < 0)
+        ptr = ptr->fore;
+
+    // Insert ph after ptr using DList unique_ptr overload
+    return phrase_list.AddAfterNode(ptr, std::move(ph));
+}
+
 int Locale::Remove(PhraseInfo *ph)
 {
     FnTrace("Locale::Remove()");
@@ -4292,6 +4317,22 @@ int Locale::Remove(PhraseInfo *ph)
         array_size = 0;
     }
     return phrase_list.Remove(ph);
+}
+
+std::unique_ptr<PhraseInfo> Locale::RemoveReturningUnique(PhraseInfo *ph)
+{
+    FnTrace("Locale::RemoveReturningUnique()");
+    if (ph == nullptr)
+        return nullptr;
+
+    if (search_array)
+    {
+        free(search_array);
+        search_array = nullptr;
+        array_size = 0;
+    }
+
+    return phrase_list.RemoveReturningUnique(ph);
 }
 
 int Locale::Purge()
@@ -4416,8 +4457,7 @@ int Locale::NewTranslation(const char* str, const genericChar* value)
         if (ph->value.size() > 0)
             return 0;
 
-        Remove(ph);
-        delete ph;
+        (void)RemoveReturningUnique(ph);
 
         if (search_array)
         {
@@ -4437,7 +4477,7 @@ int Locale::NewTranslation(const char* str, const genericChar* value)
         search_array = nullptr;
         array_size = 0;
     }
-    return Add(new PhraseInfo(str, value));
+    return Add(std::make_unique<PhraseInfo>(str, value));
 }
 
 /****

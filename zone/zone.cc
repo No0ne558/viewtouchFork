@@ -622,6 +622,37 @@ int Page::Add(Zone *z)
     return 0;
 }
 
+int Page::Add(std::unique_ptr<Zone> tz)
+{
+    if (!tz)
+        return 1;
+
+    // Index Tab buttons can only be added to Index pages
+    if (tz->Type() == ZONE_INDEX_TAB && type != PAGE_INDEX && type != PAGE_INDEX_WITH_TABS)
+    {
+        ReportError("Index Tab buttons can only be added to Index pages");
+        return 1;
+    }
+
+    tz->page = this;
+    int retval = zone_list.AddToTail(std::move(tz));
+    if (retval)
+        return retval;
+
+    Zone *z = zone_list.Tail();
+    // Bit of error checking (same logic as raw-pointer Add)
+    if (z->JumpType() && z->JumpID())
+    {
+        int t = *z->JumpType();
+        if (t == JUMP_NONE || t == JUMP_RETURN || t == JUMP_HOME ||
+            t == JUMP_SCRIPT || t == JUMP_INDEX)
+            *z->JumpID() = 0;
+        else if (*z->JumpID() == 0)
+            *z->JumpType() = JUMP_NONE;
+    }
+    return 0;
+}
+
 int Page::AddFront(Zone *z)
 {
     FnTrace("Page::AddFront()");
@@ -644,6 +675,37 @@ int Page::AddFront(Zone *z)
     return 0;
 }
 
+int Page::AddFront(std::unique_ptr<Zone> tz)
+{
+    if (!tz)
+        return 1;
+
+    // Index Tab buttons can only be added to Index pages
+    if (tz->Type() == ZONE_INDEX_TAB && type != PAGE_INDEX && type != PAGE_INDEX_WITH_TABS)
+    {
+        ReportError("Index Tab buttons can only be added to Index pages");
+        return 1;
+    }
+
+    tz->page = this;
+    int retval = zone_list.AddToHead(std::move(tz));
+    if (retval)
+        return retval;
+
+    Zone *z = zone_list.Head();
+    // Bit of error checking
+    if (z->JumpType() && z->JumpID())
+    {
+        int t = *z->JumpType();
+        if (t == JUMP_NONE || t == JUMP_RETURN || t == JUMP_HOME ||
+            t == JUMP_SCRIPT || t == JUMP_INDEX)
+            *z->JumpID() = 0;
+        else if (*z->JumpID() == 0)
+            *z->JumpType() = JUMP_NONE;
+    }
+    return 0;
+}
+
 int Page::Remove(Zone *z)
 {
     FnTrace("Page::Remove()");
@@ -653,6 +715,18 @@ int Page::Remove(Zone *z)
     zone_list.Remove(z);
     z->page = nullptr;
     return 0;
+}
+
+std::unique_ptr<Zone> Page::RemoveReturningUnique(Zone *z)
+{
+    FnTrace("Page::RemoveReturningUnique()");
+    if (z == nullptr)
+        return nullptr;
+
+    std::unique_ptr<Zone> up = zone_list.RemoveReturningUnique(z);
+    if (up)
+        up->page = nullptr;
+    return up;
 }
 
 int Page::Purge()
@@ -1285,7 +1359,7 @@ int ZoneDB::Init()
             newPage->name.Set("Index");
             newPage->index = INDEX_GENERAL;
             newPage->Init(this);
-            Add(newPage.release());
+            Add(std::move(newPage));
         }
     }
 
@@ -1341,7 +1415,7 @@ int ZoneDB::Load(const char* filename)
                 ReportError(str);
                 continue; // skip adding; unique_ptr will clean up
             }
-            else if (Add(currPage.release()))
+            else if (Add(std::move(currPage)))
             {
                 ReportError("Error adding page to ZoneDB");
                 return 1;  // Error;
@@ -1469,7 +1543,7 @@ int ZoneDB::ImportPage(const char* filename)
     {
         newpage->Read(infile, version);
         newpage->id = pagenum;
-        AddUnique(newpage.release());
+        AddUnique(std::move(newpage));
     }
     // now read the SalesItems
     infile.Read(count);
@@ -1587,6 +1661,18 @@ int ZoneDB::Add(Page *p)
     return page_list.AddAfterNode(ptr, p);
 }
 
+int ZoneDB::Add(std::unique_ptr<Page> p)
+{
+    if (!p)
+        return 1;
+
+    Page *ptr = page_list.Tail();
+    while (ptr && (p->id < ptr->id || (p->id == ptr->id && p->size > ptr->size)))
+        ptr = ptr->fore;
+
+    return page_list.AddAfterNode(ptr, std::move(p));
+}
+
 int ZoneDB::AddUnique(Page *page)
 {
     FnTrace("ZoneDB::AddUnique()");
@@ -1618,10 +1704,47 @@ int ZoneDB::AddUnique(Page *page)
     return retval;
 }
 
+int ZoneDB::AddUnique(std::unique_ptr<Page> page)
+{
+    if (!page)
+        return 1;
+
+    Page *oldpage = FindByID(page->id, page->size);
+    if (oldpage != nullptr && oldpage->size == page->size)
+    {
+        if (Remove(oldpage))
+        {
+            char str[STRLENGTH];
+            vt_safe_string::safe_format(str, STRLENGTH, "Error removing page %d", page->id);
+            ReportError(str);
+            return 1;  // Error
+        }
+    }
+
+    // add the new page in using owning overload
+    if (page_list.AddToTail(std::move(page)))
+    {
+        char str[STRLENGTH];
+        vt_safe_string::safe_format(str, STRLENGTH, "Error adding page %d", page->id);
+        ReportError(str);
+        return 1;  // Error
+    }
+
+    return 0;
+}
+
 int ZoneDB::Remove(Page *p)
 {
     FnTrace("ZoneDB::Remove()");
     return page_list.Remove(p);
+}
+
+std::unique_ptr<Page> ZoneDB::RemoveReturningUnique(Page *p)
+{
+    FnTrace("ZoneDB::RemoveReturningUnique()");
+    if (p == nullptr)
+        return nullptr;
+    return page_list.RemoveReturningUnique(p);
 }
 
 int ZoneDB::Purge()
@@ -1884,7 +2007,7 @@ int ZoneDB::CopyEdit(Terminal *t, int modify_x, int modify_y)
     RegionInfo r;
     int count = 0;
 
-    Zone *list = nullptr;
+    
     Page *p = page_list.Head();
     while (p)
     {
@@ -1898,7 +2021,6 @@ int ZoneDB::CopyEdit(Terminal *t, int modify_x, int modify_y)
                 Zone *ptr = zone_copy.get();
                 if (ptr)
                 {
-                    zone_copy.release(); // Transfer ownership to the linked list
                     ptr->edit = 1;
                     int s = ptr->ShadowVal(t);
                     r.Fit(ptr->x, ptr->y, ptr->w + s, ptr->h + s);
@@ -1928,8 +2050,7 @@ int ZoneDB::CopyEdit(Terminal *t, int modify_x, int modify_y)
                         r.Fit(ptr->x, ptr->y, ptr->w + s, ptr->h + s);
                     }
                     ++count;
-                    ptr->next = list;
-                    list = ptr;
+                    t->page->Add(std::move(zone_copy));
                 }
             }
             z = z->next;
@@ -1937,12 +2058,7 @@ int ZoneDB::CopyEdit(Terminal *t, int modify_x, int modify_y)
         p = p->next;
     }
 
-    while (list)
-    {
-        Zone *z = list;
-        list = list->next;
-        t->page->AddFront(z);
-    }
+    
 
     if (count)
         t->Draw(1, r.x, r.y, r.w, r.h);
@@ -2085,7 +2201,7 @@ std::unique_ptr<ZoneDB> ZoneDB::Copy()
     while (p)
     {
         auto page_copy = std::unique_ptr<Page>(p->Copy());
-        new_db->Add(page_copy.release());
+        new_db->Add(std::move(page_copy));
         p = p->next;
     }
 

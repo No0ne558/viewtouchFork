@@ -919,6 +919,7 @@ public:
     int Add(TermInfo *ti);
     int AddFront(TermInfo *ti);
     int Remove(TermInfo *ti);
+    [[nodiscard]] std::unique_ptr<TermInfo> RemoveReturningUnique(TermInfo *ti);
     int TermReport(Terminal *t, Report *r);
     bool IsPrinterShared(const genericChar* host, int port, TermInfo *exclude = nullptr);
 
@@ -929,6 +930,7 @@ public:
     int PrinterCount()         { return printer_list.Count(); }
     int Add(PrinterInfo *pi);
     int Remove(PrinterInfo *pi);
+    [[nodiscard]] std::unique_ptr<PrinterInfo> RemoveReturningUnique(PrinterInfo *pi);
     int PrinterReport(Terminal *t, Report *r);
     int GetDrawerFloatValue();
 };

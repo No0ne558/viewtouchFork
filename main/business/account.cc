@@ -34,6 +34,8 @@
 #include <dmalloc.h>
 #endif
 
+#include <memory>
+
 /**** AccountEntry class ****/
 // Constructors
 AccountEntry::AccountEntry()
@@ -137,7 +139,8 @@ Account::Account(const char* path, int no, const genericChar* namestr)
 Account *Account::Copy()
 {
     FnTrace("Account::Copy()");
-    auto *newAccount = new Account();
+    auto newAccount_up = std::make_unique<Account>();
+    Account *newAccount = newAccount_up.get();
 
     newAccount->number = number;
     newAccount->name.Set(name);
@@ -145,7 +148,7 @@ Account *Account::Copy()
     newAccount->pathname.Set(pathname);
     newAccount->balance = balance;
     newAccount->time_created.Set(time_created);
-    return newAccount;
+    return newAccount_up.release();
 }
 
 int Account::Load(const char* path)
@@ -325,6 +328,12 @@ AccountDB::AccountDB()
     curr_item = nullptr;
 }
 
+    std::unique_ptr<Account> AccountDB::RemoveReturningUnique(Account *acct)
+    {
+        FnTrace("AccountDB::RemoveReturningUnique()");
+        return account_list.RemoveReturningUnique(acct);
+    }
+
 // Member Functions
 
 int AccountDB::GetAccountNumber(int number)
@@ -379,8 +388,7 @@ int AccountDB::RemoveBlank()
         nextAcct = currAcct->next;
         if (currAcct->IsBlank())
         {
-            account_list.Remove(currAcct);
-            delete(currAcct);
+            (void)RemoveReturningUnique(currAcct);
             count += 1;
         }
         currAcct = nextAcct;
@@ -402,10 +410,11 @@ Account *AccountDB::NewAccount(int number)
     Account *newAcct;
 
     RemoveBlank();
-    newAcct = new Account(pathname.Value());
+    auto acct_up = std::make_unique<Account>(pathname.Value());
+    newAcct = acct_up.get();
     newAcct->number = GetAccountNumber(number);
     newAcct->time_created.Set();
-    Add(newAcct);
+    Add(acct_up.release());
     return newAcct;
 }
 
@@ -472,11 +481,12 @@ int AccountDB::Load(const char* path)
             no = atoi(name);
             if (no > 0)
             {
-                auto *my_account = new Account(no);
+                auto my_account_up = std::make_unique<Account>(no);
+                Account *my_account = my_account_up.get();
                 if (my_account->Load(pathname.Value()))
                     ReportError("Error loading account");
                 else
-                    Add(my_account);
+                    Add(my_account_up.release());
             }
         }
     }

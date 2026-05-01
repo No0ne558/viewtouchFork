@@ -37,6 +37,8 @@
 #include "safe_string_utils.hh"
 #include "src/utils/cpp23_utils.hh"
 
+#include <memory>
+
 #include <cstring>
 #include <iostream>
 #include <algorithm>
@@ -83,12 +85,7 @@ MediaList::MediaList(const std::string& namestr, int value, int shift)
         shift_total[shift] = value;
 }
 
-MediaList::~MediaList()
-{
-    FnTrace("MediaList::~MediaList()");
-    if (next != nullptr)
-        delete next;
-}
+MediaList::~MediaList() = default;
 
 int MediaList::Add(const std::string& namestr, int value, int shift)
 {
@@ -114,8 +111,7 @@ int MediaList::Add(const std::string& namestr, int value, int shift)
     }
     else
     {  // we got to the end without finding a match, add it to the end
-        MediaList *newentry = new MediaList(namestr, value, shift);
-        next = newentry;
+        next = std::make_unique<MediaList>(namestr, value, shift);
     }
     return retval;
 }
@@ -806,7 +802,7 @@ int System::ShiftBalanceReport(Terminal *term, TimeInfo &ref, Report *ptrReport)
                     ptrReport->TextPosR(last_pos, term->FormatPrice(comps->total), color[i]);
                     ptrReport->NewLine();
                 }
-                comps = comps->next;
+                comps = comps->next.get();
             }
         }
     }
@@ -858,7 +854,7 @@ int System::ShiftBalanceReport(Terminal *term, TimeInfo &ref, Report *ptrReport)
                     ptrReport->TextPosR(last_pos, term->FormatPrice(meals->total), color[i]);
                     ptrReport->NewLine();
                 }
-                meals = meals->next;
+                meals = meals->next.get();
             }
         }
     }
@@ -896,7 +892,7 @@ int System::ShiftBalanceReport(Terminal *term, TimeInfo &ref, Report *ptrReport)
                     ptrReport->TextPosR(last_pos, term->FormatPrice(discounts->total), color[i]);
                     ptrReport->NewLine();
                 }
-                discounts = discounts->next;
+                discounts = discounts->next.get();
             }
         }
     }
@@ -934,7 +930,7 @@ int System::ShiftBalanceReport(Terminal *term, TimeInfo &ref, Report *ptrReport)
                     ptrReport->TextPosR(last_pos, term->FormatPrice(coupons->total), color[i]);
                     ptrReport->NewLine();
                 }
-                coupons = coupons->next;
+                coupons = coupons->next.get();
             }
         }
     }
@@ -1610,7 +1606,7 @@ int BalanceReportWorkFn(BRData *brdata)
                 {
                     thisReport->TextKV(comps->name, term->FormatPrice(comps->total), COLOR_DEFAULT, color);
                 }
-                comps = comps->next;
+                comps = comps->next.get();
             }
         }
     }
@@ -1637,7 +1633,7 @@ int BalanceReportWorkFn(BRData *brdata)
                 {
                     thisReport->TextKV(meals->name, term->FormatPrice(meals->total), COLOR_DEFAULT, color);
                 }
-                meals = meals->next;
+                meals = meals->next.get();
             }
         }
     }
@@ -1657,7 +1653,7 @@ int BalanceReportWorkFn(BRData *brdata)
                 {
                     thisReport->TextKV(discounts->name, term->FormatPrice(discounts->total), COLOR_DEFAULT, color);
                 }
-                discounts = discounts->next;
+                discounts = discounts->next.get();
             }
         }
     }
@@ -1677,7 +1673,7 @@ int BalanceReportWorkFn(BRData *brdata)
                 {
                     thisReport->TextKV(coupons->name, term->FormatPrice(coupons->total), COLOR_DEFAULT, color);
                 }
-                coupons = coupons->next;
+                coupons = coupons->next.get();
             }
         }
     }
@@ -1882,7 +1878,8 @@ int System::BalanceReport(Terminal *term, TimeInfo &start_time, TimeInfo &end_ti
     if (end >= SystemTime)
         report->update_flag |= UPDATE_MINUTE | UPDATE_SALE;
 
-    BRData *brdata = new BRData;
+    auto brdata_up = std::make_unique<BRData>();
+    BRData *brdata = brdata_up.get();
     brdata->report  = report;
     brdata->start   = start_time;
     brdata->end     = end;
@@ -1899,7 +1896,7 @@ int System::BalanceReport(Terminal *term, TimeInfo &start_time, TimeInfo &end_ti
     report->TextC(str, COLOR_DK_BLUE);
     report->NewLine(3);
 
-    AddWorkFn((WorkFn) BalanceReportWorkFn, brdata);
+    AddWorkFn((WorkFn) BalanceReportWorkFn, brdata_up.release());
 
     return 0;
 }
@@ -2386,7 +2383,7 @@ int System::DepositReport(Terminal *term, TimeInfo &start_time,
         {
             report->TextKV(mediacomp->name, term->FormatPrice(mediacomp->total), COLOR_DEFAULT, col);
         }
-        mediacomp = mediacomp->next;
+        mediacomp = mediacomp->next.get();
     }
 
     if (term->hide_zeros == 0 || item_comp != 0)
@@ -2401,7 +2398,7 @@ int System::DepositReport(Terminal *term, TimeInfo &start_time,
         {
             report->TextKV(mediameal->name, term->FormatPrice(mediameal->total), COLOR_DEFAULT, col);
         }
-        mediameal = mediameal->next;
+        mediameal = mediameal->next.get();
     }
 
     MediaList *mediadiscount = &discountlist;
@@ -2411,7 +2408,7 @@ int System::DepositReport(Terminal *term, TimeInfo &start_time,
         {
             report->TextKV(mediadiscount->name, term->FormatPrice(mediadiscount->total), COLOR_DEFAULT, col);
         }
-        mediadiscount = mediadiscount->next;
+        mediadiscount = mediadiscount->next.get();
     }
 
     MediaList *mediacoupon = &couponlist;
@@ -2421,7 +2418,7 @@ int System::DepositReport(Terminal *term, TimeInfo &start_time,
         {
             report->TextKV(mediacoupon->name, term->FormatPrice(mediacoupon->total), COLOR_DEFAULT, col);
         }
-        mediacoupon = mediacoupon->next;
+        mediacoupon = mediacoupon->next.get();
     }
 
     report->TextPosL(3, GlobalTranslate("Total Non-Cash Receipts"));
@@ -2564,7 +2561,7 @@ int System::DepositReport(Terminal *term, TimeInfo &start_time,
                 report->TextKV(mediacredit->name, term->FormatPrice(mediacredit->total), COLOR_DEFAULT, col);
                 total_credit += mediacredit->total;
             }
-            mediacredit = mediacredit->next;
+            mediacredit = mediacredit->next.get();
         }
     }
     else
@@ -2933,15 +2930,15 @@ int System::ClosedCheckReport(Terminal *term, TimeInfo &start_time, TimeInfo &en
     if (end >= SystemTime)
         thisReport->update_flag |= UPDATE_MINUTE;
 
-    CCRData *ccrdata = new CCRData;
-    ccrdata->report  = thisReport;
-    ccrdata->start   = start_time;
-    ccrdata->end     = end;
-    ccrdata->term    = term;
-    ccrdata->system  = this;
-    ccrdata->archive = FindByTime(start_time);
+    auto ccrdata_up = std::make_unique<CCRData>();
+    ccrdata_up->report  = thisReport;
+    ccrdata_up->start   = start_time;
+    ccrdata_up->end     = end;
+    ccrdata_up->term    = term;
+    ccrdata_up->system  = this;
+    ccrdata_up->archive = FindByTime(start_time);
     if (thisEmployee)
-        ccrdata->user_id = thisEmployee->id;
+        ccrdata_up->user_id = thisEmployee->id;
 
     // Setup report
     genericChar str[256], str2[32];
@@ -2971,7 +2968,7 @@ int System::ClosedCheckReport(Terminal *term, TimeInfo &start_time, TimeInfo &en
     thisReport->NewLine();
     thisReport->Divider('-');
 
-    AddWorkFn((WorkFn) ClosedCheckReportWorkFn, ccrdata);
+    AddWorkFn((WorkFn) ClosedCheckReportWorkFn, ccrdata_up.release());
     return 0;
 }
 
@@ -3568,7 +3565,8 @@ Expenses *Expenses::Insert(Expense *expense, Terminal *term, int sortby, Archive
     FnTrace("Expenses::Insert()");
     Expenses *currNode = this;
     Expenses *prevNode = nullptr;
-    Expenses *newNode = new Expenses(expense, term, archive);
+    auto newNode_up = std::make_unique<Expenses>(expense, term, archive);
+    Expenses *newNode = newNode_up.get();
     Expenses *retNode = this;  // we'll return this
     int comparison;
     int done = 0;
@@ -3576,7 +3574,7 @@ Expenses *Expenses::Insert(Expense *expense, Terminal *term, int sortby, Archive
     if (currNode->amount == 0)
     {
         currNode->Copy(newNode);
-        delete newNode;
+        // unique_ptr will cleanup newNode_up when it goes out of scope
         done = 1;
     }
 
@@ -3593,11 +3591,13 @@ Expenses *Expenses::Insert(Expense *expense, Terminal *term, int sortby, Archive
             { // at the head
                 retNode = newNode;
                 newNode->next = currNode;
+                newNode_up.release();
             }
             else
             {
                 newNode->next = prevNode->next;
                 prevNode->next = newNode;
+                newNode_up.release();
             }
             done = 1;
         }
@@ -3613,11 +3613,13 @@ Expenses *Expenses::Insert(Expense *expense, Terminal *term, int sortby, Archive
         { // at the head
             retNode = newNode;
             newNode->next = currNode;
+            newNode_up.release();
         }
         else
         {
             newNode->next = prevNode->next;
             prevNode->next = newNode;
+            newNode_up.release();
         }
     }
     return retNode;
@@ -3746,7 +3748,8 @@ int System::ExpenseReport(Terminal *term, TimeInfo &start_time, TimeInfo &end_ti
     if (report == nullptr)
         return 1;
 
-    Expenses *expenselist = new Expenses;
+    auto expenselist_up = std::make_unique<Expenses>();
+    Expenses *expenselist = expenselist_up.get();
     Expenses *currExpense;
     genericChar buffer[STRLENGTH];
     int column;
@@ -3770,7 +3773,16 @@ int System::ExpenseReport(Terminal *term, TimeInfo &start_time, TimeInfo &end_ti
     if (archive == nullptr)
     {  // didn't find any archive; process today's expenses
         ExpenseDB *my_expense_db = &(term->system_data->expense_db);
-        expenselist = expenselist->ImportExpenseDB(my_expense_db, term, nullptr, sortby);
+        {
+            Expenses *new_head = expenselist->ImportExpenseDB(my_expense_db, term, nullptr, sortby);
+            if (new_head != expenselist)
+            {
+                // adopt returned head without deleting the original placeholder
+                expenselist_up.release();
+                expenselist_up.reset(new_head);
+            }
+            expenselist = new_head;
+        }
         incomplete = 1;
     }
     else
@@ -3876,7 +3888,7 @@ int System::ExpenseReport(Terminal *term, TimeInfo &start_time, TimeInfo &end_ti
     }
     report->is_complete = 1;
 
-    delete expenselist;
+    // `expenselist_up` will free the list when it goes out of scope
     return 0;
 }
 
@@ -4010,9 +4022,9 @@ int RoyaltyReportWorkFn(RoyaltyData *rdata)
         {
             if ((currCoupon->flags & TF_ROYALTY) ||
                 (strcmp(currCoupon->name.Value(), "Head Office") == 0))
-             {
-                Vouchers *newVoucher = new Vouchers(TENDER_COUPON, currCoupon->id);
-                voucher_list.AddToTail(newVoucher);
+            {
+                auto newVoucher_up = std::make_unique<Vouchers>(TENDER_COUPON, currCoupon->id);
+                voucher_list.AddToTail(std::move(newVoucher_up));
             }
             currCoupon = currCoupon->next;
         }
@@ -4338,37 +4350,37 @@ int System::RoyaltyReport(Terminal *term, TimeInfo &start_time, TimeInfo &end_ti
     if (report == nullptr)
         return 1;
 
-    RoyaltyData *rdata = new RoyaltyData();
-    rdata->maxdays = DaysInMonth(start_time.Month(), start_time.Year());
-    rdata->settings = &settings;
-    rdata->system = this;
-    rdata->report = report;
-    rdata->term = term;
-    rdata->start_time.Set(start_time);
-    rdata->end_time.Set(end_time);
-    rdata->archive = FindByTime(start_time);
+    auto rdata_up = std::make_unique<RoyaltyData>();
+    rdata_up->maxdays = DaysInMonth(start_time.Month(), start_time.Year());
+    rdata_up->settings = &settings;
+    rdata_up->system = this;
+    rdata_up->report = report;
+    rdata_up->term = term;
+    rdata_up->start_time.Set(start_time);
+    rdata_up->end_time.Set(end_time);
+    rdata_up->archive = FindByTime(start_time);
     if (report->destination == RP_DEST_PRINTER)
-        rdata->zone_width = report->max_width;
+        rdata_up->zone_width = report->max_width;
     else if (rzone != nullptr)
-        rdata->zone_width   = rzone->Width(term);
+        rdata_up->zone_width   = rzone->Width(term);
     else
-        rdata->zone_width = 80;
-    if (rdata->zone_width < 60)
+        rdata_up->zone_width = 80;
+    if (rdata_up->zone_width < 60)
     {  // single column
-        rdata->column_width = rdata->zone_width;
-        rdata->dcolumns = 1;
+        rdata_up->column_width = rdata_up->zone_width;
+        rdata_up->dcolumns = 1;
     }
     else
     {  // two columns
         if (rzone != nullptr && report->destination != RP_DEST_PRINTER)
-            rdata->column_width = rzone->ColumnSpacing(term, 2);
+            rdata_up->column_width = rzone->ColumnSpacing(term, 2);
         else
-            rdata->column_width = rdata->zone_width / 2;
-        rdata->dcolumns = 2;
+            rdata_up->column_width = rdata_up->zone_width / 2;
+        rdata_up->dcolumns = 2;
     }
 
     report->is_complete = 0;
-    AddWorkFn((WorkFn) RoyaltyReportWorkFn, rdata);
+    AddWorkFn((WorkFn) RoyaltyReportWorkFn, rdata_up.release());
     return 0;
 }
 
@@ -4898,7 +4910,7 @@ int AuditingReportWorkFn(AuditingData *adata)
                 report->NewLine();
                 total_payments += creditcard->total;
             }
-            creditcard = creditcard->next;
+            creditcard = creditcard->next.get();
         }
     }
 
@@ -4944,7 +4956,7 @@ int AuditingReportWorkFn(AuditingData *adata)
             report->TextPosL(indent, term->Translate(coupon->name.c_str()), color);
             report->TextR(term->FormatPrice(coupon->total), color);
             report->NewLine();
-            coupon = coupon->next;
+            coupon = coupon->next.get();
         }
     }
 
@@ -4958,7 +4970,7 @@ int AuditingReportWorkFn(AuditingData *adata)
             report->TextPosL(indent, term->Translate(discount->name.c_str()), color);
             report->TextR(term->FormatPrice(discount->total), color);
             report->NewLine();
-            discount = discount->next;
+            discount = discount->next.get();
         }
     }
 
@@ -4972,7 +4984,7 @@ int AuditingReportWorkFn(AuditingData *adata)
             report->TextPosL(indent, term->Translate(comp->name.c_str()), color);
             report->TextR(term->FormatPrice(comp->total), color);
             report->NewLine();
-            comp = comp->next;
+            comp = comp->next.get();
         }
     }
 
@@ -4986,7 +4998,7 @@ int AuditingReportWorkFn(AuditingData *adata)
             report->TextPosL(indent, term->Translate(meal->name.c_str()), color);
             report->TextR(term->FormatPrice(meal->total), color);
             report->NewLine();
-            meal = meal->next;
+            meal = meal->next.get();
         }
     }
 
@@ -5004,18 +5016,18 @@ int System::AuditingReport(Terminal *term, TimeInfo &start_time, TimeInfo &end_t
     if (report == nullptr)
         return 1;
 
-    AuditingData *adata = new AuditingData;
+    auto adata_up = std::make_unique<AuditingData>();
 
-    adata->term = term;
-    adata->system = this;
-    adata->settings = &settings;
-    adata->report = report;
-    adata->start_time.Set(start_time);
-    adata->end_time.Set(end_time);
-    adata->archive = FindByTime(start_time);
+    adata_up->term = term;
+    adata_up->system = this;
+    adata_up->settings = &settings;
+    adata_up->report = report;
+    adata_up->start_time.Set(start_time);
+    adata_up->end_time.Set(end_time);
+    adata_up->archive = FindByTime(start_time);
 
     report->is_complete = 0;
-    AddWorkFn((WorkFn) AuditingReportWorkFn, adata);
+    AddWorkFn((WorkFn) AuditingReportWorkFn, adata_up.release());
 
     return 0;
 }
@@ -5217,19 +5229,19 @@ int System::CreditCardReport(Terminal *term, TimeInfo &start_time, TimeInfo &end
     //////
     if (cc_report_type == CC_REPORT_NORMAL)
     {
-        ccdata = new CCData();
+        auto ccdata_up = std::make_unique<CCData>();
 
-        ccdata->term = term;
-        ccdata->system = this;
-        ccdata->settings = &settings;
-        ccdata->report = report;
-        ccdata->start_time.Set(start_time);
-        ccdata->end_time.Set(end_time);
-        ccdata->archive = FindByTime(start_time);
-        ccdata->report_zone = rzone;
+        ccdata_up->term = term;
+        ccdata_up->system = this;
+        ccdata_up->settings = &settings;
+        ccdata_up->report = report;
+        ccdata_up->start_time.Set(start_time);
+        ccdata_up->end_time.Set(end_time);
+        ccdata_up->archive = FindByTime(start_time);
+        ccdata_up->report_zone = rzone;
 
         report->is_complete = 0;
-        AddWorkFn((WorkFn) CreditCardReportWorkFn, ccdata);
+        AddWorkFn((WorkFn) CreditCardReportWorkFn, ccdata_up.release());
         retval = 0;
     }
     else if (cc_report_type == CC_REPORT_BATCH)

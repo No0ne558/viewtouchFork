@@ -285,8 +285,8 @@ int ItemCountTree::CountOrder(Order *o)
         ic->AddCount(o);
     else
     {
-        ic = new ItemCount(o);
-        Add(ic);
+        auto ic_up = std::make_unique<ItemCount>(o);
+        Add(ic_up.release());
     }
 
     if (ic)
@@ -320,8 +320,8 @@ int ItemCountTree::CountOrderNoFamily(Order *o)
         ic->AddCount(o);
     else
     {
-        ic = new ItemCount(o);
-        Add(ic);
+        auto ic_up = std::make_unique<ItemCount>(o);
+        Add(ic_up.release());
     }
 
     if (ic)

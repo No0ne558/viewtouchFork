@@ -189,6 +189,7 @@ public:
 
     int Add(WorkEntry *we);
     int Remove(WorkEntry *we);
+    [[nodiscard]] std::unique_ptr<WorkEntry> RemoveReturningUnique(WorkEntry *we);
     int Purge();
     int Load(const char* file);
     int Save();

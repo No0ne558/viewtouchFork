@@ -72,7 +72,7 @@ struct BatchItem {
 class MediaList
 {
 public:
-    MediaList *next;
+    std::unique_ptr<MediaList> next;
     std::string name;
     int total;
     std::array<int, MAX_SHIFTS> shift_total{};
@@ -199,6 +199,10 @@ public:
     // adds check to current data
     int Remove(Check *check);
     // removes check from current check list (doesn't delete)
+    // removes check from current check list and returns ownership
+    std::unique_ptr<Check> RemoveReturningUnique(Check *check);
+    // removes drawer from current drawer list and returns ownership
+    std::unique_ptr<Drawer> RemoveReturningUnique(Drawer *drawer);
     Check *FirstCheck(Archive *archive = nullptr);
     // returns first check of archive or current checks
     int CountOpenChecks(Employee *e = nullptr);

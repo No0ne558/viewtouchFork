@@ -33,7 +33,6 @@
 ExpenseZone::ExpenseZone()
 {
     expense = nullptr;
-    saved_expense = nullptr;
     show_expense = 0;
     // form_header defines the top of the space where the form fields will be drawn
     form_header = -11;
@@ -69,11 +68,7 @@ ExpenseZone::ExpenseZone()
     allow_balanced = 0;
 }
 
-ExpenseZone::~ExpenseZone()
-{
-    if (saved_expense != nullptr)
-        delete saved_expense;
-}
+
 
 RenderResult ExpenseZone::Render(Terminal *term, int update_flag)
 {
@@ -383,8 +378,8 @@ int ExpenseZone::LoadRecord(Terminal *term, int record)
     {
         record_no = record;
         // save off the expense for Undo
-        if (saved_expense == nullptr)
-            saved_expense = new Expense;
+        if (!saved_expense)
+            saved_expense = std::make_unique<Expense>();
         saved_expense->Copy(expense);
         //  AddTextField("Expense ID", 5, 0);
         field->Set(expense->eid);
@@ -557,9 +552,9 @@ int ExpenseZone::RestoreRecord(Terminal *term)
 {
     FnTrace("ExpenseZone::RestoreRecord()");
 
-    if (expense != nullptr && saved_expense != nullptr)
+    if (expense != nullptr && saved_expense)
     {
-        expense->Copy(saved_expense);
+        expense->Copy(saved_expense.get());
         LoadRecord(term, record_no);
     }
     return 0;
@@ -604,8 +599,7 @@ int ExpenseZone::KillRecord(Terminal *term, int record)
         Expense *delexp = term->system_data->expense_db.FindByID(expense->eid);
         if (delexp)
         {
-            term->system_data->expense_db.Remove(delexp);
-            delete delexp;
+            (void)term->system_data->expense_db.RemoveReturningUnique(delexp);
             expense = nullptr;
             records = RecordCount(term);
             if (record_no > records)

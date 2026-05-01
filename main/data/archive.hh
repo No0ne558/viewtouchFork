@@ -28,6 +28,7 @@
 #include "drawer.hh"
 #include "list_utility.hh"
 #include "expense.hh"
+#include <memory>
 #include "settings.hh"
 
 
@@ -100,12 +101,12 @@ public:
     WorkDB        work_db;
     ExceptionDB   exception_db;
     ExpenseDB     expense_db;
-    CreditDB     *cc_exception_db;
-    CreditDB     *cc_refund_db;
-    CreditDB     *cc_void_db;
-    CCInit       *cc_init_results;
-    CCSAFDetails *cc_saf_details_results;
-    CCSettle     *cc_settle_results;
+    std::unique_ptr<CreditDB> cc_exception_db;
+    std::unique_ptr<CreditDB> cc_refund_db;
+    std::unique_ptr<CreditDB> cc_void_db;
+    std::unique_ptr<CCInit>       cc_init_results;
+    std::unique_ptr<CCSAFDetails> cc_saf_details_results;
+    std::unique_ptr<CCSettle>     cc_settle_results;
 
     // Constructors
     Archive(TimeInfo &tm);
@@ -137,12 +138,15 @@ public:
 
     int Add(Drawer *d);
     int Remove(Drawer *d);
+    [[nodiscard]] std::unique_ptr<Drawer> RemoveReturningUnique(Drawer *d);
 
     int Add(Check *c);
     int Remove(Check *c);
+    [[nodiscard]] std::unique_ptr<Check> RemoveReturningUnique(Check *c);
 
     int Add(WorkEntry *we);
     int Remove(WorkEntry *we);
+    [[nodiscard]] std::unique_ptr<WorkEntry> RemoveReturningUnique(WorkEntry *we);
 
     int Add(DiscountInfo *discount);
     int Add(CouponInfo *coupon);

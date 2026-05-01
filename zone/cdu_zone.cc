@@ -381,8 +381,7 @@ int CDUZone::KillRecord(Terminal *term, int record)
         CDUString *delstr = term->system_data->cdustrings.FindByID(cdustring->id);
         if (delstr)
         {
-            term->system_data->cdustrings.Remove(delstr);
-            delete delstr;
+            (void)term->system_data->cdustrings.RemoveReturningUnique(delstr);
             cdustring = nullptr;
             records = RecordCount(term);
             if (record_no > records)

@@ -27,6 +27,7 @@
 #include "safe_string_utils.hh"
 
 #include "src/utils/cpp23_utils.hh"
+#include <memory>
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -81,12 +82,12 @@ Archive::Archive(TimeInfo &end)
     discount_alcohol       = 0;
     price_rounding         = 0;
 
-    cc_exception_db        = nullptr;
-    cc_refund_db           = nullptr;
-    cc_void_db             = nullptr;
-    cc_init_results        = nullptr;
-    cc_saf_details_results = nullptr;
-    cc_settle_results      = nullptr;
+    cc_exception_db.reset();
+    cc_refund_db.reset();
+    cc_void_db.reset();
+    cc_init_results.reset();
+    cc_saf_details_results.reset();
+    cc_settle_results.reset();
 }
 
 Archive::Archive(Settings *settings, const char* file)
@@ -134,12 +135,11 @@ Archive::Archive(Settings *settings, const char* file)
     discount_alcohol       = settings->discount_alcohol;
     price_rounding         = settings->price_rounding;
 
-    cc_exception_db        = nullptr;
-    cc_refund_db           = nullptr;
-    cc_void_db             = nullptr;
-    cc_init_results        = nullptr;
-    cc_saf_details_results = nullptr;
-    cc_settle_results      = nullptr;
+    cc_refund_db.reset();
+    cc_void_db.reset();
+    cc_init_results.reset();
+    cc_saf_details_results.reset();
+    cc_settle_results.reset();
 
     // Read in header of archive
     file_version = 0;
@@ -244,16 +244,15 @@ int Archive::LoadPacked(Settings *settings, const char* file)
                 ReportError(str);
                 goto archive_read_error;
             }
-            drawer = new Drawer;
-            error = drawer->Read(df, drawer_version);
+            auto drawer_up = std::make_unique<Drawer>();
+            error = drawer_up->Read(df, drawer_version);
             if (error)
             {
-                delete drawer;
                 vt_safe_string::safe_format(str, STRLENGTH, "Error %d in reading drawer %d of %d", error, i + 1, count);
                 ReportError(str);
                 goto archive_read_error;
             }
-            Add(drawer);
+            Add(drawer_up.release());
         }
     }
     else
@@ -271,17 +270,16 @@ int Archive::LoadPacked(Settings *settings, const char* file)
                 ReportError("Unexpected end of Check data");
                 goto archive_read_error;
             }
-            auto *check = new Check;
-            error = check->Read(settings, df, check_version);
+            auto check_up = std::make_unique<Check>();
+            error = check_up->Read(settings, df, check_version);
             if (error)
             {
-                delete check;
                 vt_safe_string::safe_format(str, STRLENGTH, "Error %d in check %d of %d", error, i + 1, count);
                 ReportError(str);
                 goto archive_read_error;
             }
 
-            Add(check);
+            Add(check_up.release());
         }
     }
     else
@@ -299,16 +297,15 @@ int Archive::LoadPacked(Settings *settings, const char* file)
                 ReportError("Unexpected end of TipDB");
                 goto archive_read_error;
             }
-            auto *te = new TipEntry;
-            error = te->Read(df, tip_version);
+            auto te_up = std::make_unique<TipEntry>();
+            error = te_up->Read(df, tip_version);
             if (error)
             {
-                delete te;
                 vt_safe_string::safe_format(str, STRLENGTH, "Error %d in tip %d of %d", error, i + 1, count);
                 ReportError(str);
                 goto archive_read_error;
             }
-            tip_db.Add(te);
+            tip_db.Add(te_up.release());
         }
     }
     else
@@ -352,9 +349,9 @@ int Archive::LoadPacked(Settings *settings, const char* file)
         {
             for (i = 0; i < count; i++)
             {
-                auto *discinfo = new DiscountInfo;
-                discinfo->Read(df, media_version);
-                Add(discinfo);
+                auto discinfo_up = std::make_unique<DiscountInfo>();
+                discinfo_up->Read(df, media_version);
+                Add(discinfo_up.release());
             }
         }
         else
@@ -365,9 +362,9 @@ int Archive::LoadPacked(Settings *settings, const char* file)
         {
             for (i = 0; i < count; i++)
             {
-                auto *coupinfo = new CouponInfo;
-                coupinfo->Read(df, media_version);
-                Add(coupinfo);
+                auto coupinfo_up = std::make_unique<CouponInfo>();
+                coupinfo_up->Read(df, media_version);
+                Add(coupinfo_up.release());
             }
         }
         else
@@ -378,9 +375,9 @@ int Archive::LoadPacked(Settings *settings, const char* file)
         {
             for (i = 0; i < count; i++)
             {
-                auto *credinfo = new CreditCardInfo;
-                credinfo->Read(df, media_version);
-                Add(credinfo);
+                auto credinfo_up = std::make_unique<CreditCardInfo>();
+                credinfo_up->Read(df, media_version);
+                Add(credinfo_up.release());
             }
         }
         else
@@ -391,9 +388,9 @@ int Archive::LoadPacked(Settings *settings, const char* file)
         {
             for (i = 0; i < count; i++)
             {
-                auto *compinfo = new CompInfo;
-                compinfo->Read(df, media_version);
-                Add(compinfo);
+                auto compinfo_up = std::make_unique<CompInfo>();
+                compinfo_up->Read(df, media_version);
+                Add(compinfo_up.release());
             }
         }
         else
@@ -404,9 +401,9 @@ int Archive::LoadPacked(Settings *settings, const char* file)
         {
             for (i = 0; i < count; i++)
             {
-                auto *mealinfo = new MealInfo;
-                mealinfo->Read(df, media_version);
-                Add(mealinfo);
+                auto mealinfo_up = std::make_unique<MealInfo>();
+                mealinfo_up->Read(df, media_version);
+                Add(mealinfo_up.release());
             }
         }
         else
@@ -453,18 +450,18 @@ int Archive::LoadPacked(Settings *settings, const char* file)
 
     if (version >= 13)
     {
-        cc_exception_db = new CreditDB(CC_DBTYPE_EXCEPT);
+        cc_exception_db = std::make_unique<CreditDB>(CC_DBTYPE_EXCEPT);
         cc_exception_db->Read(df);
-        cc_refund_db = new CreditDB(CC_DBTYPE_REFUND);
+        cc_refund_db = std::make_unique<CreditDB>(CC_DBTYPE_REFUND);
         cc_refund_db->Read(df);
-        cc_void_db = new CreditDB(CC_DBTYPE_VOID);
+        cc_void_db = std::make_unique<CreditDB>(CC_DBTYPE_VOID);
         cc_void_db->Read(df);
 
-        cc_init_results = new CCInit();
+        cc_init_results = std::make_unique<CCInit>();
         cc_init_results->Read(df);
-        cc_saf_details_results = new CCSAFDetails();
+        cc_saf_details_results = std::make_unique<CCSAFDetails>();
         cc_saf_details_results->Read(df);
-        cc_settle_results = new CCSettle();
+        cc_settle_results = std::make_unique<CCSettle>();
         cc_settle_results->Read(df);
     }
     if (version >= 14)
@@ -527,41 +524,41 @@ int Archive::LoadAlternateMedia()
             mf.Read(count);  // using count for all media types
             for (i = 0; i < count; i++)
             {
-                auto *discinfo = new DiscountInfo;
-                discinfo->Read(mf, media_version);
-                Add(discinfo);
+                auto discinfo_up = std::make_unique<DiscountInfo>();
+                discinfo_up->Read(mf, media_version);
+                Add(discinfo_up.release());
             }
             // Read Coupons
             mf.Read(count);  // using count for all media types
             for (i = 0; i < count; i++)
             {
-                auto *coupinfo = new CouponInfo;
-                coupinfo->Read(mf, media_version);
-                Add(coupinfo);
+                auto coupinfo_up = std::make_unique<CouponInfo>();
+                coupinfo_up->Read(mf, media_version);
+                Add(coupinfo_up.release());
             }
             // Read CreditCards
             mf.Read(count);  // using count for all media types
             for (i = 0; i < count; i++)
             {
-                auto *credinfo = new CreditCardInfo;
-                credinfo->Read(mf, media_version);
-                Add(credinfo);
+                auto credinfo_up = std::make_unique<CreditCardInfo>();
+                credinfo_up->Read(mf, media_version);
+                Add(credinfo_up.release());
             }
             // Read Comps
             mf.Read(count);  // using count for all media types
             for (i = 0; i < count; i++)
             {
-                auto *compinfo = new CompInfo;
-                compinfo->Read(mf, media_version);
-                Add(compinfo);
+                auto compinfo_up = std::make_unique<CompInfo>();
+                compinfo_up->Read(mf, media_version);
+                Add(compinfo_up.release());
             }
             // Read Meals
             mf.Read(count);  // using count for all media types
             for (i = 0; i < count; i++)
             {
-                auto *mealinfo = new MealInfo;
-                mealinfo->Read(mf, media_version);
-                Add(mealinfo);
+                auto mealinfo_up = std::make_unique<MealInfo>();
+                mealinfo_up->Read(mf, media_version);
+                Add(mealinfo_up.release());
             }
             mf.Close();
             retval = 0;
@@ -753,24 +750,24 @@ int Archive::SavePacked()
     df.Write(discount_alcohol);
     df.Write(tax_VAT);
 
-    if (cc_exception_db == nullptr)
-        cc_exception_db = new CreditDB(CC_DBTYPE_EXCEPT);
+    if (!cc_exception_db)
+        cc_exception_db = std::make_unique<CreditDB>(CC_DBTYPE_EXCEPT);
     cc_exception_db->Write(df);
-    if (cc_refund_db == nullptr)
-        cc_refund_db = new CreditDB(CC_DBTYPE_REFUND);
+    if (!cc_refund_db)
+        cc_refund_db = std::make_unique<CreditDB>(CC_DBTYPE_REFUND);
     cc_refund_db->Write(df);
-    if (cc_void_db == nullptr)
-        cc_void_db = new CreditDB(CC_DBTYPE_VOID);
+    if (!cc_void_db)
+        cc_void_db = std::make_unique<CreditDB>(CC_DBTYPE_VOID);
     cc_void_db->Write(df);
 
-    if (cc_init_results == nullptr)
-        cc_init_results = new CCInit();
+    if (!cc_init_results)
+        cc_init_results = std::make_unique<CCInit>();
     cc_init_results->Write(df);
-    if (cc_saf_details_results == nullptr)
-        cc_saf_details_results = new CCSAFDetails();
+    if (!cc_saf_details_results)
+        cc_saf_details_results = std::make_unique<CCSAFDetails>();
     cc_saf_details_results->Write(df);
-    if (cc_settle_results == nullptr)
-        cc_settle_results = new CCSettle();
+    if (!cc_settle_results)
+        cc_settle_results = std::make_unique<CCSettle>();
     cc_settle_results->Write(df);
 
     df.Write(advertise_fund);
@@ -802,23 +799,13 @@ int Archive::Unload()
     work_db.Purge();
     expense_db.Purge();
 
-    delete cc_exception_db;
-    cc_exception_db = nullptr;
+    cc_exception_db.reset();
+    cc_refund_db.reset();
+    cc_void_db.reset();
 
-    delete cc_refund_db;
-    cc_refund_db = nullptr;
-
-    delete cc_void_db;
-    cc_void_db = nullptr;
-
-    delete cc_init_results;
-    cc_init_results = nullptr;
-
-    delete cc_saf_details_results;
-    cc_saf_details_results = nullptr;
-
-    delete cc_settle_results;
-    cc_settle_results = nullptr;
+    cc_init_results.reset();
+    cc_saf_details_results.reset();
+    cc_settle_results.reset();
 
     loaded = 0;
     return 0;
@@ -839,6 +826,12 @@ int Archive::Add(Check *c)
     return 0;
 }
 
+std::unique_ptr<Check> Archive::RemoveReturningUnique(Check *c)
+{
+    FnTrace("Archive::RemoveReturningUnique(Check)");
+    return check_list.RemoveReturningUnique(c);
+}
+
 int Archive::Remove(Check *c)
 {
     FnTrace("Archive::Remove(Check)");
@@ -850,6 +843,12 @@ int Archive::Remove(Check *c)
 
     changed = 1;
     return 0;
+}
+
+std::unique_ptr<Drawer> Archive::RemoveReturningUnique(Drawer *drawer)
+{
+    FnTrace("Archive::RemoveReturningUnique(Drawer)");
+    return drawer_list.RemoveReturningUnique(drawer);
 }
 
 int Archive::Add(Drawer *drawer)
@@ -896,6 +895,12 @@ int Archive::Remove(WorkEntry *we)
 {
     FnTrace("Archive::Remove(WorkEntry)");
     return work_db.Remove(we);
+}
+
+std::unique_ptr<WorkEntry> Archive::RemoveReturningUnique(WorkEntry *we)
+{
+    FnTrace("Archive::RemoveReturningUnique(WorkEntry)");
+    return work_db.RemoveReturningUnique(we);
 }
 
 int Archive::Add(DiscountInfo *discount)

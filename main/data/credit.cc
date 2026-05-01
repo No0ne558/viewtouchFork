@@ -33,6 +33,7 @@
 #include "src/utils/vt_logger.hh"
 #include "safe_string_utils.hh"
 #include "src/utils/cpp23_utils.hh"
+#include <memory>
 #include <unistd.h>
 #include <cctype>
 #include <ctime>
@@ -326,14 +327,13 @@ int Credit::Read(InputDataFile &df, int version)
     {
         for (idx = 0; idx < count; idx += 1)
         {
-            ecredit = new Credit();
-            error += ecredit->Read(df, version);
+            auto ecredit_up = std::make_unique<Credit>();
+            error += ecredit_up->Read(df, version);
             if (error)
             {
-                delete ecredit;
                 return error;
             }
-            errors_list.AddToTail(ecredit);
+            errors_list.AddToTail(std::move(ecredit_up));
         }
     }
 
@@ -448,7 +448,8 @@ int Credit::AddError(Credit *ecredit)
 Credit *Credit::Copy()
 {
     FnTrace("Credit::Copy()");
-    auto *newcredit = new Credit();
+    auto newcredit_up = std::make_unique<Credit>();
+    Credit *newcredit = newcredit_up.get();
     Credit *ecredit;
 
     if (newcredit != nullptr)
@@ -527,7 +528,7 @@ Credit *Credit::Copy()
             newcredit->ParseSwipe(newcredit->swipe.Value());
     }
 
-    return newcredit;
+    return newcredit_up.release();
 }
 
 int Credit::Copy(Credit *credit)
@@ -2366,15 +2367,14 @@ CreditDB::~CreditDB()
     FnTrace("CreditDB::~CreditDB()");
 }
 
-CreditDB *CreditDB::Copy()
+std::unique_ptr<CreditDB> CreditDB::Copy()
 {
     FnTrace("CreditDB::Copy()");
-    CreditDB *newdb;
     Credit   *credit = credit_list.Head();
     Credit   *crednext = nullptr;
 
-    newdb = new CreditDB(db_type);
-    if (newdb != nullptr)
+    auto newdb = std::make_unique<CreditDB>(db_type);
+    if (newdb)
     {
         vt_safe_string::safe_copy(newdb->fullpath, STRLONG, fullpath);
         newdb->last_card_id = last_card_id;
@@ -2405,10 +2405,12 @@ int CreditDB::Read(InputDataFile &infile)
 
     for (idx = 0; idx < count; idx ++)
     {
-        credit = new Credit();
-        credit->Read(infile, version);
-        if (credit->IsEmpty() == 0)
-            Add(credit);
+        {
+            auto credit_up = std::make_unique<Credit>();
+            credit_up->Read(infile, version);
+            if (credit_up->IsEmpty() == 0)
+                Add(credit_up.release());
+        }
     }
 
     return retval;
@@ -2918,7 +2920,7 @@ int CCSettle::Next(Terminal *term)
                 }
 
                 if (archive != nullptr)
-                    current = archive->cc_settle_results;
+                    current = archive->cc_settle_results.get();
                 else
                     current = this;
             }
@@ -2968,7 +2970,7 @@ int CCSettle::Fore(Terminal *term)
                 }
 
                 if (archive != nullptr)
-                    current = archive->cc_settle_results;
+                    current = archive->cc_settle_results.get();
                 else
                     current = this;
 
@@ -3013,21 +3015,25 @@ int CCSettle::Add(Terminal *term, const char* message)
     }
     else
     {
-        newsettle = new CCSettle();
-        if (message != nullptr)
         {
-            newsettle->result.Set("Batch Settle Failed");
-            newsettle->errormsg.Set(message);
+            auto newsettle_up = std::make_unique<CCSettle>();
+            newsettle = newsettle_up.get();
+            if (message != nullptr)
+            {
+                newsettle->result.Set("Batch Settle Failed");
+                newsettle->errormsg.Set(message);
+            }
+            else
+                newsettle->ReadResults(term);
+            // Add to tail
+            curr = this;
+            while (curr->next != nullptr)
+                curr = curr->next;
+            curr->next = newsettle;
+            newsettle->fore = curr;
+            current = newsettle;
+            newsettle_up.release();
         }
-        else
-            newsettle->ReadResults(term);
-        // Add to tail
-        curr = this;
-        while (curr->next != nullptr)
-            curr = curr->next;
-        curr->next = newsettle;
-        newsettle->fore = curr;
-        current = newsettle;
     }
     if (term->GetSettings()->authorize_method == CCAUTH_MAINSTREET)
     {
@@ -3096,7 +3102,8 @@ int CCSettle::Add(Check *check)
 CCSettle *CCSettle::Copy()
 {
     FnTrace("CCSettle::Copy()");
-    auto *newsettle = new CCSettle();
+    auto newsettle_up = std::make_unique<CCSettle>();
+    CCSettle *newsettle = newsettle_up.get();
 
     newsettle->result.Set(result);
     newsettle->settle.Set(settle);
@@ -3129,7 +3136,7 @@ CCSettle *CCSettle::Copy()
     if (next != nullptr)
         newsettle->next = next->Copy();
 
-    return newsettle;
+    return newsettle_up.release();
 }
 
 void CCSettle::Clear()
@@ -3216,10 +3223,12 @@ int CCSettle::Read(InputDataFile &df)
         idx += 1;
         if (idx < count)
         {
-            node = new CCSettle;
+            auto node_up = std::make_unique<CCSettle>();
+            node = node_up.get();
             curr->next = node;
             node->fore = curr;
             curr = curr->next;
+            node_up.release();
         }
     }
 
@@ -3594,7 +3603,7 @@ int CCInit::Next(Terminal *term)
                 }
 
                 if (archive != nullptr)
-                    current = archive->cc_init_results;
+                    current = archive->cc_init_results.get();
                 else
                     current = this;
             }
@@ -3644,7 +3653,7 @@ int CCInit::Fore(Terminal *term)
                 }
 
                 if (archive != nullptr)
-                    current = archive->cc_init_results;
+                    current = archive->cc_init_results.get();
                 else
                 {
                     current = this;
@@ -3671,9 +3680,9 @@ int CCInit::Read(InputDataFile &df)
     df.Read(count);
     while (count > 0)
     {
-        currstr = new Str();
-        df.Read(currstr);
-        init_list.AddToTail(currstr);
+        auto currstr_up = std::make_unique<Str>();
+        df.Read(currstr_up.get());
+        init_list.AddToTail(std::move(currstr_up));
         count -= 1;
     }
 
@@ -3740,7 +3749,7 @@ int CCInit::Add(const char* termid, const char* result)
 {
     FnTrace("CCInit::Add()");
     int retval = 0;
-    Str *newstr = new Str();
+    auto newstr_up = std::make_unique<Str>();
     char buffer[STRLONG];
     Terminal *term = MasterControl->TermList();
     TimeInfo now;
@@ -3749,8 +3758,8 @@ int CCInit::Add(const char* termid, const char* result)
     now.Set();
     vt::cpp23::format_to_buffer(buffer, STRLONG, "{}  {}: {}", term->TimeDate(now, datefmt),
              termid, result);
-    newstr->Set(buffer);
-    init_list.AddToTail(newstr);
+    newstr_up->Set(buffer);
+    init_list.AddToTail(std::move(newstr_up));
 
     return retval;
 }
@@ -3846,13 +3855,11 @@ int CCDetails::Add(const char* line)
 {
     FnTrace("CCDetails::Add()");
     int retval = 0;
-    Str *mcve_line;
-
     if (MasterSystem->settings.authorize_method == CCAUTH_MAINSTREET)
     {
-        mcve_line = new Str();
-        mcve_line->Set(line);
-        mcve_list.AddToTail(mcve_line);
+        auto mcve_line_up = std::make_unique<Str>();
+        mcve_line_up->Set(line);
+        mcve_list.AddToTail(std::move(mcve_line_up));
     }
     
     return retval;
@@ -3984,7 +3991,7 @@ int CCSAFDetails::Next(Terminal *term)
                 }
 
                 if (archive != nullptr)
-                    current = archive->cc_saf_details_results;
+                    current = archive->cc_saf_details_results.get();
                 else
                     current = this;
             }
@@ -4034,7 +4041,7 @@ int CCSAFDetails::Fore(Terminal *term)
                 }
 
                 if (archive != nullptr)
-                    current = archive->cc_saf_details_results;
+                    current = archive->cc_saf_details_results.get();
                 else
                 {
                     current = this;
@@ -4094,10 +4101,11 @@ int CCSAFDetails::Read(InputDataFile &df)
         idx += 1;
         if (idx < count)
         {
-            node = new CCSAFDetails();
-            curr->next = node;
-            node->fore = curr;
+            auto node_up = std::make_unique<CCSAFDetails>();
+            curr->next = node_up.get();
+            node_up->fore = curr;
             curr = curr->next;
+            node_up.release();
         }
     }
 
@@ -4245,11 +4253,12 @@ int CCSAFDetails::Add(Terminal *term)
     {
         while (node->next != nullptr)
             node = node->next;
-        newsaf = new CCSAFDetails;
-        newsaf->ReadResults(term);
-        node->next = newsaf;
-        newsaf->fore = node;
-        current = newsaf;
+        auto newsaf_up = std::make_unique<CCSAFDetails>();
+        newsaf_up->ReadResults(term);
+        node->next = newsaf_up.get();
+        newsaf_up->fore = node;
+        current = newsaf_up.get();
+        newsaf_up.release();
     }
 
     return retval;

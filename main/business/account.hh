@@ -126,6 +126,7 @@ public:
     int      Add(Account *acct);
     int      AddDefault(Account *acct);
     int      Remove(Account *acct);
+    [[nodiscard]] std::unique_ptr<Account> RemoveReturningUnique(Account *acct);
     int      RemoveDefault(Account *acct);
     int      Purge();
     Account *FindByNumber(int no);

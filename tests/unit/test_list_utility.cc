@@ -68,16 +68,13 @@ TEST_CASE("SList count caching", "[list_utility][slist]") {
         list.AddToTail(n3);
         REQUIRE(list.Count() == 3);
         
-        list.Remove(n2);
-        delete n2;
+        (void)list.RemoveReturningUnique(n2);
         REQUIRE(list.Count() == 2);
         
-        list.Remove(n1);
-        delete n1;
+        (void)list.RemoveReturningUnique(n1);
         REQUIRE(list.Count() == 1);
         
-        list.Remove(n3);
-        delete n3;
+        (void)list.RemoveReturningUnique(n3);
         REQUIRE(list.Count() == 0);
     }
     
@@ -162,8 +159,7 @@ TEST_CASE("DList count caching", "[list_utility][dlist]") {
         list.AddToTail(n3);
         REQUIRE(list.Count() == 3);
         
-        list.Remove(n2);
-        delete n2;
+        (void)list.RemoveReturningUnique(n2);
         REQUIRE(list.Count() == 2);
         
         // Verify list integrity

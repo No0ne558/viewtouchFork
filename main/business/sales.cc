@@ -462,9 +462,9 @@ int ItemDB::Load(const char* file)
 
     for (int i = 0; i < items; ++i)
     {
-        auto *si = new SalesItem;
-        si->Read(df, version);
-        Add(si);
+        auto si_up = std::make_unique<SalesItem>();
+        si_up->Read(df, version);
+        Add(si_up.release());
     }
 
     vt::Logger::info("Successfully loaded {} sales items from database", items);
@@ -554,6 +554,21 @@ int ItemDB::Remove(SalesItem *si)
         array_size = 0;
     }
     return item_list.Remove(si);
+}
+
+std::unique_ptr<SalesItem> ItemDB::RemoveReturningUnique(SalesItem *si)
+{
+    FnTrace("ItemDB::RemoveReturningUnique()");
+    if (si == nullptr)
+        return nullptr;
+
+    if (name_array != nullptr)
+    {
+        delete [] name_array;
+        name_array = nullptr;
+        array_size = 0;
+    }
+    return item_list.RemoveReturningUnique(si);
 }
 
 int ItemDB::Purge()
@@ -755,8 +770,7 @@ int ItemDB::DeleteUnusedItems(ZoneDB *zone_db)
         SalesItem *ptr = si->next;
         if (si->has_zone <= 0)
         {
-            Remove(si);
-            delete si;
+            (void)RemoveReturningUnique(si);
         }
         else
             si->has_zone = 0;

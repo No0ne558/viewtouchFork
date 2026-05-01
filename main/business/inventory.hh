@@ -149,6 +149,7 @@ public:
     int  Write(OutputDataFile &df, int version);
     int  Add(RecipePart *rp);
     int  Remove(RecipePart *rp);
+    [[nodiscard]] std::unique_ptr<RecipePart> RemoveReturningUnique(RecipePart *rp);
     int  Purge();
     int  AddIngredient(int part_id, UnitAmount &ua);
     int  RemoveIngredient(int part_id, UnitAmount &ua);
@@ -260,6 +261,8 @@ public:
     int Add(Invoice *in);
     int Remove(StockEntry *se);
     int Remove(Invoice *in);
+    [[nodiscard]] std::unique_ptr<StockEntry> RemoveReturningUnique(StockEntry *se);
+    [[nodiscard]] std::unique_ptr<Invoice> RemoveReturningUnique(Invoice *in);
     int Purge();
     int Load(const char* file = nullptr);
     int Save();
@@ -307,6 +310,10 @@ public:
     int Add(Vendor *v);
     int Add(Stock *s);
     int Remove(Product *pr);
+    [[nodiscard]] std::unique_ptr<Product> RemoveReturningUnique(Product *pr);
+    [[nodiscard]] std::unique_ptr<Recipe> RemoveReturningUnique(Recipe *rc);
+    [[nodiscard]] std::unique_ptr<Vendor> RemoveReturningUnique(Vendor *v);
+    [[nodiscard]] std::unique_ptr<Stock> RemoveReturningUnique(Stock *s);
     int Remove(Recipe *rc);
     int Remove(Vendor *v);
     int Remove(Stock *s);

@@ -26,6 +26,7 @@
 #include "report.hh"
 #include "terminal.hh"
 #include "archive.hh"
+#include <memory>
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -237,25 +238,25 @@ int ExceptionDB::Read(InputDataFile &df, int version)
 
     for (i = 0; i < count; ++i)
     {
-        auto *ie = new ItemException;
-        ie->Read(df, version);
-        Add(ie);
+        auto ie_up = std::make_unique<ItemException>();
+        ie_up->Read(df, version);
+        Add(ie_up.release());
     }
 
     error += df.Read(count);
     for (i = 0; i < count; ++i)
     {
-        auto *te = new TableException;
-        te->Read(df, version);
-        Add(te);
+        auto te_up = std::make_unique<TableException>();
+        te_up->Read(df, version);
+        Add(te_up.release());
     }
 
     error += df.Read(count);
     for (i = 0; i < count; ++i)
     {
-        auto *re = new RebuildException;
-        re->Read(df, version);
-        Add(re);
+        auto re_up = std::make_unique<RebuildException>();
+        re_up->Read(df, version);
+        Add(re_up.release());
     }
     return error;
 }
@@ -357,17 +358,17 @@ int ExceptionDB::AddItemException(Terminal *term, Check *thisCheck, Order *thisO
         return 1; // exception ignored
 	}
 
-	// allocate space on the heap for exception structure
-    auto *ie = new ItemException(thisCheck, thisOrder);
-	// NOTE: need to implement check for failed allocation
+    // allocate space on the heap for exception structure
+    auto ie_up = std::make_unique<ItemException>(thisCheck, thisOrder);
+    // NOTE: need to implement check for failed allocation
 
-	// set relevant properties for this exception
-    ie->user_id = thisEmployee->id;
-    ie->time = SystemTime;
-    ie->exception_type = type;
-    ie->reason = reason;
+    // set relevant properties for this exception
+    ie_up->user_id = thisEmployee->id;
+    ie_up->time = SystemTime;
+    ie_up->exception_type = type;
+    ie_up->reason = reason;
 
-    Add(ie);  // Add pointer to item_list
+    Add(ie_up.release());  // Add pointer to item_list
     Save();		// dump changes to disk
 
     return 0;
@@ -381,12 +382,12 @@ int ExceptionDB::AddTableException(Terminal *t, Check *c, int target_id)
         return 1;  // exception ignored
 
     // Add table exception
-    auto *te = new TableException(c);
-    te->user_id = e->id;
-    te->time = SystemTime;
-    te->source_id = c->user_owner;
-    te->target_id = target_id;
-    Add(te);
+    auto te_up = std::make_unique<TableException>(c);
+    te_up->user_id = e->id;
+    te_up->time = SystemTime;
+    te_up->source_id = c->user_owner;
+    te_up->target_id = target_id;
+    Add(te_up.release());
     Save();
     return 0;
 }
@@ -399,10 +400,10 @@ int ExceptionDB::AddRebuildException(Terminal *t, Check *c)
         return 1;  // exception ignored
 
     // Add rebuild exception
-    auto *re = new RebuildException(c);
-    re->user_id = e->id;
-    re->time = SystemTime;
-    Add(re);
+    auto re_up = std::make_unique<RebuildException>(c);
+    re_up->user_id = e->id;
+    re_up->time = SystemTime;
+    Add(re_up.release());
     Save();
     return 0;
 }

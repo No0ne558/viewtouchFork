@@ -90,6 +90,8 @@ public:
     int Add(Printer *p);
     int Remove(Terminal *t);
     int Remove(Printer *p);
+    std::unique_ptr<Terminal> RemoveReturningUnique(Terminal *t);
+    std::unique_ptr<Printer> RemoveReturningUnique(Printer *p);
     Terminal *FindTermByHost(const char* host);
     int SetAllCursors(int cursor) noexcept;
     int SetAllMessages(const char* message);
@@ -115,7 +117,7 @@ public:
     int TestPrinters(Terminal *t, int report);
 
     // FIX - these functions should be moved to System
-    ZoneDB *NewZoneDB();
+    std::unique_ptr<ZoneDB> NewZoneDB();
     int SaveMenuPages();
     int SaveTablePages();
 };

@@ -118,6 +118,7 @@ public:
     int      Add(Expense *expense);
     int      AddDrawerPayments(Drawer *drawer_list);
     int      Remove(Expense *expense);
+    [[nodiscard]] std::unique_ptr<Expense> RemoveReturningUnique(Expense *expense);
     int      Purge();
     int      MoveTo(ExpenseDB *exp_db, Drawer *DrawerList);
     int      MoveAll(ExpenseDB *exp_db);

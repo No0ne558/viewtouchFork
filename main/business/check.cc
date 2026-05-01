@@ -501,7 +501,7 @@ int Check::Read(Settings *settings, InputDataFile &infile, int version)
             }
             
             sc->check_type = type;
-            Add(sc.release());
+            Add(std::move(sc));
         }
     }
 
@@ -638,10 +638,24 @@ int Check::Add(SubCheck *sc)
     return sub_list.AddToTail(sc);
 }
 
+int Check::Add(std::unique_ptr<SubCheck> sc)
+{
+    FnTrace("Check::Add(std::unique_ptr<SubCheck>)");
+    if (!sc)
+        return 1;
+    return Add(sc.release());
+}
+
 int Check::Remove(SubCheck *sc)
 {
     FnTrace("Check::Remove()");
     return sub_list.Remove(sc);
+}
+
+std::unique_ptr<SubCheck> Check::RemoveReturningUnique(SubCheck *sc)
+{
+    FnTrace("Check::RemoveReturningUnique()");
+    return sub_list.RemoveReturningUnique(sc);
 }
 
 int Check::Purge()
@@ -684,8 +698,8 @@ SubCheck *Check::NewSubCheck()
         return nullptr;
     }
     
-    SubCheck *sc_ptr = sc.release();
-    Add(sc_ptr);
+    SubCheck *sc_ptr = sc.get();
+    Add(std::move(sc));
     current_sub = sc_ptr;
     return sc_ptr;
 }
@@ -994,8 +1008,7 @@ int Check::Update(Settings *settings)
                 else
                     current_sub = sc->fore;
             }
-            Remove(sc);
-            delete sc;
+            (void)RemoveReturningUnique(sc);
         }
         else
         {
@@ -3330,28 +3343,8 @@ SubCheck::SubCheck()
 SubCheck *SubCheck::Copy(Settings *settings)
 {
     FnTrace("SubCheck::Copy(Settings)");
-    auto *sc = new SubCheck();
-    if (sc == nullptr)
-        return nullptr;
-
-    sc->status         = status;
-    sc->number         = number;
-    sc->settle_user    = settle_user;
-    sc->drawer_id      = drawer_id;
-    sc->tax_exempt.Set(tax_exempt);
-    sc->new_QST_method = new_QST_method;
-    sc->tab_total      = tab_total;
-    sc->delivery_charge = delivery_charge;
-    sc->check_type     = check_type;
-
-    for (Order *order = OrderList(); order != nullptr; order = order->next)
-        sc->Add(order->Copy(), nullptr);
-
-    for (Payment *payptr = PaymentList(); payptr != nullptr; payptr = payptr->next)
-        sc->Add(payptr->Copy(), nullptr);
-        
-    sc->FigureTotals(settings);
-    return sc;
+    auto sc_up = CopyUnique(settings);
+    return sc_up.release();
 }
 
 // Modern C++ version returning unique_ptr
@@ -3443,7 +3436,7 @@ int SubCheck::Read(Settings *settings, InputDataFile &infile, int version)
                 ReportError(str);
                 return error;
             }
-            if (Add(order.release(), nullptr))
+            if (Add(std::move(order), nullptr))
             {
                 ReportError(GlobalTranslate("Error in adding order"));
             }
@@ -3469,7 +3462,7 @@ int SubCheck::Read(Settings *settings, InputDataFile &infile, int version)
             {
                 return error;
             }
-            if (Add(pmnt.release(), nullptr))
+            if (Add(std::move(pmnt), nullptr))
             {
                 ReportError(GlobalTranslate("Error in adding payment"));
             }
@@ -3584,6 +3577,14 @@ int SubCheck::Add(Order *order, Settings *settings)
     return 0;
 }
 
+int SubCheck::Add(std::unique_ptr<Order> order, Settings *settings)
+{
+    FnTrace("SubCheck::Add(std::unique_ptr<Order>, Settings)");
+    if (!order)
+        return 1;
+    return Add(order.release(), settings);
+}
+
 /****
  * Add:  This method can cause deep recursion.  It should generally
  ****/
@@ -3608,16 +3609,14 @@ int SubCheck::Add(Payment *pmnt, Settings *settings)
             if (tt == TENDER_COMP || tt == TENDER_EMPLOYEE_MEAL ||
                 tt == TENDER_DISCOUNT)
             {
-                Remove(ptr, nullptr);
-                delete ptr;
+                (void)RemoveReturningUnique(ptr, nullptr);
             }
             else if (tt == TENDER_COUPON)
             {
                 if ((pmnt->flags & TF_APPLY_EACH) == 0 &&
                     (ptr->flags & TF_APPLY_EACH) == 0)
                 {
-                    Remove(ptr, nullptr);
-                    delete ptr;
+                    (void)RemoveReturningUnique(ptr, nullptr);
                 }
             }
             ptr = nptr;
@@ -3630,8 +3629,7 @@ int SubCheck::Add(Payment *pmnt, Settings *settings)
         Payment *ptr = FindPayment(tt);
         if (ptr)
         {
-            Remove(ptr, nullptr);
-            delete ptr;
+            (void)RemoveReturningUnique(ptr, nullptr);
         }
     }
 
@@ -3647,6 +3645,14 @@ int SubCheck::Add(Payment *pmnt, Settings *settings)
         ConsolidatePayments(settings);
 
     return 0;
+}
+
+int SubCheck::Add(std::unique_ptr<Payment> pmnt, Settings *settings)
+{
+    FnTrace("SubCheck::Add(std::unique_ptr<Payment>, Settings)");
+    if (!pmnt)
+        return 1;
+    return Add(pmnt.release(), settings);
 }
 
 int SubCheck::Remove(Order *order, Settings *settings)
@@ -3670,6 +3676,26 @@ int SubCheck::Remove(Order *order, Settings *settings)
     return 0;
 }
 
+std::unique_ptr<Order> SubCheck::RemoveReturningUnique(Order *order, Settings *settings)
+{
+    FnTrace("SubCheck::RemoveReturningUnique(Order, Settings)");
+    if (order == nullptr)
+        return nullptr;
+
+    if (order->parent)
+    {
+        order->parent->Remove(order);
+        if (settings)
+            FigureTotals(settings);
+        return std::unique_ptr<Order>(order);
+    }
+
+    auto up = order_list.RemoveReturningUnique(order);
+    if (settings)
+        FigureTotals(settings);
+    return up;
+}
+
 int SubCheck::Remove(Payment *pmnt, Settings *settings)
 {
     FnTrace("SubCheck::Remove(Payment, Settings)");
@@ -3677,6 +3703,17 @@ int SubCheck::Remove(Payment *pmnt, Settings *settings)
     if (settings)
         FigureTotals(settings);
     return 0;
+}
+
+std::unique_ptr<Payment> SubCheck::RemoveReturningUnique(Payment *pmnt, Settings *settings)
+{
+    FnTrace("SubCheck::RemoveReturningUnique(Payment, Settings)");
+    if (pmnt == nullptr)
+        return nullptr;
+    auto up = payment_list.RemoveReturningUnique(pmnt);
+    if (settings)
+        FigureTotals(settings);
+    return up;
 }
 
 int SubCheck::Purge(int restore)
@@ -3747,8 +3784,7 @@ int SubCheck::CancelOrders(Settings *settings)
         Order *ptr = order->next;
         if ((order->status & ORDER_FINAL) == 0)
         {
-            Remove(order);
-            delete order;
+            (void)RemoveReturningUnique(order);
             change = 1;
         }
         order = ptr;
@@ -3779,8 +3815,7 @@ int SubCheck::CancelPayments(Terminal *term)
                 if (credit->IsAuthed())
                     MasterSystem->cc_exception_db->Add(term, credit->Copy());
             }
-            Remove(payptr, nullptr);
-            delete payptr;  // delete payptr also deletes credit
+            (void)RemoveReturningUnique(payptr, nullptr);  // delete payptr also deletes credit
             change = 1;
         }
         payptr = ptr;
@@ -3896,8 +3931,7 @@ int SubCheck::FigureTotals(Settings *settings)
         case TENDER_CHANGE:
         case TENDER_OVERAGE:
         case TENDER_MONEY_LOST:
-            Remove(payptr, nullptr);
-            delete payptr;
+            (void)RemoveReturningUnique(payptr, nullptr);
             break;
         case TENDER_GRATUITY:
             gratuity = payptr;
@@ -4517,8 +4551,7 @@ int SubCheck::SettleTab(Terminal *term, int payment_type, int /*payment_id*/, in
     if (paymnt != nullptr && (paymnt->flags & TF_IS_TAB))
     {
         retval = paymnt->value;
-        Remove(paymnt);
-        delete(paymnt);
+        (void)RemoveReturningUnique(paymnt);
     }
 
     return retval;
@@ -4557,9 +4590,8 @@ int SubCheck::ConsolidateOrders(Settings *settings, int relaxed)
                 o2->modifier_list == nullptr &&
                 strcmp(thisOrder->item_name.Value(), o2->item_name.Value()) == 0)
             {
-                Remove(o2, nullptr);
+                (void)RemoveReturningUnique(o2, nullptr);
                 thisOrder->count = static_cast<short>(thisOrder->count + o2->count);
-                delete o2;
             }
             o2 = ptr;
         }
@@ -4591,9 +4623,8 @@ int SubCheck::ConsolidatePayments(Settings *settings)
                 tt == p2->tender_type && payptr->flags == p2->flags &&
                 payptr->drawer_id == p2->drawer_id && payptr->user_id == p2->user_id)
             {
-                Remove(p2, nullptr);
+                (void)RemoveReturningUnique(p2, nullptr);
                 payptr->amount += p2->amount;
-                delete p2;
             }
             p2 = ptr;
         }
@@ -5461,8 +5492,9 @@ int SubCheck::OrderPage(Order *order, int lines_per_page, int seat)
 Payment *SubCheck::NewPayment(int tender, int pid, int pflags, int pamount)
 {
     FnTrace("SubCheck::NewPayment()");
-    auto *payptr = new Payment(tender, pid, pflags, pamount);
-    Add(payptr, nullptr);
+    auto payptr_up = std::make_unique<Payment>(tender, pid, pflags, pamount);
+    Payment *payptr = payptr_up.get();
+    Add(std::move(payptr_up), nullptr);
     return payptr;
 }
 
@@ -5746,42 +5778,42 @@ Order::~Order()
 Order *Order::Copy()
 {
     FnTrace("Order::Copy()");
-    auto *order = new Order;
-    if (order == nullptr)
+    auto order_up = std::make_unique<Order>();
+    if (!order_up)
         return nullptr;
 
-    order->item_name       = item_name;
-    order->item_cost       = item_cost;
-    order->item_type       = item_type;
-    order->item_family     = item_family;
-    order->sales_type      = sales_type;
-    order->call_order      = call_order;
-    order->count           = count;
-    order->status          = status;
-    order->cost            = cost;
-    order->user_id         = user_id;
-    order->page_id         = page_id;
-    order->script          = script;
-    order->qualifier       = qualifier;
-    order->total_cost      = total_cost;
-    order->total_comp      = total_comp;
-    order->discount        = discount;
-    order->printer_id      = printer_id;
-    order->seat            = seat;
-    order->checknum        = checknum;
-    order->employee_meal   = employee_meal;
-    order->is_reduced      = is_reduced;
-    order->reduced_cost    = reduced_cost;
-    order->auto_coupon_id  = auto_coupon_id;
+    order_up->item_name       = item_name;
+    order_up->item_cost       = item_cost;
+    order_up->item_type       = item_type;
+    order_up->item_family     = item_family;
+    order_up->sales_type      = sales_type;
+    order_up->call_order      = call_order;
+    order_up->count           = count;
+    order_up->status          = status;
+    order_up->cost            = cost;
+    order_up->user_id         = user_id;
+    order_up->page_id         = page_id;
+    order_up->script          = script;
+    order_up->qualifier       = qualifier;
+    order_up->total_cost      = total_cost;
+    order_up->total_comp      = total_comp;
+    order_up->discount        = discount;
+    order_up->printer_id      = printer_id;
+    order_up->seat            = seat;
+    order_up->checknum        = checknum;
+    order_up->employee_meal   = employee_meal;
+    order_up->is_reduced      = is_reduced;
+    order_up->reduced_cost    = reduced_cost;
+    order_up->auto_coupon_id  = auto_coupon_id;
 
     Order *list = modifier_list;
     while (list)
     {
-        order->Add(list->Copy());
+        order_up->Add(list->Copy());
         list = list->next;
     }
 
-    return order;
+    return order_up.release();
 }
 
 // Modern C++ version returning unique_ptr
@@ -6400,24 +6432,24 @@ Payment::~Payment()
 Payment *Payment::Copy()
 {
     FnTrace("Payment::Copy()");
-    auto *payptr = new Payment;
-    if (payptr == nullptr)
+    auto payptr_up = std::make_unique<Payment>();
+    if (!payptr_up)
     {
         ReportError("Can't copy payment");
         return nullptr;
     }
 
-    payptr->value       = value;
-    payptr->tender_type = tender_type;
-    payptr->tender_id   = tender_id;
-    payptr->flags       = flags;
-    payptr->amount      = amount;
-    payptr->user_id     = user_id;
-    payptr->drawer_id   = drawer_id;
+    payptr_up->value       = value;
+    payptr_up->tender_type = tender_type;
+    payptr_up->tender_id   = tender_id;
+    payptr_up->flags       = flags;
+    payptr_up->amount      = amount;
+    payptr_up->user_id     = user_id;
+    payptr_up->drawer_id   = drawer_id;
     if (credit)
-        payptr->credit = credit->Copy();
+        payptr_up->credit = credit->Copy();
 
-    return payptr;
+    return payptr_up.release();
 }
 
 int Payment::Read(InputDataFile &infile, int version)
@@ -6436,8 +6468,9 @@ int Payment::Read(InputDataFile &infile, int version)
 
     if (tender_type == TENDER_CREDIT_CARD || tender_type == TENDER_DEBIT_CARD)
     {
-        credit = new Credit;
-        credit->Read(infile, version);
+        auto credit_up = std::make_unique<Credit>();
+        credit_up->Read(infile, version);
+        credit = credit_up.release();
     }
     return error;
 }

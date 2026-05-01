@@ -982,95 +982,73 @@ static void CreateDefaultUsers(System *sys, Settings *settings)
         return;  // Default users already exist
     
     // Create Manager (ID 5) with all authorizations
-    auto *manager = new Employee;
-    if (manager != nullptr)
     {
+        auto manager = std::make_unique<Employee>();
         manager->system_name.Set("Manager");
         manager->id = 5;
         manager->key = 5;
         manager->training = 0;
         manager->active = 1;
-        
-        auto *j = new JobInfo;
-        if (j != nullptr)
-        {
-            j->job = JOB_MANAGER3;  // Manager job
-            manager->Add(j);
-            
-            // Set job flags for Manager - all authorizations
-            settings->job_active[JOB_MANAGER3] = 1;
-            settings->job_flags[JOB_MANAGER3] = SECURITY_TABLES | SECURITY_ORDER | SECURITY_SETTLE |
-                                                SECURITY_TRANSFER | SECURITY_REBUILD | SECURITY_COMP |
-                                                SECURITY_SUPERVISOR | SECURITY_MANAGER | SECURITY_EMPLOYEES |
-                                                SECURITY_EXPENSES;
-            
-            sys->user_db.Add(manager);
-        }
-        else
-        {
-            delete manager;
-        }
+
+        auto j = std::make_unique<JobInfo>();
+        j->job = JOB_MANAGER3;  // Manager job
+        // Transfer ownership of JobInfo into Employee's job_list
+        manager->Add(j.release());
+
+        // Set job flags for Manager - all authorizations
+        settings->job_active[JOB_MANAGER3] = 1;
+        settings->job_flags[JOB_MANAGER3] = SECURITY_TABLES | SECURITY_ORDER | SECURITY_SETTLE |
+                                            SECURITY_TRANSFER | SECURITY_REBUILD | SECURITY_COMP |
+                                            SECURITY_SUPERVISOR | SECURITY_MANAGER | SECURITY_EMPLOYEES |
+                                            SECURITY_EXPENSES;
+
+        // Transfer ownership of Employee into the system user_db
+        sys->user_db.Add(manager.release());
     }
     
     // Create Server/Cashier with all authorizations except Supervisor, Manager and Employee records
-    auto *server_cashier = new Employee;
-    if (server_cashier != nullptr)
     {
+        auto server_cashier = std::make_unique<Employee>();
         server_cashier->system_name.Set("Server/Cashier");
         server_cashier->id = sys->user_db.FindUniqueID();
         server_cashier->key = sys->user_db.FindUniqueKey();
         server_cashier->training = 0;
         server_cashier->active = 1;
-        
-        auto *j = new JobInfo;
-        if (j != nullptr)
-        {
-            j->job = JOB_SERVER2;  // Server & Cashier job
-            server_cashier->Add(j);
-            
-            // Set job flags - all except Supervisor, Manager and Employee records
-            settings->job_active[JOB_SERVER2] = 1;
-            settings->job_flags[JOB_SERVER2] = SECURITY_TABLES | SECURITY_ORDER | SECURITY_SETTLE |
-                                               SECURITY_TRANSFER | SECURITY_REBUILD | SECURITY_COMP |
-                                               SECURITY_EXPENSES;
-            // Note: Excludes SECURITY_SUPERVISOR, SECURITY_MANAGER, SECURITY_EMPLOYEES
-            
-            sys->user_db.Add(server_cashier);
-        }
-        else
-        {
-            delete server_cashier;
-        }
+
+        auto j = std::make_unique<JobInfo>();
+        j->job = JOB_SERVER2;  // Server & Cashier job
+        server_cashier->Add(j.release());
+
+        // Set job flags - all except Supervisor, Manager and Employee records
+        settings->job_active[JOB_SERVER2] = 1;
+        settings->job_flags[JOB_SERVER2] = SECURITY_TABLES | SECURITY_ORDER | SECURITY_SETTLE |
+                                           SECURITY_TRANSFER | SECURITY_REBUILD | SECURITY_COMP |
+                                           SECURITY_EXPENSES;
+
+        // Transfer ownership into user_db
+        sys->user_db.Add(server_cashier.release());
     }
     
     // Create Server without Settlement authority
-    auto *server = new Employee;
-    if (server != nullptr)
     {
+        auto server = std::make_unique<Employee>();
         server->system_name.Set("Server");
         server->id = sys->user_db.FindUniqueID();
         server->key = sys->user_db.FindUniqueKey();
         server->training = 0;
         server->active = 1;
-        
-        auto *j = new JobInfo;
-        if (j != nullptr)
-        {
-            j->job = JOB_SERVER;  // Server job
-            server->Add(j);
-            
-            // Set job flags - all except Settlement
-            settings->job_active[JOB_SERVER] = 1;
-            settings->job_flags[JOB_SERVER] = SECURITY_TABLES | SECURITY_ORDER |
-                                               SECURITY_TRANSFER | SECURITY_COMP;
-            // Note: Excludes SECURITY_SETTLE
-            
-            sys->user_db.Add(server);
-        }
-        else
-        {
-            delete server;
-        }
+
+        auto j = std::make_unique<JobInfo>();
+        j->job = JOB_SERVER;  // Server job
+        server->Add(j.release());
+
+        // Set job flags - all except Settlement
+        settings->job_active[JOB_SERVER] = 1;
+        settings->job_flags[JOB_SERVER] = SECURITY_TABLES | SECURITY_ORDER |
+                                           SECURITY_TRANSFER | SECURITY_COMP;
+
+        // Transfer ownership into user_db
+        sys->user_db.Add(server.release());
     }
     
     // Save user database
@@ -1245,7 +1223,10 @@ int StartSystem(int my_use_net)
     }
 
     // Terminal & Printer Setup
-    MasterControl = new Control();
+    {
+        auto mastercontrol_up = std::make_unique<Control>();
+        MasterControl = mastercontrol_up.release();
+    }
     KillTask("vt_term");
     KillTask("vt_print");
 
@@ -1451,14 +1432,15 @@ int StartSystem(int my_use_net)
         if (existing_report == nullptr)
         {
             std::array<genericChar, STRLONG> prtstr{};
-            auto *report_printer = new PrinterInfo;
+            auto report_printer_up = std::make_unique<PrinterInfo>();
+            PrinterInfo *report_printer = report_printer_up.get();
             report_printer->name.Set("Report Printer");
             sys->FullPath("html", str.data());
             vt::cpp23::format_to_buffer(prtstr.data(), prtstr.size(), "file:{}/", str.data());
             report_printer->host.Set(prtstr.data());
             report_printer->model = MODEL_HTML;
             report_printer->type = PRINTER_REPORT;
-            settings->Add(report_printer);
+            settings->Add(report_printer_up.release());
             report_printer->OpenPrinter(MasterControl);
         }
         else
@@ -1499,8 +1481,7 @@ int StartSystem(int my_use_net)
             ti->printer_port  = pi->port;
             ti->printer_model = pi->model;
 
-            settings->Remove(pi);
-            delete pi;
+            (void)settings->RemoveReturningUnique(pi);
             settings->Save();
         }
     }
@@ -2010,7 +1991,7 @@ int LoadSystemData()
     {
         auto p = NewPosPage();
         p->Read(df, zone_version);
-        zone_db->Add(p.release());
+        zone_db->Add(std::move(p));
     }
 
     // Read Default Accounts Data
@@ -2023,9 +2004,11 @@ int LoadSystemData()
     for (i = 0; i < count; ++i)
     {
         df.Read(no);
-        ac = new Account(no);
-        df.Read(ac->name);
-        sys->account_db.AddDefault(ac);
+        {
+            auto ac_up = std::make_unique<Account>(no);
+            df.Read(ac_up->name);
+            sys->account_db.AddDefault(ac_up.release());
+        }
     }
 
     // Done with vt_data file
@@ -2180,7 +2163,7 @@ int Control::Remove(Terminal *term)
     term->parent = nullptr;
     term_list.Remove(term);
 
-    if (zone_db.get() == term->zone_db)
+    if (zone_db.get() == term->zone_db.get())
     {
         // Find new master zone_db for coping
         Terminal *ptr = TermList();
@@ -2188,15 +2171,32 @@ int Control::Remove(Terminal *term)
         {
             if (ptr->reload_zone_db == 0)
             {
-				// Since terminals now have raw pointers, we don't need to reassign ownership
-				// The control keeps owning the zone_db
-				break;
+                // A terminal exists that won't immediately reload; keep master as-is
+                break;
             }
             ptr = ptr->next;
         }
         // No need to set zone_db to nullptr since control always owns it
     }
     return 0;
+}
+
+std::unique_ptr<Terminal> Control::RemoveReturningUnique(Terminal *term)
+{
+    FnTrace("Control::RemoveReturningUnique(Terminal)");
+    if (term == nullptr)
+        return nullptr;
+    term->parent = nullptr;
+    return term_list.RemoveReturningUnique(term);
+}
+
+std::unique_ptr<Printer> Control::RemoveReturningUnique(Printer *p)
+{
+    FnTrace("Control::RemoveReturningUnique(Printer)");
+    if (p == nullptr)
+        return nullptr;
+    p->parent = nullptr;
+    return printer_list.RemoveReturningUnique(p);
 }
 
 int Control::Remove(Printer *p)
@@ -2348,8 +2348,7 @@ int Control::KillTerm(Terminal *term)
         if (term == ptr)
         {
             term->StoreCheck(0);
-            Remove(term);
-            delete term;
+            (void)RemoveReturningUnique(term);
             UpdateAll(UPDATE_TERMINALS, nullptr);
             return 0;
         }
@@ -2370,8 +2369,7 @@ int Control::KillAllTerms()
         // Send TERM_DIE to the terminal by deleting it
         // The destructor will send TERM_DIE and close the connection
         term->StoreCheck(0);
-        Remove(term);
-        delete term;
+        (void)RemoveReturningUnique(term);
         term = next_term;
     }
 
@@ -2488,11 +2486,11 @@ int Control::KillPrinter(Printer *p, int update)
             #ifdef HW_ZONE_DEBUG_MAP
             printf("HWDBG: Control::KillPrinter removing %p\n", (void*)p);
             #endif
-            Remove(p);
+            
             #ifdef HW_ZONE_DEBUG_MAP
             printf("HWDBG: Control::KillPrinter after Remove, remaining_count=%d\n", printer_list.Count());
             #endif
-            delete p;
+            (void)RemoveReturningUnique(p);
             if (update)
                 UpdateAll(UPDATE_PRINTERS, nullptr);
             return 0;
@@ -2531,23 +2529,18 @@ int Control::TestPrinters(Terminal *term, int report)
  *   keeps the master copy and all terminals, including the first, get a copy.
  *   That means we'll always have one more zone database than we use, but
  *   the extra copy gives some added flexibility.
- ****/
-ZoneDB *Control::NewZoneDB()
+****/
+std::unique_ptr<ZoneDB> Control::NewZoneDB()
 {
     FnTrace("Control::NewZoneDB()");
     if (!zone_db)
         return nullptr;
 
-    ZoneDB *db;
-    if (master_copy)
-    {
-        db = zone_db.get();
-        master_copy = 0;
-    }
-    else
-        db = zone_db->Copy().release();
-
+    // Always return an owning copy so the caller has clear ownership
+    auto db = zone_db->Copy();
     db->Init();
+    // Clear master_copy optimization; caller always gets their own copy
+    master_copy = 0;
     return db;
 }
 
@@ -2772,9 +2765,10 @@ int OpenDynTerminal(const char* remote_terminal)
         }
         else
         {
-            ti = new TermInfo();
+            auto ti_up = std::make_unique<TermInfo>();
+            ti = ti_up.get();
             SetTermInfo(ti, termname.data(), termhost.data(), &remote_terminal[idx]);
-            MasterSystem->settings.Add(ti);
+            MasterSystem->settings.Add(ti_up.release());
             ti->OpenTerm(MasterControl, 1);
             retval = 0;
         }
@@ -2837,7 +2831,7 @@ int ProcessRemoteOrderEntry(SubCheck *subcheck, Order **order, const char* key, 
 {
     FnTrace("ProcessRemoteOrderEntry()");
     int retval = CALLCTR_ERROR_NONE;
-    static Order *detail = nullptr;
+    static std::unique_ptr<Order> detail_up;
     SalesItem *sales_item;
     int record;  // not really used; only for FindByItemCode
 
@@ -2848,18 +2842,21 @@ int ProcessRemoteOrderEntry(SubCheck *subcheck, Order **order, const char* key, 
             ReportError("Have an order we should get rid of....");
         sales_item = MasterSystem->menu.FindByItemCode(value, record);
         if (sales_item)
-            *order = new Order(&MasterSystem->settings, sales_item, nullptr);
+        {
+            auto order_up = std::make_unique<Order>(&MasterSystem->settings, sales_item, nullptr);
+            *order = order_up.release();
+        }
         else
             retval = CALLCTR_ERROR_BADITEM;
     }
     else if ((strncmp(key, "DetailCode", 10) == 0) ||
              (strncmp(key, "AddonCode", 9) == 0))
     {
-        if (detail != nullptr)
+        if (detail_up != nullptr)
             ReportError("Have a detail we should get rid of....");
         sales_item = MasterSystem->menu.FindByItemCode(value, record);
         if (sales_item)
-            detail = new Order(&MasterSystem->settings, sales_item, nullptr);
+            detail_up = std::make_unique<Order>(&MasterSystem->settings, sales_item, nullptr);
         else
             retval = CALLCTR_ERROR_BADDETAIL;
     }
@@ -2872,8 +2869,7 @@ int ProcessRemoteOrderEntry(SubCheck *subcheck, Order **order, const char* key, 
     else if ((strncmp(key, "EndDetail", 9) == 0) ||
              (strncmp(key, "EndAddon", 8) == 0))
     {
-        (*order)->Add(detail);
-        detail = nullptr;
+        (*order)->Add(detail_up.release());
     }
     else if (*order != nullptr)
     {
@@ -2881,8 +2877,8 @@ int ProcessRemoteOrderEntry(SubCheck *subcheck, Order **order, const char* key, 
             (*order)->count = static_cast<short>(std::min(atoi(value), 32767));
         else if (strncmp(key, "ProductQTY", 10) == 0)
             (*order)->count = static_cast<short>(std::min(atoi(value), 32767));
-        else if (detail != nullptr && strncmp(key, "AddonQualifier", 14) == 0)
-            detail->AddQualifier(value);
+        else if (detail_up && strncmp(key, "AddonQualifier", 14) == 0)
+            detail_up->AddQualifier(value);
     }
     else if (debug_mode)
     {
@@ -2927,7 +2923,8 @@ int CompleteRemoteOrder(Check *check)
         // need to print the check
         printer = MasterControl->FindPrinter(PRINTER_REMOTEORDER);
         if (printer != nullptr) {
-            report = new Report();
+            auto report_up = std::make_unique<Report>();
+            report = report_up.get();
             if (report)
             {
                 check->PrintDeliveryOrder(report, 80);
@@ -2935,6 +2932,7 @@ int CompleteRemoteOrder(Check *check)
                 {
                 }
             }
+            // report_up will free the Report when going out of scope
         }
 
         status = CALLCTR_STATUS_COMPLETE;
@@ -3003,6 +3001,7 @@ int ProcessRemoteOrder(int sock_fd)
     std::array<char, STRLONG> key{};
     std::array<char, STRLONG> value{};
     Settings  *settings = &MasterSystem->settings;
+    std::unique_ptr<Check> check_up;
     Check     *check = nullptr;
     SubCheck  *subcheck = nullptr;
     Order     *order = nullptr;
@@ -3013,9 +3012,10 @@ int ProcessRemoteOrder(int sock_fd)
 
     write(sock_fd, "SENDORDER\n", 10);
 
-    check = new Check(settings, CHECK_DELIVERY);
-    if (check == nullptr)
+    check_up = std::make_unique<Check>(settings, CHECK_DELIVERY);
+    if (!check_up)
         return retval;
+    check = check_up.get();
     subcheck = check->NewSubCheck();
     if (subcheck == nullptr)
         return retval;
@@ -3074,7 +3074,7 @@ int ProcessRemoteOrder(int sock_fd)
             retval = ProcessRemoteOrderEntry(subcheck, &order, key.data(), value.data());
         }
         else if (strncmp(key.data(), "EndOrder", 8) == 0)
-            status = CompleteRemoteOrder(check);
+            status = CompleteRemoteOrder(check_up.release());
         else if (debug_mode)
             printf("Unknown Key:  %s, Value:  %s\n", key.data(), value.data());
     }
@@ -3771,7 +3771,8 @@ int RunReport(const genericChar* report_string, Printer *printer)
 {
     FnTrace("RunReport()");
     int retval = 0;
-    static Report *report = nullptr;
+    static std::unique_ptr<Report> report_up;
+    Report *report = report_up.get();
     std::array<genericChar, STRLONG> report_name{};
     std::array<genericChar, STRLONG> report_from{};
     TimeInfo from;
@@ -3783,7 +3784,8 @@ int RunReport(const genericChar* report_string, Printer *printer)
 
     if (report == nullptr && report_string != nullptr)
     {
-        report = new Report;
+        report_up = std::make_unique<Report>();
+        report = report_up.get();
 
         report->Clear();
         report->is_complete = 0;
@@ -3831,18 +3833,17 @@ int RunReport(const genericChar* report_string, Printer *printer)
         else
         {
             fprintf(stderr, "Unknown report '%s'\n", report_name.data());
-            delete report;
+            report_up.reset();
             report = nullptr;
         }
     }
 
-    if (report != nullptr)
+    if (report_up)
     {
-        if (report->is_complete > 0)
+        if (report_up->is_complete > 0)
         {
-            report->Print(printer);
-            delete report;
-            report = nullptr;
+            report_up->Print(printer);
+            report_up.reset();
             retval = 0;
         }
         else
@@ -3909,15 +3910,16 @@ void ShowRestartDialog()
     Terminal *term = MasterControl->TermList();
     if (!term) return;
     
-    auto *sd = new SimpleDialog(GlobalTranslate("Scheduled Restart Time\\System needs to restart now.\\Choose an option:"), 1);
+    auto sd_up = std::make_unique<SimpleDialog>(GlobalTranslate("Scheduled Restart Time\\System needs to restart now.\\Choose an option:"), 1);
+    SimpleDialog *sd = sd_up.get();
     sd->Button(GlobalTranslate("Restart Now"), "restart_now");
     sd->Button(GlobalTranslate("Postpone 1 Hour"), "restart_postpone");
-    
+
     // Set 5-minute auto-restart timeout
     restart_timeout_id = XtAppAddTimeOut(App, 5 * 60 * 1000, 
                                        (XtTimerCallbackProc) AutoRestartTimeoutCB, nullptr);
-    
-    term->OpenDialog(sd);
+
+    term->OpenDialog(sd_up.release());
 }
 
 /****

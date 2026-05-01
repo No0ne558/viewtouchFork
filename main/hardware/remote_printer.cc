@@ -636,16 +636,11 @@ void PrinterCB(XtPointer client_data, int *fid, XtInputId *id)
 /**** Functions ****/
 Printer *NewRemotePrinter(const char* host, int port, int model, int no)
 {
-    RemotePrinter *p = new RemotePrinter(host, port, model, no);
-    if (p == nullptr)
-        return nullptr;
+    auto p = std::make_unique<RemotePrinter>(host, port, model, no);
 
     if (p->socket_no < 0)
-    {
-        delete p;
-        return nullptr;
-    }
+        return nullptr; // unique_ptr frees memory on scope exit
 
-    p->input_id = AddInputFn((InputFn) PrinterCB, p->socket_no, p);
-    return p;
+    p->input_id = AddInputFn((InputFn) PrinterCB, p->socket_no, p.get());
+    return p.release();
 }
