@@ -40,7 +40,10 @@
 #include <sys/types.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <cstdio>
 #include <cstring>
+#include <vector>
+#include <sqlite3.h>
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -50,6 +53,397 @@
 /**** Globals ****/
 std::unique_ptr<System> MasterSystem = nullptr;
 
+
+/**** SQLite helpers ****/
+
+static int check_db_open(sqlite3 **db, const std::string &path)
+{
+    if (sqlite3_open(path.c_str(), db) != SQLITE_OK)
+    {
+        sqlite3_close(*db);
+        *db = nullptr;
+        return 1;
+    }
+    sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    const char *ddl =
+        "CREATE TABLE IF NOT EXISTS open_checks("
+        "  serial INTEGER PRIMARY KEY,"
+        "  data   BLOB NOT NULL"
+        ");";
+    if (sqlite3_exec(*db, ddl, nullptr, nullptr, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(*db);
+        *db = nullptr;
+        return 1;
+    }
+    return 0;
+}
+
+static int drawer_db_open(sqlite3 **db, const std::string &path)
+{
+    if (sqlite3_open(path.c_str(), db) != SQLITE_OK)
+    {
+        sqlite3_close(*db);
+        *db = nullptr;
+        return 1;
+    }
+    sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    const char *ddl =
+        "CREATE TABLE IF NOT EXISTS open_drawers("
+        "  serial INTEGER PRIMARY KEY,"
+        "  data   BLOB NOT NULL"
+        ");";
+    if (sqlite3_exec(*db, ddl, nullptr, nullptr, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(*db);
+        *db = nullptr;
+        return 1;
+    }
+    return 0;
+}
+
+static int archive_db_open(sqlite3 **db, const std::string &path)
+{
+    if (sqlite3_open(path.c_str(), db) != SQLITE_OK)
+    {
+        sqlite3_close(*db);
+        *db = nullptr;
+        return 1;
+    }
+    sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    const char *ddl =
+        "CREATE TABLE IF NOT EXISTS archives("
+        "  name TEXT PRIMARY KEY,"
+        "  data BLOB NOT NULL"
+        ");";
+    if (sqlite3_exec(*db, ddl, nullptr, nullptr, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(*db);
+        *db = nullptr;
+        return 1;
+    }
+    return 0;
+}
+
+int System::LoadChecksSqlite()
+{
+    sqlite3 *db = nullptr;
+    if (check_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, "SELECT serial, data FROM open_checks;",
+                           -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+
+    int loaded = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        int serial = sqlite3_column_int(stmt, 0);
+        const void *blob = sqlite3_column_blob(stmt, 1);
+        int bytes = sqlite3_column_bytes(stmt, 1);
+        if (!blob || bytes <= 0)
+            continue;
+
+        char tmp[512];
+        snprintf(tmp, sizeof(tmp), "%s/check_%d.sqlite_tmp",
+                 current_path.Value(), serial);
+
+        FILE *f = fopen(tmp, "wb");
+        if (!f)
+            continue;
+        fwrite(blob, 1, bytes, f);
+        fclose(f);
+
+        auto *check = new Check;
+        if (check->Load(&settings, tmp) == 0)
+        {
+            Add(check);
+            ++loaded;
+        }
+        else
+        {
+            delete check;
+            ReportError("LoadChecksSqlite: failed to load check from blob");
+        }
+        remove(tmp);
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return (loaded > 0) ? 0 : 1;
+}
+
+int System::SaveCheckSqlite(Check *check)
+{
+    if (!check || check->filename.empty())
+        return 1;
+
+    FILE *f = fopen(check->filename.Value(), "rb");
+    if (!f)
+        return 1;
+
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    rewind(f);
+    if (sz <= 0) { fclose(f); return 1; }
+
+    std::vector<char> buf(sz);
+    if ((long)fread(buf.data(), 1, sz, f) != sz) { fclose(f); return 1; }
+    fclose(f);
+
+    sqlite3 *db = nullptr;
+    if (check_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db,
+            "INSERT OR REPLACE INTO open_checks(serial, data) VALUES(?,?);",
+            -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+    sqlite3_bind_int(stmt, 1, check->serial_number);
+    sqlite3_bind_blob(stmt, 2, buf.data(), sz, SQLITE_STATIC);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return 0;
+}
+
+int System::DeleteCheckSqlite(int serial_number)
+{
+    sqlite3 *db = nullptr;
+    if (check_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db,
+            "DELETE FROM open_checks WHERE serial=?;",
+            -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+    sqlite3_bind_int(stmt, 1, serial_number);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return 0;
+}
+
+
+/**** Drawer SQLite ****/
+
+int System::LoadDrawersSqlite()
+{
+    sqlite3 *db = nullptr;
+    if (drawer_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, "SELECT serial, data FROM open_drawers;",
+                           -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+
+    int loaded = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        int serial = sqlite3_column_int(stmt, 0);
+        const void *blob = sqlite3_column_blob(stmt, 1);
+        int bytes = sqlite3_column_bytes(stmt, 1);
+        if (!blob || bytes <= 0)
+            continue;
+
+        char tmp[512];
+        snprintf(tmp, sizeof(tmp), "%s/drawer_%d.sqlite_tmp",
+                 current_path.Value(), serial);
+
+        FILE *f = fopen(tmp, "wb");
+        if (!f)
+            continue;
+        fwrite(blob, 1, bytes, f);
+        fclose(f);
+
+        auto *drawer = new Drawer;
+        if (drawer->Load(tmp) == 0)
+        {
+            Add(drawer);
+            ++loaded;
+        }
+        else
+        {
+            delete drawer;
+            ReportError("LoadDrawersSqlite: failed to load drawer from blob");
+        }
+        remove(tmp);
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return (loaded > 0) ? 0 : 1;
+}
+
+int System::SaveDrawerSqlite(Drawer *drawer)
+{
+    if (!drawer || drawer->filename.empty())
+        return 1;
+
+    FILE *f = fopen(drawer->filename.Value(), "rb");
+    if (!f)
+        return 1;
+
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    rewind(f);
+    if (sz <= 0) { fclose(f); return 1; }
+
+    std::vector<char> buf(sz);
+    if ((long)fread(buf.data(), 1, sz, f) != sz) { fclose(f); return 1; }
+    fclose(f);
+
+    sqlite3 *db = nullptr;
+    if (drawer_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db,
+            "INSERT OR REPLACE INTO open_drawers(serial, data) VALUES(?,?);",
+            -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+    sqlite3_bind_int(stmt, 1, drawer->serial_number);
+    sqlite3_bind_blob(stmt, 2, buf.data(), sz, SQLITE_STATIC);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return 0;
+}
+
+int System::DeleteDrawerSqlite(int serial_number)
+{
+    sqlite3 *db = nullptr;
+    if (drawer_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db,
+            "DELETE FROM open_drawers WHERE serial=?;",
+            -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+    sqlite3_bind_int(stmt, 1, serial_number);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return 0;
+}
+
+/**** Archive SQLite ****/
+
+int System::SaveArchiveSqlite(Archive *archive)
+{
+    if (!archive || archive->filename.empty())
+        return 1;
+
+    FILE *f = fopen(archive->filename.Value(), "rb");
+    if (!f)
+        return 1;
+
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    rewind(f);
+    if (sz <= 0) { fclose(f); return 1; }
+
+    std::vector<char> buf(sz);
+    if ((long)fread(buf.data(), 1, sz, f) != sz) { fclose(f); return 1; }
+    fclose(f);
+
+    const char *full = archive->filename.Value();
+    const char *name = strrchr(full, '/');
+    name = name ? name + 1 : full;
+
+    sqlite3 *db = nullptr;
+    if (archive_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db,
+            "INSERT OR REPLACE INTO archives(name, data) VALUES(?,?);",
+            -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+    sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+    sqlite3_bind_blob(stmt, 2, buf.data(), sz, SQLITE_STATIC);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return 0;
+}
+
+int System::ScanArchivesSqlite()
+{
+    if (sqlite_path.empty())
+        return 1;
+
+    sqlite3 *db = nullptr;
+    if (archive_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, "SELECT name, data FROM archives;",
+                           -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+
+    int restored = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        const char *name = (const char *)sqlite3_column_text(stmt, 0);
+        const void *blob = sqlite3_column_blob(stmt, 1);
+        int bytes = sqlite3_column_bytes(stmt, 1);
+        if (!name || !blob || bytes <= 0)
+            continue;
+
+        char filepath[512];
+        snprintf(filepath, sizeof(filepath), "%s/%s", archive_path.Value(), name);
+
+        struct stat st;
+        if (stat(filepath, &st) == 0)
+            continue; // file already on disk
+
+        FILE *f = fopen(filepath, "wb");
+        if (!f)
+            continue;
+        fwrite(blob, 1, bytes, f);
+        fclose(f);
+
+        auto *archive = new Archive(&settings, filepath);
+        if (archive->id > last_archive_id)
+            last_archive_id = archive->id;
+        Add(archive);
+        ++restored;
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return (restored > 0) ? 0 : 1;
+}
 
 /**** System Class ****/
 // Constructor
@@ -109,6 +503,48 @@ int System::LoadCurrentData(const char* path)
 	}
 
 	current_path.Set(path);
+
+    // Try SQLite-backed check/drawer loading first; fall back to directory scan.
+    if (!sqlite_path.empty() && LoadChecksSqlite() == 0)
+    {
+        LoadDrawersSqlite(); // drawers are also authoritative from SQLite
+        // Scan only for cc databases; checks and drawers come from SQLite.
+        struct dirent *record = nullptr;
+        char str[256];
+        const char *name;
+        do
+        {
+            record = readdir(dp);
+            if (!record)
+                break;
+            name = record->d_name;
+            int len = strlen(name);
+            if (strcmp(&name[len-4], ".fmt") == 0)
+                continue;
+            if (strncmp(name, "check_", 6) == 0)
+                continue; // loaded from SQLite
+            if (strncmp(name, "drawer_", 7) == 0)
+                continue; // loaded from SQLite
+            if (strcmp(name, "ccvoiddb") == 0)
+            {
+                vt_safe_string::safe_format(str, 256, "%s/%s", path, name);
+                cc_void_db->Load(str);
+            }
+            else if (strcmp(name, "ccrefunddb") == 0)
+            {
+                vt_safe_string::safe_format(str, 256, "%s/%s", path, name);
+                cc_refund_db->Load(str);
+            }
+            else if (strcmp(name, "ccexceptiondb") == 0)
+            {
+                vt_safe_string::safe_format(str, 256, "%s/%s", path, name);
+                cc_exception_db->Load(str);
+            }
+        }
+        while (record);
+        closedir(dp);
+        return 0;
+    }
 	char str[256];
     const char* name;
 	struct dirent *record = nullptr;
@@ -251,6 +687,9 @@ int System::ScanArchives(const char* path, const char* altmedia)
         }
     }
     while (record);
+
+    if (!sqlite_path.empty())
+        ScanArchivesSqlite();
 
     Archive *archive;
 
@@ -537,6 +976,8 @@ int System::EndDay()
         Drawer *d_next = drawer->next;
         drawer->Total(CheckList());
         Remove(drawer);
+        if (!sqlite_path.empty())
+            DeleteDrawerSqlite(drawer->serial_number);
         drawer->DestroyFile();
         if (drawer->IsEmpty())
             delete drawer;
@@ -648,6 +1089,8 @@ int System::EndDay()
 
     // Save Archive
     archive->SavePacked();
+    if (!sqlite_path.empty())
+        SaveArchiveSqlite(archive);
 
     // Prepare for new day
     CreateFixedDrawers();
@@ -1160,9 +1603,13 @@ int System::SaveCheck(Check *check)
     int write_result = check->Write(df, CHECK_VERSION);
     if (write_result != 0) {
         ReportError("Failed to write check data to file: " + std::string(check->filename.Value()));
+        return write_result;
     }
-    
-    return write_result;
+
+    if (!sqlite_path.empty())
+        SaveCheckSqlite(check);
+
+    return 0;
 }
 
 int System::DestroyCheck(Check *check)
@@ -1178,6 +1625,8 @@ int System::DestroyCheck(Check *check)
     {
         if (Remove(check))
             return 1;
+        if (!sqlite_path.empty())
+            DeleteCheckSqlite(check->serial_number);
         check->DestroyFile();
     }
     check->customer = nullptr;
@@ -1250,8 +1699,10 @@ int System::SaveDrawer(Drawer *drawer)
     OutputDataFile df;
     if (df.Open(drawer->filename.Value(), DRAWER_VERSION))
         return 1;
-    else
-        return drawer->Write(df, DRAWER_VERSION);
+    int result = drawer->Write(df, DRAWER_VERSION);
+    if (result == 0 && !sqlite_path.empty())
+        SaveDrawerSqlite(drawer);
+    return result;
 }
 
 int System::CountDrawersOwned(int user_id)

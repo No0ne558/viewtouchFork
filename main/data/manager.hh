@@ -58,10 +58,16 @@
 #define UPDATES_DATA_DIR     "updates"
 
 
-/**** Types ****/
-using TimeOutFn = void (*)();
-using InputFn = void (*)();
-using WorkFn = int (*)();
+// Xt-compatible callback types — defined here so files can remove
+// #include <X11/Intrinsic.h> while keeping the same callback signatures.
+using XtPointer    = void *;
+using XtIntervalId = unsigned long;
+using XtInputId    = unsigned long;
+
+/**** Event-loop callback types ****/
+using TimeOutFn = void (*)(XtPointer, XtIntervalId *);
+using InputFn   = void (*)(XtPointer, int *, XtInputId *);
+using WorkFn    = int  (*)(XtPointer);
 
 class Settings;
 class Terminal;

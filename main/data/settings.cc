@@ -24,6 +24,9 @@
 #include <fstream>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <cstdio>
+#include <vector>
+#include <sqlite3.h>
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -1474,6 +1477,9 @@ int Settings::Load(const char* file)
     if (file)
         filename.Set(file);
 
+    if (!sqlite_path.empty() && LoadSqlite() == 0)
+        return 0;
+
     int val, version = 0;
     InputDataFile df;
     if (df.Open(filename.Value(), version))
@@ -2626,7 +2632,134 @@ int Settings::Save()
         }
     }
 
+    if (!sqlite_path.empty())
+        SaveSqlite();
+
     return error;
+}
+
+int Settings::SaveSqlite()
+{
+    if (sqlite_path.empty() || filename.empty())
+        return 1;
+
+    FILE *f = fopen(filename.Value(), "rb");
+    if (!f)
+        return 1;
+
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    rewind(f);
+    if (sz <= 0) { fclose(f); return 1; }
+
+    std::vector<char> blob(static_cast<size_t>(sz));
+    if (fread(blob.data(), 1, static_cast<size_t>(sz), f) != static_cast<size_t>(sz))
+    {
+        fclose(f);
+        return 1;
+    }
+    fclose(f);
+
+    sqlite3 *db = nullptr;
+    if (sqlite3_open(sqlite_path.c_str(), &db) != SQLITE_OK)
+        return 1;
+
+    sqlite3_exec(db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    sqlite3_exec(db,
+        "CREATE TABLE IF NOT EXISTS settings_snapshot"
+        "(id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER, data BLOB);",
+        nullptr, nullptr, nullptr);
+    sqlite3_exec(db, "BEGIN;", nullptr, nullptr, nullptr);
+    sqlite3_exec(db, "DELETE FROM settings_snapshot;", nullptr, nullptr, nullptr);
+
+    sqlite3_stmt *stmt = nullptr;
+    sqlite3_prepare_v2(db,
+        "INSERT INTO settings_snapshot(id,version,data) VALUES(1,?,?);",
+        -1, &stmt, nullptr);
+    sqlite3_bind_int(stmt, 1, SETTINGS_VERSION);
+    sqlite3_bind_blob(stmt, 2, blob.data(), static_cast<int>(sz), SQLITE_STATIC);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
+    sqlite3_close(db);
+    return 0;
+}
+
+int Settings::LoadSqlite()
+{
+    struct stat st{};
+    if (sqlite_path.empty() || filename.empty() ||
+        stat(sqlite_path.c_str(), &st) != 0)
+        return 1;
+
+    sqlite3 *db = nullptr;
+    if (sqlite3_open(sqlite_path.c_str(), &db) != SQLITE_OK)
+        return 1;
+
+    int row_count = 0;
+    int rc = sqlite3_exec(db, "SELECT COUNT(*) FROM settings_snapshot;",
+        [](void *arg, int, char **argv, char **) -> int {
+            *static_cast<int *>(arg) = argv[0] ? std::atoi(argv[0]) : 0;
+            return 0;
+        }, &row_count, nullptr);
+
+    if (rc != SQLITE_OK || row_count == 0)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db,
+            "SELECT data FROM settings_snapshot WHERE id=1;",
+            -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+
+    if (sqlite3_step(stmt) != SQLITE_ROW)
+    {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 1;
+    }
+
+    const void *blob  = sqlite3_column_blob(stmt, 0);
+    int         bsz   = sqlite3_column_bytes(stmt, 0);
+    if (!blob || bsz <= 0)
+    {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 1;
+    }
+
+    // Write blob to a temp file beside the real .dat file
+    std::string tmp_path = std::string(filename.Value()) + ".sqlite_tmp";
+    FILE *f = fopen(tmp_path.c_str(), "wb");
+    if (!f)
+    {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 1;
+    }
+    fwrite(blob, 1, static_cast<size_t>(bsz), f);
+    fclose(f);
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+
+    // Load from temp file without triggering another SQLite round-trip
+    Str  saved_name   = filename;
+    std::string saved_path = sqlite_path;
+    sqlite_path.clear();                   // prevents recursive LoadSqlite call
+    int result = Load(tmp_path.c_str());
+    filename    = saved_name;              // restore original .dat path
+    sqlite_path = saved_path;
+
+    DeleteFile(tmp_path.c_str());
+    return result;
 }
 
 /****

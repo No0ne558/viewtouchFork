@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 
+# Required for AUTOMOC to scan .hh files (Qt6 headers with Q_OBJECT)
+cmake_policy(SET CMP0100 NEW)
+
 project(ViewTouch)
 message(STATUS "CMake version ${CMAKE_VERSION}")
 message(STATUS "")
@@ -190,12 +193,15 @@ endif()
 
 add_subdirectory(external/date EXCLUDE_FROM_ALL)
 
-# don't need the curlpp shared lib, using the statically linked one
-set(CURLPP_BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
-add_subdirectory(external/curlpp EXCLUDE_FROM_ALL)
-if(NOT TARGET curlpp_static)
-    message(FATAL_ERROR "missing 'curlpp_static' target")
+# Use system libcurl directly — curlpp (C++ wrapper) removed in Phase 6.
+find_package(SQLite3 REQUIRED)
+message(STATUS "SQLite3 found: ${SQLite3_VERSION}")
+
+find_package(CURL REQUIRED)
+if(NOT CURL_FOUND)
+    message(FATAL_ERROR "libcurl not found. Install: sudo dnf install libcurl-devel")
 endif()
+message(STATUS "libcurl found: ${CURL_VERSION_STRING}")
 
 # Add Catch2 v3
 add_subdirectory(external/catch2 EXCLUDE_FROM_ALL)
@@ -246,6 +252,7 @@ include_directories(main/business)
 include_directories(main/hardware)
 include_directories(main/ui)
 include_directories(main/data)
+include_directories(main/web)
 include_directories(zone)
 include_directories(src/core)
 include_directories(src/utils)
@@ -308,18 +315,22 @@ set(VT_XLIBS X11)
 find_package(${VT_XLIBS} REQUIRED)
 set(VT_XLIBS_INCLUDE_DIRS ${X11_INCLUDE_DIR})
 
-find_package(Motif REQUIRED) # Library Xm must be linked before Xmu
-if(NOT Motif_FOUND)
-    message(FATAL_ERROR "\n"
-        "Motif library not found. Please install:\n"
-        "  Debian/Ubuntu: sudo apt-get install libmotif-dev\n"
-        "  Fedora/RHEL:   sudo dnf install openmotif-devel\n"
-        "  Arch Linux:    sudo pacman -S openmotif\n"
-        "\n"
-        "Run './check_dependencies.sh' for a complete dependency check.\n")
+# Motif is only needed for the legacy Xlib vtpos loader.
+# When Qt6 is found, vtpos uses QDialog instead and Motif is not required.
+find_package(Motif)
+if(Motif_FOUND)
+    list(APPEND VT_XLIBS ${MOTIF_LIBRARIES})
+    list(APPEND VT_XLIBS_INCLUDE_DIRS ${MOTIF_INCLUDE_DIR})
+    message(STATUS "Motif found — legacy loader fallback available")
+else()
+    if(NOT Qt6_FOUND)
+        message(FATAL_ERROR "\n"
+            "Neither Motif nor Qt6 dev headers found.\n"
+            "Install Qt6 (preferred): sudo dnf install qt6-qtbase-devel\n"
+            "Or install Motif (legacy): sudo dnf install openmotif-devel\n")
+    endif()
+    message(STATUS "Motif not found — using Qt6 loader (vtpos)")
 endif()
-list(APPEND VT_XLIBS ${MOTIF_LIBRARIES})
-list(APPEND VT_XLIBS_INCLUDE_DIRS ${MOTIF_INCLUDE_DIR})
 
 set(x11_required_libraries Xft Xmu Xpm Xrender Xt)
 foreach(x11_requirement ${x11_required_libraries})
@@ -374,6 +385,35 @@ endif()
 list(APPEND VT_XLIBS ${FONTCONFIG_LIBRARIES})
 list(APPEND VT_XLIBS_INCLUDE_DIRS ${FONTCONFIG_INCLUDE_DIRS})
 
+# Qt6 — used by the new terminal rendering backend (vt_term) and loader (vtpos).
+# Qt6's xcb platform plugin connects to the X server via the DISPLAY env var,
+# preserving SSH X11 forwarding and XSDL compatibility without any code changes.
+# Wayland is available via QT_QPA_PLATFORM=wayland once qt6-wayland is installed.
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+# Qt6 is the new rendering backend (replaces Xlib/Motif incrementally).
+# Currently optional so existing builds keep working during the transition.
+# Will become REQUIRED once the Qt6 loader (Phase 2) and Qt6 terminal (Phase 3) are complete.
+# Install: Fedora/RHEL: sudo dnf install qt6-qtbase-devel qt6-qtwayland
+#          Debian/Ubuntu: sudo apt-get install qt6-base-dev qt6-wayland
+#          Arch Linux: sudo pacman -S qt6-base qt6-wayland
+find_package(Qt6 COMPONENTS Core Gui Widgets)
+# SVG support is optional — install qt6-qtsvg-devel (Fedora) / qt6-svg (Arch)
+find_package(Qt6 OPTIONAL_COMPONENTS Svg)
+if(Qt6_FOUND)
+    message(STATUS "Qt6 found: version ${Qt6_VERSION} — Qt6 targets enabled")
+    if(Qt6Svg_FOUND)
+        message(STATUS "Qt6::Svg found — SVG rendering enabled")
+    else()
+        message(STATUS "Qt6::Svg not found — install qt6-qtsvg-devel to enable SVG icons")
+    endif()
+else()
+    message(STATUS "Qt6 not found — install qt6-qtbase-devel to enable Qt6 targets")
+    message(STATUS "  Fedora/RHEL: sudo dnf install qt6-qtbase-devel qt6-qtwayland")
+    message(STATUS "  Debian/Ubuntu: sudo apt-get install qt6-base-dev qt6-wayland")
+endif()
+
 # Image loading libraries for Image Button Zone
 pkg_check_modules(PNG libpng)
 pkg_check_modules(JPEG libjpeg)
@@ -423,7 +463,7 @@ add_library(vtcore
     src/core/crash_report.cc    src/core/crash_report.hh
     src/network/remote_link.cc     src/network/remote_link.hh
     src/core/debug.cc           src/core/debug.hh
-    src/core/generic_char.cc    src/core/generic_char.hh
+    # generic_char moved to legacy vt_term (Xft rendering only needed there)
     src/core/logger.cc          src/core/logger.hh
     src/utils/vt_logger.cc         src/utils/vt_logger.hh
     src/utils/vt_json_config.cc    src/utils/vt_json_config.hh
@@ -440,9 +480,16 @@ target_include_directories(vtcore PUBLIC
     ${CMAKE_CURRENT_BINARY_DIR}/_deps/magic_enum-src/include)
 target_link_libraries(vtcore PUBLIC vt_version tz spdlog::spdlog nlohmann_json::nlohmann_json magic_enum::magic_enum)
 
-add_executable(vtpos 
-		loader/loader_main.cc )
-target_link_libraries(vtpos vtcore vt_version ${VT_XLIBS})
+if(Qt6_FOUND)
+    # Qt6 loader — replaces the Motif/Xlib splash window
+    add_executable(vtpos loader/loader_main.cc)
+    target_link_libraries(vtpos PRIVATE vtcore vt_version Qt6::Core Qt6::Gui Qt6::Widgets)
+    set_target_properties(vtpos PROPERTIES AUTOMOC ON)
+else()
+    # Legacy Motif loader (fallback when Qt6 dev headers not installed)
+    add_executable(vtpos loader/loader_main.cc)
+    target_link_libraries(vtpos vtcore vt_version ${VT_XLIBS})
+endif()
 
 
 add_library(zone
@@ -494,6 +541,7 @@ add_executable(vt_main
     src/core/data_file.hh
     main/data/license_hash.cc    main/data/license_hash.hh
     main/data/manager.cc         main/data/manager.hh
+    main/web/web_server.cc       main/web/web_server.hh
     main/hardware/printer.cc         main/hardware/printer.hh
     main/hardware/terminal.cc        main/hardware/terminal.hh
     main/data/settings.cc        main/data/settings.hh
@@ -521,29 +569,52 @@ add_executable(vt_main
     main/hardware/cdu_att.cc         main/hardware/cdu_att.hh
     )
 target_include_directories(vt_main PRIVATE ${VT_XLIBS_INCLUDE_DIRS})
-target_link_libraries(vt_main zone vtcore ${VT_XLIBS})
-target_link_libraries(vt_main tz curlpp_static)
+# vt_main no longer uses Xt/Xft/Xmu/Xpm/Xrender — only X11 for keysym header includes
+target_link_libraries(vt_main zone vtcore X11)
+target_link_libraries(vt_main tz CURL::libcurl SQLite3::SQLite3)
 # Link filesystem library if needed (GCC < 9)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
     target_link_libraries(vt_main stdc++fs)
 endif()
 
-add_executable(vt_term
-    term/term_main.cc
-    term/term_view.cc
-    term/term_view.hh
-    term/touch_screen.cc
-    term/touch_screen.hh
-    term/layer.cc
-    term/layer.hh
-    term/term_dialog.cc
-    term/term_dialog.hh
-    term/term_${TERM_CREDIT}.cc)
-
-target_include_directories(vt_term PRIVATE ${VT_XLIBS_INCLUDE_DIRS})
-target_link_libraries(vt_term
-    vtcore conf_file image_data
-    ${VT_XLIBS} ${TERM_CREDIT_LIBS})
+if(Qt6_FOUND)
+    # Qt6 terminal — replaces Xlib/Xft/Xt with QPainter-based rendering.
+    # Preserves X11 display forwarding: Qt6's xcb plugin reads DISPLAY env var
+    # exactly like Xlib, so XSDL and SSH X11 forwarding continue to work.
+    # Use QT_QPA_PLATFORM=wayland to enable Wayland.
+    add_executable(vt_term
+        term/qt_term_main.cc
+        term/qt_term_view.cc
+        term/qt_term_view.hh
+        term/term_${TERM_CREDIT}.cc)
+    target_include_directories(vt_term PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR})
+    target_link_libraries(vt_term PRIVATE
+        vtcore conf_file image_data
+        Qt6::Core Qt6::Gui Qt6::Widgets
+        $<$<TARGET_EXISTS:Qt6::Svg>:Qt6::Svg>
+        ${TERM_CREDIT_LIBS})
+    set_target_properties(vt_term PROPERTIES AUTOMOC ON)
+else()
+    # Legacy Xlib/Xft terminal (fallback until Qt6 dev headers are installed)
+    add_executable(vt_term
+        src/core/generic_char.cc    src/core/generic_char.hh
+        term/term_main.cc
+        term/term_view.cc
+        term/term_view.hh
+        term/touch_screen.cc
+        term/touch_screen.hh
+        term/layer.cc
+        term/layer.hh
+        term/term_dialog.cc
+        term/term_dialog.hh
+        term/term_${TERM_CREDIT}.cc)
+    target_include_directories(vt_term PRIVATE ${VT_XLIBS_INCLUDE_DIRS})
+    target_link_libraries(vt_term
+        vtcore conf_file image_data
+        ${VT_XLIBS} ${TERM_CREDIT_LIBS})
+endif()
 # Link filesystem library if needed (GCC < 9)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
     target_link_libraries(vt_term stdc++fs)

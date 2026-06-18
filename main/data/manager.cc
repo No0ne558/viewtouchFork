@@ -21,6 +21,7 @@
                             // ViewTouch includes
 #include "manager.hh"
 #include "system.hh"
+#include "main/web/web_server.hh"
 #include "check.hh"
 #include "sales.hh"
 #include "pos_zone.hh"
@@ -49,10 +50,7 @@
 #include "date/date.h"      // helper library to output date strings with std::chrono
 #include "src/core/crash_report.hh"  // Automatic crash reporting
 
-#include <curlpp/cURLpp.hpp>
-#include <curlpp/Easy.hpp>
-#include <curlpp/Options.hpp>
-#include <curlpp/Exception.hpp>
+#include <curl/curl.h>
 #include <memory>
 
                             // Standard C++ libraries
@@ -66,8 +64,7 @@
 #include <sys/un.h>         // definitions for UNIX domain sockets
 #include <sys/utsname.h>    // system name structure
 #include <sys/wait.h>       // declarations for waiting
-#include <X11/Intrinsic.h>  // libXt provides the X Toolkit Intrinsics, an abstract widget library on which ViewTouch is based
-#include <X11/Xft/Xft.h>    // Xft font rendering library
+#include <poll.h>           // poll()-based event loop (replaces Xt event loop)
 #include <string>           // Introduces string types, character traits and a set of converting functions
 #include <cctype>           // Declares a set of functions to classify and transform individual characters
 #include <cstring>          // Functions for dealing with C-style strings — null-terminated arrays of characters; is the C++ version of the classic string.h header from C
@@ -152,14 +149,26 @@ const std::array<int, 11> PrinterTypeValue = {PRINTER_KITCHEN1, PRINTER_KITCHEN2
 /*************************************************************
  * Module Globals
  *************************************************************/
-static XtAppContext App = nullptr;
-static Display     *Dis = nullptr;
-static int          ScrNo = 0;
-static std::array<XFontStruct*, 32> FontInfo{};
+static std::array<void*, 32> FontInfo{};  // legacy stub; unused since Xft removal
 static std::array<int, 32>          FontWidth{};
 static std::array<int, 32>          FontHeight{};
 static std::array<int, 32>          FontBaseline{};
-static std::array<XftFont*, 32>     XftFontsArr{};
+
+// poll()-based event loop state
+struct VtTimer { unsigned long id; int64_t fire_at_ms; TimeOutFn cb; void *data; };
+struct VtInput  { unsigned long id; int fd;             InputFn   cb; void *data; };
+struct VtWork   { unsigned long id;                     WorkFn    cb; void *data; };
+static std::vector<VtTimer> vt_timers;
+static std::vector<VtInput>  vt_inputs;
+static std::vector<VtWork>   vt_works;
+static unsigned long vt_next_id = 1;
+static bool vt_loop_running = false;
+
+static int64_t vt_now_ms() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
 int                 LoaderSocket = 0;
 int                 OpenTermPort = 10001;
 int                 OpenTermSocket = -1;
@@ -206,7 +215,7 @@ const std::array<FontDataType, 16> FontData =
 
 constexpr int FONT_COUNT = static_cast<int>(FontData.size());
 
-static XtIntervalId UpdateID = 0;   // update callback function id
+static unsigned long UpdateID = 0;  // update timer id (poll loop)
 static int LastMin  = -1;
 static int LastHour = -1;
 static int LastMeal = -1;
@@ -322,86 +331,70 @@ void ViewTouchError(const char* message, int do_sleep)
         sleep(static_cast<unsigned int>(sleeplen));
 }
 
+// libcurl write callback: streams received bytes directly into an ofstream.
+static size_t CurlWriteToFile(void *ptr, size_t size, size_t nmemb, std::ofstream *stream)
+{
+    const size_t bytes = size * nmemb;
+    stream->write(static_cast<const char *>(ptr), static_cast<std::streamsize>(bytes));
+    return stream->good() ? bytes : 0;
+}
+
 bool DownloadFile(const std::string &url, const std::string &destination)
 {
-    // Create a temporary file to avoid overwriting the original until download is complete
-    std::string temp_file = destination + ".tmp";
+    const std::string temp_file = destination + ".tmp";
     std::ofstream fout(temp_file, std::ios::binary);
     if (!fout.is_open()) {
-        std::cerr << "Error: Cannot open temporary file '" << temp_file << "' for writing" << '\n';
+        std::cerr << "Error: Cannot open temporary file '" << temp_file << "' for writing\n";
         return false;
     }
 
-    try {
-        curlpp::Cleanup cleaner;
-        curlpp::Easy request;
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        std::cerr << "Error: curl_easy_init() failed\n";
+        std::remove(temp_file.c_str());
+        return false;
+    }
 
-        // Set up the request with proper options for both HTTP and HTTPS
-        request.setOpt(curlpp::options::Url(url));
-        request.setOpt(curlpp::options::WriteStream(&fout));
-        request.setOpt(curlpp::options::FollowLocation(true));  // Follow redirects
-        request.setOpt(curlpp::options::Timeout(30));           // 30 second timeout
-        request.setOpt(curlpp::options::ConnectTimeout(10));    // 10 second connect timeout
-        
-        // For HTTPS compatibility on Raspberry Pi and other systems
-        request.setOpt(curlpp::options::SslVerifyPeer(false));  // Disable SSL verification for compatibility
-        request.setOpt(curlpp::options::SslVerifyHost(false));  // Disable host verification
-        
-        // Set user agent to avoid being blocked
-        request.setOpt(curlpp::options::UserAgent("ViewTouch/1.0"));
-        
-        // Perform the request
-        request.perform();
-        
-        // Check if file was written successfully by checking file size
-        fout.close();
-        std::ifstream check_file(temp_file, std::ios::binary | std::ios::ate);
-        if (check_file.is_open()) {
-            std::streamsize file_size = check_file.tellg();
-            check_file.close();
-            
-            if (file_size > 0) {
-                // Download successful, move temp file to final destination
-                if (std::rename(temp_file.c_str(), destination.c_str()) == 0) {
-                    std::cerr << "Successfully downloaded file '" << destination << "' from '" << url << "' (size: " << file_size << " bytes)" << '\n';
-                    return true;
-                } else {
-                    std::cerr << "Error: Could not move temporary file to final destination" << '\n';
-                    std::remove(temp_file.c_str());  // Clean up temp file
-                    return false;
-                }
-            } else {
-                std::cerr << "Downloaded file is empty from '" << url << "'" << '\n';
-                std::remove(temp_file.c_str());  // Remove empty temp file
-                return false;
-            }
-        } else {
-            std::cerr << "Cannot verify downloaded file from '" << url << "'" << '\n';
-            std::remove(temp_file.c_str());  // Remove temp file if we can't verify it
-            return false;
-        }
-    }
-    catch (const curlpp::LogicError & e)
-    {
-        std::cerr << "Logic error downloading file from '" << url << "': " << e.what() << '\n';
-        fout.close();
-        std::remove(temp_file.c_str());  // Remove partial temp file
+    curl_easy_setopt(curl, CURLOPT_URL,            url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,  CurlWriteToFile);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA,      &fout);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT,        30L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT,      "ViewTouch/1.0");
+
+    CURLcode res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+    fout.close();
+
+    if (res != CURLE_OK) {
+        std::cerr << "Download failed for '" << url << "': " << curl_easy_strerror(res) << '\n';
+        std::remove(temp_file.c_str());
         return false;
     }
-    catch (const curlpp::RuntimeError &e)
-    {
-        std::cerr << "Runtime error downloading file from '" << url << "': " << e.what() << '\n';
-        fout.close();
-        std::remove(temp_file.c_str());  // Remove partial temp file
+
+    // Verify the download produced non-empty output
+    std::ifstream check(temp_file, std::ios::binary | std::ios::ate);
+    const std::streamsize file_size = check.is_open() ? static_cast<std::streamsize>(check.tellg()) : 0;
+    check.close();
+
+    if (file_size <= 0) {
+        std::cerr << "Downloaded file is empty from '" << url << "'\n";
+        std::remove(temp_file.c_str());
         return false;
     }
-    catch (const std::exception &e)
-    {
-        std::cerr << "Unexpected error downloading file from '" << url << "': " << e.what() << '\n';
-        fout.close();
-        std::remove(temp_file.c_str());  // Remove partial temp file
+
+    if (std::rename(temp_file.c_str(), destination.c_str()) != 0) {
+        std::cerr << "Error: Could not move temporary file to final destination\n";
+        std::remove(temp_file.c_str());
         return false;
     }
+
+    std::cerr << "Successfully downloaded '" << destination << "' from '" << url
+              << "' (" << file_size << " bytes)\n";
+    return true;
 }
 
 bool DownloadFileWithFallback(const std::string &base_url, const std::string &destination)
@@ -639,6 +632,9 @@ int main(int argc, genericChar* argv[])
     signal(SIGUSR1, UserSignal1);
     signal(SIGUSR2, UserSignal2);
     signal(SIGPIPE, SIG_IGN);
+    // Diagnostic: catch SIGHUP/SIGTERM so we know if the process is being killed
+    signal(SIGHUP,  [](int){ fprintf(stderr, "vt_main: caught SIGHUP\n"); fflush(stderr); });
+    signal(SIGTERM, [](int){ fprintf(stderr, "vt_main: caught SIGTERM\n"); fflush(stderr); exit(1); });
 
     // Set up default umask
     umask(0111); // a+rw, a-x
@@ -1163,86 +1159,24 @@ int StartSystem(int my_use_net)
         settings->Load(str.data());
     }
 
-    XtToolkitInitialize();
-    App = XtCreateApplicationContext();
-
-    // Initialize font arrays (fonts will be loaded lazily)
+    // Initialize font metric arrays from FontData (hardcoded dimensions; vt_term handles actual rendering)
     for (i = 0; i < 32; ++i)
     {
-        FontInfo[i]   = nullptr;
-        FontWidth[i]  = 0;
-        FontHeight[i] = 0;
+        FontInfo[i]     = nullptr;
+        FontWidth[i]    = 0;
+        FontHeight[i]   = 0;
         FontBaseline[i] = 0;
-        XftFontsArr[i] = nullptr;
     }
-
-    // Pre-populate font dimensions from FontData for immediate access
     for (i = 0; i < FONT_COUNT; ++i)
     {
         int f = FontData[i].id;
-        FontWidth[f] = FontData[i].width;
-        FontHeight[f] = FontData[i].height;
-        FontBaseline[f] = FontHeight[f] * 3 / 4;  // Default baseline
+        FontWidth[f]    = FontData[i].width;
+        FontHeight[f]   = FontData[i].height;
+        FontBaseline[f] = FontHeight[f] * 3 / 4;
     }
-
-    // Set default font properties
-    FontWidth[FONT_DEFAULT]  = FontWidth[FONT_TIMES_24];
-    FontHeight[FONT_DEFAULT] = FontHeight[FONT_TIMES_24];
+    FontWidth[FONT_DEFAULT]    = FontWidth[FONT_TIMES_24];
+    FontHeight[FONT_DEFAULT]   = FontHeight[FONT_TIMES_24];
     FontBaseline[FONT_DEFAULT] = FontBaseline[FONT_TIMES_24];
-
-    int argc = 0;
-    const genericChar* argv[] = {"vt_main"};
-    Dis = XtOpenDisplay(App, displaystr.data(), nullptr, nullptr, nullptr, 0, &argc, (genericChar**)argv);
-    if (Dis)
-    {
-        ScrNo = DefaultScreen(Dis);
-
-        // Use fixed DPI (96) for consistent font rendering across all displays
-        // This ensures fonts render at the same size regardless of display DPI
-        static std::array<char, 256> font_spec_with_dpi{};
-        for (i = 0; i < FONT_COUNT; ++i)
-        {
-            int f = FontData[i].id;
-            const genericChar* xft_font_name = FontData[i].font;
-
-            // Append :dpi=96 to font specification if not already present
-            if (strstr(xft_font_name, ":dpi=") == nullptr) {
-                vt::cpp23::format_to_buffer(font_spec_with_dpi.data(), font_spec_with_dpi.size(), "{}:dpi=96", xft_font_name);
-                xft_font_name = font_spec_with_dpi.data();
-            }
-
-            printf("Loading font %d: %s\n", f, xft_font_name);
-            XftFontsArr[f] = XftFontOpenName(Dis, ScrNo, xft_font_name);
-            if (XftFontsArr[f] == nullptr) {
-                printf("Failed to load font %d: %s\n", f, xft_font_name);
-                // Try a simple fallback with fixed DPI
-                XftFontsArr[f] = XftFontOpenName(Dis, ScrNo, "DejaVu Serif:size=24:style=Book:dpi=96");
-                if (XftFontsArr[f] != nullptr) {
-                    printf("Successfully loaded fallback font for %d\n", f);
-                } else {
-                    printf("FAILED to load ANY font for %d\n", f);
-                }
-            } else {
-                printf("Successfully loaded font %d: %s\n", f, xft_font_name);
-            }
-
-            // Use font dimensions from FontData array to maintain UI layout compatibility
-            FontWidth[f] = FontData[i].width;
-            FontHeight[f] = FontData[i].height;
-
-            // Calculate baseline from Xft font if available, otherwise use 3/4 of height
-            if (XftFontsArr[f]) {
-                FontBaseline[f] = XftFontsArr[f]->ascent;
-            } else {
-                FontBaseline[f] = FontHeight[f] * 3 / 4;  // Typical baseline position
-            }
-        }
-
-        FontWidth[FONT_DEFAULT]  = FontWidth[FONT_TIMES_24];
-        FontHeight[FONT_DEFAULT] = FontHeight[FONT_TIMES_24];
-        FontBaseline[FONT_DEFAULT] = FontBaseline[FONT_TIMES_24];
-        XftFontsArr[FONT_DEFAULT] = XftFontsArr[FONT_TIMES_24];
-    }
 
     // Terminal & Printer Setup
     MasterControl = new Control();
@@ -1306,6 +1240,22 @@ int StartSystem(int my_use_net)
     sys->FullPath(MASTER_DISCOUNT_SAVE, altmedia.data());
     if (sys->ScanArchives(str.data(), altmedia.data()))
         ReportError("Can't scan archives");
+
+    // Point menu and employee databases at the shared SQLite file for atomic durability.
+    // LoadSqlite() is tried first inside Load(); if the table is empty it falls back to .dat
+    // and migrates automatically on the first Save().
+    {
+        std::array<genericChar, 256> db_path{};
+        sys->FullPath("viewtouch.db", db_path.data());
+        sys->menu.sqlite_path         = db_path.data();
+        sys->user_db.sqlite_path      = db_path.data();
+        sys->exception_db.sqlite_path = db_path.data();
+        sys->work_db.sqlite_path      = db_path.data();
+        sys->settings.sqlite_path     = db_path.data();
+        sys->inventory.sqlite_path    = db_path.data();
+        sys->sqlite_path              = db_path.data();
+        vt::Logger::info("SQLite persistence: {}", db_path.data());
+    }
 
     // Load Employees
     vt_safe_string::safe_format(msg.data(), msg.size(), "Attempting to load file %s...", MASTER_USER_DB);
@@ -1384,11 +1334,15 @@ int StartSystem(int my_use_net)
     ReportError(msg.data()); //stamp file attempt in log
     ReportLoader("Loading Inventory");
     sys->FullPath(MASTER_INVENTORY, str.data());
-    if (sys->inventory.Load(str.data()))
+    sys->inventory.filename.Set(str.data()); // ensure Save() writes to correct path
+    if (sys->inventory.LoadSqlite() != 0)
     {
-        RestoreBackup(str.data());
-        sys->inventory.Purge();
-        sys->inventory.Load(str.data());
+        if (sys->inventory.Load(str.data()))
+        {
+            RestoreBackup(str.data());
+            sys->inventory.Purge();
+            sys->inventory.Load(str.data());
+        }
     }
     sys->inventory.ScanItems(&sys->menu);
     sys->FullPath(STOCK_DATA_DIR, str.data());
@@ -1527,8 +1481,7 @@ int StartSystem(int my_use_net)
     sys->InitCurrentDay();
 
     // Start update system timer
-    UpdateID = XtAppAddTimeOut(App, UPDATE_TIME,
-                               (XtTimerCallbackProc) UpdateSystemCB, nullptr);
+    UpdateID = AddTimeOutFn(UpdateSystemCB, UPDATE_TIME, nullptr);
 
     // Break connection with loader
     if (LoaderSocket)
@@ -1544,39 +1497,76 @@ int StartSystem(int my_use_net)
     if (my_use_net)
         OpenTermSocket = Listen(OpenTermPort);
 
-    // Event Loop
-    XEvent event;
-    int event_count = 0;
-    int max_events_per_second = 1000; // Prevent infinite loops
-    auto last_time = std::chrono::steady_clock::now();
-    
-    for (;;)
+    // Web admin dashboard — read-only JSON snapshot server in background thread.
+    int web_port = 9090;
+    const char *env_port = getenv("VIEWTOUCH_WEB_PORT");
+    if (env_port) web_port = std::atoi(env_port);
+    WebAdminServer web_server(web_port);
+    web_server.Start();
+
+    vt::Logger::info("vt_main: entering poll event loop");
+
+    // poll()-based event loop: replaces XtAppNextEvent.
+    // Timers (AddTimeOutFn), fd watchers (AddInputFn), and work procs (AddWorkFn)
+    // are all dispatched here without any X11/Xt dependency.
+    vt_loop_running = true;
+    while (vt_loop_running)
     {
-        XtAppNextEvent(App, &event);
-        switch (event.type)
+        // Build pollfd array from registered inputs
+        std::vector<pollfd> pfds;
+        pfds.reserve(vt_inputs.size());
+        for (auto &inp : vt_inputs)
+            pfds.push_back({inp.fd, POLLIN, 0});
+
+        // Compute timeout until next timer fires
+        int timeout_ms = 60000;
+        int64_t now = vt_now_ms();
+        for (auto &t : vt_timers)
         {
-        case MappingNotify:
-            XRefreshKeyboardMapping((XMappingEvent *) &event);
-            break;
-        default:
-            // Handle all other event types by dispatching them
-            break;
+            int64_t wait = t.fire_at_ms - now;
+            int w = (wait < 0) ? 0 : (wait > 60000 ? 60000 : (int)wait);
+            if (w < timeout_ms) timeout_ms = w;
         }
-        XtDispatchEvent(&event);
-        
-        // Critical fix: Prevent infinite event loops
-        event_count++;
-        auto current_time = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current_time - last_time);
-        
-        if (elapsed.count() >= 1) // Reset counter every second
+        if (!vt_works.empty()) timeout_ms = 0;
+
+        int rc = poll(pfds.empty() ? nullptr : pfds.data(),
+                      (nfds_t)pfds.size(), timeout_ms);
+
+        // Dispatch ready fds (copy list first in case callbacks mutate vt_inputs)
+        if (rc > 0)
         {
-            if (event_count > max_events_per_second)
+            auto snapshot = vt_inputs;
+            for (size_t i = 0; i < snapshot.size() && i < pfds.size(); ++i)
             {
-                fprintf(stderr, "Warning: High event rate detected in manager (%d events/second), possible infinite loop\n", event_count);
+                if (pfds[i].revents & (POLLIN | POLLHUP | POLLERR))
+                {
+                    unsigned long id = snapshot[i].id;
+                    snapshot[i].cb(snapshot[i].data, &snapshot[i].fd, &id);
+                }
             }
-            event_count = 0;
-            last_time = current_time;
+        }
+
+        // Fire expired timers (copy list first)
+        now = vt_now_ms();
+        auto timer_snap = vt_timers;
+        for (auto &t : timer_snap)
+        {
+            if (t.fire_at_ms > now) continue;
+            for (auto it = vt_timers.begin(); it != vt_timers.end(); ++it)
+                if (it->id == t.id) { vt_timers.erase(it); break; }
+            unsigned long id = t.id;
+            t.cb(t.data, &id);
+        }
+
+        // Run one work proc per iteration.
+        // Return value 0 means "call me again" (Xt XtAppAddWorkProc convention);
+        // return value 1 means "done, remove me".
+        if (!vt_works.empty())
+        {
+            auto w = vt_works.front();
+            vt_works.erase(vt_works.begin());
+            if (w.cb(w.data) == 0)
+                vt_works.insert(vt_works.begin(), w);
         }
     }
     return 0;
@@ -1635,24 +1625,12 @@ int EndSystem()
         MasterControl->LogoutAllUsers();
         ReportError("EndSystem: Terminal cleanup completed, continuing with shutdown...");
     }
-    if (UpdateID)
-    {
-        XtRemoveTimeOut(UpdateID);
-        UpdateID = 0;
-    }
-    ReportError("EndSystem: Timeout removal completed, continuing with shutdown...");
-    if (Dis)
-    {
-        XtCloseDisplay(Dis);
-        Dis = nullptr;
-    }
-    ReportError("EndSystem: Display close completed, continuing with shutdown...");
-    if (App)
-    {
-        XtDestroyApplicationContext(App);
-        App = nullptr;
-    }
-    ReportError("EndSystem: Application context destruction completed, continuing with shutdown...");
+    vt_loop_running = false;
+    vt_timers.clear();
+    vt_inputs.clear();
+    vt_works.clear();
+    UpdateID = 0;
+    ReportError("EndSystem: Event loop stopped, continuing with shutdown...");
 
     // Save Archive/Settings Changes
     if (MasterSystem)
@@ -2581,78 +2559,8 @@ int Control::SaveTablePages()
 int ReloadTermFonts()
 {
     FnTrace("ReloadTermFonts()");
-    if (Dis == nullptr)
-        return 1;
-
-    // Close existing Xft fonts
-    for (auto & i : XftFontsArr)
-    {
-        if (i)
-        {
-            XftFontClose(Dis, i);
-            i = nullptr;
-        }
-    }
-
-    // Get the desired font family from configuration
-    const char* font_family = GetGlobalFontFamily();
-
-    // Reload fonts with compatible font specifications
-    for (auto & i : FontData)
-    {
-        int f = i.id;
-        
-        // Get a compatible font specification that maintains UI layout
-        const char* new_font_spec = GetCompatibleFontSpec(f, font_family);
-        
-        // Append :dpi=96 to font specification if not already present
-        static std::array<char, 256> font_spec_with_dpi{};
-        const char* font_to_load = new_font_spec;
-        if (strstr(new_font_spec, ":dpi=") == nullptr) {
-            vt::cpp23::format_to_buffer(font_spec_with_dpi.data(), font_spec_with_dpi.size(), "{}:dpi=96", new_font_spec);
-            font_to_load = font_spec_with_dpi.data();
-        }
-        
-        printf("Reloading term font %d with compatible spec: %s\n", f, font_to_load);
-        XftFontsArr[f] = XftFontOpenName(Dis, ScrNo, font_to_load);
-        
-        if (XftFontsArr[f] == nullptr) {
-            printf("Failed to reload term font %d: %s\n", f, font_to_load);
-            // Try a simple fallback with fixed DPI
-            XftFontsArr[f] = XftFontOpenName(Dis, ScrNo, "DejaVu Serif:size=24:style=Book:dpi=96");
-            if (XftFontsArr[f] != nullptr) {
-                printf("Successfully loaded fallback font for %d\n", f);
-            } else {
-                printf("FAILED to load ANY font for %d\n", f);
-            }
-        } else {
-            printf("Successfully loaded font %d: %s\n", f, new_font_spec);
-        }
-        
-        // Always use FontData dimensions to maintain UI compatibility
-        for (auto & fd : FontData) {
-            if (fd.id == f) {
-                FontWidth[f] = fd.width;
-                FontHeight[f] = fd.height;
-                break;
-            }
-        }
-        
-        // Calculate baseline from Xft font if available, otherwise use 3/4 of height
-        if (XftFontsArr[f]) {
-            FontBaseline[f] = XftFontsArr[f]->ascent;
-        } else {
-            FontBaseline[f] = FontHeight[f] * 3 / 4;  // Typical baseline position
-        }
-    }
-    
-    // Update default font
-    FontWidth[FONT_DEFAULT]  = FontWidth[FONT_TIMES_24];
-    FontHeight[FONT_DEFAULT] = FontHeight[FONT_TIMES_24];
-    FontBaseline[FONT_DEFAULT] = FontBaseline[FONT_TIMES_24];
-    XftFontsArr[FONT_DEFAULT] = XftFontsArr[FONT_TIMES_24];
-    
-    printf("Term font reloading completed with family: %s\n", font_family);
+    // Font rendering is handled by vt_term (Qt6); vt_main only keeps hardcoded
+    // layout metrics in FontWidth/FontHeight which never change at runtime.
     return 0;
 }
 
@@ -3540,8 +3448,7 @@ void UpdateSystemCB(XtPointer client_data, XtIntervalId *time_id)
     GetDataPersistenceManager().Update();
 
     // restart system timer
-    UpdateID = XtAppAddTimeOut(App, UPDATE_TIME,
-                               (XtTimerCallbackProc) UpdateSystemCB, client_data);
+    UpdateID = AddTimeOutFn(UpdateSystemCB, UPDATE_TIME, client_data);
 }
 
 /****
@@ -3915,8 +3822,7 @@ void ShowRestartDialog()
     sd->Button(GlobalTranslate("Postpone 1 Hour"), "restart_postpone");
     
     // Set 5-minute auto-restart timeout
-    restart_timeout_id = XtAppAddTimeOut(App, 5 * 60 * 1000, 
-                                       (XtTimerCallbackProc) AutoRestartTimeoutCB, nullptr);
+    restart_timeout_id = AddTimeOutFn(AutoRestartTimeoutCB, 5 * 60 * 1000, nullptr);
     
     term->OpenDialog(sd);
 }
@@ -3981,146 +3887,73 @@ int GetTextWidth(const char* my_string, int len, int font_id)
     FnTrace("GetTextWidth()");
     if (my_string == nullptr || len <= 0)
         return 0;
-    else if (FontInfo[font_id])
-        return XTextWidth(FontInfo[font_id], my_string, len);
-    else
-        return FontWidth[font_id] * len;
+    return FontWidth[font_id] * len;
 }
 
 unsigned long AddTimeOutFn(TimeOutFn fn, int timeint, void *client_data)
 {
     FnTrace("AddTimeOutFn()");
-    return XtAppAddTimeOut(App, timeint, (XtTimerCallbackProc) fn,
-                           (XtPointer) client_data);
+    unsigned long id = vt_next_id++;
+    vt_timers.push_back({id, vt_now_ms() + timeint, fn, client_data});
+    return id;
 }
 
 unsigned long AddInputFn(InputFn fn, int device_no, void *client_data)
 {
     FnTrace("AddInputFn()");
-    return XtAppAddInput(App, device_no, (XtPointer) XtInputReadMask,
-                         (XtInputCallbackProc) fn, (XtPointer) client_data);
+    unsigned long id = vt_next_id++;
+    vt_inputs.push_back({id, device_no, fn, client_data});
+    return id;
 }
 
 unsigned long AddWorkFn(WorkFn fn, void *client_data)
 {
     FnTrace("AddWorkFn()");
-    return XtAppAddWorkProc(App, (XtWorkProc) fn, (XtPointer) client_data);
+    unsigned long id = vt_next_id++;
+    vt_works.push_back({id, fn, client_data});
+    return id;
 }
 
 int RemoveTimeOutFn(unsigned long fn_id)
 {
     FnTrace("RemoveTimeOutFn()");
-    if (fn_id > 0l)
-        XtRemoveTimeOut(fn_id);
+    for (auto it = vt_timers.begin(); it != vt_timers.end(); ++it)
+        if (it->id == fn_id) { vt_timers.erase(it); break; }
     return 0;
 }
 
 int RemoveInputFn(unsigned long fn_id)
 {
     FnTrace("RemoveInputFn()");
-    if (fn_id > 0)
-    {
-        // Check if App context is still valid before removing input
-        if (App != nullptr)
-        {
-            XtRemoveInput(fn_id);
-        }
-        else
-        {
-            ReportError("RemoveInputFn: App context is NULL, skipping XtRemoveInput");
-        }
-    }
+    for (auto it = vt_inputs.begin(); it != vt_inputs.end(); ++it)
+        if (it->id == fn_id) { vt_inputs.erase(it); break; }
     return 0;
 }
 
 int ReportWorkFn(int fn_id)
 {
     FnTrace("ReportWorkFn()");
-    if (fn_id > 0)
-        XtRemoveWorkProc(fn_id);
+    for (auto it = vt_works.begin(); it != vt_works.end(); ++it)
+        if ((int)it->id == fn_id) { vt_works.erase(it); break; }
     return 0;
 }
 
 int ReloadFonts()
 {
     FnTrace("ReloadFonts()");
-    
-    // Reload all fonts using the FontData array specifications
-    for (int f = 0; f < 32; ++f) {
-        if (XftFontsArr[f]) {
-            XftFontClose(Dis, XftFontsArr[f]);
-            XftFontsArr[f] = nullptr;
-        }
-        
-        // Find the font in FontData array and use its specification directly
-        int found = 0;
-        for (auto & fd : FontData) {
-            if (fd.id == f) {
-                // Use the font specification directly from FontData
-                const char* font_spec = fd.font;
-                
-                // Append :dpi=96 to font specification if not already present
-                static std::array<char, 256> font_spec_with_dpi;
-                const char* font_to_load = font_spec;
-                if (strstr(font_spec, ":dpi=") == nullptr) {
-                    vt::cpp23::format_to_buffer(font_spec_with_dpi.data(), font_spec_with_dpi.size(), "{}:dpi=96", font_spec);
-                    font_to_load = font_spec_with_dpi.data();
-                }
-                
-                // Load the font using the original specification with fixed DPI
-                XftFontsArr[f] = XftFontOpenName(Dis, DefaultScreen(Dis), font_to_load);
-                if (!XftFontsArr[f]) {
-                    printf("Failed to reload font %d: %s\n", f, font_to_load);
-                } else {
-                    printf("Successfully reloaded font %d: %s\n", f, font_to_load);
-                }
-                found = 1;
-                break;
+    // Font rendering handled by vt_term; vt_main uses hardcoded layout metrics.
+    // Notify all terminals to reload their own fonts.
+    if (MasterControl)
+    {
+        Terminal *term = MasterControl->TermList();
+        while (term != nullptr) {
+            if (term->socket_no > 0) {
+                term->WInt8(TERM_RELOAD_FONTS);
+                term->SendNow();
             }
-        }
-        if (!found) {
-            // Default font if not found, with fixed DPI
-            XftFontsArr[f] = XftFontOpenName(Dis, DefaultScreen(Dis), "DejaVu Serif:pixelsize=24:style=Book:dpi=96");
-        }
-        
-        // Update font dimensions from FontData array to maintain UI layout compatibility
-        for (auto & fd : FontData) {
-            if (fd.id == f) {
-                FontWidth[f] = fd.width;
-                FontHeight[f] = fd.height;
-                break;
-            }
-        }
-        // Default if not found
-        if (FontWidth[f] == 0) {
-            FontWidth[f] = 12;
-            FontHeight[f] = 24;
-        }
-        
-        // Calculate baseline from Xft font if available, otherwise use 3/4 of height
-        if (XftFontsArr[f]) {
-            FontBaseline[f] = XftFontsArr[f]->ascent;
-        } else {
-            FontBaseline[f] = FontHeight[f] * 3 / 4;  // Typical baseline position
+            term = term->next;
         }
     }
-    
-    // Update default font
-    FontWidth[FONT_DEFAULT]  = FontWidth[FONT_TIMES_24];
-    FontHeight[FONT_DEFAULT] = FontHeight[FONT_TIMES_24];
-    FontBaseline[FONT_DEFAULT] = FontBaseline[FONT_TIMES_24];
-    XftFontsArr[FONT_DEFAULT] = XftFontsArr[FONT_TIMES_24];
-    
-    // Notify all terminals to reload fonts
-    Terminal *term = MasterControl->TermList();
-    while (term != nullptr) {
-        if (term->socket_no > 0) {
-            term->WInt8(TERM_RELOAD_FONTS);
-            term->SendNow();
-        }
-        term = term->next;
-    }
-    
     return 0;
 }
 

@@ -61,7 +61,7 @@
 
 /**** Global Data ****/
 const genericChar* PrinterModelName[] = {
-    "No Printer", "Epson", "Star", "HP", "Toshiba", "Ithaca",
+    "No Printer", "ESC/POS (Epson)", "Star", "HP", "Toshiba", "Ithaca",
     "HTML", "PostScript", "PDF", "Receipt Text",
     "Report Text", "QuickBooks CSV", nullptr};
 int          PrinterModelValue[] = {
@@ -69,13 +69,8 @@ int          PrinterModelValue[] = {
     MODEL_HTML, MODEL_POSTSCRIPT, MODEL_PDF, MODEL_RECEIPT_TEXT,
     MODEL_REPORT_TEXT, MODEL_QUICKBOOKS_CSV, -1};
 
-// const genericChar* ReceiptPrinterModelName[] = {
-    // "No Printer", "Epson", "Star", "Ithaca", "Text", NULL};
-// int          ReceiptPrinterModelValue[] = {
-    // MODEL_NONE, MODEL_EPSON, MODEL_STAR, MODEL_ITHACA, MODEL_RECEIPT_TEXT, -1};
-
 const genericChar* ReceiptPrinterModelName[] = {
-    "No Printer", "Epson", "Star", "HP", "Toshiba", "Ithaca",
+    "No Printer", "ESC/POS (Epson/Star/Generic)", "Star", "HP", "Toshiba", "Ithaca",
     "HTML", "PostScript", "PDF", "Receipt Text",
     "Report Text", "QuickBooks CSV", nullptr};
 int          ReceiptPrinterModelValue[] = {
@@ -258,11 +253,11 @@ int Printer::Close()
 {
     FnTrace("Printer::Close()");
 
-    // LPD and socket printing block the calling thread (system() / connect()).
+    // LPD, socket, and CUPS printing can block the calling thread.
     // Delegate to CloseAsync() which dispatches to a thread pool so the main
-    // event loop is never stalled waiting for CUPS or a network printer.
-    // CloseAsync() owns temp_fd/temp_name cleanup for these two types.
-    if (target_type == TARGET_LPD || target_type == TARGET_SOCKET)
+    // event loop is never stalled waiting for a network printer or CUPS.
+    // CloseAsync() owns temp_fd/temp_name cleanup for these types.
+    if (target_type == TARGET_LPD || target_type == TARGET_SOCKET || target_type == TARGET_CUPS)
     {
         CloseAsync();
         return 0;
@@ -333,18 +328,22 @@ void Printer::CloseAsync()
         return;
     }
 
-    // For socket and LPD, run async
+    // For socket, LPD, and CUPS, run async
     // Capture temp file name for async operation
     std::string temp_file = temp_name.Value();
     std::string target_str = target.Value();
     int port = port_no;
     int type = target_type;
+    // Pre-compute CUPS raw-mode flag so the lambda doesn't need 'this'
+    int m = Model();
+    bool cups_raw_mode = (m == MODEL_EPSON || m == MODEL_STAR ||
+                          m == MODEL_ITHACA || m == MODEL_HP);
 
     temp_name.Set("");  // Clear so printer can be reused
 
     // Queue the print job to the thread pool
     bool queued = vt::ThreadPool::instance().enqueue_detached(
-        [temp_file, target_str, port, type]() {
+        [temp_file, target_str, port, type, cups_raw_mode]() {
             vt::Logger::debug("Async print starting: {} -> {}:{}", temp_file, target_str, port);
             
             if (type == TARGET_SOCKET)
@@ -409,13 +408,29 @@ void Printer::CloseAsync()
             {
                 // LPD printing
                 char cmd[512];
-                vt::cpp23::format_to_buffer(cmd, sizeof(cmd), "cat {} | /usr/bin/lpr -P{}", 
+                vt::cpp23::format_to_buffer(cmd, sizeof(cmd), "cat {} | /usr/bin/lpr -P{}",
                          temp_file.c_str(), target_str.c_str());
                 int result = system(cmd);
                 if (result != 0)
                     vt::Logger::error("Async LPDPrint: Command failed with code {}", result);
                 else
                     vt::Logger::info("Async LPDPrint: Successfully sent to {}", target_str);
+            }
+            else if (type == TARGET_CUPS)
+            {
+                // CUPS printing via lp(1). raw_mode is pre-captured for ESC/POS models.
+                char cmd[512];
+                if (cups_raw_mode)
+                    vt::cpp23::format_to_buffer(cmd, sizeof(cmd),
+                        "/usr/bin/lp -d {} -o raw {}", target_str.c_str(), temp_file.c_str());
+                else
+                    vt::cpp23::format_to_buffer(cmd, sizeof(cmd),
+                        "/usr/bin/lp -d {} {}", target_str.c_str(), temp_file.c_str());
+                int result = system(cmd);
+                if (result != 0)
+                    vt::Logger::error("Async CupsPrint: lp failed (code {}), queue='{}'", result, target_str);
+                else
+                    vt::Logger::info("Async CupsPrint: sent to CUPS queue '{}'", target_str);
             }
 
             // Clean up temp file
@@ -527,6 +542,35 @@ int Printer::LPDPrint()
     vt::cpp23::format_to_buffer(buffer, STRLONG, "cat {} | /usr/bin/lpr -P{}", temp_name.Value(), target.Value());
     system(buffer);
     return 0;
+}
+
+int Printer::CupsPrint()
+{
+    FnTrace("Printer::CupsPrint()");
+    // Determine whether to send as raw bytes (ESC/POS models) or let CUPS process it.
+    // Raw mode passes data unmodified to the printer; required for binary ESC/POS streams.
+    // PostScript/text output can be processed by the CUPS raster pipeline normally.
+    bool raw_mode = false;
+    int m = Model();
+    if (m == MODEL_EPSON || m == MODEL_STAR || m == MODEL_ITHACA || m == MODEL_HP)
+        raw_mode = true;
+
+    genericChar cmd[STRLONG];
+    if (raw_mode)
+        vt::cpp23::format_to_buffer(cmd, sizeof(cmd),
+            "/usr/bin/lp -d {} -o raw {}", target.Value(), temp_name.Value());
+    else
+        vt::cpp23::format_to_buffer(cmd, sizeof(cmd),
+            "/usr/bin/lp -d {} {}", target.Value(), temp_name.Value());
+
+    int result = system(cmd);
+    if (result != 0)
+        vt::Logger::error("CupsPrint: lp failed (code {}), queue='{}', raw={}", result, target.Value(), raw_mode);
+    else
+        vt::Logger::info("CupsPrint: sent to CUPS queue '{}'", target.Value());
+
+    unlink(temp_name.Value());
+    return result == 0 ? 0 : 1;
 }
 
 int Printer::SocketPrint()
@@ -2658,6 +2702,11 @@ int ParseDestination(int &type, genericChar* target, int &port, const genericCha
         {
             type = TARGET_EMAIL;
         }
+        else if (strncmp(TARGET_TYPE_CUPS, buffer, STRLENGTH) == 0)
+        {
+            type = TARGET_CUPS;
+            // target holds the CUPS queue name (e.g. "ThermalReceipt", "HP_LaserJet")
+        }
         else if (debug_mode)
         {
             printf("Unknown printer destination:  '%s'\n", buffer);
@@ -2777,7 +2826,7 @@ Printer *NewPrinterFromString(const genericChar* specification)
         model = MODEL_ITHACA;
     else if (strcmp(modelstr, "star") == 0)
         model = MODEL_STAR;
-    else if (strcmp(modelstr, "epson") == 0)
+    else if (strcmp(modelstr, "epson") == 0 || strcmp(modelstr, "escpos") == 0)
         model = MODEL_EPSON;
     else if (strcmp(modelstr, "hp") == 0)
         model = MODEL_HP;

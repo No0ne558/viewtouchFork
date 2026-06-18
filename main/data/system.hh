@@ -194,6 +194,9 @@ public:
     void ClearCapturedTips(TimeInfo &start_time, TimeInfo &end_time, Archive *archive);
     // clear 'captured tips held' (from checks and tip DB)
 
+    // SQLite path (shared DB; empty = SQLite disabled)
+    std::string sqlite_path;
+
     // Check functions
     int Add(Check *check);
     // adds check to current data
@@ -214,6 +217,20 @@ public:
     // saves check to file
     int DestroyCheck(Check *check);
     // Deletes a check from memory (& disk for current checks)
+
+    // SQLite-backed open-check persistence
+    int LoadChecksSqlite();
+    int SaveCheckSqlite(Check *check);
+    int DeleteCheckSqlite(int serial_number);
+
+    // SQLite-backed open-drawer persistence
+    int LoadDrawersSqlite();
+    int SaveDrawerSqlite(Drawer *drawer);
+    int DeleteDrawerSqlite(int serial_number);
+
+    // SQLite-backed archive backup/recovery
+    int SaveArchiveSqlite(Archive *archive);
+    int ScanArchivesSqlite();
 
     // Drawer functions
     int Add(Drawer *drawer);

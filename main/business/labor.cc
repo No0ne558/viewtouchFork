@@ -26,8 +26,33 @@
 #include "system.hh"
 #include "archive.hh"
 #include "safe_string_utils.hh"
+#include <sqlite3.h>
+#include <sys/stat.h>
+#include <cstdlib>
 
 #include <dirent.h>
+
+static int work_db_open(sqlite3 **db, const std::string &path)
+{
+    if (sqlite3_open(path.c_str(), db) != SQLITE_OK)
+        return 1;
+    sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    const char *ddl =
+        "CREATE TABLE IF NOT EXISTS work_entries ("
+        " rowid INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " user_id INTEGER, job INTEGER, pay_rate INTEGER,"
+        " pay_amount INTEGER, tips INTEGER,"
+        " start_sec INTEGER, start_year INTEGER,"
+        " end_sec INTEGER, end_year INTEGER,"
+        " end_shift INTEGER, edit_id INTEGER,"
+        " orig_user_id INTEGER, orig_job INTEGER, orig_pay_rate INTEGER,"
+        " orig_pay_amount INTEGER, orig_tips INTEGER,"
+        " orig_start_sec INTEGER, orig_start_year INTEGER,"
+        " orig_end_sec INTEGER, orig_end_year INTEGER,"
+        " orig_end_shift INTEGER);";
+    sqlite3_exec(*db, ddl, nullptr, nullptr, nullptr);
+    return 0;
+}
 #include <sys/types.h>
 #include <sys/file.h>
 #include <cstring>
@@ -1416,6 +1441,9 @@ int WorkDB::Load(const char* file)
     if (file)
         filename.Set(file);
 
+    if (!sqlite_path.empty() && LoadSqlite() == 0)
+        return 0;
+
     int version = 0;
     InputDataFile df;
     if (df.Open(filename.Value(), version))
@@ -1438,6 +1466,10 @@ int WorkDB::Save()
         return 1;
 
     int error = Write(df, WORK_VERSION);
+
+    if (!sqlite_path.empty())
+        SaveSqlite();
+
     return error;
 }
 
@@ -1471,5 +1503,141 @@ int WorkDB::Write(OutputDataFile &df, int version)
     {
         fprintf(stderr, "ERROR: WorkDB::Write() hit iteration limit, possible infinite loop prevented\n");
     }
+    return 0;
+}
+
+int WorkDB::LoadSqlite()
+{
+    struct stat st{};
+    if (sqlite_path.empty() || stat(sqlite_path.c_str(), &st) != 0)
+        return 1;
+
+    sqlite3 *db = nullptr;
+    if (work_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    int row_count = 0;
+    sqlite3_exec(db, "SELECT COUNT(*) FROM work_entries;",
+        [](void *arg, int, char **argv, char **) -> int {
+            *static_cast<int *>(arg) = argv[0] ? std::atoi(argv[0]) : 0;
+            return 0;
+        }, &row_count, nullptr);
+
+    if (row_count == 0)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+
+    Purge();
+
+    sqlite3_stmt *stmt = nullptr;
+    sqlite3_prepare_v2(db,
+        "SELECT user_id,job,pay_rate,pay_amount,tips,"
+        "start_sec,start_year,end_sec,end_year,end_shift,edit_id,"
+        "orig_user_id,orig_job,orig_pay_rate,orig_pay_amount,orig_tips,"
+        "orig_start_sec,orig_start_year,orig_end_sec,orig_end_year,orig_end_shift "
+        "FROM work_entries;",
+        -1, &stmt, nullptr);
+
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        auto *we = new WorkEntry;
+        int c = 0;
+        we->user_id   = sqlite3_column_int(stmt, c++);
+        we->job       = static_cast<short>(sqlite3_column_int(stmt, c++));
+        we->pay_rate  = sqlite3_column_int(stmt, c++);
+        we->pay_amount = sqlite3_column_int(stmt, c++);
+        we->tips      = sqlite3_column_int(stmt, c++);
+        we->start.Set(sqlite3_column_int(stmt, c), sqlite3_column_int(stmt, c + 1)); c += 2;
+        we->end.Set(sqlite3_column_int(stmt, c), sqlite3_column_int(stmt, c + 1)); c += 2;
+        we->end_shift = static_cast<short>(sqlite3_column_int(stmt, c++));
+        we->edit_id   = sqlite3_column_int(stmt, c++);
+
+        if (we->edit_id > 0)
+        {
+            auto *orig = new WorkEntry;
+            orig->user_id    = sqlite3_column_int(stmt, c++);
+            orig->job        = static_cast<short>(sqlite3_column_int(stmt, c++));
+            orig->pay_rate   = sqlite3_column_int(stmt, c++);
+            orig->pay_amount = sqlite3_column_int(stmt, c++);
+            orig->tips       = sqlite3_column_int(stmt, c++);
+            orig->start.Set(sqlite3_column_int(stmt, c), sqlite3_column_int(stmt, c + 1)); c += 2;
+            orig->end.Set(sqlite3_column_int(stmt, c), sqlite3_column_int(stmt, c + 1)); c += 2;
+            orig->end_shift  = static_cast<short>(sqlite3_column_int(stmt, c++));
+            we->original = orig;
+        }
+
+        Add(we);
+    }
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return 0;
+}
+
+int WorkDB::SaveSqlite()
+{
+    if (sqlite_path.empty())
+        return 1;
+
+    sqlite3 *db = nullptr;
+    if (work_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_exec(db, "BEGIN;", nullptr, nullptr, nullptr);
+    sqlite3_exec(db, "DELETE FROM work_entries;", nullptr, nullptr, nullptr);
+
+    sqlite3_stmt *stmt = nullptr;
+    sqlite3_prepare_v2(db,
+        "INSERT INTO work_entries("
+        "user_id,job,pay_rate,pay_amount,tips,"
+        "start_sec,start_year,end_sec,end_year,end_shift,edit_id,"
+        "orig_user_id,orig_job,orig_pay_rate,orig_pay_amount,orig_tips,"
+        "orig_start_sec,orig_start_year,orig_end_sec,orig_end_year,orig_end_shift)"
+        " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
+        -1, &stmt, nullptr);
+
+    int max_iter = 10000;
+    int iter = 0;
+    for (WorkEntry *we = WorkList(); we != nullptr && iter < max_iter; we = we->next, ++iter)
+    {
+        int p = 1;
+        sqlite3_bind_int(stmt, p++, we->user_id);
+        sqlite3_bind_int(stmt, p++, we->job);
+        sqlite3_bind_int(stmt, p++, we->pay_rate);
+        sqlite3_bind_int(stmt, p++, we->pay_amount);
+        sqlite3_bind_int(stmt, p++, we->tips);
+        sqlite3_bind_int(stmt, p++, we->start.SecondsInYear());
+        sqlite3_bind_int(stmt, p++, we->start.Year());
+        sqlite3_bind_int(stmt, p++, we->end.SecondsInYear());
+        sqlite3_bind_int(stmt, p++, we->end.Year());
+        sqlite3_bind_int(stmt, p++, we->end_shift);
+        sqlite3_bind_int(stmt, p++, we->edit_id);
+        if (we->edit_id > 0 && we->original != nullptr)
+        {
+            WorkEntry *o = we->original;
+            sqlite3_bind_int(stmt, p++, o->user_id);
+            sqlite3_bind_int(stmt, p++, o->job);
+            sqlite3_bind_int(stmt, p++, o->pay_rate);
+            sqlite3_bind_int(stmt, p++, o->pay_amount);
+            sqlite3_bind_int(stmt, p++, o->tips);
+            sqlite3_bind_int(stmt, p++, o->start.SecondsInYear());
+            sqlite3_bind_int(stmt, p++, o->start.Year());
+            sqlite3_bind_int(stmt, p++, o->end.SecondsInYear());
+            sqlite3_bind_int(stmt, p++, o->end.Year());
+            sqlite3_bind_int(stmt, p++, o->end_shift);
+        }
+        else
+        {
+            for (int i = p; i <= 21; ++i)
+                sqlite3_bind_null(stmt, i);
+        }
+        sqlite3_step(stmt);
+        sqlite3_reset(stmt);
+    }
+    sqlite3_finalize(stmt);
+
+    sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
+    sqlite3_close(db);
     return 0;
 }

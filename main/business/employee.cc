@@ -28,6 +28,9 @@
 #include "safe_string_utils.hh"
 #include <cctype>
 #include <cstring>
+#include <sqlite3.h>
+#include <sys/stat.h>
+#include "src/utils/vt_logger.hh"
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -239,6 +242,10 @@ int UserDB::Load(const char* file)
     if (file)
         filename.Set(file);
 
+    // Try SQLite first
+    if (!sqlite_path.empty() && LoadSqlite() == 0)
+        return 0;
+
     int version = 0;
     InputDataFile df;
     if (df.Open(filename.Value(), version))
@@ -300,7 +307,202 @@ int UserDB::Save()
         e = e->next;
     }
     changed = 0;
+
+    // Mirror to SQLite for atomic durability
+    if (!sqlite_path.empty())
+        SaveSqlite();
+
     return error;
+}
+
+// ─── SQLite helpers ──────────────────────────────────────────────────────────
+
+static bool emp_db_open(sqlite3 **db, const std::string &path)
+{
+    if (sqlite3_open(path.c_str(), db) != SQLITE_OK)
+    {
+        ReportError("UserDB SQLite open failed: " + path + " — " + sqlite3_errmsg(*db));
+        sqlite3_close(*db); *db = nullptr; return false;
+    }
+    sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    sqlite3_exec(*db, "PRAGMA foreign_keys=ON;",  nullptr, nullptr, nullptr);
+    static const char *kDDL =
+        "CREATE TABLE IF NOT EXISTS employees ("
+        " rowkey INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " id INTEGER, emp_key INTEGER,"
+        " system_name TEXT, last_name TEXT, first_name TEXT,"
+        " address TEXT, city TEXT, state TEXT, phone TEXT, ssn TEXT,"
+        " description TEXT, employee_no INTEGER,"
+        " training INTEGER, password TEXT, active INTEGER"
+        ");"
+        "CREATE TABLE IF NOT EXISTS employee_jobs ("
+        " employee_rowkey INTEGER NOT NULL,"
+        " job INTEGER, pay_rate INTEGER, pay_amount INTEGER,"
+        " starting_page INTEGER, dept_code INTEGER,"
+        " FOREIGN KEY(employee_rowkey) REFERENCES employees(rowkey)"
+        ");";
+    char *errmsg = nullptr;
+    if (sqlite3_exec(*db, kDDL, nullptr, nullptr, &errmsg) != SQLITE_OK)
+    {
+        ReportError("UserDB SQLite DDL error: " + std::string(errmsg));
+        sqlite3_free(errmsg); sqlite3_close(*db); *db = nullptr; return false;
+    }
+    return true;
+}
+
+int UserDB::LoadSqlite()
+{
+    if (sqlite_path.empty()) return 1;
+
+    struct stat st{};
+    if (stat(sqlite_path.c_str(), &st) != 0) return 1;
+
+    sqlite3 *db = nullptr;
+    if (!emp_db_open(&db, sqlite_path)) return 1;
+
+    int row_count = 0;
+    sqlite3_exec(db, "SELECT COUNT(*) FROM employees;",
+        [](void *arg, int, char **argv, char **) -> int {
+            *static_cast<int*>(arg) = argv[0] ? std::atoi(argv[0]) : 0;
+            return 0;
+        }, &row_count, nullptr);
+    if (row_count == 0) { sqlite3_close(db); return 1; }
+
+    static const char *kSEL =
+        "SELECT rowkey,id,emp_key,system_name,last_name,first_name,"
+        "address,city,state,phone,ssn,description,"
+        "employee_no,training,password,active FROM employees ORDER BY rowkey;";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, kSEL, -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db); return 1;
+    }
+
+    Purge();
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        auto *e = new Employee;
+        int c = 0;
+        int64_t rowkey = sqlite3_column_int64(stmt, c++);
+        e->id          = sqlite3_column_int(stmt, c++);
+        e->key         = sqlite3_column_int(stmt, c++);
+        auto txt = [&](int col) -> const char* {
+            const unsigned char *t = sqlite3_column_text(stmt, col);
+            return t ? reinterpret_cast<const char*>(t) : "";
+        };
+        e->system_name.Set(txt(c++));
+        e->last_name.Set(txt(c++));
+        e->first_name.Set(txt(c++));
+        e->address.Set(txt(c++));
+        e->city.Set(txt(c++));
+        e->state.Set(txt(c++));
+        e->phone.Set(txt(c++));
+        e->ssn.Set(txt(c++));
+        e->description.Set(txt(c++));
+        e->employee_no = sqlite3_column_int(stmt, c++);
+        e->training    = sqlite3_column_int(stmt, c++);
+        e->password.Set(txt(c++));
+        e->active      = sqlite3_column_int(stmt, c++);
+
+        // Load jobs for this employee
+        static const char *kJOB =
+            "SELECT job,pay_rate,pay_amount,starting_page,dept_code"
+            " FROM employee_jobs WHERE employee_rowkey=? ORDER BY rowid;";
+        sqlite3_stmt *jstmt = nullptr;
+        if (sqlite3_prepare_v2(db, kJOB, -1, &jstmt, nullptr) == SQLITE_OK)
+        {
+            sqlite3_bind_int64(jstmt, 1, rowkey);
+            while (sqlite3_step(jstmt) == SQLITE_ROW)
+            {
+                auto *j = new JobInfo;
+                j->job           = sqlite3_column_int(jstmt, 0);
+                j->pay_rate      = sqlite3_column_int(jstmt, 1);
+                j->pay_amount    = sqlite3_column_int(jstmt, 2);
+                j->starting_page = sqlite3_column_int(jstmt, 3);
+                j->dept_code     = sqlite3_column_int(jstmt, 4);
+                j->curr_starting_page = j->starting_page;
+                e->Add(j);
+            }
+            sqlite3_finalize(jstmt);
+        }
+        Add(e);
+    }
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    vt::Logger::info("Loaded {} employees from SQLite", UserCount());
+    return 0;
+}
+
+int UserDB::SaveSqlite()
+{
+    if (sqlite_path.empty()) return 1;
+
+    sqlite3 *db = nullptr;
+    if (!emp_db_open(&db, sqlite_path)) return 1;
+
+    sqlite3_exec(db, "BEGIN;", nullptr, nullptr, nullptr);
+    sqlite3_exec(db, "DELETE FROM employee_jobs;", nullptr, nullptr, nullptr);
+    sqlite3_exec(db, "DELETE FROM employees;",     nullptr, nullptr, nullptr);
+
+    static const char *kINS =
+        "INSERT INTO employees(id,emp_key,system_name,last_name,first_name,"
+        "address,city,state,phone,ssn,description,employee_no,training,password,active)"
+        " VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15);";
+    static const char *kJOB =
+        "INSERT INTO employee_jobs(employee_rowkey,job,pay_rate,pay_amount,starting_page,dept_code)"
+        " VALUES(?1,?2,?3,?4,?5,?6);";
+
+    sqlite3_stmt *estmt = nullptr, *jstmt = nullptr;
+    if (sqlite3_prepare_v2(db, kINS, -1, &estmt, nullptr) != SQLITE_OK ||
+        sqlite3_prepare_v2(db, kJOB, -1, &jstmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_finalize(estmt); sqlite3_finalize(jstmt);
+        sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+        return 1;
+    }
+
+    for (Employee *e = UserList(); e; e = e->next)
+    {
+        sqlite3_reset(estmt); sqlite3_clear_bindings(estmt);
+        int p = 1;
+        sqlite3_bind_int (estmt, p++, e->id);
+        sqlite3_bind_int (estmt, p++, e->key);
+        sqlite3_bind_text(estmt, p++, e->system_name.Value(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(estmt, p++, e->last_name.Value(),   -1, SQLITE_STATIC);
+        sqlite3_bind_text(estmt, p++, e->first_name.Value(),  -1, SQLITE_STATIC);
+        sqlite3_bind_text(estmt, p++, e->address.Value(),     -1, SQLITE_STATIC);
+        sqlite3_bind_text(estmt, p++, e->city.Value(),        -1, SQLITE_STATIC);
+        sqlite3_bind_text(estmt, p++, e->state.Value(),       -1, SQLITE_STATIC);
+        sqlite3_bind_text(estmt, p++, e->phone.Value(),       -1, SQLITE_STATIC);
+        sqlite3_bind_text(estmt, p++, e->ssn.Value(),         -1, SQLITE_STATIC);
+        sqlite3_bind_text(estmt, p++, e->description.Value(), -1, SQLITE_STATIC);
+        sqlite3_bind_int (estmt, p++, e->employee_no);
+        sqlite3_bind_int (estmt, p++, e->training);
+        sqlite3_bind_text(estmt, p++, e->password.Value(), -1, SQLITE_STATIC);
+        sqlite3_bind_int (estmt, p++, e->active);
+        if (sqlite3_step(estmt) != SQLITE_DONE) continue;
+
+        int64_t rowkey = sqlite3_last_insert_rowid(db);
+        for (JobInfo *j = e->JobList(); j; j = j->next)
+        {
+            sqlite3_reset(jstmt); sqlite3_clear_bindings(jstmt);
+            sqlite3_bind_int64(jstmt, 1, rowkey);
+            sqlite3_bind_int  (jstmt, 2, j->job);
+            sqlite3_bind_int  (jstmt, 3, j->pay_rate);
+            sqlite3_bind_int  (jstmt, 4, j->pay_amount);
+            sqlite3_bind_int  (jstmt, 5, j->starting_page);
+            sqlite3_bind_int  (jstmt, 6, j->dept_code);
+            sqlite3_step(jstmt);
+        }
+    }
+    sqlite3_finalize(estmt);
+    sqlite3_finalize(jstmt);
+    sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
+    sqlite3_close(db);
+    vt::Logger::debug("Saved {} employees to SQLite", UserCount());
+    return 0;
 }
 
 int UserDB::Add(Employee *e)

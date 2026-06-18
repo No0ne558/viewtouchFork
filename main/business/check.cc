@@ -886,6 +886,11 @@ int Check::FinalizeOrders(Terminal *term, int reprint)
     }
     check_state = ORDER_FINAL;
 
+    // Deplete inventory in real-time as items fire to the kitchen.
+    // Passes the menu so MakeOrder can decrement item_count and auto-86 items.
+    if (!IsTraining() && term && term->system_data)
+        term->system_data->inventory.MakeOrder(this, &term->system_data->menu);
+
     // Timer should start only when the check is actually displayed on a video
     // target (MarkDisplayed). Do not start the timer here on FinalizeOrders.
 

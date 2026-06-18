@@ -52,6 +52,7 @@ enum PrintModeFlags : std::uint8_t {
 #define TARGET_TYPE_FILE      "file"
 #define TARGET_TYPE_EMAIL     "email"
 #define TARGET_TYPE_QUICKBOOKS_CSV "quickbooks_csv"
+#define TARGET_TYPE_CUPS      "cups"
 
 enum targettype : std::uint8_t {
     TARGET_NONE,
@@ -60,7 +61,8 @@ enum targettype : std::uint8_t {
     TARGET_FILE,
     TARGET_EMAIL,
     TARGET_SOCKET,
-    TARGET_QUICKBOOKS_CSV
+    TARGET_QUICKBOOKS_CSV,
+    TARGET_CUPS     // CUPS print queue — covers USB thermal, WiFi, laser printers
 };
 
 enum printer_models : std::uint8_t {
@@ -75,7 +77,8 @@ enum printer_models : std::uint8_t {
     MODEL_PDF,
     MODEL_RECEIPT_TEXT,
     MODEL_REPORT_TEXT,
-    MODEL_QUICKBOOKS_CSV
+    MODEL_QUICKBOOKS_CSV,
+    MODEL_ESCPOS = MODEL_EPSON  // alias: generic ESC/POS (same protocol as Epson)
 };
 
 // obsolete port types
@@ -162,6 +165,7 @@ public:
     virtual int LPDPrint();
     virtual int SocketPrint();                           // print to TCP socket
     virtual int FilePrint();                             // print to local file
+    virtual int CupsPrint();                             // print via CUPS queue (lp -d <queue>)
     virtual int GetFilePath(char* dest);
     virtual int EmailPrint();                            // mail printout to specified address
     virtual int TestPrint(Terminal *t);                  // print out test text message

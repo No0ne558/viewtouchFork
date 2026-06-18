@@ -23,6 +23,7 @@
 
 #include "utility.hh"
 #include "list_utility.hh"
+#include <string>
 
 
 /**** Definitions & Global Data ****/
@@ -187,7 +188,8 @@ class UserDB
 public:
     Employee *super_user;
     Employee *developer;
-    Str       filename;
+    Str         filename;
+    std::string sqlite_path; // viewtouch.db path (empty = no SQLite)
     int       changed;
 
     Employee **name_array; // cached name list
@@ -205,6 +207,8 @@ public:
 
     int       Load(const char* file);
     int       Save();
+    int       LoadSqlite();   // load from sqlite_path; returns 0 on success
+    int       SaveSqlite();   // save to   sqlite_path; returns 0 on success
     int       Add(Employee *e);
     int       Remove(Employee *e);
     int       Purge();

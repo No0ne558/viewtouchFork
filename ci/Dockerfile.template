@@ -22,7 +22,10 @@ RUN apt-get update && \
   xfonts-100dpi \
   tzdata \
   g++ \
-  libcurl4-gnutls-dev
+  libcurl4-gnutls-dev \
+  qt6-base-dev \
+  qt6-wayland \
+  libqt6opengl6-dev
 
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app

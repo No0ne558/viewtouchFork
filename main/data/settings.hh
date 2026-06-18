@@ -26,6 +26,7 @@
 #include "cdu.hh"
 #include "check.hh"
 #include "credit.hh"
+#include <string>
 
 // NOTE:  WHEN UPDATING SETTINGS DO NOT FORGET that you may also
 // need to update archive.hh and archive.cc for settings which
@@ -556,6 +557,7 @@ class Settings
 public:
     // General State
     Str filename;                // filename for saving
+    std::string sqlite_path;     // shared SQLite DB path (empty = no SQLite)
     Str discount_filename;       // filename for discounts, coupons, and comps
     Str altdiscount_filename;    // discount, coupons, etc. for old archives
     Str altsettings_filename;    // filename for old tax settings, et al
@@ -801,6 +803,8 @@ public:
     // Loads settings from file
     int Save();
     // Saves settings to file
+    int LoadSqlite();
+    int SaveSqlite();
     int LoadMedia(const genericChar* filename);
     int SaveMedia();
     int SaveAltMedia(const genericChar* filename);

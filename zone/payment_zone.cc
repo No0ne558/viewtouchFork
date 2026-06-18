@@ -1322,7 +1322,8 @@ int PaymentZone::AddPayment(Terminal *term, int ptype, int pid, int pflags, int 
     }
 
     Drawer *drawer = term->FindDrawer();
-    if (drawer == nullptr && !currCheck->IsTraining() &&
+    bool is_card = (ptype == TENDER_CREDIT_CARD || ptype == TENDER_DEBIT_CARD);
+    if (drawer == nullptr && !currCheck->IsTraining() && !is_card &&
         !(subCheck->OnlyCredit() == 1 && term->is_bar_tab == 1))
     {
         // Get descriptive reason for drawer unavailability
@@ -1422,7 +1423,8 @@ int PaymentZone::AddPayment(Terminal *term, int ptype, int pid, int pflags, int 
         paymnt->tender_type == TENDER_DEBIT_CARD)
     {
         paymnt->credit = term->credit;
-        paymnt->credit->check_id = currCheck->serial_number;
+        if (paymnt->credit)
+            paymnt->credit->check_id = currCheck->serial_number;
         term->credit = nullptr;
     }
 

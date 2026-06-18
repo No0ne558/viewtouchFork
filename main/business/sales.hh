@@ -28,7 +28,7 @@
 
 /**** Definitions ****/
 
-constexpr int SALES_ITEM_VERSION = 17;
+constexpr int SALES_ITEM_VERSION = 18;
 
 // Family Difinitions
 #define FAMILY_APPETIZERS        0
@@ -195,6 +195,7 @@ public:
     short allow_increase; // whether to show the OrderAddZone button.
     short ignore_split;	  // ignore split kitchen?
     short out_of_stock;   // boolean - is item 86'd or out of stock
+    int   item_count;     // servings remaining today; -1 = unlimited; 0 = auto-86'd
     int   period;         // time of day served
     int   prepare_time;   // time to make menu item
     int   quanity;        // Number of item remaining
@@ -259,7 +260,8 @@ class ItemDB
     DList<GroupItem> group_list;
 
 public:
-    Str filename;          // db save filename
+    Str         filename;    // dat save filename
+    std::string sqlite_path; // viewtouch.db path (empty = no SQLite)
     int changed;           // boolean - has menu been changed?
     int merchandise_count; // result from ItemCount()
     int merchandise_sales;
@@ -280,9 +282,9 @@ public:
     int        GroupCount()   { return group_list.Count(); }
 
     int Load(const char* filename);
-    // Reads SalesItem records from file into object
     int Save();
-    // Writes all SalesItem records from object to file
+    int LoadSqlite();   // load from sqlite_path; returns 0 on success
+    int SaveSqlite();   // save to   sqlite_path; returns 0 on success
     int Add(SalesItem *mi);
     // Adds SalesItem to object (sorted by name)
     int Remove(SalesItem *mi);

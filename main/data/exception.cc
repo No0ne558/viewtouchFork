@@ -26,10 +26,39 @@
 #include "report.hh"
 #include "terminal.hh"
 #include "archive.hh"
+#include <sqlite3.h>
+#include <sys/stat.h>
+#include <cstdlib>
 
 #ifdef DMALLOC
 #include <dmalloc.h>
 #endif
+
+static int exc_db_open(sqlite3 **db, const std::string &path)
+{
+    if (sqlite3_open(path.c_str(), db) != SQLITE_OK)
+        return 1;
+    sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    sqlite3_exec(*db, "PRAGMA foreign_keys=ON;", nullptr, nullptr, nullptr);
+    const char *ddl =
+        "CREATE TABLE IF NOT EXISTS item_exceptions ("
+        " rowid INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " time_sec INTEGER, time_year INTEGER,"
+        " user_id INTEGER, exception_type INTEGER, reason INTEGER,"
+        " check_serial INTEGER, item_name TEXT, item_cost INTEGER,"
+        " item_type INTEGER, item_family INTEGER);"
+        "CREATE TABLE IF NOT EXISTS table_exceptions ("
+        " rowid INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " time_sec INTEGER, time_year INTEGER,"
+        " user_id INTEGER, source_id INTEGER, target_id INTEGER,"
+        " table_name TEXT, check_serial INTEGER);"
+        "CREATE TABLE IF NOT EXISTS rebuild_exceptions ("
+        " rowid INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " time_sec INTEGER, time_year INTEGER,"
+        " user_id INTEGER, check_serial INTEGER);";
+    sqlite3_exec(*db, ddl, nullptr, nullptr, nullptr);
+    return 0;
+}
 
 
 /**** ItemException Class ****/
@@ -195,6 +224,9 @@ int ExceptionDB::Load(const char* file)
     if (file)
         filename.Set(file);
 
+    if (!sqlite_path.empty() && LoadSqlite() == 0)
+        return 0;
+
     int version = 0;
     InputDataFile df;
     if (df.Open(filename.Value(), version))
@@ -219,8 +251,12 @@ int ExceptionDB::Save()
     OutputDataFile df;
     if (df.Open(filename.Value(), EXCEPTION_VERSION))
         return 1;
-    else
-        return Write(df, EXCEPTION_VERSION);
+    int error = Write(df, EXCEPTION_VERSION);
+
+    if (!sqlite_path.empty())
+        SaveSqlite();
+
+    return error;
 }
 
 int ExceptionDB::Read(InputDataFile &df, int version)
@@ -404,5 +440,157 @@ int ExceptionDB::AddRebuildException(Terminal *t, Check *c)
     re->time = SystemTime;
     Add(re);
     Save();
+    return 0;
+}
+
+int ExceptionDB::LoadSqlite()
+{
+    struct stat st{};
+    if (sqlite_path.empty() || stat(sqlite_path.c_str(), &st) != 0)
+        return 1;
+
+    sqlite3 *db = nullptr;
+    if (exc_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    Purge();
+
+    sqlite3_stmt *stmt = nullptr;
+
+    sqlite3_prepare_v2(db,
+        "SELECT time_sec,time_year,user_id,exception_type,reason,"
+        "check_serial,item_name,item_cost,item_type,item_family "
+        "FROM item_exceptions;",
+        -1, &stmt, nullptr);
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        auto *ie = new ItemException;
+        int c = 0;
+        ie->time.Set(sqlite3_column_int(stmt, c), sqlite3_column_int(stmt, c + 1)); c += 2;
+        ie->user_id        = sqlite3_column_int(stmt, c++);
+        ie->exception_type = static_cast<short>(sqlite3_column_int(stmt, c++));
+        ie->reason         = static_cast<short>(sqlite3_column_int(stmt, c++));
+        ie->check_serial   = sqlite3_column_int(stmt, c++);
+        const auto *nm     = reinterpret_cast<const char *>(sqlite3_column_text(stmt, c++));
+        ie->item_name.Set(nm ? nm : "");
+        ie->item_cost      = sqlite3_column_int(stmt, c++);
+        ie->item_type      = static_cast<short>(sqlite3_column_int(stmt, c++));
+        ie->item_family    = static_cast<short>(sqlite3_column_int(stmt, c++));
+        item_list.AddToTail(ie);
+    }
+    sqlite3_finalize(stmt); stmt = nullptr;
+
+    sqlite3_prepare_v2(db,
+        "SELECT time_sec,time_year,user_id,source_id,target_id,"
+        "table_name,check_serial FROM table_exceptions;",
+        -1, &stmt, nullptr);
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        auto *te = new TableException;
+        int c = 0;
+        te->time.Set(sqlite3_column_int(stmt, c), sqlite3_column_int(stmt, c + 1)); c += 2;
+        te->user_id      = sqlite3_column_int(stmt, c++);
+        te->source_id    = sqlite3_column_int(stmt, c++);
+        te->target_id    = sqlite3_column_int(stmt, c++);
+        const auto *tn   = reinterpret_cast<const char *>(sqlite3_column_text(stmt, c++));
+        te->table.Set(tn ? tn : "");
+        te->check_serial = sqlite3_column_int(stmt, c++);
+        table_list.AddToTail(te);
+    }
+    sqlite3_finalize(stmt); stmt = nullptr;
+
+    sqlite3_prepare_v2(db,
+        "SELECT time_sec,time_year,user_id,check_serial FROM rebuild_exceptions;",
+        -1, &stmt, nullptr);
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        auto *re = new RebuildException;
+        re->time.Set(sqlite3_column_int(stmt, 0), sqlite3_column_int(stmt, 1));
+        re->user_id      = sqlite3_column_int(stmt, 2);
+        re->check_serial = sqlite3_column_int(stmt, 3);
+        rebuild_list.AddToTail(re);
+    }
+    sqlite3_finalize(stmt);
+
+    sqlite3_close(db);
+    return 0;
+}
+
+int ExceptionDB::SaveSqlite()
+{
+    if (sqlite_path.empty())
+        return 1;
+
+    sqlite3 *db = nullptr;
+    if (exc_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_exec(db, "BEGIN;", nullptr, nullptr, nullptr);
+    sqlite3_exec(db, "DELETE FROM item_exceptions;", nullptr, nullptr, nullptr);
+    sqlite3_exec(db, "DELETE FROM table_exceptions;", nullptr, nullptr, nullptr);
+    sqlite3_exec(db, "DELETE FROM rebuild_exceptions;", nullptr, nullptr, nullptr);
+
+    sqlite3_stmt *stmt = nullptr;
+
+    sqlite3_prepare_v2(db,
+        "INSERT INTO item_exceptions(time_sec,time_year,user_id,exception_type,"
+        "reason,check_serial,item_name,item_cost,item_type,item_family)"
+        " VALUES(?,?,?,?,?,?,?,?,?,?);",
+        -1, &stmt, nullptr);
+    for (ItemException *ie = item_list.Head(); ie != nullptr; ie = ie->next)
+    {
+        int p = 1;
+        sqlite3_bind_int(stmt, p++, ie->time.SecondsInYear());
+        sqlite3_bind_int(stmt, p++, ie->time.Year());
+        sqlite3_bind_int(stmt, p++, ie->user_id);
+        sqlite3_bind_int(stmt, p++, ie->exception_type);
+        sqlite3_bind_int(stmt, p++, ie->reason);
+        sqlite3_bind_int(stmt, p++, ie->check_serial);
+        sqlite3_bind_text(stmt, p++, ie->item_name.Value(), -1, SQLITE_STATIC);
+        sqlite3_bind_int(stmt, p++, ie->item_cost);
+        sqlite3_bind_int(stmt, p++, ie->item_type);
+        sqlite3_bind_int(stmt, p++, ie->item_family);
+        sqlite3_step(stmt);
+        sqlite3_reset(stmt);
+    }
+    sqlite3_finalize(stmt); stmt = nullptr;
+
+    sqlite3_prepare_v2(db,
+        "INSERT INTO table_exceptions(time_sec,time_year,user_id,source_id,"
+        "target_id,table_name,check_serial) VALUES(?,?,?,?,?,?,?);",
+        -1, &stmt, nullptr);
+    for (TableException *te = table_list.Head(); te != nullptr; te = te->next)
+    {
+        int p = 1;
+        sqlite3_bind_int(stmt, p++, te->time.SecondsInYear());
+        sqlite3_bind_int(stmt, p++, te->time.Year());
+        sqlite3_bind_int(stmt, p++, te->user_id);
+        sqlite3_bind_int(stmt, p++, te->source_id);
+        sqlite3_bind_int(stmt, p++, te->target_id);
+        sqlite3_bind_text(stmt, p++, te->table.Value(), -1, SQLITE_STATIC);
+        sqlite3_bind_int(stmt, p++, te->check_serial);
+        sqlite3_step(stmt);
+        sqlite3_reset(stmt);
+    }
+    sqlite3_finalize(stmt); stmt = nullptr;
+
+    sqlite3_prepare_v2(db,
+        "INSERT INTO rebuild_exceptions(time_sec,time_year,user_id,check_serial)"
+        " VALUES(?,?,?,?);",
+        -1, &stmt, nullptr);
+    for (RebuildException *re = rebuild_list.Head(); re != nullptr; re = re->next)
+    {
+        int p = 1;
+        sqlite3_bind_int(stmt, p++, re->time.SecondsInYear());
+        sqlite3_bind_int(stmt, p++, re->time.Year());
+        sqlite3_bind_int(stmt, p++, re->user_id);
+        sqlite3_bind_int(stmt, p++, re->check_serial);
+        sqlite3_step(stmt);
+        sqlite3_reset(stmt);
+    }
+    sqlite3_finalize(stmt);
+
+    sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
+    sqlite3_close(db);
     return 0;
 }

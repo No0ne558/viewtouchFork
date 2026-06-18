@@ -23,6 +23,7 @@
 
 #include "utility.hh"
 #include "list_utility.hh"
+#include <string>
 
 
 /**** Definitions ****/
@@ -278,10 +279,11 @@ class Inventory
     DList<Stock>   stock_list;
 
 public:
-    Str filename;
-    int last_id;
-    Str stock_path;
-    int last_stock_id;
+    Str         filename;
+    int         last_id;
+    Str         stock_path;
+    int         last_stock_id;
+    std::string sqlite_path; // empty = SQLite disabled
 
     // Constructor
     Inventory();
@@ -302,6 +304,8 @@ public:
 
     int Load(const char* file);
     int Save();
+    int LoadSqlite();
+    int SaveSqlite();
     int Add(Product *pr);
     int Add(Recipe *rc);
     int Add(Vendor *v);
@@ -332,7 +336,7 @@ public:
     int    ScanItems(ItemDB *db);
     bool   ChangeRecipeName(const std::string &old_name, const std::string &new_name);
     Stock *CurrentStock();
-    int    MakeOrder(Check *c);
+    int    MakeOrder(Check *c, ItemDB *menu = nullptr);
 };
 
 #endif

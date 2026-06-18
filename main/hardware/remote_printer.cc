@@ -34,7 +34,7 @@
 #include <sys/select.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <X11/Intrinsic.h>
+// XtPointer/XtInputId types come from manager.hh (no Xt headers needed)
 #include <cctype>
 #include <cstring>
 #include <memory>

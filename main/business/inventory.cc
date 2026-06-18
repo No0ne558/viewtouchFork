@@ -30,6 +30,9 @@
 #include <sys/file.h>
 #include <dirent.h>
 #include <cstring>
+#include <cstdio>
+#include <vector>
+#include <sqlite3.h>
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -582,6 +585,115 @@ Inventory::Inventory()
     last_stock_id    = 0;
 }
 
+/**** Inventory SQLite ****/
+
+static int inventory_db_open(sqlite3 **db, const std::string &path)
+{
+    if (sqlite3_open(path.c_str(), db) != SQLITE_OK)
+    {
+        sqlite3_close(*db);
+        *db = nullptr;
+        return 1;
+    }
+    sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    const char *ddl =
+        "CREATE TABLE IF NOT EXISTS inventory_snapshot("
+        "  id   INTEGER PRIMARY KEY,"
+        "  data BLOB NOT NULL"
+        ");";
+    if (sqlite3_exec(*db, ddl, nullptr, nullptr, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(*db);
+        *db = nullptr;
+        return 1;
+    }
+    return 0;
+}
+
+int Inventory::LoadSqlite()
+{
+    if (sqlite_path.empty())
+        return 1;
+
+    sqlite3 *db = nullptr;
+    if (inventory_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db,
+            "SELECT data FROM inventory_snapshot WHERE id=1;",
+            -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+
+    int result = 1;
+    if (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        const void *blob = sqlite3_column_blob(stmt, 0);
+        int bytes = sqlite3_column_bytes(stmt, 0);
+        if (blob && bytes > 0)
+        {
+            const char *tmp = "/tmp/inventory.sqlite_tmp";
+            FILE *f = fopen(tmp, "wb");
+            if (f)
+            {
+                fwrite(blob, 1, bytes, f);
+                fclose(f);
+                Str saved_name = filename;
+                std::string saved_path = sqlite_path;
+                sqlite_path.clear(); // prevent re-entry via Load
+                result = Load(tmp);
+                sqlite_path = saved_path;
+                filename = saved_name;
+                remove(tmp);
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return result;
+}
+
+int Inventory::SaveSqlite()
+{
+    if (sqlite_path.empty() || filename.empty())
+        return 1;
+
+    FILE *f = fopen(filename.Value(), "rb");
+    if (!f)
+        return 1;
+
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    rewind(f);
+    if (sz <= 0) { fclose(f); return 1; }
+
+    std::vector<char> buf(sz);
+    if ((long)fread(buf.data(), 1, sz, f) != sz) { fclose(f); return 1; }
+    fclose(f);
+
+    sqlite3 *db = nullptr;
+    if (inventory_db_open(&db, sqlite_path) != 0)
+        return 1;
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db,
+            "INSERT OR REPLACE INTO inventory_snapshot(id, data) VALUES(1,?);",
+            -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        return 1;
+    }
+    sqlite3_bind_blob(stmt, 1, buf.data(), sz, SQLITE_STATIC);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return 0;
+}
+
 // Member Functions
 int Inventory::Load(const char* file)
 {
@@ -679,6 +791,8 @@ int Inventory::Save()
     for (Vendor *v = VendorList(); v != nullptr; v = v->next)
         error += v->Write(df, 7);
 
+    if (error == 0 && !sqlite_path.empty())
+        SaveSqlite();
     return error;
 }
 
@@ -1175,14 +1289,16 @@ Stock *Inventory::CurrentStock()
     return end;
 }
 
-int Inventory::MakeOrder(Check *c)
+int Inventory::MakeOrder(Check *c, ItemDB *menu)
 {
     FnTrace("Inventory::MakeOrder()");
     Stock *s = CurrentStock();
     if (s == nullptr)
         return 1;
 
-    int changed = 0;
+    int changed      = 0;
+    int menu_changed = 0;
+
     for (SubCheck *sc = c->SubList(); sc != nullptr; sc = sc->next)
         for (Order *o = sc->OrderList(); o != nullptr; o = o->next)
             if (!(o->status & ORDER_MADE) && (o->status & ORDER_SENT))
@@ -1190,6 +1306,7 @@ int Inventory::MakeOrder(Check *c)
                 o->status |= ORDER_MADE;
                 if (!(o->qualifier & QUALIFIER_NO))
                 {
+                    // Deduct from recipe/ingredient stock (existing path)
                     Recipe *rc = FindRecipeByName(o->item_name.Value());
                     if (rc)
                         for (RecipePart *rp = rc->PartList(); rp != nullptr; rp = rp->next)
@@ -1200,11 +1317,29 @@ int Inventory::MakeOrder(Check *c)
                             se->used += ua;
                             changed = 1;
                         }
+
+                    // Real-time item_count depletion — auto-86 when it hits 0
+                    if (menu)
+                    {
+                        SalesItem *si = menu->FindByName(o->item_name.Value());
+                        if (si && si->item_count >= 0)
+                        {
+                            si->item_count -= o->count;
+                            if (si->item_count <= 0)
+                            {
+                                si->item_count   = 0;
+                                si->out_of_stock = 1;
+                            }
+                            menu_changed = 1;
+                        }
+                    }
                 }
             }
 
     if (changed)
         s->Save();
+    if (menu_changed)
+        menu->changed = 1;
     return 0;
 }
 

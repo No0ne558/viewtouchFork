@@ -81,6 +81,9 @@ list(APPEND REQUIRED_DEPS "libgif-dev")      # GIF
 # pkg-config
 list(APPEND REQUIRED_DEPS "pkg-config")
 
+# Qt6 (new rendering backend — replaces Xlib/Motif over time)
+list(APPEND REQUIRED_DEPS "qt6-base-dev")
+
 # Package name mappings for different distributions
 set(DEB_PACKAGES
     "cmake"
@@ -100,6 +103,8 @@ set(DEB_PACKAGES
     "libjpeg-dev"
     "libgif-dev"
     "pkg-config"
+    "qt6-base-dev"
+    "qt6-wayland"
 )
 
 set(RPM_PACKAGES
@@ -122,6 +127,8 @@ set(RPM_PACKAGES
     "libjpeg-devel"
     "giflib-devel"
     "pkgconfig"
+    "qt6-qtbase-devel"
+    "qt6-qtwayland"
 )
 
 set(ARCH_PACKAGES
@@ -142,6 +149,8 @@ set(ARCH_PACKAGES
     "libjpeg-turbo"
     "giflib"
     "pkgconf"
+    "qt6-base"
+    "qt6-wayland"
 )
 
 set(ZYPPER_PACKAGES
@@ -164,6 +173,8 @@ set(ZYPPER_PACKAGES
     "libjpeg-devel"
     "libgif-devel"
     "pkg-config"
+    "qt6-base-devel"
+    "qt6-wayland-devel"
 )
 
 # Function to check if a package is installed

@@ -178,6 +178,7 @@ class WorkDB
 public:
     Archive *archive;
     Str      filename;
+    std::string sqlite_path;
 
     // Constructor
     WorkDB();
@@ -192,6 +193,8 @@ public:
     int Purge();
     int Load(const char* file);
     int Save();
+    int LoadSqlite();
+    int SaveSqlite();
     int Read(InputDataFile &df, int version);
     int Write(OutputDataFile &df, int version);
 };

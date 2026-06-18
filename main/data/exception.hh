@@ -23,6 +23,7 @@
 
 #include "utility.hh"
 #include "list_utility.hh"
+#include <string>
 
 
 /**** Definitions ****/
@@ -111,6 +112,7 @@ class ExceptionDB
 public:
     Archive *archive;
     Str filename;
+    std::string sqlite_path;
 
     // Constructor
     ExceptionDB();
@@ -127,6 +129,8 @@ public:
 
     int Load(const char* file);
     int Save();
+    int LoadSqlite();
+    int SaveSqlite();
     int Read(InputDataFile &df, int version);
     int Write(OutputDataFile &df, int version);
     int Add(ItemException *ie);

@@ -23,6 +23,8 @@
 #include "terminal.hh"
 #include "report.hh"
 #include "zone.hh"
+#include <sqlite3.h>
+#include <sys/stat.h>
 #include "data_file.hh"
 #include "settings.hh"
 #include "labels.hh"
@@ -102,6 +104,7 @@ SalesItem::SalesItem(const char* name)
     allow_increase = 1;
     ignore_split   = 0;
     out_of_stock   = 0;
+    item_count     = -1;
 }
 
 // Member Functions
@@ -148,6 +151,7 @@ int SalesItem::Copy(SalesItem *target)
         target->allow_increase = allow_increase;
         target->ignore_split = ignore_split;
         target->out_of_stock = out_of_stock;
+        target->item_count   = item_count;
         retval = 0;
     }
     return retval;
@@ -187,6 +191,7 @@ int SalesItem::Read(InputDataFile &df, int version)
     // 15 (11/06/15) added ignore split kitchen
     // 16 (11/03/25) added image_path persistence
     // 17 (01/31/26) added out_of_stock flag
+    // 18 (2026-06-18) added item_count (servings remaining today; -1=unlimited)
 
     if (version < 8)
         return 1;
@@ -255,6 +260,11 @@ int SalesItem::Read(InputDataFile &df, int version)
         df.Read(out_of_stock);
     else
         out_of_stock = 0;
+
+    if (version >= 18)
+        df.Read(item_count);
+    else
+        item_count = -1;
 
     // Item property checks
     if (call_order < 0)
@@ -327,6 +337,8 @@ int SalesItem::Write(OutputDataFile &df, int version)
         error += df.Write(image_path);
     if (version >= 17)
         error += df.Write(out_of_stock);
+    if (version >= 18)
+        error += df.Write(item_count);
 
     return error;
 }
@@ -439,6 +451,10 @@ int ItemDB::Load(const char* file)
     if (file)
         filename.Set(file);
 
+    // Try SQLite first; it's faster, atomic, and WAL-safe
+    if (!sqlite_path.empty() && LoadSqlite() == 0)
+        return 0;
+
     int version = 0;
     InputDataFile df;
     if (df.Open(filename.Value(), version))
@@ -506,7 +522,210 @@ int ItemDB::Save()
         vt::Logger::error("Errors occurred while saving item database (error code: {})", error);
     }
 
+    // Mirror to SQLite for atomic durability
+    if (!sqlite_path.empty())
+        SaveSqlite();
+
     return error;
+}
+
+// ─── SQLite helpers ──────────────────────────────────────────────────────────
+
+static bool menu_db_open(sqlite3 **db, const std::string &path)
+{
+    if (sqlite3_open(path.c_str(), db) != SQLITE_OK)
+    {
+        ReportError("ItemDB SQLite open failed: " + path + " — " + sqlite3_errmsg(*db));
+        sqlite3_close(*db);
+        *db = nullptr;
+        return false;
+    }
+    sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    static const char *kDDL =
+        "CREATE TABLE IF NOT EXISTS sales_items ("
+        " id INTEGER PRIMARY KEY,"
+        " item_name TEXT, zone_name TEXT, print_name TEXT,"
+        " call_center_name TEXT, item_code TEXT, image_path TEXT,"
+        " location TEXT, event_time TEXT,"
+        " total_tickets TEXT, available_tickets TEXT, price_label TEXT,"
+        " type INTEGER, cost INTEGER, sub_cost INTEGER,"
+        " employee_cost INTEGER, takeout_cost INTEGER, delivery_cost INTEGER,"
+        " tax_id INTEGER, takeout_tax_id INTEGER,"
+        " call_order INTEGER, printer_id INTEGER, family INTEGER,"
+        " item_class INTEGER, sales_type INTEGER, period INTEGER,"
+        " stocked INTEGER, prepare_time INTEGER,"
+        " allow_increase INTEGER, ignore_split INTEGER, out_of_stock INTEGER,"
+        " item_count INTEGER DEFAULT -1"
+        ");";
+    char *errmsg = nullptr;
+    if (sqlite3_exec(*db, kDDL, nullptr, nullptr, &errmsg) != SQLITE_OK)
+    {
+        ReportError("ItemDB SQLite DDL error: " + std::string(errmsg));
+        sqlite3_free(errmsg);
+        sqlite3_close(*db);
+        *db = nullptr;
+        return false;
+    }
+    // Migrate existing databases missing the item_count column (fails silently if already present)
+    sqlite3_exec(*db,
+        "ALTER TABLE sales_items ADD COLUMN item_count INTEGER DEFAULT -1;",
+        nullptr, nullptr, nullptr);
+    return true;
+}
+
+int ItemDB::LoadSqlite()
+{
+    if (sqlite_path.empty()) return 1;
+
+    struct stat st{};
+    if (stat(sqlite_path.c_str(), &st) != 0) return 1; // file doesn't exist yet
+
+    sqlite3 *db = nullptr;
+    if (!menu_db_open(&db, sqlite_path)) return 1;
+
+    // Check row count first; empty table means fall back to .dat
+    int row_count = 0;
+    sqlite3_exec(db, "SELECT COUNT(*) FROM sales_items;",
+        [](void *arg, int, char **argv, char **) -> int {
+            *static_cast<int*>(arg) = argv[0] ? std::atoi(argv[0]) : 0;
+            return 0;
+        }, &row_count, nullptr);
+    if (row_count == 0) { sqlite3_close(db); return 1; }
+
+    static const char *kSEL =
+        "SELECT id,item_name,zone_name,print_name,call_center_name,item_code,image_path,"
+        "location,event_time,total_tickets,available_tickets,price_label,"
+        "type,cost,sub_cost,employee_cost,takeout_cost,delivery_cost,"
+        "tax_id,takeout_tax_id,call_order,printer_id,family,"
+        "item_class,sales_type,period,stocked,prepare_time,"
+        "allow_increase,ignore_split,out_of_stock,item_count "
+        "FROM sales_items ORDER BY rowid;";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, kSEL, -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        ReportError("ItemDB::LoadSqlite prepare: " + std::string(sqlite3_errmsg(db)));
+        sqlite3_close(db);
+        return 1;
+    }
+
+    Purge();
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        auto *si = new SalesItem;
+        int c = 0;
+        si->id = sqlite3_column_int(stmt, c++);
+        auto txt = [&](int col) -> const char* {
+            const unsigned char *t = sqlite3_column_text(stmt, col);
+            return t ? reinterpret_cast<const char*>(t) : "";
+        };
+        si->item_name.Set(txt(c++));
+        si->zone_name.Set(txt(c++));
+        si->print_name.Set(txt(c++));
+        si->call_center_name.Set(txt(c++));
+        si->item_code.Set(txt(c++));
+        si->image_path.Set(txt(c++));
+        si->location.Set(txt(c++));
+        si->event_time.Set(txt(c++));
+        si->total_tickets.Set(txt(c++));
+        si->available_tickets.Set(txt(c++));
+        si->price_label.Set(txt(c++));
+        si->type           = static_cast<short>(sqlite3_column_int(stmt, c++));
+        si->cost           = sqlite3_column_int(stmt, c++);
+        si->sub_cost       = sqlite3_column_int(stmt, c++);
+        si->employee_cost  = sqlite3_column_int(stmt, c++);
+        si->takeout_cost   = sqlite3_column_int(stmt, c++);
+        si->delivery_cost  = sqlite3_column_int(stmt, c++);
+        si->tax_id         = sqlite3_column_int(stmt, c++);
+        si->takeout_tax_id = sqlite3_column_int(stmt, c++);
+        si->call_order     = static_cast<short>(sqlite3_column_int(stmt, c++));
+        si->printer_id     = static_cast<short>(sqlite3_column_int(stmt, c++));
+        si->family         = static_cast<short>(sqlite3_column_int(stmt, c++));
+        si->item_class     = static_cast<short>(sqlite3_column_int(stmt, c++));
+        si->sales_type     = static_cast<short>(sqlite3_column_int(stmt, c++));
+        si->period         = sqlite3_column_int(stmt, c++);
+        si->stocked        = static_cast<short>(sqlite3_column_int(stmt, c++));
+        si->prepare_time   = sqlite3_column_int(stmt, c++);
+        si->allow_increase = static_cast<short>(sqlite3_column_int(stmt, c++));
+        si->ignore_split   = static_cast<short>(sqlite3_column_int(stmt, c++));
+        si->out_of_stock   = static_cast<short>(sqlite3_column_int(stmt, c++));
+        si->item_count     = sqlite3_column_int(stmt, c++);
+        Add(si);
+    }
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    vt::Logger::info("Loaded {} menu items from SQLite", ItemCount());
+    return 0;
+}
+
+int ItemDB::SaveSqlite()
+{
+    if (sqlite_path.empty()) return 1;
+
+    sqlite3 *db = nullptr;
+    if (!menu_db_open(&db, sqlite_path)) return 1;
+
+    sqlite3_exec(db, "BEGIN;", nullptr, nullptr, nullptr);
+    sqlite3_exec(db, "DELETE FROM sales_items;", nullptr, nullptr, nullptr);
+
+    static const char *kINS =
+        "INSERT INTO sales_items VALUES"
+        "(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,"
+        "?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,"
+        "?24,?25,?26,?27,?28,?29,?30,?31,?32);";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, kINS, -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+        return 1;
+    }
+
+    for (SalesItem *si = ItemList(); si; si = si->next)
+    {
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        int p = 1;
+        sqlite3_bind_int (stmt, p++, si->id);
+        sqlite3_bind_text(stmt, p++, si->item_name.Value(),        -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, p++, si->zone_name.Value(),        -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, p++, si->print_name.Value(),       -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, p++, si->call_center_name.Value(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, p++, si->item_code.Value(),        -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, p++, si->image_path.Value(),       -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, p++, si->location.Value(),         -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, p++, si->event_time.Value(),       -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, p++, si->total_tickets.Value(),    -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, p++, si->available_tickets.Value(),-1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, p++, si->price_label.Value(),      -1, SQLITE_STATIC);
+        sqlite3_bind_int (stmt, p++, si->type);
+        sqlite3_bind_int (stmt, p++, si->cost);
+        sqlite3_bind_int (stmt, p++, si->sub_cost);
+        sqlite3_bind_int (stmt, p++, si->employee_cost);
+        sqlite3_bind_int (stmt, p++, si->takeout_cost);
+        sqlite3_bind_int (stmt, p++, si->delivery_cost);
+        sqlite3_bind_int (stmt, p++, si->tax_id);
+        sqlite3_bind_int (stmt, p++, si->takeout_tax_id);
+        sqlite3_bind_int (stmt, p++, si->call_order);
+        sqlite3_bind_int (stmt, p++, si->printer_id);
+        sqlite3_bind_int (stmt, p++, si->family);
+        sqlite3_bind_int (stmt, p++, si->item_class);
+        sqlite3_bind_int (stmt, p++, si->sales_type);
+        sqlite3_bind_int (stmt, p++, si->period);
+        sqlite3_bind_int (stmt, p++, si->stocked);
+        sqlite3_bind_int (stmt, p++, si->prepare_time);
+        sqlite3_bind_int (stmt, p++, si->allow_increase);
+        sqlite3_bind_int (stmt, p++, si->ignore_split);
+        sqlite3_bind_int (stmt, p++, si->out_of_stock);
+        sqlite3_bind_int (stmt, p++, si->item_count);
+        sqlite3_step(stmt);
+    }
+    sqlite3_finalize(stmt);
+    sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr);
+    sqlite3_close(db);
+    vt::Logger::debug("Saved {} menu items to SQLite", ItemCount());
+    return 0;
 }
 
 int ItemDB::Add(SalesItem *si)

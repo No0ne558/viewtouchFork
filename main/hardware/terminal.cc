@@ -53,6 +53,7 @@
 #include "zone.hh"
 #include "version/vt_version_info.hh"
 #include "../term/term_view.hh"
+#include "src/utils/vt_logger.hh"
 
 #include <ctype.h>
 #include <errno.h>
@@ -65,7 +66,7 @@
 #include <unistd.h>
 #include <X11/keysymdef.h>
 #include <X11/keysym.h>
-#include <X11/Intrinsic.h>
+// XtPointer/XtIntervalId/XtInputId types come from manager.hh (no Xt headers needed)
 
 #include <string>
 #include <map>
@@ -186,10 +187,10 @@ enum window_buttons {
 /**** Calback Functions ****/
 void TermCB(XtPointer client_data, int *fid, XtInputId * /*id*/)
 {
-
     FnTrace("TermCB()");
     Terminal *term = (Terminal *) client_data;
     Terminal *errterm = nullptr;
+
     int val = term->buffer_in->Read(*fid);
     static int last_code = 0;
 
@@ -383,9 +384,7 @@ void TermCB(XtPointer client_data, int *fid, XtInputId * /*id*/)
         break;
 
         case ServerProtocol::SrvZoneData:
-            fprintf(stderr, "SERVER_ZONEDATA received, calling ReadZone()\n");
-            term->ReadZone(); 
-            fprintf(stderr, "SERVER_ZONEDATA: ReadZone() returned\n");
+            term->ReadZone();
             break;
 
         case ServerProtocol::SrvZoneChanges:
@@ -1652,7 +1651,7 @@ SignalResult Terminal::Signal(const genericChar* message, int group_id)
         extern XtIntervalId restart_timeout_id;
         restart_dialog_shown = 0;
         if (restart_timeout_id != 0) {
-            XtRemoveTimeOut(restart_timeout_id);
+            RemoveTimeOutFn(restart_timeout_id);
             restart_timeout_id = 0;
         }
         ExecuteRestart();
@@ -1666,7 +1665,7 @@ SignalResult Terminal::Signal(const genericChar* message, int group_id)
         extern int restart_postponed_until;
         restart_dialog_shown = 0;
         if (restart_timeout_id != 0) {
-            XtRemoveTimeOut(restart_timeout_id);
+            RemoveTimeOutFn(restart_timeout_id);
             restart_timeout_id = 0;
         }
         // Set postpone time to current time + 1 hour
