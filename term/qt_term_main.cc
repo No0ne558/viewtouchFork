@@ -79,9 +79,13 @@ int main(int argc, genericChar *argv[])
     // int  set_width  = (argc > 5) ? std::atoi(argv[5]) : 0;  // Qt reads screen
     // int  set_height = (argc > 6) ? std::atoi(argv[6]) : 0;
 
-    // Set DISPLAY if supplied and not already in environment
-    if (display_arg && display_arg[0] && !getenv("DISPLAY"))
+    // Always override DISPLAY with the target argument — parent's DISPLAY is wrong for
+    // remote terminals. Also force xcb so Wayland sessions don't ignore DISPLAY.
+    if (display_arg && display_arg[0]) {
         setenv("DISPLAY", display_arg, 1);
+        if (!getenv("QT_QPA_PLATFORM"))
+            setenv("QT_QPA_PLATFORM", "xcb", 1);
+    }
 
     // Connect to vt_main BEFORE creating QApplication (pure POSIX)
     int sock = ConnectToServer(socket_file);

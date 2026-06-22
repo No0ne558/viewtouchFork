@@ -269,14 +269,12 @@ static constexpr std::array<FontEntry, 17> kFontData = {{
     {FONT_DEFAULT,    "Noto Sans", 14, false},
 }};
 
-// Page size table
-static constexpr std::array<std::pair<int,int>, 18> kPageSizes = {{
-    {0,   0},    {640,480},  {768,1024}, {800,480},
-    {800,600},   {1024,600}, {1024,768}, {1280,800},
-    {1280,1024}, {1366,768}, {1440,900}, {1600,900},
-    {1600,1200}, {1680,1050},{1920,1080},{1920,1200},
-    {2560,1440}, {2560,1600},
-}};
+// Canonical page size — all vt_data layouts are authored at 1920x1080.
+// vt_term always renders into a 1920x1080 back-buffer and letterboxes it
+// to fit the physical screen.  Every other page-size variant is removed.
+static constexpr int kPageW = 1920;
+static constexpr int kPageH = 1080;
+
 
 // Window IDs matching terminal.cc
 static constexpr int WIN_MAIN    = 1;
@@ -315,10 +313,12 @@ TermWidget::TermWidget(int socket_fd, int is_local, QWidget *parent)
     WinHeight = sg.height();
     resize(WinWidth, WinHeight);
 
-    page_w_ = WinWidth;
-    page_h_ = WinHeight;
+    page_w_ = kPageW;
+    page_h_ = kPageH;
+    page_x_ = 0;
+    page_y_ = 0;
 
-    back_buffer_ = QPixmap(WinWidth, WinHeight);
+    back_buffer_ = QPixmap(kPageW, kPageH);
     back_buffer_.fill(Qt::black);
 
     initColors();
@@ -435,7 +435,7 @@ QPixmap &TermWidget::targetPixmap(int layer_id) noexcept
 {
     if (layer_id != 0) {
         auto it = windows_.find(layer_id);
-        if (it != windows_.end()) return it->pix;
+        if (it != windows_.end()) return (*it)->editPixmap();
     }
     return back_buffer_;
 }
@@ -451,42 +451,90 @@ static QPoint pageToScreen(int px, int py, float sx, float sy, int vx, int vy,
              vy + (int)((py - page_y) * sy) };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// WindowWidget implementation
+// ─────────────────────────────────────────────────────────────────────────────
+WindowWidget::WindowWidget(int id, int frame_flags,
+                           const QString &title, QWidget *parent)
+    : QWidget(parent)
+    , id_(id)
+    , frame_(frame_flags)
+    , title_(title)
+{
+    setAttribute(Qt::WA_OpaquePaintEvent, false);
+    setAttribute(Qt::WA_TranslucentBackground, false);
+    setAutoFillBackground(false);
+}
+
+void WindowWidget::paintEvent(QPaintEvent *)
+{
+    QPainter p(this);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
+    // Scale the page-space pixmap to the current (possibly scaled) widget size
+    p.drawPixmap(rect(), pix_, pix_.rect());
+
+    // Title bar for windows that have FrameTitle or FrameMove
+    if (frame_ & (ToInt(WindowFrame::FrameTitle) | ToInt(WindowFrame::FrameMove))) {
+        int tbh = kTitleH;
+        p.fillRect(0, 0, width(), tbh, QColor(50, 55, 75));
+        p.setPen(Qt::white);
+        p.setFont(QFont("Noto Sans", 9, QFont::Bold));
+        p.drawText(QRect(6, 0, width() - 12, tbh),
+                   Qt::AlignVCenter | Qt::AlignLeft, title_);
+    }
+}
+
+void WindowWidget::mousePressEvent(QMouseEvent *ev)
+{
+    if ((frame_ & ToInt(WindowFrame::FrameMove)) &&
+        ev->button() == Qt::LeftButton &&
+        ev->position().y() < kTitleH)
+    {
+        dragging_  = true;
+        dragOffset_ = pos() - ev->globalPosition().toPoint();
+    }
+    ev->accept();
+}
+
+void WindowWidget::mouseMoveEvent(QMouseEvent *ev)
+{
+    if (dragging_ && (ev->buttons() & Qt::LeftButton))
+        move(ev->globalPosition().toPoint() + dragOffset_);
+    ev->accept();
+}
+
+void WindowWidget::mouseReleaseEvent(QMouseEvent *ev)
+{
+    dragging_ = false;
+    ev->accept();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TermWidget – paintEvent
+// ─────────────────────────────────────────────────────────────────────────────
 void TermWidget::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
-    if (scale_x_ != 1.0f || view_x_ != 0 || view_y_ != 0) {
-        // Scale page content to fill the physical screen
-        p.fillRect(rect(), Qt::black);
-        p.setRenderHint(QPainter::SmoothPixmapTransform);
-        QRect src(page_x_, page_y_, page_w_, page_h_);
-        QRect dst(view_x_, view_y_, view_w_, view_h_);
-        p.drawPixmap(dst, back_buffer_, src);
-        for (auto &w : windows_) {
-            if (!w.visible) continue;
-            int wx = view_x_ + (int)((w.rect.x() - page_x_) * scale_x_);
-            int wy = view_y_ + (int)((w.rect.y() - page_y_) * scale_y_);
-            int ww = (int)(w.rect.width()  * scale_x_);
-            int wh = (int)(w.rect.height() * scale_y_);
-            p.drawPixmap(QRect(wx, wy, ww, wh), w.pix, w.pix.rect());
-        }
-    } else {
-        p.drawPixmap(0, 0, back_buffer_);
-        for (auto &w : windows_) {
-            if (w.visible) p.drawPixmap(w.rect.topLeft(), w.pix);
-        }
-    }
+
+    // Letterbox the fixed 1920×1080 canvas onto whatever physical screen size
+    // the window is.  Black fills the pillarbox/letterbox bands.
+    p.fillRect(rect(), Qt::black);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
+    p.drawPixmap(QRect(view_x_, view_y_, view_w_, view_h_),
+                 back_buffer_, back_buffer_.rect());
+    // Overlay QWidget children (WindowWidget instances) are painted by Qt
+    // automatically on top — no manual compositing needed here.
 
     // ── Rubber-band selection overlay ────────────────────────────────────────
     if (select_anchor_set_) {
         auto a = pageToScreen(select_ax_, select_ay_, scale_x_, scale_y_,
-                              view_x_, view_y_, page_x_, page_y_);
+                              view_x_, view_y_, 0, 0);
         auto b = pageToScreen(select_ex_, select_ey_, scale_x_, scale_y_,
-                              view_x_, view_y_, page_x_, page_y_);
+                              view_x_, view_y_, 0, 0);
         QRect band = QRect(a, b).normalized();
 
         p.setCompositionMode(QPainter::CompositionMode_SourceOver);
         p.fillRect(band, QColor(80, 140, 255, 50));
-        // Double-line dashed border: white line over dark line for visibility on any bg
         QPen darkPen(QColor(0, 0, 0, 180), 1, Qt::DashLine);
         QPen litPen (QColor(255, 255, 255, 220), 1, Qt::DashLine);
         darkPen.setDashOffset(0); litPen.setDashOffset(4);
@@ -497,20 +545,18 @@ void TermWidget::paintEvent(QPaintEvent *)
     // ── Edit-cursor resize handle overlay ────────────────────────────────────
     if (edit_cursor_visible_) {
         auto tl = pageToScreen(edit_cursor_rect_.left(),  edit_cursor_rect_.top(),
-                               scale_x_, scale_y_, view_x_, view_y_, page_x_, page_y_);
+                               scale_x_, scale_y_, view_x_, view_y_, 0, 0);
         auto br = pageToScreen(edit_cursor_rect_.right(), edit_cursor_rect_.bottom(),
-                               scale_x_, scale_y_, view_x_, view_y_, page_x_, page_y_);
+                               scale_x_, scale_y_, view_x_, view_y_, 0, 0);
         QRect cr(tl, br);
         int mx = cr.left() + cr.width()  / 2;
         int my = cr.top()  + cr.height() / 2;
 
-        // Draw zone outline
         p.setPen(QPen(QColor(255, 200, 0, 220), 1, Qt::SolidLine));
         p.setBrush(Qt::NoBrush);
         p.drawRect(cr);
 
-        // Draw 8 resize handles: corners + edge midpoints
-        const int HS = 8;  // handle size
+        const int HS = 8;
         QPoint handles[] = {
             cr.topLeft(),     {mx, cr.top()},    cr.topRight(),
             {cr.left(), my},                     {cr.right(), my},
@@ -528,16 +574,26 @@ void TermWidget::paintEvent(QPaintEvent *)
 void TermWidget::resizeEvent(QResizeEvent *ev)
 {
     QWidget::resizeEvent(ev);
-    int nw = ev->size().width();
-    int nh = ev->size().height();
-    if (nw == back_buffer_.width() && nh == back_buffer_.height()) return;
-
-    QPixmap new_buf(nw, nh);
-    new_buf.fill(Qt::black);
-    { QPainter p(&new_buf); p.drawPixmap(0, 0, back_buffer_); }
-    back_buffer_ = std::move(new_buf);
-    WinWidth  = nw;
-    WinHeight = nh;
+    WinWidth  = ev->size().width();
+    WinHeight = ev->size().height();
+    // back_buffer_ is always kPageW×kPageH — it does not resize with the window.
+    // paintEvent letterboxes it to the physical screen size.
+    // Recompute scale so overlay windows can reposition themselves.
+    float sc  = qMin((float)WinWidth / kPageW, (float)WinHeight / kPageH);
+    scale_x_  = sc;
+    scale_y_  = sc;
+    view_w_   = (int)(kPageW * sc);
+    view_h_   = (int)(kPageH * sc);
+    view_x_   = (WinWidth  - view_w_) / 2;
+    view_y_   = (WinHeight - view_h_) / 2;
+    // Reposition visible overlay windows to the new scaled coordinates
+    for (auto *ww : windows_) {
+        QRect pr = ww->property("pageRect").toRect();
+        ww->setGeometry(view_x_ + (int)(pr.x() * sc),
+                        view_y_ + (int)(pr.y() * sc),
+                        (int)(pr.width()  * sc),
+                        (int)(pr.height() * sc));
+    }
 }
 
 void TermWidget::keyPressEvent(QKeyEvent *ev)
@@ -566,43 +622,30 @@ static QPoint screenToPage(QPointF screen, float scale_x, float scale_y,
 void TermWidget::mousePressEvent(QMouseEvent *ev)
 {
     resetScreensaver();
+    // Qt routes clicks on overlay WindowWidget children before this fires,
+    // so if we reach here the click is on the main page canvas.
     QPoint pg = screenToPage(ev->position(), scale_x_, scale_y_, view_x_, view_y_);
     int px = pg.x(), py = pg.y();
 
-    // Check if the click lands inside a visible overlay window
-    press_toolbar_ = false;
-    for (auto it = windows_.begin(); it != windows_.end(); ++it) {
-        if (!it->visible) continue;
-        // Window rect in back_buffer_ space; subtract page offset for page coords
-        QRect wr(it->rect.x() - page_x_, it->rect.y() - page_y_,
-                 it->rect.width(), it->rect.height());
-        if (!wr.contains(px, py)) continue;
-        press_toolbar_ = true;
-        int bx = px - wr.x(), by = py - wr.y();
-        for (const auto &btn : it->buttons) {
-            if (btn.rect.contains(bx, by)) {
-                sendButtonPress(it->id, btn.id);
-                moves_count_ = 0;
-                return;
-            }
-        }
-        moves_count_ = 0;
-        return;  // click in window border/title — eat it
+    // Tap heuristic (from original Xlib layer.cc): if moves_count_ <= 1 the
+    // user pressed without prior movement — treat as a tap → SrvTouch so that
+    // print-button zones reach zone->Touch() on the server.  Drag-end clicks
+    // go through SrvMouse / MouseInput() as before.
+    int pre_moves = moves_count_;
+    moves_count_ = 0;
+    if (ev->button() == Qt::LeftButton && pre_moves <= 1) {
+        sendTouch(px, py);
+        return;
     }
-
-    // Send SrvMouse (not SrvTouch) so that server calls MouseInput() which
-    // handles edit mode correctly (zone select / drag / right-click edit).
     int btn = MOUSE_PRESS | MOUSE_LEFT;
     if (ev->button() == Qt::RightButton)  btn = MOUSE_PRESS | MOUSE_RIGHT;
     if (ev->button() == Qt::MiddleButton) btn = MOUSE_PRESS | MOUSE_MIDDLE;
     if (ev->modifiers() & Qt::ShiftModifier) btn |= MOUSE_SHIFT;
-    moves_count_ = 0;
     sendMouse(btn, px, py);
 }
 
 void TermWidget::mouseReleaseEvent(QMouseEvent *ev)
 {
-    if (press_toolbar_) { press_toolbar_ = false; return; }
     QPoint pg = screenToPage(ev->position(), scale_x_, scale_y_, view_x_, view_y_);
     int btn = 1;
     if (ev->button() == Qt::RightButton)  btn = 4;
@@ -613,7 +656,7 @@ void TermWidget::mouseReleaseEvent(QMouseEvent *ev)
 void TermWidget::mouseMoveEvent(QMouseEvent *ev)
 {
     ++moves_count_;
-    if (!press_toolbar_ && (ev->buttons() & Qt::LeftButton)) {
+    if (ev->buttons() & Qt::LeftButton) {
         QPoint pg = screenToPage(ev->position(), scale_x_, scale_y_, view_x_, view_y_);
         sendMouse(1 | MOUSE_DRAG, pg.x(), pg.y());
     }
@@ -630,7 +673,7 @@ bool TermWidget::event(QEvent *ev)
             const auto &pt = points.first();
             QPoint pg = screenToPage(pt.position(), scale_x_, scale_y_, view_x_, view_y_);
             if (ev->type() == QEvent::TouchBegin)
-                sendMouse(MOUSE_PRESS | MOUSE_LEFT, pg.x(), pg.y());
+                sendTouch(pg.x(), pg.y());   // native finger tap → SrvTouch → zone->Touch()
             else if (ev->type() == QEvent::TouchEnd)
                 sendMouse(MOUSE_LEFT | MOUSE_RELEASE, pg.x(), pg.y());
         }
@@ -650,14 +693,17 @@ void TermWidget::sendToServer()
 
 void TermWidget::sendTermInfo()
 {
-    int sz = pageSizeEnum(WinWidth, WinHeight);
+    // Always advertise 1920×1080 (index 14 in kPageSizes) so vt_main always
+    // loads the 1920×1080 vt_data layouts.  The physical screen size is only
+    // used for letterboxing in paintEvent and is not sent to the server.
+    static constexpr int kPageSizeEnum1920x1080 = 14;
     s_buffer_out.Put8(ToInt(ServerProtocol::SrvTermInfo));
-    s_buffer_out.Put8(sz);
-    s_buffer_out.Put16(WinWidth);
-    s_buffer_out.Put16(WinHeight);
+    s_buffer_out.Put8(kPageSizeEnum1920x1080);
+    s_buffer_out.Put16(kPageW);
+    s_buffer_out.Put16(kPageH);
     s_buffer_out.Put16(32);   // colour depth — Qt6 always 32-bit
     sendToServer();
-    vt::Logger::info("qt_term: SrvTermInfo {}x{} size={}", WinWidth, WinHeight, sz);
+    vt::Logger::info("qt_term: SrvTermInfo 1920x1080 (physical {}x{})", WinWidth, WinHeight);
 }
 
 void TermWidget::sendTouch(int x, int y)
@@ -2038,46 +2084,49 @@ void TermWidget::cmdBlankPage()
     static std::array<char, 256> title{}, time_str{};
     RStr(title.data());
     RStr(time_str.data());
-    (void)mode; (void)split; (void)split_opt;
+    (void)mode; (void)size_enum; (void)split; (void)split_opt;
 
-    // A new page is a clean slate — discard any clip region, cursor state,
-    // and selection left over from the previous page's partial updates.
-    use_clip_           = false;
-    select_anchor_set_  = false;
+    // New page — clean slate: reset clip, cursor, selection, draw target.
+    use_clip_            = false;
+    select_anchor_set_   = false;
     edit_cursor_visible_ = false;
+    target_window_       = 0;
 
-    int pw = pageSizeWidth(size_enum);
-    int ph = pageSizeHeight(size_enum);
-    if (pw <= 0) pw = WinWidth;
-    if (ph <= 0) ph = WinHeight;
-    page_w_  = pw;
-    page_h_  = ph;
-    page_x_  = (WinWidth  - pw) / 2;
-    page_y_  = (WinHeight - ph) / 2;
+    // Always render into the fixed 1920×1080 canvas.  size_enum from the
+    // server is ignored — vt_main was told to use 1920×1080 via SrvTermInfo.
+    page_w_  = kPageW;
+    page_h_  = kPageH;
+    page_x_  = 0;
+    page_y_  = 0;
     bg_texture_ = texture;
 
-    // Compute display scale so the page fills the screen while preserving aspect ratio
-    float sc = qMin((float)WinWidth / pw, (float)WinHeight / ph);
+    // Letterbox scale (recomputed each blank-page in case window was resized
+    // between pages, though resizeEvent also keeps these up to date).
+    float sc = qMin((float)WinWidth / kPageW, (float)WinHeight / kPageH);
     scale_x_ = sc;
     scale_y_ = sc;
-    view_w_  = (int)(pw * sc);
-    view_h_  = (int)(ph * sc);
+    view_w_  = (int)(kPageW * sc);
+    view_h_  = (int)(kPageH * sc);
     view_x_  = (WinWidth  - view_w_) / 2;
     view_y_  = (WinHeight - view_h_) / 2;
 
+    // Hide any overlay windows left over from the previous page — the server
+    // will re-create and show the ones it needs for the new page.
+    for (auto *ww : windows_) ww->hide();
+
     QPainter p(&back_buffer_);
     p.fillRect(back_buffer_.rect(), Qt::black);
-    fillTexture(p, page_x_, page_y_, pw, ph, texture);
+    fillTexture(p, 0, 0, kPageW, kPageH, texture);
 
     title_height_ = 0;
     if (color != 0) {
-        frame_width_  = std::max(2, pw / 200);
+        frame_width_  = std::max(2, kPageW / 200);
         title_height_ = getFont(FONT_TIMES_20).pointSize() * 2 + 4;
-        p.fillRect(page_x_, page_y_, pw, title_height_, textColor(color));
+        p.fillRect(0, 0, kPageW, title_height_, textColor(color));
         if (time_str[0]) {
             p.setPen(textColor(COLOR_WHITE));
             p.setFont(getFont(FONT_TIMES_20));
-            p.drawText(QRect(page_x_, page_y_, pw, title_height_),
+            p.drawText(QRect(0, 0, kPageW, title_height_),
                        Qt::AlignRight | Qt::AlignVCenter,
                        QString(time_str.data()).trimmed());
         }
@@ -2344,17 +2393,24 @@ void TermWidget::cmdNewWindow()
     int fr = s_buffer_in.Get8();
     static std::array<char, 256> title{};
     RStr(title.data());
-    (void)fr;
 
-    WindowLayer wl;
-    wl.id      = id;
-    wl.rect    = QRect(page_x_ + x, page_y_ + y, w, h);
-    wl.pix     = QPixmap(w, h);
-    wl.pix.fill(Qt::transparent);
-    wl.title   = QString::fromUtf8(title.data());
-    wl.visible = false;
-    windows_[id] = std::move(wl);
-    target_window_ = id;  // subsequent draw commands go into this window
+    // Delete any existing window with the same id before creating a new one
+    auto old = windows_.find(id);
+    if (old != windows_.end()) { (*old)->deleteLater(); windows_.remove(id); }
+
+    auto *ww = new WindowWidget(id, fr, QString::fromUtf8(title.data()), this);
+    // Store the page-space rect so resizeEvent can reposition after scale changes
+    ww->setProperty("pageRect", QRect(x, y, w, h));
+    ww->editPixmap() = QPixmap(w, h);
+    ww->editPixmap().fill(Qt::transparent);
+    // Position at current scaled coordinates within TermWidget
+    ww->setGeometry(view_x_ + (int)(x * scale_x_),
+                    view_y_ + (int)(y * scale_y_),
+                    (int)(w * scale_x_),
+                    (int)(h * scale_y_));
+    ww->hide();
+    windows_[id] = ww;
+    target_window_ = id;
 }
 
 void TermWidget::cmdPushButton()
@@ -2370,22 +2426,11 @@ void TermWidget::cmdPushButton()
     int c_fg   = s_buffer_in.Get8();
     int c_bg   = s_buffer_in.Get8();
 
-    // Store button hit rect in the window for click detection
-    auto it = windows_.find(target_window_);
-    if (it != windows_.end()) {
-        PushButton pb;
-        pb.id   = btn_id;
-        pb.rect = QRect(bx, by, bw, bh);
-        it->buttons.push_back(pb);
-    }
-
-    // Render the button into the target window pixmap
+    // Draw the button appearance into the window pixmap (visual output)
     QPixmap &pix = targetPixmap(target_window_);
     QPainter p(&pix);
     QColor bg = textColor(c_bg);
     p.fillRect(bx, by, bw, bh, bg);
-
-    // Raised frame: lighter top/left edges, darker bottom/right
     for (int i = 0; i < 2; ++i) {
         p.setPen(bg.lighter(160));
         p.drawLine(bx+i,      by+i,      bx+bw-2-i, by+i);
@@ -2394,13 +2439,27 @@ void TermWidget::cmdPushButton()
         p.drawLine(bx+bw-1-i, by+i,      bx+bw-1-i, by+bh-1-i);
         p.drawLine(bx+i,      by+bh-1-i, bx+bw-1-i, by+bh-1-i);
     }
-
     QString text = QString::fromUtf8(label.data()).replace("\\", "\n");
     p.setPen(textColor(c_fg));
     p.setFont(getFont(font));
     p.setRenderHint(QPainter::TextAntialiasing, use_antialiasing_);
     p.drawText(QRect(bx+4, by+4, bw-8, bh-8),
                Qt::AlignCenter | Qt::TextWordWrap, text);
+
+    // Add a transparent QPushButton child for Qt-native hit detection
+    auto it = windows_.find(target_window_);
+    if (it != windows_.end()) {
+        auto *btn = new QPushButton(*it);
+        btn->setGeometry(bx, by, bw, bh);
+        btn->setFlat(true);
+        btn->setAttribute(Qt::WA_TranslucentBackground);
+        btn->setStyleSheet("QPushButton { background: transparent; border: none; }");
+        int wid = target_window_, bid = btn_id;
+        connect(btn, &QPushButton::clicked, this, [this, wid, bid](){
+            sendButtonPress(wid, bid);
+        });
+        btn->show();
+    }
 }
 
 void TermWidget::cmdShowWindow()
@@ -2408,18 +2467,21 @@ void TermWidget::cmdShowWindow()
     int id = s_buffer_in.Get16();
     auto it = windows_.find(id);
     if (it != windows_.end()) {
-        it->visible = true;
-        target_window_ = 0;  // return drawing to main buffer after window is shown
-        update();             // full repaint — window rect is in back_buffer_ space, not widget space
+        (*it)->show();
+        (*it)->raise();
+        target_window_ = 0;
     }
 }
 
 void TermWidget::cmdKillWindow()
 {
     int id = s_buffer_in.Get16();
-    windows_.remove(id);
+    auto it = windows_.find(id);
+    if (it != windows_.end()) {
+        (*it)->deleteLater();
+        windows_.remove(id);
+    }
     if (target_window_ == id) target_window_ = 0;
-    update();
 }
 
 void TermWidget::cmdTargetWindow()
@@ -2567,43 +2629,6 @@ void TermWidget::resetScreensaver()
     screen_blanked_ = false;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page size helpers
-// ─────────────────────────────────────────────────────────────────────────────
-int TermWidget::pageSizeEnum(int win_w, int win_h) noexcept
-{
-    if (win_w >= 2560 && win_h >= 1600) return PAGE_SIZE_2560x1600;
-    if (win_w >= 2560)                  return PAGE_SIZE_2560x1440;
-    if (win_w >= 1920 && win_h >= 1200) return PAGE_SIZE_1920x1200;
-    if (win_w >= 1920)                  return PAGE_SIZE_1920x1080;
-    if (win_w >= 1680)                  return PAGE_SIZE_1680x1050;
-    if (win_w >= 1600 && win_h >= 1200) return PAGE_SIZE_1600x1200;
-    if (win_w >= 1600)                  return PAGE_SIZE_1600x900;
-    if (win_w >= 1440)                  return PAGE_SIZE_1440x900;
-    if (win_w >= 1366)                  return PAGE_SIZE_1366x768;
-    if (win_w >= 1280 && win_h >= 1024) return PAGE_SIZE_1280x1024;
-    if (win_w >= 1280)                  return PAGE_SIZE_1280x800;
-    if (win_w >= 1024 && win_h >= 768)  return PAGE_SIZE_1024x768;
-    if (win_w >= 1024)                  return PAGE_SIZE_1024x600;
-    if (win_w >= 800  && win_h >= 600)  return PAGE_SIZE_800x600;
-    if (win_w >= 800)                   return PAGE_SIZE_800x480;
-    if (win_h >= 1024)                  return PAGE_SIZE_768x1024;
-    return PAGE_SIZE_640x480;
-}
-
-int TermWidget::pageSizeWidth(int sz) noexcept
-{
-    if (sz >= 1 && sz < static_cast<int>(kPageSizes.size()))
-        return kPageSizes[sz].first;
-    return 0;
-}
-
-int TermWidget::pageSizeHeight(int sz) noexcept
-{
-    if (sz >= 1 && sz < static_cast<int>(kPageSizes.size()))
-        return kPageSizes[sz].second;
-    return 0;
-}
 
 // MOC-generated code for Q_OBJECT (must be last)
 #include "qt_term_view.moc"

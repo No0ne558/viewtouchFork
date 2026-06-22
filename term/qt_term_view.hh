@@ -29,6 +29,8 @@
 #include <QSocketNotifier>
 #include <QTimer>
 #include <QMap>
+#include <QPushButton>
+#include <QMouseEvent>
 #include <array>
 #include <string>
 
@@ -169,6 +171,38 @@ enum page_sizes : uint8_t {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// WindowWidget: an overlay window (toolbar, dialog) rendered as a true
+// Qt child widget of TermWidget.  Qt handles compositing, hit-testing,
+// and event routing automatically — no manual coordinate math required.
+// ─────────────────────────────────────────────────────────────────────────────
+class WindowWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit WindowWidget(int id, int frame_flags,
+                          const QString &title, QWidget *parent = nullptr);
+    // Writable surface that receives draw commands routed via targetPixmap()
+    QPixmap &editPixmap() { return pix_; }
+
+signals:
+    void buttonPressed(int win_id, int btn_id);
+
+protected:
+    void paintEvent(QPaintEvent *) override;
+    void mousePressEvent(QMouseEvent *) override;
+    void mouseMoveEvent(QMouseEvent *) override;
+    void mouseReleaseEvent(QMouseEvent *) override;
+
+private:
+    static constexpr int kTitleH = 22;
+    int     id_;
+    int     frame_;
+    QString title_;
+    QPixmap pix_;
+    bool    dragging_{false};
+    QPoint  dragOffset_;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TermWidget: main Qt6 terminal display widget
 // ─────────────────────────────────────────────────────────────────────────────
 class TermWidget : public QWidget
@@ -255,22 +289,11 @@ private:
     QRect edit_cursor_rect_{};            // zone bounds in page coords
 
     // ── multi-window overlay support ─────────────────────────────────────────
-    struct PushButton {
-        int  id{0};
-        QRect rect;   // coordinates within the window pixmap
-    };
-    struct WindowLayer {
-        int id{0};
-        QPixmap pix;
-        QRect   rect;
-        int     frame{0};
-        QString title;
-        bool    visible{false};
-        std::vector<PushButton> buttons;
-    };
-    QMap<int, WindowLayer> windows_;
-    int target_window_{0};  // 0 = main back_buffer_
-    bool press_toolbar_{false};  // last press was in a toolbar window
+    // Each overlay window is a true QWidget child; Qt handles compositing,
+    // hit-testing, and drag.  targetPixmap() routes draw commands to the
+    // correct WindowWidget::editPixmap() surface.
+    QMap<int, WindowWidget*> windows_;
+    int target_window_{0};  // 0 = main back_buffer_; non-0 = window id
 
     // ── list-dialog state (LISTSTART..LISTEND) ───────────────────────────────
     QStringList list_items_;
@@ -461,7 +484,4 @@ private:
     // ── helpers ──────────────────────────────────────────────────────────────
     void handleDisconnect();
     void resetScreensaver();
-    static int pageSizeEnum(int win_w, int win_h) noexcept;
-    static int pageSizeWidth(int sz) noexcept;
-    static int pageSizeHeight(int sz) noexcept;
 };
