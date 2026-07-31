@@ -241,11 +241,18 @@ unsigned long restart_timeout_id = 0; // Timeout for auto restart
 #define VIEWTOUCH_VTPOS     VIEWTOUCH_PATH "/bin/vtpos"
 #define VIEWTOUCH_RESTART   VIEWTOUCH_PATH "/bin/vtrestart"
 
-// downloaded script for auto update
-#define VIEWTOUCH_UPDATE_COMMAND "/tmp/vt-update"
-// command to download script; -nv=not verbose, -T=timeout seconds, -t=# tries, -O=output
-#define VIEWTOUCH_UPDATE_REQUEST \
-    "wget -nv -T 2 -t 2 http://www.viewtouch.com/vt_updates/vt-update -O /tmp/vt-update"
+// Auto-update script.
+//
+// This runs as root at startup, so both the transport and the staging location
+// are security boundaries:
+//   * The URL is HTTPS and is fetched through DownloadFile(), which verifies the
+//     certificate chain and hostname. It was previously plain HTTP via wget.
+//   * Staging is a root-owned 0700 directory under VIEWTOUCH_PATH, not /tmp.
+//     A world-writable staging path let any local user win a race between the
+//     unlink and the write and have their own script executed as root.
+#define VIEWTOUCH_UPDATE_DIR     VIEWTOUCH_PATH "/bin/.update"
+#define VIEWTOUCH_UPDATE_COMMAND VIEWTOUCH_UPDATE_DIR "/vt-update"
+#define VIEWTOUCH_UPDATE_URL     "https://www.viewtouch.com/vt_updates/vt-update"
 
 static const std::string VIEWTOUCH_CONFIG = std::string(VIEWTOUCH_PATH) + "/dat/.viewtouch_config";
 
@@ -343,10 +350,14 @@ bool DownloadFile(const std::string &url, const std::string &destination)
         request.setOpt(curlpp::options::Timeout(30));           // 30 second timeout
         request.setOpt(curlpp::options::ConnectTimeout(10));    // 10 second connect timeout
         
-        // For HTTPS compatibility on Raspberry Pi and other systems
-        request.setOpt(curlpp::options::SslVerifyPeer(false));  // Disable SSL verification for compatibility
-        request.setOpt(curlpp::options::SslVerifyHost(false));  // Disable host verification
-        
+        // Verify the server's certificate chain and that the hostname matches.
+        // These must stay enabled: this function fetches code and data that the
+        // system subsequently trusts, so an unverified transfer is a remote
+        // compromise. If verification fails on a device with a stale trust store,
+        // the fix is to update its CA bundle (ca-certificates), not to relax this.
+        request.setOpt(curlpp::options::SslVerifyPeer(true));
+        request.setOpt(curlpp::options::SslVerifyHost(2L));
+
         // Set user agent to avoid being blocked
         request.setOpt(curlpp::options::UserAgent("ViewTouch/1.0"));
         
@@ -404,35 +415,138 @@ bool DownloadFile(const std::string &url, const std::string &destination)
     }
 }
 
+/****
+ * RunStartupUpdateScript: Fetch and execute the vendor auto-update script.
+ *
+ * This executes downloaded code as root, so every step is checked:
+ *   1. Stage into a private 0700 directory, never a world-writable one.
+ *   2. Fetch over HTTPS with certificate verification (via DownloadFile).
+ *   3. Re-open the staged file with O_NOFOLLOW and confirm it is a regular,
+ *      non-empty file owned by us before making it executable.
+ *   4. Execute via fork/exec rather than system(), so no shell is involved.
+ *
+ * Returns true only if the script was fetched, validated, and run.
+ ****/
+static bool RunStartupUpdateScript()
+{
+    FnTrace("RunStartupUpdateScript()");
+
+    // 1. Private staging directory. mkdir is the atomic part; if it already
+    //    exists we must confirm it is a real directory we own and not a symlink
+    //    planted by someone else.
+    if (mkdir(VIEWTOUCH_UPDATE_DIR, 0700) != 0 && errno != EEXIST)
+    {
+        ReportError("Auto-update: cannot create staging directory");
+        return false;
+    }
+
+    struct stat dir_st{};
+    if (lstat(VIEWTOUCH_UPDATE_DIR, &dir_st) != 0 ||
+        !S_ISDIR(dir_st.st_mode) ||
+        dir_st.st_uid != geteuid())
+    {
+        ReportError("Auto-update: staging directory is not a directory we own; skipping update");
+        return false;
+    }
+    if ((dir_st.st_mode & (S_IWGRP | S_IWOTH)) != 0)
+    {
+        // Tighten it rather than refusing outright -- an older release may have
+        // created this directory with looser permissions.
+        if (chmod(VIEWTOUCH_UPDATE_DIR, 0700) != 0)
+        {
+            ReportError("Auto-update: staging directory is group/world writable; skipping update");
+            return false;
+        }
+    }
+
+    // 2. Out with the old, then fetch over verified HTTPS.
+    unlink(VIEWTOUCH_UPDATE_COMMAND);
+    if (!DownloadFile(VIEWTOUCH_UPDATE_URL, VIEWTOUCH_UPDATE_COMMAND))
+    {
+        ReportError("Auto-update: download failed; no update applied");
+        return false;
+    }
+
+    // 3. Validate what actually landed. O_NOFOLLOW so a symlink cannot redirect
+    //    us, and fstat on the open descriptor so the checks apply to the file we
+    //    are about to execute rather than to a path that could change underneath.
+    const int fd = open(VIEWTOUCH_UPDATE_COMMAND, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0)
+    {
+        ReportError("Auto-update: staged script is missing or is a symlink; skipping update");
+        return false;
+    }
+
+    struct stat file_st{};
+    const bool file_ok = (fstat(fd, &file_st) == 0) &&
+                         S_ISREG(file_st.st_mode) &&
+                         (file_st.st_uid == geteuid()) &&
+                         (file_st.st_size > 0);
+    if (!file_ok)
+    {
+        close(fd);
+        unlink(VIEWTOUCH_UPDATE_COMMAND);
+        ReportError("Auto-update: staged script failed validation; skipping update");
+        return false;
+    }
+
+    if (fchmod(fd, 0700) != 0)
+    {
+        close(fd);
+        unlink(VIEWTOUCH_UPDATE_COMMAND);
+        ReportError("Auto-update: could not set script permissions; skipping update");
+        return false;
+    }
+    close(fd);
+
+    // 4. Run it without a shell.
+    const pid_t pid = fork();
+    if (pid < 0)
+    {
+        ReportError("Auto-update: fork failed; no update applied");
+        return false;
+    }
+    if (pid == 0)
+    {
+        execl(VIEWTOUCH_UPDATE_COMMAND, VIEWTOUCH_UPDATE_COMMAND, VIEWTOUCH_PATH,
+              static_cast<char *>(nullptr));
+        _exit(127);  // exec failed; do not return into the parent's state
+    }
+
+    int status = 0;
+    while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
+    {
+        // interrupted by a signal; keep waiting
+    }
+
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+    {
+        ReportError("Auto-update: update script did not complete successfully");
+        return false;
+    }
+    return true;
+}
+
 bool DownloadFileWithFallback(const std::string &base_url, const std::string &destination)
 {
-    // Try HTTPS first
+    // HTTPS only. This previously fell back to plaintext HTTP when HTTPS failed,
+    // which handed an active network attacker control of whatever was fetched --
+    // including vt_data, which the system loads and trusts. A failed HTTPS
+    // transfer is now a failure, not an invitation to downgrade.
     std::string https_url = base_url;
     if (https_url.substr(0, 7) == "http://") {
         https_url = "https://" + https_url.substr(7);
     } else if (https_url.substr(0, 8) != "https://") {
         https_url = "https://" + https_url;
     }
-    
+
     std::cerr << "Attempting HTTPS download from '" << https_url << "'" << '\n';
     if (DownloadFile(https_url, destination)) {
         return true;
     }
-    
-    // If HTTPS fails, try HTTP
-    std::string http_url = base_url;
-    if (http_url.substr(0, 8) == "https://") {
-        http_url = "http://" + http_url.substr(8);
-    } else if (http_url.substr(0, 7) != "http://") {
-        http_url = "http://" + http_url;
-    }
-    
-    std::cerr << "HTTPS failed, attempting HTTP download from '" << http_url << "'" << '\n';
-    if (DownloadFile(http_url, destination)) {
-        return true;
-    }
-    
-    std::cerr << "Both HTTPS and HTTP downloads failed for '" << base_url << "'" << '\n';
+
+    std::cerr << "HTTPS download failed for '" << https_url
+              << "'; refusing to fall back to plaintext HTTP" << '\n';
     return false;
 }
 
@@ -684,11 +798,7 @@ int main(int argc, genericChar* argv[])
     if (autoupdate && fixed_auto_update_allowed)
     {
         ReportError(GlobalTranslate("Automatic check for updates..."));
-	unlink(VIEWTOUCH_UPDATE_COMMAND);	// out with the old
-    	system(VIEWTOUCH_UPDATE_REQUEST);	// in with the new
-	chmod(VIEWTOUCH_UPDATE_COMMAND, 0755);	// set executable
-	// try to run it, giving build-time base path
-	system(VIEWTOUCH_UPDATE_COMMAND " " VIEWTOUCH_PATH);
+        RunStartupUpdateScript();
     }
     
     // Check if vt_data exists locally first
