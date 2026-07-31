@@ -18,7 +18,8 @@ jobs:
           - clang++-17
           - clang++-18
         build_type: [Debug] #, Release]
-        std: [20]
+        # CMakeLists.txt defaults to C++23; CI must build what actually ships.
+        std: [23]
         include:
         # cannot be installed on ubuntu-24.04 be default?
           - cxx: g++-12
@@ -99,7 +100,8 @@ jobs:
           -DCMAKE_INSTALL_PREFIX="${PWD}/_install_${{matrix.cxx}}_${{matrix.std}}" \
           -DCMAKE_BUILD_TYPE="${{matrix.build_type}}" \
           -DCMAKE_CXX_STANDARD=${{matrix.std}} \
-          -DCMAKE_CXX_EXTENSIONS=OFF
+          -DCMAKE_CXX_EXTENSIONS=OFF \
+          -DBUILD_TESTING=ON
 
     - name: Build + install
       run: |
@@ -131,3 +133,107 @@ jobs:
           echo "Build failed - executable not found"
           exit 1
         fi
+
+    - name: Run unit tests
+      run: |
+        echo "Running unit tests for ${{matrix.cxx}}..."
+        ctest --test-dir _build_${{matrix.cxx}}_${{matrix.std}} \
+          --output-on-failure \
+          --no-tests=error \
+          --timeout 300
+
+  coverage:
+    name: Test coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Prepare environment
+      env:
+        TZ: "America/Los_Angeles"
+      run: |
+        sudo ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime
+        echo ${TZ} | sudo tee /etc/timezone
+        sudo apt-get update -q
+        sudo apt-get install -y --no-install-recommends \
+          build-essential \
+          xorg-dev \
+          libmotif-dev \
+          libfreetype6-dev \
+          cmake \
+          git \
+          tzdata \
+          libcurl4-gnutls-dev
+        pip3 install --break-system-packages gcovr
+
+    - name: Configure with coverage instrumentation
+      run: |
+        cmake -S . -B _build_coverage \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DBUILD_TESTING=ON \
+          -DCMAKE_CXX_FLAGS="--coverage -O0" \
+          -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+
+    - name: Build tests
+      run: cmake --build _build_coverage --target vt_tests -j4
+
+    - name: Run tests
+      run: ctest --test-dir _build_coverage --output-on-failure --no-tests=error --timeout 300
+
+    - name: Report coverage
+      run: |
+        cd _build_coverage
+        gcovr --root "${GITHUB_WORKSPACE}" \
+          --exclude '.*external/.*' \
+          --exclude '.*tests/.*' \
+          --exclude '.*_deps.*' \
+          --gcov-ignore-errors=no_working_dir_found \
+          --print-summary \
+          --txt "${GITHUB_WORKSPACE}/coverage.txt" \
+          --json-summary "${GITHUB_WORKSPACE}/coverage.json" \
+          . | tee "${GITHUB_WORKSPACE}/coverage-summary.txt"
+
+    - name: Enforce coverage ratchet
+      run: |
+        # The ratchet is on the ABSOLUTE number of covered lines, not on the
+        # percentage, and that is deliberate.
+        #
+        # Business logic currently lives in the vt_main executable, so tests
+        # cannot link it and it is absent from the denominator entirely. When
+        # that code is extracted into a library and linked into the tests, the
+        # denominator grows by tens of thousands of lines at once and the
+        # percentage collapses -- as a direct result of making the code more
+        # testable. A percentage floor would fail the build for the single most
+        # valuable change in the project.
+        #
+        # Covered-line count has no such failure mode: it rises when tests are
+        # added and falls only when tests are deleted, disabled, or broken,
+        # which is exactly what this check is meant to catch.
+        #
+        # Raise MIN_COVERED_LINES as coverage grows. Never lower it to make a
+        # build pass.
+        MIN_COVERED_LINES=1000
+
+        COVERED=$(python3 -c "import json; print(json.load(open('coverage.json'))['line_covered'])")
+        TOTAL=$(python3 -c "import json; print(json.load(open('coverage.json'))['line_total'])")
+        PERCENT=$(python3 -c "import json; print(json.load(open('coverage.json'))['line_percent'])")
+
+        echo "Covered lines: ${COVERED} of ${TOTAL} (${PERCENT}%)"
+        echo "Floor:         ${MIN_COVERED_LINES} covered lines"
+
+        if [ "${COVERED}" -lt "${MIN_COVERED_LINES}" ]; then
+          echo "::error::Covered lines dropped to ${COVERED}, below the floor of ${MIN_COVERED_LINES}. Tests were removed, disabled, or are failing to run."
+          exit 1
+        fi
+        echo "Coverage floor met."
+
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: |
+          coverage.txt
+          coverage.json
