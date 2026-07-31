@@ -50,11 +50,25 @@ namespace vt {
  */
 class ThreadPool {
 public:
-    // Singleton instance - 4 threads handles concurrent print jobs to multiple printers
+    // Singleton instance - 4 threads handles concurrent print jobs to multiple printers.
+    // Queue bound of 256 is large enough for a busy shift; see enqueue_detached
+    // for what happens when it is exceeded.
     static ThreadPool& instance(size_t num_threads = 4) {
-        static ThreadPool pool(num_threads);
+        static ThreadPool pool(num_threads, 256);
         return pool;
     }
+
+    /**
+     * @brief Construct an independent pool.
+     *
+     * Production code should use instance().  This is public so that tests can
+     * exercise a pool in isolation: the singleton's shutdown() is irreversible
+     * (stop_ is never cleared and instance() returns a function-local static),
+     * so a test that shut the shared pool down would silently break every test
+     * that ran after it.  Being able to choose max_queue_size also makes the
+     * bounded-queue drop policy testable without enqueueing 256 real jobs.
+     */
+    ThreadPool(size_t num_threads, size_t max_queue_size);
 
     // Delete copy/move operations
     ThreadPool(const ThreadPool&) = delete;
@@ -197,49 +211,6 @@ public:
     }
 
 private:
-    explicit ThreadPool(size_t num_threads) 
-        : stop_(false)
-        , active_tasks_(0)
-        , max_queue_size_(256) // Large enough for a busy shift; see enqueue_detached for drop policy
-    {
-        workers_.reserve(num_threads);
-        
-        for (size_t i = 0; i < num_threads; ++i) {
-            workers_.emplace_back([this] {
-                while (true) {
-                    std::function<void()> task;
-                    
-                    {
-                        std::unique_lock<std::mutex> lock(queue_mutex_);
-                        
-                        condition_.wait(lock, [this] {
-                            return stop_ || !tasks_.empty();
-                        });
-                        
-                        if (stop_ && tasks_.empty()) {
-                            return;
-                        }
-                        
-                        task = std::move(tasks_.front());
-                        tasks_.pop();
-                        ++active_tasks_;
-                    }
-                    
-                    queue_not_full_.notify_one();
-                    
-                    // Execute task outside the lock
-                    task();
-                    
-                    {
-                        std::lock_guard<std::mutex> lock(queue_mutex_);
-                        --active_tasks_;
-                    }
-                    all_done_.notify_all();
-                }
-            });
-        }
-    }
-
     std::vector<std::thread> workers_;
     std::queue<std::function<void()>> tasks_;
     
@@ -252,6 +223,66 @@ private:
     size_t active_tasks_;
     const size_t max_queue_size_;
 };
+
+inline ThreadPool::ThreadPool(size_t num_threads, size_t max_queue_size)
+    : stop_(false)
+    , active_tasks_(0)
+    , max_queue_size_(max_queue_size)
+{
+    workers_.reserve(num_threads);
+
+    for (size_t i = 0; i < num_threads; ++i) {
+        workers_.emplace_back([this] {
+            while (true) {
+                std::function<void()> task;
+
+                {
+                    std::unique_lock<std::mutex> lock(queue_mutex_);
+
+                    condition_.wait(lock, [this] {
+                        return stop_ || !tasks_.empty();
+                    });
+
+                    if (stop_ && tasks_.empty()) {
+                        return;
+                    }
+
+                    task = std::move(tasks_.front());
+                    tasks_.pop();
+                    ++active_tasks_;
+                }
+
+                queue_not_full_.notify_one();
+
+                // Execute outside the lock.
+                //
+                // This must not let an exception escape. Tasks submitted through
+                // enqueue() are wrapped in a std::packaged_task, which stores any
+                // exception in the future -- but enqueue_detached() stores the
+                // callable bare, so a throwing detached task would propagate out
+                // of this thread function and call std::terminate. Detached is
+                // what the autosave and print paths use, so an I/O failure that
+                // threw would take down the whole POS. It would also skip the
+                // --active_tasks_ below and hang wait_all() forever.
+                try {
+                    task();
+                }
+                catch (const std::exception &e) {
+                    fprintf(stderr, "ThreadPool: task threw: %s\n", e.what());
+                }
+                catch (...) {
+                    fprintf(stderr, "ThreadPool: task threw an unknown exception\n");
+                }
+
+                {
+                    std::lock_guard<std::mutex> lock(queue_mutex_);
+                    --active_tasks_;
+                }
+                all_done_.notify_all();
+            }
+        });
+    }
+}
 
 /**
  * @brief Simple async file I/O helpers
