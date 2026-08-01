@@ -24,6 +24,8 @@ add_executable(vt_tests
     unit/test_figure_totals.cc
     unit/test_credit_parsing.cc
     unit/test_persistence_roundtrip.cc
+    unit/test_drawer_balance.cc
+    unit/test_labor_time.cc
     support/vt_test_env.cc
 )
 

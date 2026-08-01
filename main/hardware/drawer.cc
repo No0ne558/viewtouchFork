@@ -1149,6 +1149,7 @@ int Drawer::RecordPayment(int tender, int amount, int user, TimeInfo &timevar, i
 
 int Drawer::TotalPaymentAmount(int tender_type)
 {
+    FnTrace("Drawer::TotalPaymentAmount()");
     DrawerPayment *currPayment = payment_list.Head();
     int retval = 0;
 
@@ -1156,6 +1157,10 @@ int Drawer::TotalPaymentAmount(int tender_type)
     {
         if (currPayment->tender_type == tender_type)
             retval += currPayment->amount;
+        // The advance was missing, so this looped forever on any drawer that
+        // had payments. It went unnoticed because the function has no callers
+        // yet: an empty list leaves currPayment null and the loop never runs.
+        currPayment = currPayment->next;
     }
     return retval;
 }
