@@ -330,6 +330,266 @@ TEST_CASE("Seeded lookup tables match the C++ constants", "[sql][schema][lookups
     }
 }
 
+namespace {
+
+// Minimal valid ancestry for an order: one day, one check, one subcheck.
+void SeedCheckAggregate(Database &db)
+{
+    REQUIRE(db.Exec("INSERT INTO business_day(id) VALUES (1);") == Status::Ok);
+    REQUIRE(db.Exec(
+        "INSERT INTO pos_check(id, business_day_id, serial_number, type) "
+        "VALUES (1, 1, 143, 0);") == Status::Ok);
+    REQUIRE(db.Exec(
+        "INSERT INTO subcheck(id, check_id, business_day_id, seq, status, check_type) "
+        "VALUES (1, 1, 1, 0, 1, 0);") == Status::Ok);
+}
+
+std::string InsertOrder(int id, const std::string &parent, int seq,
+                        const std::string &name)
+{
+    return "INSERT INTO order_item(id, subcheck_id, business_day_id, "
+           "parent_order_id, seq, item_name, item_type, item_family, item_cost) "
+           "VALUES (" + std::to_string(id) + ", 1, 1, " + parent + ", " +
+           std::to_string(seq) + ", '" + name + "', 0, 0, 100);";
+}
+
+} // namespace
+
+TEST_CASE("The order modifier tree is explicit, not inferred",
+          "[sql][schema][orders]")
+{
+    // The legacy format stored a flat run of orders and rebuilt the tree on load
+    // from Order::IsModifier() plus adjacency, so the parent/child link was
+    // never recorded. Making it a real column is the highest-risk correction in
+    // the migration, so its constraints are pinned here.
+    Database db = FreshDatabase();
+    SeedCheckAggregate(db);
+
+    SECTION("a root order and its modifier both insert")
+    {
+        REQUIRE(db.Exec(InsertOrder(10, "NULL", 0, "Burger")) == Status::Ok);
+        REQUIRE(db.Exec(InsertOrder(11, "10", 0, "No Onions")) == Status::Ok);
+
+        REQUIRE(ScalarOf(db,
+            "SELECT COUNT(*) FROM order_item WHERE parent_order_id IS NULL;") == 1);
+        REQUIRE(ScalarOf(db,
+            "SELECT COUNT(*) FROM order_item WHERE parent_order_id = 10;") == 1);
+    }
+
+    SECTION("two root orders cannot share a sequence position")
+    {
+        REQUIRE(db.Exec(InsertOrder(10, "NULL", 0, "Burger")) == Status::Ok);
+        REQUIRE(db.Exec(InsertOrder(11, "NULL", 0, "Fries")) == Status::Constraint);
+    }
+
+    SECTION("two modifiers of one parent cannot share a sequence position")
+    {
+        REQUIRE(db.Exec(InsertOrder(10, "NULL", 0, "Burger")) == Status::Ok);
+        REQUIRE(db.Exec(InsertOrder(11, "10", 0, "No Onions")) == Status::Ok);
+        REQUIRE(db.Exec(InsertOrder(12, "10", 0, "Extra Cheese")) == Status::Constraint);
+    }
+
+    SECTION("a modifier and a root order may share a sequence position")
+    {
+        // They live in different sequences -- one is ordered within the
+        // subcheck, the other within its parent. A single UNIQUE spanning both
+        // would wrongly reject this.
+        REQUIRE(db.Exec(InsertOrder(10, "NULL", 0, "Burger")) == Status::Ok);
+        REQUIRE(db.Exec(InsertOrder(11, "10", 0, "No Onions")) == Status::Ok);
+        REQUIRE(db.Exec(InsertOrder(12, "NULL", 1, "Fries")) == Status::Ok);
+        REQUIRE(db.Exec(InsertOrder(13, "12", 0, "Well Done")) == Status::Ok);
+    }
+
+    SECTION("a modifier of a modifier is rejected")
+    {
+        // The in-memory model has exactly one level. Enforcing it means an
+        // importer bug fails an insert instead of building a tree nobody checks.
+        REQUIRE(db.Exec(InsertOrder(10, "NULL", 0, "Burger")) == Status::Ok);
+        REQUIRE(db.Exec(InsertOrder(11, "10", 0, "No Onions")) == Status::Ok);
+        REQUIRE(db.Exec(InsertOrder(12, "11", 0, "Really No Onions")) == Status::Constraint);
+    }
+
+    SECTION("an order cannot be its own parent")
+    {
+        REQUIRE(db.Exec(InsertOrder(10, "10", 0, "Ouroboros")) == Status::Constraint);
+    }
+
+    SECTION("deleting a parent removes its modifiers")
+    {
+        REQUIRE(db.Exec(InsertOrder(10, "NULL", 0, "Burger")) == Status::Ok);
+        REQUIRE(db.Exec(InsertOrder(11, "10", 0, "No Onions")) == Status::Ok);
+
+        REQUIRE(db.Exec("DELETE FROM order_item WHERE id=10;") == Status::Ok);
+        REQUIRE(ScalarOf(db, "SELECT COUNT(*) FROM order_item;") == 0);
+    }
+
+    SECTION("a zero or negative count is rejected")
+    {
+        REQUIRE(db.Exec(
+            "INSERT INTO order_item(id, subcheck_id, business_day_id, seq, "
+            "item_name, item_type, item_family, item_cost, count) "
+            "VALUES (20, 1, 1, 0, 'Bad', 0, 0, 100, 0);") == Status::Constraint);
+    }
+
+    SECTION("call_order defaults to the constructor value")
+    {
+        // Historical rows cannot recover a real call_order -- it was never
+        // written -- so the default must match Order's constructor.
+        REQUIRE(db.Exec(InsertOrder(10, "NULL", 0, "Burger")) == Status::Ok);
+        REQUIRE(ScalarOf(db, "SELECT call_order FROM order_item WHERE id=10;") == 1);
+    }
+}
+
+TEST_CASE("The check aggregate enforces its invariants", "[sql][schema][check]")
+{
+    Database db = FreshDatabase();
+    SeedCheckAggregate(db);
+
+    SECTION("serial numbers are unique within a day but may repeat across days")
+    {
+        // Duplicate serials genuinely exist in historical archives, because the
+        // legacy counter was never persisted and restarted when recovery found
+        // an empty archive. Scoping to the day makes them legal.
+        REQUIRE(db.Exec(
+            "INSERT INTO pos_check(id, business_day_id, serial_number, type) "
+            "VALUES (2, 1, 143, 0);") == Status::Constraint);
+
+        // A disambiguator makes a genuine same-day collision representable.
+        REQUIRE(db.Exec(
+            "INSERT INTO pos_check(id, business_day_id, serial_number, "
+            "serial_disambiguator, type) VALUES (2, 1, 143, 1, 0);") == Status::Ok);
+
+        REQUIRE(db.Exec("UPDATE business_day SET closed_at_local=1 WHERE id=1;") == Status::Ok);
+        REQUIRE(db.Exec("INSERT INTO business_day(id) VALUES (2);") == Status::Ok);
+        REQUIRE(db.Exec(
+            "INSERT INTO pos_check(id, business_day_id, serial_number, type) "
+            "VALUES (3, 2, 143, 0);") == Status::Ok);
+    }
+
+    SECTION("a subcheck must agree with its check about the business day")
+    {
+        REQUIRE(db.Exec("UPDATE business_day SET closed_at_local=1 WHERE id=1;") == Status::Ok);
+        REQUIRE(db.Exec("INSERT INTO business_day(id) VALUES (2);") == Status::Ok);
+
+        // business_day_id is denormalized onto subcheck for reporting speed, so
+        // a trigger has to keep it honest.
+        REQUIRE(db.Exec(
+            "INSERT INTO subcheck(id, check_id, business_day_id, seq, status, check_type) "
+            "VALUES (2, 1, 2, 1, 1, 0);") == Status::Constraint);
+    }
+
+    SECTION("subcheck sequence positions are unique within a check")
+    {
+        REQUIRE(db.Exec(
+            "INSERT INTO subcheck(id, check_id, business_day_id, seq, status, check_type) "
+            "VALUES (2, 1, 1, 0, 1, 0);") == Status::Constraint);
+    }
+
+    SECTION("deleting a check cascades to subchecks, orders and payments")
+    {
+        REQUIRE(db.Exec(InsertOrder(10, "NULL", 0, "Burger")) == Status::Ok);
+        REQUIRE(db.Exec(
+            "INSERT INTO payment(id, subcheck_id, business_day_id, seq, "
+            "tender_type, amount) VALUES (1, 1, 1, 0, 0, 500);") == Status::Ok);
+
+        REQUIRE(db.Exec("DELETE FROM pos_check WHERE id=1;") == Status::Ok);
+        REQUIRE(ScalarOf(db, "SELECT COUNT(*) FROM subcheck;") == 0);
+        REQUIRE(ScalarOf(db, "SELECT COUNT(*) FROM order_item;") == 0);
+        REQUIRE(ScalarOf(db, "SELECT COUNT(*) FROM payment;") == 0);
+    }
+
+    SECTION("a payment must reference a known tender type")
+    {
+        REQUIRE(db.Exec(
+            "INSERT INTO payment(id, subcheck_id, business_day_id, seq, "
+            "tender_type, amount) VALUES (1, 1, 1, 0, 999, 500);") == Status::Constraint);
+    }
+}
+
+TEST_CASE("Frozen totals cannot be rewritten", "[sql][schema][totals]")
+{
+    Database db = FreshDatabase();
+    SeedCheckAggregate(db);
+
+    REQUIRE(db.Exec(
+        "INSERT INTO subcheck_total(subcheck_id, raw_sales, total_sales, total_cost) "
+        "VALUES (1, 1000, 1000, 1100);") == Status::Ok);
+
+    SECTION("an open subcheck's totals can still be recomputed")
+    {
+        REQUIRE(db.Exec("UPDATE subcheck_total SET raw_sales=2000 WHERE subcheck_id=1;")
+                == Status::Ok);
+        REQUIRE(ScalarOf(db, "SELECT raw_sales FROM subcheck_total WHERE subcheck_id=1;")
+                == 2000);
+    }
+
+    SECTION("once frozen, an update is refused")
+    {
+        // The number on the receipt and remitted to the tax authority is the
+        // frozen one. Corrections become new rows, never edits.
+        REQUIRE(db.Exec("UPDATE subcheck SET frozen_at_local=100 WHERE id=1;") == Status::Ok);
+        REQUIRE(db.Exec("UPDATE subcheck_total SET raw_sales=3000 WHERE subcheck_id=1;")
+                == Status::Constraint);
+        REQUIRE(ScalarOf(db, "SELECT raw_sales FROM subcheck_total WHERE subcheck_id=1;")
+                == 1000);
+    }
+
+    SECTION("total_sales is pre-tax and total_cost includes it")
+    {
+        // Pins the naming trap the FigureTotals characterization tests found:
+        // the names invite the opposite reading.
+        REQUIRE(ScalarOf(db, "SELECT total_sales FROM subcheck_total WHERE subcheck_id=1;")
+                == 1000);
+        REQUIRE(ScalarOf(db, "SELECT total_cost FROM subcheck_total WHERE subcheck_id=1;")
+                == 1100);
+    }
+
+    SECTION("check_total aggregates its subchecks")
+    {
+        REQUIRE(ScalarOf(db, "SELECT total_cost FROM check_total WHERE check_id=1;") == 1100);
+    }
+}
+
+TEST_CASE("Tender types match the TENDER_* constants", "[sql][schema][lookups]")
+{
+    // Settings::TenderName is a hardcoded parallel array already out of sync
+    // with these constants. This is what stops the table drifting the same way.
+    Database db = FreshDatabase();
+
+    auto tender_present = [&db](int id) {
+        return ScalarOf(db, "SELECT COUNT(*) FROM tender_type_ref WHERE id=" +
+                            std::to_string(id) + ";") == 1;
+    };
+
+    REQUIRE(tender_present(TENDER_CASH));
+    REQUIRE(tender_present(TENDER_CHECK));
+    REQUIRE(tender_present(TENDER_CHARGE_CARD));
+    REQUIRE(tender_present(TENDER_COUPON));
+    REQUIRE(tender_present(TENDER_GIFT));
+    REQUIRE(tender_present(TENDER_COMP));
+    REQUIRE(tender_present(TENDER_ACCOUNT));
+    REQUIRE(tender_present(TENDER_CHARGE_ROOM));
+    REQUIRE(tender_present(TENDER_DISCOUNT));
+    REQUIRE(tender_present(TENDER_CAPTURED_TIP));
+    REQUIRE(tender_present(TENDER_EMPLOYEE_MEAL));
+    REQUIRE(tender_present(TENDER_CREDIT_CARD));
+    REQUIRE(tender_present(TENDER_DEBIT_CARD));
+    REQUIRE(tender_present(TENDER_CHARGED_TIP));
+    REQUIRE(tender_present(TENDER_PAID_TIP));
+    REQUIRE(tender_present(TENDER_OVERAGE));
+    REQUIRE(tender_present(TENDER_CHANGE));
+    REQUIRE(tender_present(TENDER_PAYOUT));
+    REQUIRE(tender_present(TENDER_MONEY_LOST));
+    REQUIRE(tender_present(TENDER_GRATUITY));
+    REQUIRE(tender_present(TENDER_ITEM_COMP));
+    REQUIRE(tender_present(TENDER_EXPENSE));
+    REQUIRE(tender_present(TENDER_CASH_AVAIL));
+    REQUIRE(tender_present(TENDER_CREDIT_CARD_FEE_DOLLAR));
+    REQUIRE(tender_present(TENDER_CREDIT_CARD_FEE_PERCENT));
+    REQUIRE(tender_present(TENDER_DEBIT_CARD_FEE_DOLLAR));
+    REQUIRE(tender_present(TENDER_DEBIT_CARD_FEE_PERCENT));
+}
+
 TEST_CASE("The serial sequence is seeded", "[sql][schema][sequence]")
 {
     Database db = FreshDatabase();
