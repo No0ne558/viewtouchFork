@@ -13,6 +13,8 @@
 #include <catch2/catch_all.hpp>
 #include "src/core/sql/database.hh"
 #include "src/core/sql/migrations.hh"
+#include "src/core/sql/sequence.hh"
+#include "src/core/sql/statement.hh"
 
 #include "main/business/sales.hh"   // FAMILY_*, SALESGROUP_*
 #include "main/business/check.hh"   // CHECK_OPEN / CHECK_CLOSED / CHECK_VOIDED
@@ -590,25 +592,203 @@ TEST_CASE("Tender types match the TENDER_* constants", "[sql][schema][lookups]")
     REQUIRE(tender_present(TENDER_DEBIT_CARD_FEE_PERCENT));
 }
 
-TEST_CASE("The serial sequence is seeded", "[sql][schema][sequence]")
+TEST_CASE("Serial allocation is exact", "[sql][sequence]")
+{
+    // Replaces System::NewSerialNumber, an in-memory counter that was never
+    // persisted and was recovered at boot by walking archives backwards until
+    // one reported a nonzero last_serial_number. If the newest archives were
+    // empty, corrupt or pruned it restarted and handed out serials that already
+    // existed -- which is why duplicates appear in historical data.
+    Database db = FreshDatabase();
+
+    SECTION("the shared serial sequence is seeded")
+    {
+        // Checks and drawers share one counter, matching the legacy behaviour.
+        int64_t next = 0;
+        REQUIRE(PeekSequenceValue(db, kPosSerialSequence, next) == Status::Ok);
+        REQUIRE(next == 1);
+    }
+
+    SECTION("successive allocations never repeat")
+    {
+        int64_t previous = 0;
+        for (int i = 0; i < 100; ++i)
+        {
+            int64_t claimed = 0;
+            REQUIRE(NextSequenceValue(db, kPosSerialSequence, claimed) == Status::Ok);
+            REQUIRE(claimed > previous);
+            previous = claimed;
+        }
+    }
+
+    SECTION("a rolled back transaction returns the id to the pool")
+    {
+        int64_t before = 0;
+        REQUIRE(PeekSequenceValue(db, kPosSerialSequence, before) == Status::Ok);
+
+        {
+            Transaction tx(db);
+            REQUIRE(tx.Begin() == Status::Ok);
+            int64_t claimed = 0;
+            REQUIRE(NextSequenceValue(db, kPosSerialSequence, claimed) == Status::Ok);
+            // no Commit -- the destructor rolls back
+        }
+
+        int64_t after = 0;
+        REQUIRE(PeekSequenceValue(db, kPosSerialSequence, after) == Status::Ok);
+        REQUIRE(after == before);
+    }
+
+    SECTION("a committed allocation is consumed")
+    {
+        int64_t before = 0;
+        REQUIRE(PeekSequenceValue(db, kPosSerialSequence, before) == Status::Ok);
+
+        {
+            Transaction tx(db);
+            REQUIRE(tx.Begin() == Status::Ok);
+            int64_t claimed = 0;
+            REQUIRE(NextSequenceValue(db, kPosSerialSequence, claimed) == Status::Ok);
+            REQUIRE(tx.Commit() == Status::Ok);
+        }
+
+        int64_t after = 0;
+        REQUIRE(PeekSequenceValue(db, kPosSerialSequence, after) == Status::Ok);
+        REQUIRE(after == before + 1);
+    }
+
+    SECTION("an unknown sequence is an error, not a silent restart at 1")
+    {
+        // Auto-creating here would hand back 1 and collide with everything
+        // already allocated -- precisely the legacy failure.
+        int64_t claimed = 0;
+        REQUIRE(NextSequenceValue(db, "no_such_sequence", claimed) != Status::Ok);
+    }
+
+    SECTION("RaiseSequenceTo moves a sequence forward but never backward")
+    {
+        // The importer calls this after loading historical data, so the first
+        // new check cannot collide with an old one.
+        REQUIRE(RaiseSequenceTo(db, kPosSerialSequence, 5000) == Status::Ok);
+        int64_t next = 0;
+        REQUIRE(PeekSequenceValue(db, kPosSerialSequence, next) == Status::Ok);
+        REQUIRE(next == 5000);
+
+        // A lower request must not rewind: an importer processing days out of
+        // order, or re-run over newer data, would otherwise reissue live ids.
+        REQUIRE(RaiseSequenceTo(db, kPosSerialSequence, 10) == Status::Ok);
+        REQUIRE(PeekSequenceValue(db, kPosSerialSequence, next) == Status::Ok);
+        REQUIRE(next == 5000);
+    }
+}
+
+TEST_CASE("Prepared statements bind and read", "[sql][statement]")
 {
     Database db = FreshDatabase();
 
-    // Checks and drawers share one counter, matching System::NewSerialNumber.
-    // Splitting them is correct but changes visible numbering, so it is left as
-    // a separate decision from the migration itself.
-    REQUIRE(ScalarOf(db, "SELECT next_value FROM sequence WHERE name='pos_serial';") == 1);
-
-    SECTION("allocation is exact under RETURNING")
+    SECTION("integers and text round-trip exactly")
     {
-        // This is why the build requires SQLite >= 3.35: claiming an id and
-        // reading it back must be one statement inside the writing transaction,
-        // which is what removes the boot-time heuristic recovery the legacy
-        // counter needed.
-        int64_t claimed = 0;
-        REQUIRE(db.QueryInt(
-            "UPDATE sequence SET next_value = next_value + 1 "
-            "WHERE name='pos_serial' RETURNING next_value;", claimed) == Status::Ok);
-        REQUIRE(claimed == 2);
+        Statement insert;
+        REQUIRE(insert.Prepare(db,
+            "INSERT INTO db_meta(key, value) VALUES (?1, ?2);") == Status::Ok);
+        REQUIRE(insert.BindText(1, "answer") == Status::Ok);
+        REQUIRE(insert.BindText(2, "42") == Status::Ok);
+        REQUIRE(insert.Execute() == Status::Ok);
+
+        Statement select;
+        REQUIRE(select.Prepare(db,
+            "SELECT value FROM db_meta WHERE key = ?1;") == Status::Ok);
+        REQUIRE(select.BindText(1, "answer") == Status::Ok);
+
+        Status status = Status::Ok;
+        REQUIRE(select.Step(status));
+        REQUIRE(select.ColumnText(0) == "42");
+    }
+
+    SECTION("a large integer survives without going through a double")
+    {
+        // Money is integer cents and ids are 64-bit; a value that lost precision
+        // through a double would be a silent corruption.
+        const int64_t big = 9007199254740993LL;   // 2^53 + 1
+        REQUIRE(db.Exec("INSERT INTO business_day(id) VALUES (1);") == Status::Ok);
+
+        Statement update;
+        REQUIRE(update.Prepare(db,
+            "UPDATE business_day SET last_serial_number = ?1 WHERE id = 1;") == Status::Ok);
+        REQUIRE(update.BindInt(1, big) == Status::Ok);
+        REQUIRE(update.Execute() == Status::Ok);
+
+        Statement select;
+        REQUIRE(select.Prepare(db,
+            "SELECT last_serial_number FROM business_day WHERE id = 1;") == Status::Ok);
+        Status status = Status::Ok;
+        REQUIRE(select.Step(status));
+        REQUIRE(select.ColumnInt(0) == big);
+    }
+
+    SECTION("NULL is distinguishable from zero")
+    {
+        // Many columns are nullable because "absent" differs from zero -- a
+        // distinction the legacy positional format could not express.
+        REQUIRE(db.Exec("INSERT INTO business_day(id) VALUES (1);") == Status::Ok);
+
+        Statement select;
+        REQUIRE(select.Prepare(db,
+            "SELECT start_local, last_serial_number FROM business_day WHERE id=1;")
+            == Status::Ok);
+        Status status = Status::Ok;
+        REQUIRE(select.Step(status));
+
+        REQUIRE(select.ColumnIsNull(0));
+        REQUIRE_FALSE(select.ColumnOptionalInt(0).has_value());
+        REQUIRE_FALSE(select.ColumnIsNull(1));
+        REQUIRE(select.ColumnOptionalInt(1).value() == 0);
+    }
+
+    SECTION("binding an empty optional writes NULL")
+    {
+        REQUIRE(db.Exec("INSERT INTO business_day(id) VALUES (1);") == Status::Ok);
+
+        Statement update;
+        REQUIRE(update.Prepare(db,
+            "UPDATE business_day SET start_local = ?1 WHERE id = 1;") == Status::Ok);
+        REQUIRE(update.BindOptionalInt(1, std::nullopt) == Status::Ok);
+        REQUIRE(update.Execute() == Status::Ok);
+
+        REQUIRE(ScalarOf(db,
+            "SELECT COUNT(*) FROM business_day WHERE start_local IS NULL;") == 1);
+    }
+
+    SECTION("a statement can be reset and reused")
+    {
+        Statement insert;
+        REQUIRE(insert.Prepare(db,
+            "INSERT INTO db_meta(key, value) VALUES (?1, ?2);") == Status::Ok);
+
+        for (int i = 0; i < 5; ++i)
+        {
+            REQUIRE(insert.Reset() == Status::Ok);
+            REQUIRE(insert.BindText(1, "k" + std::to_string(i)) == Status::Ok);
+            REQUIRE(insert.BindText(2, std::to_string(i)) == Status::Ok);
+            REQUIRE(insert.Execute() == Status::Ok);
+        }
+
+        REQUIRE(ScalarOf(db, "SELECT COUNT(*) FROM db_meta WHERE key LIKE 'k%';") == 5);
+    }
+
+    SECTION("preparing invalid SQL fails rather than asserting")
+    {
+        Statement stmt;
+        REQUIRE(stmt.Prepare(db, "SELECT FROM WHERE;") != Status::Ok);
+        REQUIRE_FALSE(stmt.IsPrepared());
+    }
+
+    SECTION("a constraint violation is reported as such")
+    {
+        Statement stmt;
+        REQUIRE(stmt.Prepare(db,
+            "INSERT INTO day_policy(business_day_id) VALUES (?1);") == Status::Ok);
+        REQUIRE(stmt.BindInt(1, 999) == Status::Ok);
+        REQUIRE(stmt.Execute() == Status::Constraint);
     }
 }

@@ -471,6 +471,8 @@ add_library(vtcore
     src/network/socket.cc          src/network/socket.hh
     src/core/sql/database.cc       src/core/sql/database.hh
     src/core/sql/migrations.cc     src/core/sql/migrations.hh
+    src/core/sql/statement.cc      src/core/sql/statement.hh
+    src/core/sql/sequence.cc       src/core/sql/sequence.hh
     main/ui/labels.cc     main/ui/labels.hh
     )
 
