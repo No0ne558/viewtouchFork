@@ -23,6 +23,7 @@ add_executable(vt_tests
     unit/test_archive_policy.cc
     unit/test_figure_totals.cc
     unit/test_credit_parsing.cc
+    unit/test_persistence_roundtrip.cc
     support/vt_test_env.cc
 )
 
