@@ -95,7 +95,8 @@ jobs:
           xfonts-75dpi \
           xfonts-100dpi \
           tzdata \
-          libcurl4-gnutls-dev
+          libcurl4-gnutls-dev \
+          libsqlite3-dev
 
     - name: Configure build
       env:
@@ -173,7 +174,8 @@ jobs:
           cmake \
           git \
           tzdata \
-          libcurl4-gnutls-dev
+          libcurl4-gnutls-dev \
+          libsqlite3-dev
         pip3 install --break-system-packages gcovr
 
     - name: Configure with coverage instrumentation

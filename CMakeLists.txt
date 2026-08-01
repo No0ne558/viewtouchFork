@@ -318,6 +318,29 @@ if(NOT ZLIB_FOUND)
 endif()
 target_link_libraries(conf_file PRIVATE ZLIB::ZLIB)
 
+# SQLite, for the persistence layer.
+#
+# Version floor: 3.35 introduced RETURNING, which the sequence allocator relies
+# on to claim an id and read it back inside one statement. An older SQLite fails
+# here at configure time rather than at runtime with a confusing SQL error.
+#
+# Deliberately the distro package rather than a vendored amalgamation. SQLite is
+# a large C library that will sit in the payment path, and vendoring would make
+# this project responsible for tracking its security releases forever. The distro
+# already does that. The cost is one more -dev package for builders, which the
+# installer scripts already handle for a dozen other libraries.
+find_package(SQLite3 3.35 REQUIRED)
+if(NOT SQLite3_FOUND)
+    message(FATAL_ERROR "\n"
+        "SQLite3 (>= 3.35) not found. Please install:\n"
+        "  Debian/Ubuntu: sudo apt-get install libsqlite3-dev\n"
+        "  Fedora/RHEL:   sudo dnf install sqlite-devel\n"
+        "  Arch Linux:    sudo pacman -S sqlite\n"
+        "\n"
+        "Run './check_dependencies.sh' for a complete dependency check.\n")
+endif()
+message(STATUS "SQLite3 version: ${SQLite3_VERSION}")
+
 set(VT_XLIBS X11)
 find_package(${VT_XLIBS} REQUIRED)
 set(VT_XLIBS_INCLUDE_DIRS ${X11_INCLUDE_DIR})
@@ -446,13 +469,15 @@ add_library(vtcore
     src/utils/safe_string_utils.cc src/utils/safe_string_utils.hh
     src/utils/input_validation.cc  src/utils/input_validation.hh
     src/network/socket.cc          src/network/socket.hh
+    src/core/sql/database.cc       src/core/sql/database.hh
+    src/core/sql/migrations.cc     src/core/sql/migrations.hh
     main/ui/labels.cc     main/ui/labels.hh
     )
 
 target_include_directories(vtcore PUBLIC
     ${CMAKE_CURRENT_BINARY_DIR}  # include generated files like build_number.h
     ${CMAKE_CURRENT_BINARY_DIR}/_deps/magic_enum-src/include)
-target_link_libraries(vtcore PUBLIC vt_version tz spdlog::spdlog nlohmann_json::nlohmann_json magic_enum::magic_enum)
+target_link_libraries(vtcore PUBLIC vt_version tz spdlog::spdlog nlohmann_json::nlohmann_json magic_enum::magic_enum SQLite::SQLite3)
 
 add_executable(vtpos 
 		loader/loader_main.cc )

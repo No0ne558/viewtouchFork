@@ -73,6 +73,9 @@ list(APPEND REQUIRED_DEPS "libfontconfig1-dev")  # Fontconfig
 # Compression
 list(APPEND REQUIRED_DEPS "zlib1g-dev")      # ZLIB
 
+# Database (>= 3.35 for RETURNING support)
+list(APPEND REQUIRED_DEPS "libsqlite3-dev")  # SQLite3
+
 # Image libraries (optional but recommended)
 list(APPEND REQUIRED_DEPS "libpng-dev")      # PNG
 list(APPEND REQUIRED_DEPS "libjpeg-dev")     # JPEG
@@ -96,6 +99,7 @@ set(DEB_PACKAGES
     "libfreetype6-dev"
     "libfontconfig1-dev"
     "zlib1g-dev"
+    "libsqlite3-dev"
     "libpng-dev"
     "libjpeg-dev"
     "libgif-dev"
@@ -118,6 +122,7 @@ set(RPM_PACKAGES
     "freetype-devel"
     "fontconfig-devel"
     "zlib-devel"
+    "sqlite-devel"
     "libpng-devel"
     "libjpeg-devel"
     "giflib-devel"
@@ -138,6 +143,7 @@ set(ARCH_PACKAGES
     "freetype2"
     "fontconfig"
     "zlib"
+    "sqlite"
     "libpng"
     "libjpeg-turbo"
     "giflib"
