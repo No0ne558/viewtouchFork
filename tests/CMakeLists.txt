@@ -22,6 +22,8 @@ add_executable(vt_tests
     unit/test_safe_math.cc
     unit/test_archive_policy.cc
     unit/test_figure_totals.cc
+    unit/test_credit_parsing.cc
+    support/vt_test_env.cc
 )
 
 # Include directories for tests
@@ -55,7 +57,22 @@ target_link_libraries(vt_tests PRIVATE
 
 # Test discovery
 include(Catch)
-catch_discover_tests(vt_tests)
+
+# Make UndefinedBehaviorSanitizer findings fail the test that triggered them.
+#
+# UBSan defaults to "recover": it prints a diagnostic and carries on, so a test
+# could sail past a genuine out-of-bounds access with a green result. That is
+# how an overflow in Credit::ParseTrack2 stayed invisible -- the diagnostic was
+# printed on stderr and the run still reported success.
+#
+# This applies to the test run only. The application keeps the recovering
+# default deliberately: aborting a live till on a UBSan diagnostic would be
+# worse than continuing, whereas in tests a diagnostic is exactly what we want
+# to catch.
+catch_discover_tests(vt_tests
+    PROPERTIES
+        ENVIRONMENT "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1:abort_on_error=1"
+)
 
 # Integration tests (future)
 # add_subdirectory(integration)

@@ -819,7 +819,11 @@ int Credit::ParseTrack1(const char* swipe_value)
     }
     t1_pvv[idx] = '\0';
     idx = 0;
-    while (swipe_value[cidx] != '?' && swipe_value[cidx] != '\0' && cidx < len)
+    // Bound by the destination as well as the input. Every other field in this
+    // function has an index limit; without one here a track longer than
+    // t1_disc overruns it, and ParseSwipe supplies a STRLONG (2048) buffer.
+    while (swipe_value[cidx] != '?' && swipe_value[cidx] != '\0' && cidx < len &&
+           idx < static_cast<int>(sizeof(t1_disc)) - 1)
     {
         t1_disc[idx] = swipe_value[cidx];
         idx++;
@@ -889,7 +893,10 @@ int Credit::ParseTrack2(const char* swipe_value)
     }
     t2_pvv[idx] = '\0';
     idx = 0;
-    while (swipe_value[cidx] != '?' && swipe_value[cidx] != '\0' && cidx < len)
+    // See the note in ParseTrack1: the destination bound is required, not
+    // defensive. Without it a long track wrote ~1KB past the end of t2_disc.
+    while (swipe_value[cidx] != '?' && swipe_value[cidx] != '\0' && cidx < len &&
+           idx < static_cast<int>(sizeof(t2_disc)) - 1)
     {
         t2_disc[idx] = swipe_value[cidx];
         idx ++;
@@ -1085,7 +1092,11 @@ int Credit::ParseTrack3(const char* swipe_value)
         }
     }
     idx = 0;
-    while (*curr != '?')
+    // This loop previously tested only for the '?' end sentinel: no NUL check
+    // and no destination bound, so a track 3 without a terminating '?' ran off
+    // the end of the input buffer entirely as well as past t3_disc.
+    while (*curr != '?' && *curr != '\0' &&
+           idx < static_cast<int>(sizeof(t3_disc)) - 1)
     {
         t3_disc[idx] = *curr;
         curr++;
