@@ -40,6 +40,11 @@ public:
 
     // Parameter indexes are 1-based, matching SQLite.
     [[nodiscard]] Status BindInt(int index, int64_t value);
+    // For the tax rates only. Money is INTEGER cents throughout; rates are Flt
+    // (double) in Settings and Archive and REAL in the schema, so binding one
+    // as text would round-trip it through decimal and move the third decimal
+    // place of a rate that multiplies every sale on a day.
+    [[nodiscard]] Status BindDouble(int index, double value);
     [[nodiscard]] Status BindText(int index, std::string_view value);
     [[nodiscard]] Status BindNull(int index);
     // Binds the value, or NULL when the optional is empty. Used for the many

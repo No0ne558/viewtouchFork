@@ -85,6 +85,13 @@ Status Statement::BindInt(int index, int64_t value)
     return Translate(sqlite3_bind_int64(stmt_, index, value));
 }
 
+Status Statement::BindDouble(int index, double value)
+{
+    if (stmt_ == nullptr)
+        return Status::NotOpen;
+    return Translate(sqlite3_bind_double(stmt_, index, value));
+}
+
 Status Statement::BindText(int index, std::string_view value)
 {
     if (stmt_ == nullptr)

@@ -31,6 +31,7 @@ add_executable(vt_tests
     unit/test_sql_migrations.cc
     unit/test_store_seam.cc
     unit/test_sqlite_store.cc
+    unit/test_importer.cc
     support/vt_test_env.cc
     support/legacy_file_builder.cc
 )
