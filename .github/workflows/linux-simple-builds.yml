@@ -10,22 +10,33 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Toolchains that can actually build this project at C++23 on
+        # ubuntu-24.04. g++-12, clang++-16 and clang++-17 were dropped after
+        # being tested directly against the tree:
+        #
+        #   g++-12     vtcore builds but emits 10 "std::format is not available"
+        #              warnings, and vtbusiness then fails with
+        #              "'format_string' is not a member of 'std'". libstdc++ 12
+        #              predates <format>, which cpp23_utils.hh requires and does
+        #              not have a working fallback for.
+        #   clang++-16 rejects -std=c++23 outright (it only knows -std=c++2b),
+        #              and against libstdc++ 14 fails in <ranges> with
+        #              "requires clause differs".
+        #   clang++-17 fails in libstdc++ 14's <tuple> with "no matching
+        #              function". An old clang paired with a new libstdc++.
+        #
+        # These are toolchain limitations, not defects in ViewTouch: the project
+        # requires C++23 with <format>. Re-adding a compiler here means checking
+        # it builds vtbusiness, not just vtcore -- vtcore alone does not
+        # exercise std::format enough to fail.
         cxx:
-          - g++-12
           - g++-13
           - g++-14
-          - clang++-16
-          - clang++-17
           - clang++-18
         build_type: [Debug] #, Release]
         # CMakeLists.txt defaults to C++23; CI must build what actually ships.
         std: [23]
         include:
-        # cannot be installed on ubuntu-24.04 be default?
-          - cxx: g++-12
-            cc: gcc-12
-            other_pkgs: g++-12
-            cxxflags: "-O1 -fmax-errors=5"
           - cxx: g++-13
             cc: gcc-13
             other_pkgs: g++-13
@@ -34,17 +45,14 @@ jobs:
             cc: gcc-14
             other_pkgs: g++-14
             cxxflags: "-O1 -fmax-errors=5"
-          - cxx: clang++-16
-            cc: clang-16
-            other_pkgs: clang-16
-            cxxflags: "-O1 -fmax-errors=5"
-          - cxx: clang++-17
-            cc: clang-17
-            other_pkgs: clang-17
-            cxxflags: "-O1 -fmax-errors=5"
           - cxx: clang++-18
             cc: clang-18
-            other_pkgs: clang-18
+            # libclang-rt-18-dev supplies the ASan/UBSan runtimes. Debug builds
+            # turn sanitizers on (ENABLE_SANITIZERS, CMakeLists.txt), and without
+            # this package the clang build compiles but fails to link with
+            # "cannot find libclang_rt.asan-x86_64.a". GCC needs no equivalent;
+            # its sanitizer runtimes ship with the compiler.
+            other_pkgs: clang-18 libclang-rt-18-dev
             cxxflags: "-O1 -fmax-errors=5"
 
     steps:
