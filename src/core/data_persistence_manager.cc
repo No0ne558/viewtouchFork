@@ -173,21 +173,40 @@ void DataPersistenceManager::Shutdown()
     }
 }
 
+// The three setters below wrote `config` with no lock at all, while
+// SetConfiguration took config_mutex and the CUPS monitor thread read
+// config.cups_check_interval on every loop iteration. Configuration holds a
+// std::string, so an unsynchronised write against a concurrent read is a real
+// data race, not just a torn integer.
+//
+// Locking is released before LogInfo in each, because logging takes log_mutex
+// and holding config_mutex across it would establish a config -> log ordering
+// that LogWarning (which needs config first, then log) would invert.
+
 void DataPersistenceManager::SetAutoSaveInterval(std::chrono::seconds interval)
 {
-    config.auto_save_interval = interval;
+    {
+        std::lock_guard<std::mutex> lock(config_mutex);
+        config.auto_save_interval = interval;
+    }
     LogInfo("Auto-save interval set to " + std::to_string(interval.count()) + " seconds");
 }
 
 void DataPersistenceManager::EnableAutoSave(bool enable)
 {
-    config.enable_auto_save = enable;
+    {
+        std::lock_guard<std::mutex> lock(config_mutex);
+        config.enable_auto_save = enable;
+    }
     LogInfo(std::string("Auto-save ") + (enable ? "enabled" : "disabled"));
 }
 
 void DataPersistenceManager::SetCUPSCheckInterval(std::chrono::seconds interval)
 {
-    config.cups_check_interval = interval;
+    {
+        std::lock_guard<std::mutex> lock(config_mutex);
+        config.cups_check_interval = interval;
+    }
     LogInfo("CUPS check interval set to " + std::to_string(interval.count()) + " seconds");
 }
 
@@ -198,11 +217,19 @@ void DataPersistenceManager::SetConfiguration(const Configuration& new_config)
         config = new_config;
     }
 
+    // Read the new caps under config_mutex, then release it before taking
+    // log_mutex, matching the ordering used in LogError and LogWarning.
+    std::size_t max_error_size = 0;
+    std::size_t max_warning_size = 0;
+    {
+        std::lock_guard<std::mutex> config_lock(config_mutex);
+        max_error_size = static_cast<std::size_t>(config.max_error_log_size);
+        max_warning_size = static_cast<std::size_t>(config.max_warning_log_size);
+    }
+
     // Resize log vectors if needed (requires log_mutex)
     {
         std::lock_guard<std::mutex> lock(log_mutex);
-        const auto max_error_size = static_cast<std::size_t>(config.max_error_log_size);
-        const auto max_warning_size = static_cast<std::size_t>(config.max_warning_log_size);
 
         error_log.reserve(max_error_size);
         warning_log.reserve(max_warning_size);
@@ -223,11 +250,12 @@ void DataPersistenceManager::SetConfiguration(const Configuration& new_config)
     LogInfo("Configuration updated");
 }
 
-const DataPersistenceManager::Configuration& DataPersistenceManager::GetConfiguration() const
+DataPersistenceManager::Configuration DataPersistenceManager::GetConfiguration() const
 {
-    // Note: Since config is read-only after initialization and the class is a singleton,
-    // we don't strictly need to lock here for thread safety, but it's safer to do so
-    // in case future changes make config mutable.
+    // Returns by value. The previous version returned a const reference taken
+    // under this lock, which protected nothing: the guard is destroyed as the
+    // function returns, so every caller read shared state unguarded while the
+    // CUPS monitor thread could be writing it.
     std::lock_guard<std::mutex> lock(config_mutex);
     return config;
 }
@@ -643,9 +671,20 @@ void DataPersistenceManager::StopCUPSMonitorThread()
 void DataPersistenceManager::CUPSMonitorLoop()
 {
     while (!cups_monitor_stop_.load(std::memory_order_acquire)) {
+        // Read the interval under config_mutex rather than touching `config`
+        // directly. The main thread can change it at any time through
+        // SetCUPSCheckInterval or SetConfiguration, and Configuration holds a
+        // std::string, so an unsynchronised read here was a genuine data race.
+        // Taken before cups_monitor_mutex_ so no lock is held across another.
+        std::chrono::seconds check_interval{};
+        {
+            std::lock_guard<std::mutex> config_lock(config_mutex);
+            check_interval = config.cups_check_interval;
+        }
+
         // Sleep for the configured interval (default 60 s), waking early on stop
         std::unique_lock<std::mutex> lock(cups_monitor_mutex_);
-        cups_monitor_cv_.wait_for(lock, config.cups_check_interval,
+        cups_monitor_cv_.wait_for(lock, check_interval,
             [this]() { return cups_monitor_stop_.load(std::memory_order_acquire); });
 
         if (cups_monitor_stop_.load(std::memory_order_acquire))
@@ -1550,8 +1589,18 @@ void DataPersistenceManager::LogError(const std::string& message)
 
 void DataPersistenceManager::LogError(const std::string& message, const std::string& component)
 {
+    // Read the cap under config_mutex and release it before taking log_mutex.
+    // This was previously read while holding only log_mutex, which is a
+    // different lock from the one writers take -- so it was unsynchronised
+    // against SetConfiguration. Ordering config before log, and never nesting
+    // them, keeps this consistent with the setters.
+    std::size_t max_error_size = 0;
+    {
+        std::lock_guard<std::mutex> config_lock(config_mutex);
+        max_error_size = static_cast<std::size_t>(config.max_error_log_size);
+    }
+
     std::lock_guard<std::mutex> lock(log_mutex);
-    const auto max_error_size = static_cast<std::size_t>(config.max_error_log_size);
     if (error_log.size() >= max_error_size) {
         // Remove oldest entries to make room
         error_log.erase(error_log.begin(),
@@ -1569,8 +1618,15 @@ void DataPersistenceManager::LogWarning(const std::string& message)
 
 void DataPersistenceManager::LogWarning(const std::string& message, const std::string& component)
 {
+    // See LogError: the cap is read under config_mutex, which is released before
+    // log_mutex is taken.
+    std::size_t max_warning_size = 0;
+    {
+        std::lock_guard<std::mutex> config_lock(config_mutex);
+        max_warning_size = static_cast<std::size_t>(config.max_warning_log_size);
+    }
+
     std::lock_guard<std::mutex> lock(log_mutex);
-    const auto max_warning_size = static_cast<std::size_t>(config.max_warning_log_size);
     if (warning_log.size() >= max_warning_size) {
         // Remove oldest entries to make room
         warning_log.erase(warning_log.begin(),

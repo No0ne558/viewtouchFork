@@ -1,0 +1,16 @@
+# ThreadSanitizer suppressions for the ViewTouch test suite.
+#
+# Usage:
+#   cmake -S . -B build-tsan -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DENABLE_TSAN=ON
+#   cmake --build build-tsan --target vt_tests
+#   TSAN_OPTIONS="suppressions=$PWD/tests/tsan.supp" ./build-tsan/tests/vt_tests
+#
+# Only third-party noise belongs in this file. A race in ViewTouch code is a bug
+# to fix, not to suppress -- if you find yourself adding a src/, main/ or zone/
+# entry here, that is the signal that something is wrong.
+
+# Catch2 increments its assertion counter through a deliberately non-atomic fast
+# path (catch_run_context.cpp, RunContext::assertionPassedFastPath). Any test
+# that runs threads trips it, and it is internal to the framework rather than
+# anything ViewTouch controls.
+race:Catch::RunContext::assertionPassedFastPath

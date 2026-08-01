@@ -224,7 +224,12 @@ public:
     void EnableAutoSave(bool enable);
     void SetCUPSCheckInterval(std::chrono::seconds interval);
     void SetConfiguration(const Configuration& new_config);
-    const Configuration& GetConfiguration() const;
+    // Returns a copy, deliberately. This used to hand back a const reference
+    // taken under config_mutex -- but the lock is released as the function
+    // returns, so every caller then read shared memory unguarded while the CUPS
+    // monitor thread could be writing it. A reference cannot be made safe here;
+    // the copy is what the lock is actually protecting.
+    Configuration GetConfiguration() const;
     
     // Data validation
     ValidationResult ValidateAllData();

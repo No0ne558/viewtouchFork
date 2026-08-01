@@ -26,6 +26,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <thread>
 #include <string>
 
 namespace fs = std::filesystem;
@@ -310,6 +311,52 @@ TEST_CASE("Auto-save is bounded and resumable", "[persistence][autosave][concurr
             REQUIRE(dpm.AutoSaveCursor() == 0);
         }
     }
+}
+
+TEST_CASE("Configuration access is thread safe", "[persistence][config][concurrency]")
+{
+    // The CUPS monitor thread reads config.cups_check_interval on every loop
+    // iteration while the main thread can change it at any time. Three setters
+    // used to write config with no lock at all, and GetConfiguration returned a
+    // reference taken under a lock that was released as it returned -- so
+    // callers read shared state unguarded. Configuration holds a std::string, so
+    // this was a real data race, not just a torn integer.
+    //
+    // Under a ThreadSanitizer build (-DENABLE_TSAN=ON) this section is what
+    // catches a regression; under the normal ASan build it at least exercises
+    // the paths concurrently.
+    auto& dpm = DataPersistenceManager::GetInstance();
+    const auto original = dpm.GetConfiguration();
+
+    std::atomic<bool> stop{false};
+    std::atomic<int> reads{0};
+
+    std::thread reader([&dpm, &stop, &reads] {
+        while (!stop.load(std::memory_order_acquire))
+        {
+            const auto snapshot = dpm.GetConfiguration();
+            if (snapshot.cups_check_interval.count() >= 0)
+                reads.fetch_add(1, std::memory_order_relaxed);
+        }
+    });
+
+    for (int i = 1; i <= 200; ++i)
+    {
+        dpm.SetCUPSCheckInterval(std::chrono::seconds(i));
+        dpm.SetAutoSaveInterval(std::chrono::seconds(i));
+        dpm.EnableAutoSave(i % 2 == 0);
+    }
+
+    stop.store(true, std::memory_order_release);
+    reader.join();
+
+    REQUIRE(reads.load() > 0);
+
+    // The last write must be what a subsequent read observes.
+    dpm.SetCUPSCheckInterval(std::chrono::seconds(31));
+    REQUIRE(dpm.GetConfiguration().cups_check_interval == std::chrono::seconds(31));
+
+    dpm.SetConfiguration(original);
 }
 
 TEST_CASE("DataPersistenceManager logging", "[persistence][logging]")
