@@ -163,6 +163,10 @@ private:
     // Guard against dispatching SaveAllChecks while a previous dispatch is still running
     std::atomic<bool> save_in_progress_;
 
+    // Where the incremental auto-save pass resumes. Main thread only, so a
+    // plain member rather than an atomic is correct here.
+    std::size_t autosave_cursor_{0};
+
     // Performance metrics
     struct PerformanceMetrics {
         int total_validations{0};
@@ -230,6 +234,18 @@ public:
     // Data saving
     SaveResult SaveAllData();
     SaveResult SaveCriticalData();
+
+    // Auto-save runs on the main Xt event loop thread and is bounded, so that
+    // no other thread ever traverses the unlocked System check list. See the
+    // comment in ProcessPeriodicTasks for why bounding is used instead of a
+    // lock. Both of these are main-thread-only.
+    static constexpr int kAutoSaveChecksPerTick = 8;
+    SaveResult SaveChecksIncremental(int max_checks);
+    SaveResult SaveCriticalDataIncremental(int max_checks);
+
+    // Position of the next check to save, carried across ticks. Zero means no
+    // pass is in flight.
+    [[nodiscard]] std::size_t AutoSaveCursor() const noexcept { return autosave_cursor_; }
     OperationResult SaveAllDataDetailed();
     OperationResult SaveCriticalDataDetailed();
     void RegisterSaveCallback(const std::string& name, const SaveCallback& callback);

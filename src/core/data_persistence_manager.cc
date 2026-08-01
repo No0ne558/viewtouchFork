@@ -337,6 +337,105 @@ DataPersistenceManager::SaveResult DataPersistenceManager::SaveAllData()
     return overall_result;
 }
 
+DataPersistenceManager::SaveResult
+DataPersistenceManager::SaveChecksIncremental(int max_checks)
+{
+    FnTrace("DataPersistenceManager::SaveChecksIncremental()");
+
+    // Caller contract: main thread only. Nothing here may run concurrently with
+    // the event loop, because the check list has no locking of any kind.
+    if (!system_ref) {
+        LogError("Cannot save checks - system reference is null", "save");
+        autosave_cursor_ = 0;
+        return SAVE_FAILED;
+    }
+
+    // Resume where the previous tick stopped. Position is used rather than a
+    // stored Check* because the list can legitimately change between ticks --
+    // a held pointer could dangle, which is the whole failure being removed
+    // here. If the list shifts under the cursor the worst outcome is that one
+    // check is saved twice or picked up on the next pass, both harmless.
+    std::size_t position = 0;
+    Check *check = system_ref->CheckList();
+    while (check != nullptr && position < autosave_cursor_) {
+        check = check->next;
+        ++position;
+    }
+
+    if (check == nullptr) {
+        autosave_cursor_ = 0;   // list ended or shrank; start over next pass
+        return SAVE_SUCCESS;
+    }
+
+    int saved = 0;
+    int failed = 0;
+    int examined = 0;
+
+    while (check != nullptr && examined < max_checks) {
+        ++examined;
+        ++position;
+
+        // Grab the successor before saving: Save() is not expected to relink,
+        // but reading it first keeps the traversal independent of anything the
+        // save path might do.
+        Check *next = check->next;
+
+        if (check->IsTraining() || check->serial_number <= 0) {
+            check = next;
+            continue;
+        }
+
+        if (check->Save() == 0) {
+            ++saved;
+        } else {
+            ++failed;
+            if (failed <= 5) {
+                LogError("Failed to save check with serial number: " +
+                         std::to_string(check->serial_number), "save");
+            }
+        }
+
+        check = next;
+    }
+
+    // End of list reached: the pass is complete.
+    autosave_cursor_ = (check == nullptr) ? 0 : position;
+
+    if (failed > 0 && saved == 0)
+        return SAVE_FAILED;
+    if (failed > 0)
+        return SAVE_PARTIAL;
+    return SAVE_SUCCESS;
+}
+
+DataPersistenceManager::SaveResult
+DataPersistenceManager::SaveCriticalDataIncremental(int max_checks)
+{
+    FnTrace("DataPersistenceManager::SaveCriticalDataIncremental()");
+
+    if (shutdown_in_progress.load(std::memory_order_acquire)) {
+        LogInfo("Skipping critical data save during shutdown to prevent hanging");
+        return SAVE_SUCCESS;
+    }
+
+    SaveResult overall = SaveChecksIncremental(max_checks);
+
+    // The remaining critical items are single whole-file saves rather than
+    // per-record walks, so they are done once at the end of a pass instead of
+    // being repeated on every tick.
+    if (autosave_cursor_ == 0) {
+        for (const auto &data_item : critical_data_items) {
+            if (data_item.name == "checks")
+                continue;   // handled incrementally above
+            SaveResult result = data_item.saver();
+            if (result > overall)
+                overall = result;
+        }
+    }
+
+    return overall;
+}
+
 DataPersistenceManager::SaveResult DataPersistenceManager::SaveCriticalData()
 {
     FnTrace("DataPersistenceManager::SaveCriticalData()");
@@ -470,31 +569,48 @@ void DataPersistenceManager::ProcessPeriodicTasks()
     // Check if auto-save is needed
     if (config.enable_auto_save) {
         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_auto_save);
-        if (elapsed >= config.auto_save_interval) {
-            last_auto_save = now; // advance timestamp immediately so we don't re-enter
 
+        // A pass that has not finished keeps running on subsequent ticks rather
+        // than waiting out the interval again, so a busy till with many open
+        // checks still completes a full pass promptly.
+        const bool pass_in_flight = (autosave_cursor_ > 0);
+
+        if (pass_in_flight || elapsed >= config.auto_save_interval) {
             if (IsAnyTerminalInEditMode()) {
                 LogInfo("Skipping auto-save - terminal in edit mode");
-            } else if (!save_in_progress_.exchange(true)) {
-                // Dispatch to thread pool so the main event loop thread is
-                // never blocked by disk I/O across potentially hundreds of checks.
-                bool queued = vt::ThreadPool::instance().enqueue_detached(
-                    [this]() {
-                        SaveResult result = SaveCriticalData();
-                        if (result != SAVE_SUCCESS) {
-                            LogError("Background auto-save failed with result: " +
-                                     std::to_string(result), "auto_save");
-                        }
-                        save_in_progress_.store(false, std::memory_order_release);
-                    }
-                );
-                if (!queued) {
-                    // Thread pool is full — clear the flag so next tick can retry
-                    save_in_progress_.store(false, std::memory_order_release);
-                    LogWarning("Auto-save deferred: thread pool queue full", "auto_save");
+            } else {
+                // Auto-save runs on the caller's thread, which is the main Xt
+                // event loop, and is bounded to a few checks per tick.
+                //
+                // It used to be dispatched to the thread pool, to keep disk I/O
+                // off the event loop. That was a data race: the worker walked
+                // System::CheckList() -- a raw intrusive DList with no locking --
+                // following check->next while the main thread could relink or
+                // delete those very nodes from touch events. The worker could
+                // follow a dangling pointer, or call Save() on a check that had
+                // just been freed. The MAX_CHECKS guard and the "possible
+                // corrupted linked list" warning in SaveAllChecks exist because
+                // that traversal has been seen going wrong.
+                //
+                // Locking the list would be the wrong fix: the lock would have to
+                // be held across the whole traversal *and* its file I/O, which is
+                // precisely the stall on the event loop the pool was introduced to
+                // avoid. Bounding the work removes the race by construction --
+                // nothing outside the main thread ever touches System -- while
+                // keeping each tick short. The expensive part was never the
+                // traversal, it was the I/O, and this caps the I/O instead of
+                // moving it somewhere unsafe.
+                SaveResult result = SaveCriticalDataIncremental(kAutoSaveChecksPerTick);
+                if (result != SAVE_SUCCESS) {
+                    LogError("Auto-save failed with result: " +
+                             std::to_string(result), "auto_save");
+                }
+
+                // Only restart the interval once a whole pass has finished.
+                if (autosave_cursor_ == 0) {
+                    last_auto_save = now;
                 }
             }
-            // else: previous save is still running, skip this cycle
         }
     }
 

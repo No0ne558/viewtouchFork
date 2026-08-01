@@ -90,7 +90,21 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
 # This catches runtime bugs like use-after-free, out-of-bounds access, double free,
 # integer overflow, invalid shifts, bad casts, etc.
 option(ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer in debug builds" ON)
-if(ENABLE_SANITIZERS)
+
+# ThreadSanitizer is a separate option because it cannot be combined with
+# AddressSanitizer -- the two use incompatible shadow-memory layouts, so a build
+# has to choose. Data races in the autosave path are invisible to ASan, so this
+# needs its own configuration:
+#
+#   cmake -S . -B build-tsan -DCMAKE_BUILD_TYPE=Debug -DENABLE_TSAN=ON
+#
+option(ENABLE_TSAN "Enable ThreadSanitizer in debug builds (excludes ASan/UBSan)" OFF)
+
+if(ENABLE_TSAN)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=thread -fno-omit-frame-pointer -g")
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=thread")
+    message(STATUS "ThreadSanitizer enabled for Debug builds (AddressSanitizer disabled)")
+elseif(ENABLE_SANITIZERS)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address,undefined -fno-omit-frame-pointer")
     # Also set linker flags to ensure sanitizers are linked
     set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=address,undefined")

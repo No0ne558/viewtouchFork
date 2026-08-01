@@ -265,6 +265,53 @@ TEST_CASE("DataPersistenceManager file integrity checks", "[persistence][integri
     }
 }
 
+TEST_CASE("Auto-save is bounded and resumable", "[persistence][autosave][concurrency]")
+{
+    auto& dpm = DataPersistenceManager::GetInstance();
+
+    // Auto-save used to be dispatched to a ThreadPool worker, which walked
+    // System::CheckList() -- an unlocked intrusive list -- while the main thread
+    // could relink or delete the nodes it was following. The fix is to keep the
+    // traversal on the main thread and bound the work per tick, so no other
+    // thread ever touches System. These pin the properties that makes safe.
+
+    SECTION("the cursor starts at rest")
+    {
+        // A zero cursor means no pass is in flight, which is what lets
+        // ProcessPeriodicTasks tell "continue the current pass" from "wait for
+        // the next interval".
+        REQUIRE(dpm.AutoSaveCursor() == 0);
+    }
+
+    SECTION("a pass over no checks completes immediately")
+    {
+        // With no System attached there is nothing to walk; the pass must finish
+        // rather than leaving a cursor stranded, or ProcessPeriodicTasks would
+        // spin on a pass that can never end.
+        dpm.SaveChecksIncremental(DataPersistenceManager::kAutoSaveChecksPerTick);
+        REQUIRE(dpm.AutoSaveCursor() == 0);
+    }
+
+    SECTION("the per-tick bound is small enough to keep a tick short")
+    {
+        // The event loop ticks every 500ms. The bound exists so that a till with
+        // hundreds of open checks cannot turn one tick into a visible stall --
+        // that stall is what the thread pool was originally introduced to avoid,
+        // and bounding is what replaces it.
+        REQUIRE(DataPersistenceManager::kAutoSaveChecksPerTick > 0);
+        REQUIRE(DataPersistenceManager::kAutoSaveChecksPerTick <= 32);
+    }
+
+    SECTION("repeated passes are stable")
+    {
+        for (int i = 0; i < 5; ++i)
+        {
+            dpm.SaveChecksIncremental(DataPersistenceManager::kAutoSaveChecksPerTick);
+            REQUIRE(dpm.AutoSaveCursor() == 0);
+        }
+    }
+}
+
 TEST_CASE("DataPersistenceManager logging", "[persistence][logging]")
 {
     auto& dpm = DataPersistenceManager::GetInstance();
