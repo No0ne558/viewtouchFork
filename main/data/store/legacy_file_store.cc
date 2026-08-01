@@ -12,9 +12,13 @@
 #include "archive.hh"
 #include "check.hh"
 #include "data_persistence_manager.hh"
+#include "sales.hh"
 #include "system.hh"
 
+#include <algorithm>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace vt::store {
 
@@ -169,6 +173,52 @@ public:
     [[nodiscard]] StoreError HealthCheck() override
     {
         return (system_ != nullptr) ? StoreError::None : StoreError::Io;
+    }
+
+    /*
+     * Reload every check from its file and describe what came back.
+     *
+     * Deliberately not a walk of System::CheckList(). The in-memory objects
+     * still carry fields the format never writes -- call_order above all -- so
+     * snapshotting them would report this backend as preserving data it
+     * silently drops. Going through Check::Load is what makes the dual-run
+     * comparison a statement about persistence.
+     */
+    [[nodiscard]] StoreError Snapshot(StoreSnapshot &out) override
+    {
+        if (system_ == nullptr)
+            return StoreError::Io;
+
+        out = StoreSnapshot{};
+        out.backend = Name();
+
+        // Collect the filenames first. Check::Load builds a fresh object, and
+        // holding the live list while doing file I/O is the pattern that caused
+        // the autosave use-after-free.
+        std::vector<std::string> files;
+        for (const Check *check = system_->CheckList(); check != nullptr;
+             check = check->next)
+        {
+            if (check->copy != 0 || check->archive != nullptr)
+                continue;
+            const char *name = check->filename.Value();
+            if (name != nullptr && name[0] != '\0')
+                files.emplace_back(name);
+        }
+
+        for (const std::string &file : files)
+        {
+            Check loaded;
+            if (loaded.Load(&system_->settings, file.c_str()) != 0)
+                return StoreError::Corrupt;
+            out.checks.push_back(SnapshotOf(loaded));
+        }
+
+        std::sort(out.checks.begin(), out.checks.end(),
+                  [](const CheckSnapshot &a, const CheckSnapshot &b) {
+                      return a.serial_number < b.serial_number;
+                  });
+        return StoreError::None;
     }
 
     [[nodiscard]] const char *Name() const noexcept override

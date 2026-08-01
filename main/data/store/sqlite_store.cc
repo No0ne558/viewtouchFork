@@ -37,6 +37,7 @@
 #include "sql/sequence.hh"
 #include "sql/statement.hh"
 
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -244,7 +245,183 @@ public:
         return (ignored == 0) ? StoreError::None : StoreError::Corrupt;
     }
 
+    /*
+     * The read side, queried rather than reconstructed into Check objects.
+     *
+     * Building Checks and snapshotting those would need a full SQL-to-Check
+     * reader before anything could be verified, and would compare the two
+     * backends through a third piece of code that also has to be right. This
+     * reads the columns the comparison is actually about.
+     */
+    [[nodiscard]] StoreError Snapshot(StoreSnapshot &out) override
+    {
+        out = StoreSnapshot{};
+        out.backend = Name();
+
+        Statement checks;
+        if (Status s = checks.Prepare(
+                db_, "SELECT id, serial_number, type, flags, guests, label, comment"
+                     " FROM pos_check WHERE business_day_id = ?1"
+                     " ORDER BY serial_number, serial_disambiguator;");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        if (Status s = checks.BindInt(1, business_day_id_); s != Status::Ok)
+            return Translate(s);
+
+        Status step = Status::Ok;
+        while (checks.Step(step))
+        {
+            const int64_t check_id = checks.ColumnInt(0);
+            CheckSnapshot snap;
+            snap.serial_number = static_cast<int>(checks.ColumnInt(1));
+            snap.type = static_cast<int>(checks.ColumnInt(2));
+            snap.flags = static_cast<int>(checks.ColumnInt(3));
+            snap.guests = static_cast<int>(checks.ColumnInt(4));
+            snap.label = checks.ColumnText(5);
+            snap.comment = checks.ColumnText(6);
+
+            if (const StoreError e = LoadSubChecks(check_id, snap);
+                e != StoreError::None)
+            {
+                return e;
+            }
+            out.checks.push_back(std::move(snap));
+        }
+        return Translate(step);
+    }
+
     [[nodiscard]] const char *Name() const noexcept override { return "sqlite"; }
+
+private:
+    StoreError LoadSubChecks(int64_t check_id, CheckSnapshot &out)
+    {
+        Statement subs;
+        if (Status s = subs.Prepare(
+                db_, "SELECT id, seq, status, check_type FROM subcheck"
+                     " WHERE check_id = ?1 ORDER BY seq;");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        if (Status s = subs.BindInt(1, check_id); s != Status::Ok)
+            return Translate(s);
+
+        Status step = Status::Ok;
+        while (subs.Step(step))
+        {
+            const int64_t sub_id = subs.ColumnInt(0);
+            SubCheckSnapshot snap;
+            snap.seq = static_cast<int>(subs.ColumnInt(1));
+            snap.status = static_cast<int>(subs.ColumnInt(2));
+            snap.check_type = static_cast<int>(subs.ColumnInt(3));
+
+            if (const StoreError e = LoadOrders(sub_id, snap);
+                e != StoreError::None)
+            {
+                return e;
+            }
+            if (const StoreError e = LoadPayments(sub_id, snap);
+                e != StoreError::None)
+            {
+                return e;
+            }
+            out.subchecks.push_back(std::move(snap));
+        }
+        return Translate(step);
+    }
+
+    StoreError LoadOrders(int64_t sub_id, SubCheckSnapshot &out)
+    {
+        // Flattened to match SnapshotOf(): roots in seq order, each root's
+        // modifiers immediately after it. The ORDER BY reproduces that from the
+        // stored tree -- COALESCE puts a root before its own children, and the
+        // second key orders siblings.
+        Statement orders;
+        if (Status s = orders.Prepare(
+                db_,
+                "SELECT id, parent_order_id, item_name, item_type, item_family,"
+                "       sales_type, item_cost, count, seat, qualifier, call_order"
+                " FROM order_item WHERE subcheck_id = ?1"
+                " ORDER BY COALESCE((SELECT p.seq FROM order_item p"
+                "                     WHERE p.id = order_item.parent_order_id),"
+                "                   order_item.seq),"
+                "          parent_order_id IS NOT NULL, seq;");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        if (Status s = orders.BindInt(1, sub_id); s != Status::Ok)
+            return Translate(s);
+
+        // parent_order_id is a database id; the snapshot uses a position, so
+        // ids have to be mapped as rows arrive. Roots always precede their own
+        // modifiers under the ORDER BY above, so the lookup is always populated.
+        std::map<int64_t, int> position_of;
+
+        Status step = Status::Ok;
+        while (orders.Step(step))
+        {
+            const int64_t id = orders.ColumnInt(0);
+            OrderSnapshot snap;
+            snap.item_name = orders.ColumnText(2);
+            snap.item_type = static_cast<int>(orders.ColumnInt(3));
+            snap.item_family = static_cast<int>(orders.ColumnInt(4));
+            snap.sales_type = static_cast<int>(orders.ColumnInt(5));
+            snap.item_cost = static_cast<int>(orders.ColumnInt(6));
+            snap.count = static_cast<int>(orders.ColumnInt(7));
+            snap.seat = static_cast<int>(orders.ColumnInt(8));
+            snap.qualifier = static_cast<int>(orders.ColumnInt(9));
+            snap.call_order = static_cast<int>(orders.ColumnInt(10));
+
+            if (orders.ColumnIsNull(1))
+            {
+                snap.parent_index = -1;
+                position_of[id] = static_cast<int>(out.orders.size());
+            }
+            else
+            {
+                const auto it = position_of.find(orders.ColumnInt(1));
+                // An unresolvable parent means the ordering assumption above is
+                // wrong. Reporting -1 would silently turn a modifier into a
+                // root, so it is better to fail loudly.
+                if (it == position_of.end())
+                    return StoreError::Corrupt;
+                snap.parent_index = it->second;
+            }
+            out.orders.push_back(std::move(snap));
+        }
+        return Translate(step);
+    }
+
+    StoreError LoadPayments(int64_t sub_id, SubCheckSnapshot &out)
+    {
+        Statement payments;
+        if (Status s = payments.Prepare(
+                db_, "SELECT tender_type, legacy_tender_id, amount, flags"
+                     " FROM payment WHERE subcheck_id = ?1 ORDER BY seq;");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        if (Status s = payments.BindInt(1, sub_id); s != Status::Ok)
+            return Translate(s);
+
+        Status step = Status::Ok;
+        while (payments.Step(step))
+        {
+            PaymentSnapshot snap;
+            snap.tender_type = static_cast<int>(payments.ColumnInt(0));
+            snap.tender_id = static_cast<int>(payments.ColumnInt(1));
+            snap.amount = static_cast<int>(payments.ColumnInt(2));
+            snap.flags = static_cast<int>(payments.ColumnInt(3));
+            out.payments.push_back(snap);
+        }
+        return Translate(step);
+    }
+
+public:
 
     [[nodiscard]] int64_t BusinessDayId() const noexcept { return business_day_id_; }
 

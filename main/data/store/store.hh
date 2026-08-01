@@ -35,6 +35,8 @@
 #include <memory>
 #include <string>
 
+#include "snapshot.hh"
+
 class Check;
 class System;
 
@@ -116,6 +118,21 @@ public:
 
     // Cheap readiness probe: is the backing store reachable and writable.
     [[nodiscard]] virtual StoreError HealthCheck() = 0;
+
+    /*
+     * Everything this backend has persisted, in a backend-independent form.
+     *
+     * Read from the persisted form, never from memory -- see snapshot.hh. The
+     * legacy backend loads its check files back off disk to answer this, which
+     * is deliberate and is the only way the dual-run comparison says anything:
+     * an in-memory Check still holds fields the format cannot write, so
+     * comparing memory to memory would report agreement on data one side
+     * cannot actually store.
+     *
+     * Not cheap. This walks everything, so it belongs in verification and
+     * diagnostics, not in the save path.
+     */
+    [[nodiscard]] virtual StoreError Snapshot(StoreSnapshot &out) = 0;
 
     // Human-readable backend name, for logs and for the dual-run divergence
     // report to attribute a difference to a side.
