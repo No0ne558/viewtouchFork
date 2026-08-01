@@ -127,22 +127,40 @@ int WorkEntry::LaborCost()
         return 0;
 }
 
+// Both overloads must order their operands themselves before measuring.
+//
+// The `if (minute < 0) minute = 0;` these functions used to end with could never
+// fire: MinutesElapsed defers to SecondsElapsed (time_info.cc), which swaps its
+// arguments when the first is earlier than the second and so always returns a
+// non-negative magnitude. The clamp documented the intent -- a backwards entry
+// is worth nothing -- while the helper quietly guaranteed the opposite, so a
+// clock-out keyed before the clock-in billed the whole span.
+//
+// SecondsElapsed's absolute-value behaviour is relied on by ~10 other call
+// sites, so the ordering check belongs here rather than in the helper. It also
+// throws on an unset operand, which in a till running unattended for a whole
+// shift turns a malformed work entry into a process exit from inside a labor
+// report -- hence the explicit IsSet guards.
+
 int WorkEntry::MinutesWorked()
 {
     FnTrace("WorkEntry::MinutesWorked()");
-    int minute = 0;
-    if (end.IsSet())
-        minute = MinutesElapsed(end, start);
-    else
-        minute = MinutesElapsed(SystemTime, start);
-    if (minute < 0)
-        minute = 0;
-    return minute;
+    if (!start.IsSet())
+        return 0;
+
+    const TimeInfo &e = end.IsSet() ? end : SystemTime;
+    if (!e.IsSet() || !(e > start))
+        return 0;
+
+    return MinutesElapsed(e, start);
 }
 
 int WorkEntry::MinutesWorked(TimeInfo &w_e)
 {
     FnTrace("WorkEntry::MinutesWorked(TimeInfo)");
+    if (!start.IsSet())
+        return 0;
+
     TimeInfo e;
     if (end.IsSet())
         e = end;
@@ -151,10 +169,12 @@ int WorkEntry::MinutesWorked(TimeInfo &w_e)
     if (w_e.IsSet() && e > w_e)
         e = w_e;
 
-    int minute = MinutesElapsed(e, start);
-    if (minute < 0)
-        minute = 0;
-    return minute;
+    // A cutoff earlier than the shift start means the shift lies entirely
+    // outside the window being reported on, so it contributes nothing.
+    if (!e.IsSet() || !(e > start))
+        return 0;
+
+    return MinutesElapsed(e, start);
 }
 
 int WorkEntry::MinutesOvertime(Settings *s, TimeInfo &overtime_end)

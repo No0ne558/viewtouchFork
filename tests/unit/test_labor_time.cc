@@ -65,26 +65,22 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         REQUIRE(entry.MinutesWorked() == 4 * 60);
     }
 
-    SECTION("an inverted shift is paid as positive time, not clamped to zero")
+    SECTION("an inverted shift is worth nothing")
     {
-        // KNOWN DEFECT, pinned rather than fixed.
-        //
-        // MinutesWorked ends with `if (minute < 0) minute = 0;` -- the author
-        // clearly intended a backwards entry to be worth nothing. That clamp is
-        // dead code: MinutesElapsed defers to SecondsElapsed
-        // (time_info.cc:727-745), which swaps its operands when t1 < t2 and so
-        // returns an absolute difference. A negative can never reach the clamp.
-        //
-        // The effect is that a clock-out keyed before the clock-in pays out the
-        // full span instead of nothing: 17:00 -> 09:00 bills eight hours.
-        //
-        // Not fixed here because it changes payroll figures, which should be a
-        // deliberate decision rather than a side effect of adding tests. The fix
-        // is to compare the two times in MinutesWorked before calling the
-        // helper, since SecondsElapsed's absolute-value behaviour is relied on
-        // elsewhere.
+        // A clock-out keyed before the clock-in used to bill the whole span --
+        // 17:00 -> 09:00 paid eight hours. MinutesWorked ended with
+        // `if (minute < 0) minute = 0;`, which stated the intent but could never
+        // fire, because MinutesElapsed defers to SecondsElapsed and that returns
+        // an absolute magnitude. MinutesWorked now orders the operands itself.
         WorkEntry entry = MakeShift(At(2026, 100, 17), At(2026, 100, 9));
-        REQUIRE(entry.MinutesWorked() == 8 * 60);
+        REQUIRE(entry.MinutesWorked() == 0);
+    }
+
+    SECTION("an inverted shift costs nothing")
+    {
+        // The consequence that mattered: pay followed the bogus duration.
+        WorkEntry entry = MakeShift(At(2026, 100, 17), At(2026, 100, 9), 1500);
+        REQUIRE(entry.LaborCost() == 0);
     }
 
     SECTION("a zero-length shift is zero minutes")
@@ -93,20 +89,20 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         REQUIRE(entry.MinutesWorked() == 0);
     }
 
-    SECTION("an unset start makes the duration throw")
+    SECTION("an unset start reports zero rather than throwing")
     {
-        // SecondsElapsed throws std::invalid_argument when either operand is
-        // unset (time_info.cc:733-740), and MinutesWorked passes `start`
-        // straight through. A WorkEntry whose start never got set therefore
-        // throws rather than reporting zero -- and in a till that runs
-        // unattended for a whole shift, an uncaught throw out of a labor report
-        // ends the process. Pinned so the behaviour is at least known.
+        // SecondsElapsed throws std::invalid_argument on an unset operand, and
+        // MinutesWorked used to pass `start` straight through -- so a malformed
+        // work entry turned a labor report into a process exit on a till that
+        // runs unattended for a whole shift. MinutesWorked now checks first.
         WorkEntry entry;
         entry.pay_rate = PERIOD_HOUR;
         entry.pay_amount = 1500;
         entry.end = At(2026, 100, 17);
 
-        REQUIRE_THROWS_AS(entry.MinutesWorked(), std::invalid_argument);
+        REQUIRE_NOTHROW(entry.MinutesWorked());
+        REQUIRE(entry.MinutesWorked() == 0);
+        REQUIRE(entry.LaborCost() == 0);
     }
 
     SECTION("IsWorkDone follows whether end is set")
@@ -139,16 +135,16 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         REQUIRE(entry.MinutesWorked(cutoff) == 8 * 60);
     }
 
-    SECTION("a cutoff before the shift also measures positive, not zero")
+    SECTION("a cutoff before the shift yields zero")
     {
-        // Same root cause as the inverted-shift case above. The cutoff moves the
-        // effective end to 05:00 while start stays at 09:00, and the absolute
-        // difference reports four hours for a window the shift never touched.
-        // A report bounded to a period that ends before a shift begins would
-        // therefore attribute time to it.
+        // Same root cause as the inverted-shift case: the cutoff moved the
+        // effective end to 05:00 while start stayed at 09:00, and the absolute
+        // difference reported four hours for a window the shift never touched,
+        // so a report bounded to a period ending before a shift began still
+        // attributed time to it.
         WorkEntry entry = MakeShift(At(2026, 100, 9), At(2026, 100, 17));
         TimeInfo cutoff = At(2026, 100, 5);
-        REQUIRE(entry.MinutesWorked(cutoff) == 4 * 60);
+        REQUIRE(entry.MinutesWorked(cutoff) == 0);
     }
 }
 
