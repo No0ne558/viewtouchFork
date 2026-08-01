@@ -20,6 +20,7 @@ add_executable(vt_tests
     unit/test_data_persistence.cc
     unit/test_conf_file.cc
     unit/test_safe_math.cc
+    unit/test_archive_policy.cc
 )
 
 # Include directories for tests

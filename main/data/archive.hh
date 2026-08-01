@@ -114,6 +114,19 @@ public:
     ~Archive() { Unload(); }
 
     // Member Functions
+
+    // Freeze the tax/rounding policy in force into this archive.
+    //
+    // SubCheck::FigureTotals reads these frozen values rather than the live
+    // Settings, so that changing a rate today does not rewrite past totals.
+    // That only works if the snapshot is complete: this used to be an open-coded
+    // run of assignments in System::EndDay which omitted tax_VAT and
+    // advertise_fund, and because Settings::FigureVAT treats 0 as a real rate
+    // rather than "unset", every archived check silently reported no VAT.
+    // Keeping the copy in one place means a newly added policy field has exactly
+    // one site to update.
+    void CopyPolicyFrom(const Settings &settings);
+
     Check          *CheckList()      { return check_list.Head(); }
     Check          *CheckListEnd()   { return check_list.Tail(); }
     Drawer         *DrawerList()     { return drawer_list.Head(); }

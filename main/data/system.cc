@@ -630,21 +630,12 @@ int System::EndDay()
         meal = meal->next;
     }
 
-    archive->tax_food              = settings.tax_food;
-    archive->tax_alcohol           = settings.tax_alcohol;
-    archive->tax_room              = settings.tax_room;
-    archive->tax_merchandise       = settings.tax_merchandise;
-    archive->tax_GST               = settings.tax_GST;
-    archive->tax_PST               = settings.tax_PST;
-    archive->tax_HST               = settings.tax_HST;
-    archive->tax_QST               = settings.tax_QST;
-    archive->royalty_rate          = settings.royalty_rate;
-    archive->change_for_checks     = settings.change_for_checks;
-    archive->change_for_credit     = settings.change_for_credit;
-    archive->change_for_gift       = settings.change_for_gift;
-    archive->change_for_roomcharge = settings.change_for_roomcharge;
-    archive->discount_alcohol      = settings.discount_alcohol;
-    archive->price_rounding        = settings.price_rounding;
+    // Freeze the day's tax policy. This was an open-coded run of assignments
+    // that omitted tax_VAT and advertise_fund; because NewArchive() builds via
+    // Archive(TimeInfo&), which zeroes every rate, and Settings::FigureVAT
+    // treats 0 as a real rate rather than "unset", every archived check
+    // recomputed VAT as zero.
+    archive->CopyPolicyFrom(settings);
 
     // Save Archive
     archive->SavePacked();

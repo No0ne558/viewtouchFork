@@ -89,6 +89,32 @@ Archive::Archive(TimeInfo &end)
     cc_settle_results      = nullptr;
 }
 
+void Archive::CopyPolicyFrom(const Settings &settings)
+{
+    FnTrace("Archive::CopyPolicyFrom()");
+
+    // Every policy input SubCheck::FigureTotals consults must appear here. If
+    // you add a rate to Settings that FigureTotals reads, add it here too, or
+    // historical totals will be recomputed against a zero.
+    tax_food               = settings.tax_food;
+    tax_alcohol            = settings.tax_alcohol;
+    tax_room               = settings.tax_room;
+    tax_merchandise        = settings.tax_merchandise;
+    tax_GST                = settings.tax_GST;
+    tax_PST                = settings.tax_PST;
+    tax_HST                = settings.tax_HST;
+    tax_QST                = settings.tax_QST;
+    tax_VAT                = settings.tax_VAT;
+    royalty_rate           = settings.royalty_rate;
+    advertise_fund         = settings.advertise_fund;
+    change_for_checks      = settings.change_for_checks;
+    change_for_credit      = settings.change_for_credit;
+    change_for_gift        = settings.change_for_gift;
+    change_for_roomcharge  = settings.change_for_roomcharge;
+    discount_alcohol       = settings.discount_alcohol;
+    price_rounding         = settings.price_rounding;
+}
+
 Archive::Archive(Settings *settings, const char* file)
 {
     FnTrace("Archive::Archive(Settings, const char* )");
@@ -116,23 +142,7 @@ Archive::Archive(Settings *settings, const char* file)
     exception_version    = EXCEPTION_VERSION;
     exception_db.archive = this;
 
-    tax_food               = settings->tax_food;
-    tax_alcohol            = settings->tax_alcohol;
-    tax_room               = settings->tax_room;
-    tax_merchandise        = settings->tax_merchandise;
-    tax_GST                = settings->tax_GST;
-    tax_PST                = settings->tax_PST;
-    tax_HST                = settings->tax_HST;
-    tax_QST                = settings->tax_QST;
-    tax_VAT                = settings->tax_VAT;
-    royalty_rate           = settings->royalty_rate;
-    advertise_fund         = settings->advertise_fund;
-    change_for_checks      = settings->change_for_checks;
-    change_for_credit      = settings->change_for_credit;
-    change_for_gift        = settings->change_for_gift;
-    change_for_roomcharge  = settings->change_for_roomcharge;
-    discount_alcohol       = settings->discount_alcohol;
-    price_rounding         = settings->price_rounding;
+    CopyPolicyFrom(*settings);
 
     cc_exception_db        = nullptr;
     cc_refund_db           = nullptr;
