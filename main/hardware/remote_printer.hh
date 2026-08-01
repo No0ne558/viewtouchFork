@@ -16,6 +16,22 @@
  *
  * remote_printer.hh - revision 2 (8/8/97)
  * Remote Printer link module
+ *
+ * NOT BUILT, AND NOT REACHABLE.
+ *
+ * remote_printer.cc appears in no CMake target, so nothing in it is compiled
+ * into any binary. It is also not reachable even if it were: NewReportPrinter()
+ * below is the module's only entry point and has no callers anywhere in the
+ * tree.
+ *
+ * This matters because several changelog entries describe bug fixes made in
+ * remote_printer.cc. Those fixes have never run. Adding the file to a target
+ * would not change that either, since nothing calls into it -- making it live
+ * would require a call site as well as a build entry.
+ *
+ * Left in place rather than deleted because the intent behind those recent
+ * edits belongs to the maintainer, not to a test-coverage pass. Whether to wire
+ * it up properly or remove it is a decision for whoever knows what it was for.
  */
 
 #ifndef _REMOTE_PRINTER_HH

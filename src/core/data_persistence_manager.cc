@@ -6,7 +6,6 @@
 #include "main/data/archive.hh"
 #include "main/hardware/terminal.hh"
 #include "main/data/manager.hh"
-#include "main/hardware/remote_printer.hh"
 #include "logger.hh"
 #include <fstream>
 #include <sstream>
