@@ -295,6 +295,27 @@ TEST_CASE("Seeded lookup tables match the C++ constants", "[sql][schema][lookups
         REQUIRE(family_present(FAMILY_COCKTAIL));
         REQUIRE(family_present(FAMILY_MODIFIER));
         REQUIRE(family_present(FAMILY_MERCHANDISE));
+
+        // The seventeen migration 0003 added. The 0001 seed simply stopped
+        // partway, so an order in any of these failed the foreign key -- which
+        // did not surface until a repository first inserted an order row.
+        REQUIRE(family_present(FAMILY_ALACARTE));
+        REQUIRE(family_present(FAMILY_BURGERS));
+        REQUIRE(family_present(FAMILY_DINNER_ENTREES));
+        REQUIRE(family_present(FAMILY_SALADS));
+        REQUIRE(family_present(FAMILY_SOUP));
+        REQUIRE(family_present(FAMILY_SPECIALTY));
+        REQUIRE(family_present(FAMILY_BOTTLED_BEER));
+        REQUIRE(family_present(FAMILY_BOTTLED_WINE));
+        REQUIRE(family_present(FAMILY_BOTTLED_COCKTAIL));
+        REQUIRE(family_present(FAMILY_SEAFOOD));
+        REQUIRE(family_present(FAMILY_LIGHT_DINNER));
+        REQUIRE(family_present(FAMILY_REORDER));
+        REQUIRE(family_present(FAMILY_SPECIALTY_ENTREE));
+        REQUIRE(family_present(FAMILY_RESERVED_WINE));
+        REQUIRE(family_present(FAMILY_BANQUET));
+        REQUIRE(family_present(FAMILY_BAKERY));
+        REQUIRE(family_present(FAMILY_ROOM));
     }
 
     SECTION("FAMILY_UNKNOWN is seeded")
@@ -330,20 +351,71 @@ TEST_CASE("Seeded lookup tables match the C++ constants", "[sql][schema][lookups
         REQUIRE(ScalarOf(db, "SELECT COUNT(*) FROM check_status WHERE id=" +
                              std::to_string(CHECK_VOIDED) + ";") == 1);
     }
+
+    SECTION("check_type_ref ids match the CheckType enum, not an offset copy")
+    {
+        // Migration 0002 seeded this table 0..9 under a comment claiming the
+        // values came from `enum class CheckType`. That enum starts at 1 and
+        // runs to 15, so every id was shifted: a Bar check (3) resolved to
+        // 'CATERING', a Delivery check (5) to 'RETAIL', and six types had no
+        // row at all. Migration 0003 replaced the contents.
+        //
+        // Asserting the *code* rather than just the presence of an id is the
+        // point. Row counts matched before and after; only the labels moved,
+        // which is precisely how the defect stayed invisible.
+        auto code_of = [&db](int id) {
+            vt::sql::Statement stmt;
+            REQUIRE(stmt.Prepare(db, "SELECT code FROM check_type_ref WHERE id = ?1;")
+                    == Status::Ok);
+            REQUIRE(stmt.BindInt(1, id) == Status::Ok);
+            Status step = Status::Ok;
+            REQUIRE(stmt.Step(step));
+            return stmt.ColumnText(0);
+        };
+
+        REQUIRE(code_of(CHECK_RESTAURANT) == "RESTAURANT");
+        REQUIRE(code_of(CHECK_TAKEOUT) == "TAKEOUT");
+        REQUIRE(code_of(CHECK_BAR) == "BAR");
+        REQUIRE(code_of(CHECK_MERCHANDISE) == "MERCHANDISE");
+        REQUIRE(code_of(CHECK_DELIVERY) == "DELIVERY");
+        REQUIRE(code_of(CHECK_CATERING) == "CATERING");
+        REQUIRE(code_of(CHECK_HOTEL) == "HOTEL");
+        REQUIRE(code_of(CHECK_RETAIL) == "RETAIL");
+        REQUIRE(code_of(CHECK_FASTFOOD) == "FASTFOOD");
+        REQUIRE(code_of(CHECK_SELFORDER) == "SELFORDER");
+        REQUIRE(code_of(CHECK_DINEIN) == "DINEIN");
+        REQUIRE(code_of(CHECK_TOGO) == "TOGO");
+        REQUIRE(code_of(CHECK_CALLIN) == "CALLIN");
+        REQUIRE(code_of(CHECK_SELFDINEIN) == "SELFDINEIN");
+        REQUIRE(code_of(CHECK_SELFTAKEOUT) == "SELFTAKEOUT");
+
+        // Nothing outside the enum. 'FORHERE' was invented by the 0002 seed and
+        // corresponds to no CheckType value.
+        REQUIRE(ScalarOf(db, "SELECT COUNT(*) FROM check_type_ref;") == 15);
+        REQUIRE(ScalarOf(db, "SELECT COUNT(*) FROM check_type_ref WHERE id < " +
+                             std::to_string(CHECK_RESTAURANT) + ";") == 0);
+    }
 }
 
 namespace {
 
 // Minimal valid ancestry for an order: one day, one check, one subcheck.
+//
+// The type is CHECK_RESTAURANT rather than 0. These fixtures used 0 until
+// migration 0003, which was only valid because check_type_ref had been seeded
+// from 0 while `enum class CheckType` starts at 1 -- so the fixture was pinning
+// the off-by-one rather than a real check type.
 void SeedCheckAggregate(Database &db)
 {
     REQUIRE(db.Exec("INSERT INTO business_day(id) VALUES (1);") == Status::Ok);
     REQUIRE(db.Exec(
         "INSERT INTO pos_check(id, business_day_id, serial_number, type) "
-        "VALUES (1, 1, 143, 0);") == Status::Ok);
+        "VALUES (1, 1, 143, " + std::to_string(CHECK_RESTAURANT) + ");")
+        == Status::Ok);
     REQUIRE(db.Exec(
         "INSERT INTO subcheck(id, check_id, business_day_id, seq, status, check_type) "
-        "VALUES (1, 1, 1, 0, 1, 0);") == Status::Ok);
+        "VALUES (1, 1, 1, 0, 1, " + std::to_string(CHECK_RESTAURANT) + ");")
+        == Status::Ok);
 }
 
 std::string InsertOrder(int id, const std::string &parent, int seq,
@@ -454,18 +526,21 @@ TEST_CASE("The check aggregate enforces its invariants", "[sql][schema][check]")
         // an empty archive. Scoping to the day makes them legal.
         REQUIRE(db.Exec(
             "INSERT INTO pos_check(id, business_day_id, serial_number, type) "
-            "VALUES (2, 1, 143, 0);") == Status::Constraint);
+            "VALUES (2, 1, 143, " + std::to_string(CHECK_RESTAURANT) + ");")
+            == Status::Constraint);
 
         // A disambiguator makes a genuine same-day collision representable.
         REQUIRE(db.Exec(
             "INSERT INTO pos_check(id, business_day_id, serial_number, "
-            "serial_disambiguator, type) VALUES (2, 1, 143, 1, 0);") == Status::Ok);
+            "serial_disambiguator, type) VALUES (2, 1, 143, 1, " +
+            std::to_string(CHECK_RESTAURANT) + ");") == Status::Ok);
 
         REQUIRE(db.Exec("UPDATE business_day SET closed_at_local=1 WHERE id=1;") == Status::Ok);
         REQUIRE(db.Exec("INSERT INTO business_day(id) VALUES (2);") == Status::Ok);
         REQUIRE(db.Exec(
             "INSERT INTO pos_check(id, business_day_id, serial_number, type) "
-            "VALUES (3, 2, 143, 0);") == Status::Ok);
+            "VALUES (3, 2, 143, " + std::to_string(CHECK_RESTAURANT) + ");")
+            == Status::Ok);
     }
 
     SECTION("a subcheck must agree with its check about the business day")
@@ -477,14 +552,16 @@ TEST_CASE("The check aggregate enforces its invariants", "[sql][schema][check]")
         // a trigger has to keep it honest.
         REQUIRE(db.Exec(
             "INSERT INTO subcheck(id, check_id, business_day_id, seq, status, check_type) "
-            "VALUES (2, 1, 2, 1, 1, 0);") == Status::Constraint);
+            "VALUES (2, 1, 2, 1, 1, " + std::to_string(CHECK_RESTAURANT) + ");")
+            == Status::Constraint);
     }
 
     SECTION("subcheck sequence positions are unique within a check")
     {
         REQUIRE(db.Exec(
             "INSERT INTO subcheck(id, check_id, business_day_id, seq, status, check_type) "
-            "VALUES (2, 1, 1, 0, 1, 0);") == Status::Constraint);
+            "VALUES (2, 1, 1, 0, 1, " + std::to_string(CHECK_RESTAURANT) + ");")
+            == Status::Constraint);
     }
 
     SECTION("deleting a check cascades to subchecks, orders and payments")

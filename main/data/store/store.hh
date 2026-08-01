@@ -33,6 +33,7 @@
 #define VT_STORE_HH
 
 #include <memory>
+#include <string>
 
 class Check;
 class System;
@@ -125,6 +126,22 @@ public:
 // System, so behaviour is unchanged -- this exists to establish the seam, not to
 // improve the legacy path.
 [[nodiscard]] std::unique_ptr<Store> MakeLegacyFileStore(System *system);
+
+/*
+ * The SQLite backend.
+ *
+ * Opens (creating if absent) the database at `path`, migrates it to the latest
+ * schema, and resolves the one open business day, creating it if there is none.
+ * Pass ":memory:" for a throwaway database, which is what the tests use.
+ *
+ * Returns nullptr on failure with `error` set; on success `error` is None. The
+ * out-parameter exists because opening can fail for reasons a caller must
+ * distinguish -- Io for an unopenable file, Corrupt for a database whose schema
+ * will not migrate -- and a factory cannot express that in its return type
+ * without exceptions, which this boundary does not use.
+ */
+[[nodiscard]] std::unique_ptr<Store> MakeSqliteStore(const std::string &path,
+                                                     StoreError &error);
 
 } // namespace vt::store
 

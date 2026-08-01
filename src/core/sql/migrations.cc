@@ -572,6 +572,78 @@ INSERT INTO not_migrated(entity, reason, decided_at) VALUES
 
 )SQL";
 
+/*
+ * Migration 0003 corrects two lookup tables that were seeded from memory rather
+ * than from the headers. Both were found by writing the first repository that
+ * actually inserts rows against them -- neither had a way to surface until then.
+ *
+ * check_type_ref was wrong, not merely incomplete. It was seeded 0..9 with a
+ * comment claiming the values came from `enum class CheckType`, but that enum
+ * starts at 1 and runs to 15. Every id was therefore off by one against the
+ * value pos_check.type actually holds: a Bar check (3) resolved to 'CATERING',
+ * a Delivery check (5) to 'RETAIL', and the four self-service types plus DineIn
+ * and ToGo had no row at all, so saving one failed the foreign key outright.
+ * 'FORHERE' is not a member of the enum in any form.
+ *
+ * item_family was missing 17 of the 32 FAMILY_* constants in sales.hh --
+ * burgers, salads, soup, seafood, bakery, room and more. Any order in one of
+ * them failed to insert. The gaps are not a subset with a rationale; the seed
+ * simply stopped partway.
+ *
+ * A new migration rather than an edit to 0001/0002: the runner records a
+ * checksum per applied migration, so rewriting an applied one is exactly the
+ * corruption the checksum exists to catch. Doing it the append-only way here,
+ * while no site has a database yet and the cost is zero, is what proves the
+ * mechanism works before it has to.
+ *
+ * The DELETE below runs with foreign_keys ON. If any pos_check row already
+ * referenced a type being replaced, the migration aborts rather than silently
+ * repointing live rows -- which is the correct outcome, not a limitation.
+ */
+constexpr std::string_view kMigration0003 = R"SQL(
+
+DELETE FROM check_type_ref;
+
+INSERT INTO check_type_ref(id, code, name) VALUES
+    (1,  'RESTAURANT',   'Restaurant'),
+    (2,  'TAKEOUT',      'Takeout'),
+    (3,  'BAR',          'Bar'),
+    (4,  'MERCHANDISE',  'Merchandise'),
+    (5,  'DELIVERY',     'Delivery'),
+    (6,  'CATERING',     'Catering'),
+    (7,  'HOTEL',        'Hotel'),
+    (8,  'RETAIL',       'Retail'),
+    (9,  'FASTFOOD',     'Fast Food'),
+    (10, 'SELFORDER',    'Self Order'),
+    (11, 'DINEIN',       'Dine In'),
+    (12, 'TOGO',         'To Go'),
+    (13, 'CALLIN',       'Call In'),
+    (14, 'SELFDINEIN',   'Self Order Dine In'),
+    (15, 'SELFTAKEOUT',  'Self Order Take Out');
+
+-- The families 0001 missed. INSERT OR IGNORE so the fifteen it did seed keep
+-- their existing rows and sort_order rather than being churned.
+INSERT OR IGNORE INTO item_family(id, code, name, sort_order) VALUES
+    (8,  'ALACARTE',          'A La Carte',           8),
+    (10, 'BURGERS',           'Burgers',             10),
+    (11, 'DINNER_ENTREES',    'Dinner Entrees',      11),
+    (12, 'SALADS',            'Salads',              12),
+    (13, 'SOUP',              'Soup',                13),
+    (15, 'SPECIALTY',         'Specialty',           15),
+    (17, 'BOTTLED_BEER',      'Bottled Beer',        17),
+    (19, 'BOTTLED_WINE',      'Bottled Wine',        19),
+    (21, 'BOTTLED_COCKTAIL',  'Bottled Cocktail',    21),
+    (22, 'SEAFOOD',           'Seafood',             22),
+    (24, 'LIGHT_DINNER',      'Light Dinner',        24),
+    (25, 'REORDER',           'Reorder',             25),
+    (27, 'SPECIALTY_ENTREE',  'Specialty Entree',    27),
+    (28, 'RESERVED_WINE',     'Reserved Wine',       28),
+    (29, 'BANQUET',           'Banquet',             29),
+    (30, 'BAKERY',            'Bakery',              30),
+    (31, 'ROOM',              'Room',                31);
+
+)SQL";
+
 std::string_view SeedFor(int version)
 {
     switch (version)
@@ -591,6 +663,8 @@ const std::vector<Migration> &AllMigrations()
                   kMigration0001},
         Migration{2, "transactional core: checks, subchecks, orders, payments, totals",
                   kMigration0002},
+        Migration{3, "correct check_type_ref ids and complete item_family",
+                  kMigration0003},
     };
     return migrations;
 }

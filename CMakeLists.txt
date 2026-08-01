@@ -561,7 +561,7 @@ add_library(vtbusiness
     main/business/check.cc           main/business/check.hh
     main/business/account.cc         main/business/account.hh
     main/data/system.cc          main/data/system.hh
-    main/data/store/legacy_file_store.cc main/data/store/store.hh
+    main/data/store/legacy_file_store.cc main/data/store/sqlite_store.cc main/data/store/store.hh
     main/data/archive.cc         main/data/archive.hh
     main/hardware/drawer.cc          main/hardware/drawer.hh
     main/business/inventory.cc       main/business/inventory.hh
