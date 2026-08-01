@@ -119,7 +119,10 @@ int System::LoadCurrentData(const char* path)
 		{
 			name = record->d_name;
             int len = strlen(name);
-            if (strcmp(&name[len-4], ".fmt") == 0)
+            // The length guard is required, not defensive: "." and ".." reach
+            // here, and &name[len-4] indexes before the start of the buffer for
+            // any name shorter than four characters.
+            if (len >= 4 && strcmp(&name[len-4], ".fmt") == 0)
                 continue;
 			if (strncmp(name, "check_", 6) == 0)
 			{

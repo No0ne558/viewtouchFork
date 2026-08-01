@@ -27,6 +27,7 @@ add_executable(vt_tests
     unit/test_drawer_balance.cc
     unit/test_labor_time.cc
     unit/test_golden_corpus.cc
+    unit/test_data_file_durability.cc
     support/vt_test_env.cc
     support/legacy_file_builder.cc
 )

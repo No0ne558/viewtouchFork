@@ -539,20 +539,63 @@ int OutputDataFile::Open(const std::string &filepath, int version, int use_compr
     filename = filepath;
     compress = (use_compression != 0);
 
+    // Write to a sibling temp file rather than the destination. Opening the
+    // destination directly would truncate it before a single byte of the
+    // replacement existed, so any interruption -- crash, kill, power cut, full
+    // disk -- destroyed the only copy. Checks, drawers and archives have no
+    // backup rotation to fall back on. The temp file must be a sibling so the
+    // rename in Finish() stays within one filesystem and is therefore atomic.
+    //
+    // The name is deliberately dot-prefixed rather than a plain suffix. The data
+    // directories are scanned by filename prefix -- System::LoadCurrentData
+    // matches "check_" and "drawer_", LaborDB::Load matches "labor_", and so on
+    // -- so a temp file called "check_57.vtnew" left behind by a kill would be
+    // picked up as a check and half-read on the next start. ".check_57.vtnew"
+    // matches no prefix and is skipped.
+    {
+        const std::size_t slash = filepath.find_last_of('/');
+        if (slash == std::string::npos)
+            temp_filename = "." + filepath + ".vtnew";
+        else
+            temp_filename = filepath.substr(0, slash + 1) + "." +
+                            filepath.substr(slash + 1) + ".vtnew";
+    }
+
+    const int fd = ::open(temp_filename.c_str(),
+                          O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+    if (fd < 0)
+    {
+        ReportError("OutputDataFile::Open error '" + std::to_string(errno) +
+                    "' for '" + temp_filename + "'");
+        temp_filename.clear();
+        return 1;
+    }
+
+    // gzclose()/fclose() close the descriptor they are given, so keep a
+    // duplicate to fsync through once the stream has been flushed.
+    data_fd = ::dup(fd);
+
     if (compress)
     {
-        gz_fp = gzopen(filepath.c_str(), "w");
+        gz_fp = gzdopen(fd, "wb");
     }
     else
     {
-        file_fp = std::fopen(filepath.c_str(), "w");
+        file_fp = ::fdopen(fd, "w");
     }
 
     const bool open_failed = (compress && gz_fp == nullptr) || (!compress && file_fp == nullptr);
     if (open_failed)
     {
         ReportError("OutputDataFile::Open error '" + std::to_string(errno) + "' for '" + filepath + "'");
-        Close();
+        ::close(fd);
+        if (data_fd >= 0)
+        {
+            ::close(data_fd);
+            data_fd = -1;
+        }
+        ::unlink(temp_filename.c_str());
+        temp_filename.clear();
         return 1;
     }
 
@@ -561,20 +604,80 @@ int OutputDataFile::Open(const std::string &filepath, int version, int use_compr
     return 0;
 }
 
-int OutputDataFile::Close() noexcept
+int OutputDataFile::Finish() noexcept
 {
-    FnTrace("OutputDataFile::Close()");
+    if (temp_filename.empty())
+        return 0;   // nothing in flight
+
+    // Note the error state before closing: gzerror/ferror need the stream.
+    const bool had_write_error = HasError();
+
+    int close_error = 0;
     if (gz_fp != nullptr)
     {
-        gzclose(gz_fp);
+        close_error = (gzclose(gz_fp) != Z_OK);
         gz_fp = nullptr;
     }
     if (file_fp != nullptr)
     {
-        std::fclose(file_fp);
+        // fclose flushes; its result is where a full disk finally surfaces, and
+        // it used to be discarded.
+        close_error = (std::fclose(file_fp) != 0) || close_error;
         file_fp = nullptr;
     }
+
+    bool sync_error = false;
+    if (data_fd >= 0)
+    {
+        // Force the data out to the device before the rename is allowed to
+        // publish it. Without this the rename can land while the contents are
+        // still only in the page cache, so a power cut can leave a
+        // correctly-named but empty file.
+        sync_error = (::fsync(data_fd) != 0);
+        ::close(data_fd);
+        data_fd = -1;
+    }
+
+    const std::string temp = temp_filename;
+    temp_filename.clear();
+
+    if (had_write_error || close_error || sync_error)
+    {
+        // Leave the previous contents alone. A partially written replacement is
+        // never better than the file it would have overwritten.
+        ReportError("OutputDataFile: write failed, keeping previous contents of '" +
+                    filename + "'");
+        ::unlink(temp.c_str());
+        return 1;
+    }
+
+    if (std::rename(temp.c_str(), filename.c_str()) != 0)
+    {
+        ReportError("OutputDataFile: could not replace '" + filename + "' (errno " +
+                    std::to_string(errno) + ")");
+        ::unlink(temp.c_str());
+        return 1;
+    }
+
+    // Make the rename itself durable. Without this the directory entry can be
+    // lost on power failure even though the data was synced.
+    const std::size_t slash = filename.find_last_of('/');
+    const std::string dir = (slash == std::string::npos) ? std::string(".")
+                                                         : filename.substr(0, slash);
+    const int dir_fd = ::open(dir.c_str(), O_RDONLY | O_CLOEXEC);
+    if (dir_fd >= 0)
+    {
+        ::fsync(dir_fd);
+        ::close(dir_fd);
+    }
+
     return 0;
+}
+
+int OutputDataFile::Close() noexcept
+{
+    FnTrace("OutputDataFile::Close()");
+    return Finish();
 }
 
 int OutputDataFile::PutValue(uint64_t val, int bk)

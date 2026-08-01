@@ -96,6 +96,20 @@ class OutputDataFile
     bool compress{false};
     std::string filename;
 
+    // Writes go to a sibling temporary file and are moved onto `filename` by an
+    // atomic rename in Close(). The destination is therefore never partially
+    // written: a crash before the rename leaves the previous contents wholly
+    // intact, and one after leaves the new contents wholly in place.
+    std::string temp_filename;
+
+    // A dup() of the descriptor underneath gz_fp / file_fp, kept so the data can
+    // be fsync'd. gzclose() and fclose() both close the descriptor they were
+    // handed, so the duplicate is what makes a durability barrier possible.
+    int data_fd{-1};
+
+    // Commit or discard the temporary file. Returns 0 on success.
+    int Finish() noexcept;
+
 public:
     OutputDataFile() = default;
     ~OutputDataFile();
