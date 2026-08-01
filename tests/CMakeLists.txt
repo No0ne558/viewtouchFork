@@ -16,6 +16,8 @@ add_executable(vt_tests
     unit/test_error_handler.cc
     unit/test_list_utility.cc
     unit/test_thread_pool.cc
+    unit/test_report_generation.cc
+    unit/test_data_persistence.cc
     mocks/mock_terminal.cc
     mocks/mock_settings.cc
 )
@@ -40,6 +42,7 @@ target_include_directories(vt_tests PRIVATE
 
 # Link libraries
 target_link_libraries(vt_tests PRIVATE
+    vtbusiness
     vtcore
     zone
     Catch2::Catch2WithMain

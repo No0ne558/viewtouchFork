@@ -203,4 +203,8 @@ extern const std::array<int, 9> TermTypeValue;
 extern const std::array<const genericChar*, 11> PrinterTypeName;
 extern const std::array<int, 11> PrinterTypeValue;
 
+// vt_main's entry point, defined in manager.cc. See the comment there for why
+// this is not main() itself.
+int VtMain(int argc, genericChar* argv[]);
+
 #endif

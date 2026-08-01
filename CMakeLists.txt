@@ -489,7 +489,24 @@ target_include_directories(zone PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/_deps/json-src/include>)
 target_link_libraries(zone PUBLIC conf_file vtcore spdlog::spdlog nlohmann_json::nlohmann_json magic_enum::magic_enum)
 
-add_executable(vt_main
+# All POS business logic lives here rather than directly in the vt_main
+# executable. A test target cannot link an executable, so while these sources
+# were listed under add_executable(vt_main ...) not one line of check.cc,
+# settings.cc, credit.cc, drawer.cc or labor.cc could be reached by any test --
+# which is why several existing tests re-implement the logic they claim to
+# cover. Keeping them in a library is what makes them testable.
+#
+# manager.cc IS here, because the Control class and the event-loop helpers it
+# defines are referenced throughout the rest of the business logic. Its entry
+# point was renamed from main() to VtMain() so that this library does not define
+# main() and collide with Catch2's; the executable's actual main() is the
+# forwarder in main/data/vt_main_entry.cc.
+#
+# main/ui/labels.cc is deliberately NOT here either: it is already compiled into
+# vtcore. It used to be listed in both vtcore and vt_main, which produced a
+# duplicate object that resolved only because the linker preferred the
+# executable's own copy; with two libraries that becomes a genuine ODR conflict.
+add_library(vtbusiness
     src/core/data_file.cc
     src/core/data_file.hh
     main/data/license_hash.cc    main/data/license_hash.hh
@@ -497,7 +514,6 @@ add_executable(vt_main
     main/hardware/printer.cc         main/hardware/printer.hh
     main/hardware/terminal.cc        main/hardware/terminal.hh
     main/data/settings.cc        main/data/settings.hh
-    main/ui/labels.cc          main/ui/labels.hh
     main/data/locale.cc          main/data/locale.hh
     main/data/credit.cc          main/data/credit.hh
     main/business/sales.cc           main/business/sales.hh
@@ -520,8 +536,23 @@ add_executable(vt_main
     main/hardware/cdu.cc             main/hardware/cdu.hh
     main/hardware/cdu_att.cc         main/hardware/cdu_att.hh
     )
+
+target_include_directories(vtbusiness PUBLIC
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/main
+    ${CMAKE_CURRENT_SOURCE_DIR}/main/business
+    ${CMAKE_CURRENT_SOURCE_DIR}/main/data
+    ${CMAKE_CURRENT_SOURCE_DIR}/main/hardware
+    ${CMAKE_CURRENT_SOURCE_DIR}/main/ui)
+target_include_directories(vtbusiness PRIVATE ${VT_XLIBS_INCLUDE_DIRS})
+target_link_libraries(vtbusiness PUBLIC zone vtcore tz curlpp_static ${VT_XLIBS})
+
+add_executable(vt_main
+    main/data/vt_main_entry.cc
+    )
 target_include_directories(vt_main PRIVATE ${VT_XLIBS_INCLUDE_DIRS})
-target_link_libraries(vt_main zone vtcore ${VT_XLIBS})
+target_link_libraries(vt_main vtbusiness zone vtcore ${VT_XLIBS})
 target_link_libraries(vt_main tz curlpp_static)
 # Link filesystem library if needed (GCC < 9)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")

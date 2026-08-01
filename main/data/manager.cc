@@ -588,9 +588,15 @@ int ReadViewTouchConfig()
 /*************************************************************
  * Main
  *************************************************************/
-int main(int argc, genericChar* argv[])
+// The real entry point. This lives in the library rather than being main()
+// itself so that manager.cc -- and with it the Control class and the event-loop
+// helpers that the rest of the business logic references -- can be part of
+// vtbusiness. A library that defined main() would collide with Catch2's when
+// the test target linked it. vt_main's actual main() is a two-line forwarder in
+// main/data/vt_main_entry.cc.
+int VtMain(int argc, genericChar* argv[])
 {
-    FnTrace("main()");
+    FnTrace("VtMain()");
     srand(static_cast<unsigned int>(time(nullptr)));
     StartupLocalization();
     ReadViewTouchConfig();
