@@ -6,8 +6,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 #include "conf_file.hh"
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 
 namespace fs = std::filesystem;
 
@@ -82,15 +84,33 @@ TEST_CASE("ConfFile Section Operations", "[config][sections]")
     TestConfFile test_file("test_sections.ini");
     ConfFile conf(test_file.filepath);
     
-    SECTION("Section management methods exist")
+    SECTION("Creating a section makes it discoverable")
     {
-        [[maybe_unused]] bool created = conf.CreateSection("test");
-        [[maybe_unused]] bool deleted = conf.DeleteSection("test");
-        [[maybe_unused]] bool exists = conf.contains("section");
-        [[maybe_unused]] size_t count = conf.SectionCount();
-        [[maybe_unused]] const auto& names = conf.getSectionNames();
-        
-        REQUIRE(true);
+        REQUIRE_FALSE(conf.contains("test"));
+
+        REQUIRE(conf.CreateSection("test"));
+        REQUIRE(conf.contains("test"));
+
+        REQUIRE(conf.DeleteSection("test"));
+        REQUIRE_FALSE(conf.contains("test"));
+    }
+
+    SECTION("Deleting a section that does not exist is not an error")
+    {
+        REQUIRE_FALSE(conf.contains("never_created"));
+        REQUIRE_FALSE(conf.DeleteSection("never_created"));
+    }
+
+    SECTION("Section count tracks creation and deletion")
+    {
+        // A default (unnamed) section always exists.
+        const size_t initial = conf.SectionCount();
+
+        REQUIRE(conf.CreateSection("alpha"));
+        REQUIRE(conf.SectionCount() == initial + 1);
+
+        REQUIRE(conf.DeleteSection("alpha"));
+        REQUIRE(conf.SectionCount() == initial);
     }
 }
 
@@ -98,14 +118,53 @@ TEST_CASE("ConfFile Key Operations", "[config][keys]")
 {
     TestConfFile test_file("test_keys.ini");
     ConfFile conf(test_file.filepath);
-    
-    SECTION("Key management methods exist")
+
+    SECTION("keys() lists the keys of an existing section")
     {
-        [[maybe_unused]] bool deleted = conf.DeleteKey("key");
-        [[maybe_unused]] auto keys = conf.keys("section");
-        [[maybe_unused]] size_t count = conf.KeyCount();
-        
-        REQUIRE(true);
+        REQUIRE(conf.CreateSection("server"));
+        REQUIRE(conf.SetValue("localhost", "host", "server"));
+        REQUIRE(conf.SetValue(8080, "port", "server"));
+
+        const auto names = conf.keys("server");
+        REQUIRE(names.size() == 2);
+        REQUIRE(std::find(names.begin(), names.end(), "host") != names.end());
+        REQUIRE(std::find(names.begin(), names.end(), "port") != names.end());
+    }
+
+    SECTION("keys() throws for a missing section, like at()")
+    {
+        REQUIRE_FALSE(conf.contains("absent"));
+        REQUIRE_THROWS_AS(conf.keys("absent"), std::out_of_range);
+    }
+
+    SECTION("TryKeys() reports a missing section without throwing")
+    {
+        // ViewTouch runs unattended for whole shifts, so a config probe must not
+        // be able to terminate the process. This is the overload call sites
+        // should reach for when they do not already know the section exists.
+        REQUIRE_FALSE(conf.contains("absent"));
+        REQUIRE_FALSE(conf.TryKeys("absent").has_value());
+    }
+
+    SECTION("TryKeys() distinguishes an empty section from a missing one")
+    {
+        REQUIRE(conf.CreateSection("empty"));
+
+        const auto present = conf.TryKeys("empty");
+        REQUIRE(present.has_value());
+        REQUIRE(present->empty());
+
+        REQUIRE_FALSE(conf.TryKeys("missing").has_value());
+    }
+
+    SECTION("Deleting a key removes it from the listing")
+    {
+        REQUIRE(conf.CreateSection("db"));
+        REQUIRE(conf.SetValue("vt", "name", "db"));
+        REQUIRE(conf.keys("db").size() == 1);
+
+        REQUIRE(conf.DeleteKey("name", "db"));
+        REQUIRE(conf.keys("db").empty());
     }
 }
 

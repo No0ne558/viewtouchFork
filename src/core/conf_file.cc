@@ -409,10 +409,20 @@ const std::vector<std::string>& ConfFile::getSectionNames() const noexcept
 
 std::vector<std::string> ConfFile::keys(std::string_view sectName) const
 {
+    auto found = TryKeys(sectName);
+    if (!found)
+    {
+        throw std::out_of_range("ConfFile: section not found: " + std::string(sectName));
+    }
+    return std::move(*found);
+}
+
+std::optional<std::vector<std::string>> ConfFile::TryKeys(std::string_view sectName) const
+{
     const auto index = find_section_index(sectName);
     if (!index)
     {
-        throw std::out_of_range("ConfFile: section not found: " + std::string(sectName));
+        return std::nullopt;
     }
 
     const auto& section = data[*index];

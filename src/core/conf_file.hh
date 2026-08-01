@@ -45,7 +45,17 @@ public:
     [[nodiscard]] size_t KeyCount() const noexcept;
 
     [[nodiscard]] const std::vector<std::string>& getSectionNames() const noexcept;
+
+    // Throws std::out_of_range if the section does not exist, matching at().
+    // Prefer TryKeys() at call sites that are merely probing for a section:
+    // ViewTouch runs unattended for entire shifts, and an uncaught out_of_range
+    // from a config read would terminate the process.
     [[nodiscard]] std::vector<std::string> keys(std::string_view section = {}) const;
+
+    // Non-throwing counterpart to keys(), in the same style as TryGetValue().
+    // Returns std::nullopt when the section is absent, which is distinct from
+    // an empty vector meaning "the section exists and has no keys".
+    [[nodiscard]] std::optional<std::vector<std::string>> TryKeys(std::string_view section = {}) const;
 
     [[nodiscard]] const SectionEntries& at(std::string_view section) const;
     [[nodiscard]] bool contains(std::string_view section) const noexcept;
