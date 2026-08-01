@@ -21,6 +21,7 @@ add_executable(vt_tests
     unit/test_conf_file.cc
     unit/test_safe_math.cc
     unit/test_archive_policy.cc
+    unit/test_figure_totals.cc
 )
 
 # Include directories for tests
