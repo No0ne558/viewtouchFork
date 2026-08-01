@@ -4340,7 +4340,7 @@ int SubCheck::FigureTotals(Settings *settings)
 	int currFamily;
     for (Order *my_order = OrderList(); my_order != nullptr; my_order = my_order->next)
     {
-		currFamily = settings->family_group[my_order->item_family];
+		currFamily = settings->FamilyGroup(my_order->item_family);
 		if(currFamily != SALESGROUP_BEVERAGE) 
 			drinksOnly = false;
 	}
@@ -5252,7 +5252,7 @@ int SubCheck::GrossSales(Check *check, Settings *settings, int sales_group)
     for (Order *order = OrderList(); order != nullptr; order = order->next)
     {
         family = order->item_family;
-        if (sales_group == 0 || (family != FAMILY_UNKNOWN && settings->family_group[family] == sales_group))
+        if (sales_group == 0 || (family != FAMILY_UNKNOWN && settings->FamilyGroup(family) == sales_group))
         {
             order->FigureCost();
             sales += order->total_cost;
@@ -6073,7 +6073,7 @@ int Order::FindPrinterID(Settings *settings)
         // Fixed: use family ID directly to index family_printer array
         // The family_printer array is indexed by family ID values, not by position in FamilyValue array
         if (mi->family >= 0 && mi->family < MAX_FAMILIES)
-            pid = settings->family_printer[mi->family];
+            pid = settings->FamilyPrinter(mi->family);
         else
             return PRINTER_KITCHEN1;
     }
@@ -6282,7 +6282,7 @@ int Order::VideoTarget(Settings *settings)
     FnTrace("Order::VideoTarget()");
     // Fixed: use item_family directly to index the video_target array
     // The video_target array is indexed by family ID values, not by position in FamilyValue array
-    return settings->video_target[item_family];
+    return settings->VideoTarget(item_family);
 }
 
 int Order::AddQualifier(const char* qualifier_str)

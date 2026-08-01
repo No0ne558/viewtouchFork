@@ -20,8 +20,6 @@ add_executable(vt_tests
     unit/test_data_persistence.cc
     unit/test_conf_file.cc
     unit/test_safe_math.cc
-    mocks/mock_terminal.cc
-    mocks/mock_settings.cc
 )
 
 # Include directories for tests

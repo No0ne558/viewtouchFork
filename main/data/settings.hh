@@ -822,6 +822,23 @@ public:
     // sets start_time to shift start
     int IsGroupActive(int sales_group);
 
+    // Bounds-checked accessors for the per-family arrays.
+    //
+    // These arrays are MAX_FAMILIES (64) wide, but a family id is not bounded by
+    // that: FAMILY_UNKNOWN is 255, and Order::Read maps the legacy 999 sentinel
+    // onto it, so any check loaded from an older file can carry one. Indexing
+    // directly reads well past the end of Settings. Out-of-range ids fall back
+    // to the same defaults the constructor seeds the arrays with.
+    [[nodiscard]] static bool IsValidFamilyIndex(int family) noexcept
+    {
+        return family >= 0 && family < MAX_FAMILIES;
+    }
+    // Defined in settings.cc: the fallback values live in sales.hh and
+    // terminal.hh, which cannot be included here without a cycle.
+    [[nodiscard]] int FamilyGroup(int family) const noexcept;
+    [[nodiscard]] int FamilyPrinter(int family) const noexcept;
+    [[nodiscard]] int VideoTarget(int family) const noexcept;
+
     int FigureFoodTax(int amount, TimeInfo &time, Flt tax = -1);
     int FigureAlcoholTax(int amount, TimeInfo &time, Flt tax = -1);
     int FigureGST(int amount, TimeInfo &time, Flt tax = -1); // Canada

@@ -3567,6 +3567,21 @@ static inline int tax_calc(int amount, Flt tax)
     return static_cast<int>(std::round(amount * tax));
 }
 
+int Settings::FamilyGroup(int family) const noexcept
+{
+    return IsValidFamilyIndex(family) ? family_group[family] : SALESGROUP_FOOD;
+}
+
+int Settings::FamilyPrinter(int family) const noexcept
+{
+    return IsValidFamilyIndex(family) ? family_printer[family] : PRINTER_DEFAULT;
+}
+
+int Settings::VideoTarget(int family) const noexcept
+{
+    return IsValidFamilyIndex(family) ? video_target[family] : PRINTER_DEFAULT;
+}
+
 int Settings::FigureFoodTax(int amount, TimeInfo &timevar, Flt tax)
 {
 	return tax_calc(amount, tax >= 0 ? tax : tax_food);

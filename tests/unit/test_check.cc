@@ -1,69 +1,184 @@
+/*
+ * Unit tests for Check / SubCheck / Order (main/business/check.cc)
+ *
+ * Despite its name, this file previously constructed no Check at all: it tested
+ * MockTerminal, MockSettings, and some inline arithmetic. It could not, because
+ * check.cc was compiled into the vt_main executable and a test target cannot
+ * link an executable. Now that the business logic lives in a library, these
+ * tests drive the real types.
+ *
+ * Coverage here is deliberately limited to the aggregate structure -- building
+ * checks, subchecks, orders and modifiers, and the ordering invariants that the
+ * file format preserves only as byte position. FigureTotals, which is the
+ * function that decides what a customer is charged, needs a populated Settings
+ * and a wider fixture; it is the next target.
+ */
+
 #include <catch2/catch_all.hpp>
-#include <cmath>
+#include "main/business/check.hh"
+#include "main/business/sales.hh"
+#include "main/data/settings.hh"
 
-#include "../mocks/mock_terminal.hh"
-#include "../mocks/mock_settings.hh"
-
-// Simplified check tests for now - business logic is complex
-TEST_CASE("Mock classes functionality", "[mocks]")
+TEST_CASE("Check aggregates subchecks", "[check][structure]")
 {
-    SECTION("MockTerminal basic functionality")
+    Settings settings;
+
+    SECTION("a new check starts empty")
     {
-        MockTerminal terminal;
-
-        // Should be able to get settings
-        MockSettings* settings = terminal.GetSettings();
-        REQUIRE(settings != nullptr);
-
-        // Should be able to update settings
-        int result = terminal.UpdateSettings();
-        REQUIRE(result == 0);
-
-        // Should be able to save settings
-        result = terminal.SaveSettings();
-        REQUIRE(result == 0);
+        Check check;
+        REQUIRE(check.SubCount() == 0);
+        REQUIRE(check.SubList() == nullptr);
     }
 
-    SECTION("MockSettings basic functionality")
+    SECTION("adding subchecks numbers them in sequence")
     {
-        MockSettings settings;
+        Check check;
 
-        // Check default tax rates
-        REQUIRE(settings.tax_food == Catch::Approx(0.0825f));
-        REQUIRE(settings.tax_alcohol == Catch::Approx(0.0f));
+        SubCheck *first = check.NewSubCheck();
+        REQUIRE(first != nullptr);
+        REQUIRE(check.SubCount() == 1);
 
-        // Test setting tax rates
-        settings.SetTaxRate(0, 1000);  // 10%
-        REQUIRE(settings.tax_food == Catch::Approx(0.1f));
+        SubCheck *second = check.NewSubCheck();
+        REQUIRE(second != nullptr);
+        REQUIRE(check.SubCount() == 2);
 
-        // Test drawer mode
-        settings.SetDrawerMode(1);
-        REQUIRE(settings.drawer_mode == 1);
+        // SubCheck::number is assigned positionally on Add and is never
+        // serialized -- the file format recovers it purely from record order.
+        REQUIRE(first->number != second->number);
+    }
+
+    SECTION("subchecks are reachable by traversal in insertion order")
+    {
+        Check check;
+        SubCheck *first = check.NewSubCheck();
+        SubCheck *second = check.NewSubCheck();
+
+        REQUIRE(check.SubList() == first);
+        REQUIRE(check.SubList()->next == second);
+        REQUIRE(second->next == nullptr);
     }
 }
 
-TEST_CASE("Basic arithmetic operations", "[arithmetic]")
+TEST_CASE("SubCheck aggregates orders", "[check][orders]")
 {
-    SECTION("Basic calculations for POS operations")
-    {
-        // Test basic arithmetic that would be used in POS calculations
-        const int subtotal = 1000;  // $10.00
-        const double tax_rate = 0.0825;  // 8.25%
-        const int tax_amount = static_cast<int>(std::lround(subtotal * tax_rate));  // Round to nearest cent
-        const int total = subtotal + tax_amount;
+    Settings settings;
 
-        REQUIRE(subtotal == 1000);
-        REQUIRE(tax_amount == 83);  // 1000 * 0.0825 + 0.5 = 82.5 + 0.5 = 83
-        REQUIRE(total == 1083);
+    SECTION("a new subcheck has no orders or payments")
+    {
+        SubCheck sub;
+        REQUIRE(sub.OrderList() == nullptr);
+        REQUIRE(sub.PaymentList() == nullptr);
     }
 
-    SECTION("Payment calculations")
+    SECTION("added orders are retrievable")
     {
-        int check_total = 1500;  // $15.00
-        int payment_amount = 2000;  // $20.00
-        int change_due = payment_amount - check_total;
+        SubCheck sub;
 
-        REQUIRE(change_due == 500);  // $5.00 change
-        REQUIRE(change_due > 0);  // Payment covers the check
+        auto *order = new Order;
+        order->item_name.Set("Cheeseburger");
+        order->item_cost = 950;
+        order->count = 1;
+        order->item_type = ITEM_NORMAL;
+
+        REQUIRE(sub.Add(order, &settings) == 0);
+        REQUIRE(sub.OrderList() == order);
+        REQUIRE(sub.OrderList()->item_cost == 950);
+    }
+
+    SECTION("orders are ordered by seat")
+    {
+        // SubCheck::Add walks backwards comparing seat, so insertion order and
+        // list order differ. Nothing in the file records position other than
+        // byte order, which is why this invariant is worth pinning.
+        SubCheck sub;
+
+        auto *seat_two = new Order;
+        seat_two->item_name.Set("Soup");
+        seat_two->item_cost = 400;
+        seat_two->count = 1;
+        seat_two->item_type = ITEM_NORMAL;
+        seat_two->seat = 2;
+
+        auto *seat_one = new Order;
+        seat_one->item_name.Set("Salad");
+        seat_one->item_cost = 500;
+        seat_one->count = 1;
+        seat_one->item_type = ITEM_NORMAL;
+        seat_one->seat = 1;
+
+        REQUIRE(sub.Add(seat_two, &settings) == 0);
+        REQUIRE(sub.Add(seat_one, &settings) == 0);
+
+        // Lower seat sorts first regardless of the order they were added.
+        REQUIRE(sub.OrderList() == seat_one);
+        REQUIRE(sub.OrderList()->next == seat_two);
+    }
+}
+
+TEST_CASE("Order modifier classification", "[check][modifiers]")
+{
+    // The parent/child relationship between an order and its modifiers is never
+    // stored. On load it is re-derived from item_type plus adjacency, via
+    // IsModifier(). That inference is the reason the relationship cannot be
+    // recovered when it is wrong, so the classification itself is worth testing.
+
+    SECTION("a normal item is not a modifier")
+    {
+        Order order;
+        order.item_type = ITEM_NORMAL;
+        REQUIRE(order.IsModifier() == 0);
+    }
+
+    SECTION("a modifier item is a modifier")
+    {
+        Order order;
+        order.item_type = ITEM_MODIFIER;
+        REQUIRE(order.IsModifier() != 0);
+    }
+
+    SECTION("a method item is a modifier")
+    {
+        Order order;
+        order.item_type = ITEM_METHOD;
+        REQUIRE(order.IsModifier() != 0);
+    }
+
+    SECTION("a substitute counts as a modifier only with the sub qualifier")
+    {
+        Order plain_sub;
+        plain_sub.item_type = ITEM_SUBSTITUTE;
+        plain_sub.qualifier = 0;
+        REQUIRE(plain_sub.IsModifier() == 0);
+
+        Order qualified_sub;
+        qualified_sub.item_type = ITEM_SUBSTITUTE;
+        qualified_sub.qualifier = QUALIFIER_SUB;
+        REQUIRE(qualified_sub.IsModifier() != 0);
+    }
+}
+
+TEST_CASE("Order cost arithmetic", "[check][cost]")
+{
+    SECTION("cost scales with count")
+    {
+        Order order;
+        order.item_name.Set("Fries");
+        order.item_cost = 350;
+        order.count = 3;
+        order.item_type = ITEM_NORMAL;
+
+        REQUIRE(order.item_cost * order.count == 1050);
+    }
+
+    SECTION("a zero-cost item is representable")
+    {
+        // Comped and included items legitimately cost nothing.
+        Order order;
+        order.item_name.Set("Water");
+        order.item_cost = 0;
+        order.count = 1;
+        order.item_type = ITEM_NORMAL;
+
+        REQUIRE(order.item_cost == 0);
     }
 }
