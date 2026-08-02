@@ -617,3 +617,103 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         REQUIRE(run.output.find("no archive directory") != std::string::npos);
     }
 }
+
+TEST_CASE_METHOD(vt_test::VtSystemFixture,
+                 "A site can import its history and then start trading",
+                 "[importer][tool][lifecycle]")
+{
+    /*
+     * The operator's actual sequence, which nothing tested end to end: run
+     * vt_import against the archives, then start the POS against the same
+     * database and take an order. Every piece of it was covered in isolation
+     * and the join between them was not -- which is the shape of the last
+     * several defects in this work.
+     *
+     * Three things have to hold on day one, and none of them are implied by the
+     * import and the store each working alone.
+     */
+    DataDir data("vt_import_lifecycle");
+    Settings &settings = TestSettings();
+
+    WriteArchive((data.archives / "archive_001").string(), settings, 1,
+                 {MakeClosedCheck(100, 950), MakeClosedCheck(101, 1250)});
+    WriteArchive((data.archives / "archive_002").string(), settings, 2,
+                 {MakeClosedCheck(200, 700)});
+    data.WriteConfig();
+
+    const ToolRun run = RunImportTool({"--data-path", data.root.string()});
+    INFO(run.output);
+    REQUIRE(run.exit_code == 0);
+    REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM pos_check;") == 3);
+
+    // Now the POS starts against the database the import just produced.
+    vt::store::StoreError error = vt::store::StoreError::Io;
+    auto store = vt::store::MakeSqliteStore(data.db, error);
+    REQUIRE(error == vt::store::StoreError::Ok);
+    REQUIRE(store->HealthCheck() == vt::store::StoreError::Ok);
+
+    SECTION("today's trading opens a new day rather than reopening an imported one")
+    {
+        // Every imported archive is a closed day. If opening the store adopted
+        // one of them, today's takings would be filed under a date that has
+        // already been reported on -- and the frozen totals would refuse the
+        // write, so the first check of the day would fail.
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM business_day;") == 3);
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM business_day "
+                                "WHERE closed_at_local IS NULL;") == 1);
+        REQUIRE(Scalar(data.db,
+                       "SELECT COUNT(*) FROM business_day "
+                       "WHERE closed_at_local IS NULL AND legacy_filename IS NULL;")
+                == 1);
+    }
+
+    SECTION("a new check does not collide with imported serials")
+    {
+        // RaiseSequenceTo after the import is what makes this work. Without it
+        // the sequence would still be at 1 and the first check of the day would
+        // be handed a serial that already exists in history.
+        std::unique_ptr<Check> check(new Check);
+        REQUIRE(check->serial_number == 0);
+
+        auto tx = store->Begin();
+        REQUIRE(store->Checks().Save(*tx, *check) == vt::store::StoreError::Ok);
+        REQUIRE(tx->Commit() == vt::store::StoreError::Ok);
+
+        REQUIRE(check->serial_number > 200);   // clear of everything imported
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM pos_check;") == 4);
+    }
+
+    SECTION("imported history stays frozen and is not disturbed")
+    {
+        // With a subcheck, so it produces a totals row to distinguish from the
+        // imported ones. A bare Check has nothing to total.
+        std::unique_ptr<Check> check(new Check);
+        check->NewSubCheck();
+        auto tx = store->Begin();
+        REQUIRE(store->Checks().Save(*tx, *check) == vt::store::StoreError::Ok);
+        REQUIRE(tx->Commit() == vt::store::StoreError::Ok);
+
+        // The three imported checks are still frozen, still marked recomputed,
+        // and still attached to their own days.
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM subcheck "
+                                "WHERE frozen_at_local IS NOT NULL;") == 3);
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM subcheck_total "
+                                "WHERE source = 2;") == 3);
+        // Today's check is live, not imported.
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM subcheck_total "
+                                "WHERE source = 0;") == 1);
+    }
+
+    SECTION("ending the day rolls forward without touching history")
+    {
+        REQUIRE(store->EndBusinessDay() == vt::store::StoreError::Ok);
+
+        // Four days now: three imported-and-closed, one just closed, one fresh.
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM business_day;") == 4);
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM business_day "
+                                "WHERE closed_at_local IS NULL;") == 1);
+        // The imported days keep their provenance.
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM business_day "
+                                "WHERE legacy_filename IS NOT NULL;") == 2);
+    }
+}
