@@ -351,3 +351,150 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         REQUIRE(in.Open(file.path.string(), version) != 0);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Check::ReadFix -- two incompatible layouts sharing version number 10.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// A version-10 restaurant check, up to but not including the kitchen-video
+// fields that ReadFix has to disambiguate.
+//
+// Field order is Check::Read's, for version 10: serial, time_open, user_open,
+// user_owner, flags, customer_type, then CustomerInfo::Read's restaurant branch
+// (table, guests, reserve_start, reserve_end). flags carries the line break,
+// matching Check::Write's `Write(flags, 1)`, so the kitchen-video fields begin
+// a fresh line -- which is what makes counting tokens on that line meaningful.
+void BuildCheckV10Prefix(LegacyFileBuilder &b, int serial)
+{
+    b.Int(serial);
+    b.Time(12 * 3600, 2002);      // time_open
+    b.Int(7);                     // user_open
+    b.Int(7);                     // user_owner
+    b.Int(0, true);               // flags, then newline
+    b.Int(CHECK_RESTAURANT);      // customer_type
+    b.Str("table 4");             // CustomerInfo::table
+    b.Int(2);                     // CustomerInfo::guests
+    b.UnsetTime();                // reserve_start
+    b.UnsetTime();                // reserve_end
+}
+
+// Check is neither copyable nor movable, so the caller owns it.
+int ReadCheckInto(Check &check, const fs::path &path, Settings &settings)
+{
+    int version = 0;
+    InputDataFile in;
+    REQUIRE(in.Open(path.string(), version) == 0);
+    const int error = check.Read(&settings, in, version);
+    in.Close();
+    return error;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(vt_test::VtSystemFixture,
+                 "Check::ReadFix disambiguates the two version-10 layouts",
+                 "[corpus][check][versions][readfix]")
+{
+    // Version 10 shipped twice with different bytes under the same number.
+    // The first wrote chef_time and made_time as plain ints; version 11 fixed
+    // it by writing them as TimeInfos -- two tokens each -- but files written
+    // in between still say 10. ReadFix peeks at how many tokens remain on the
+    // line and picks a layout, which is the only reason those archives are
+    // readable at all.
+    //
+    // Nothing else in the corpus covers this, and it is the one place where the
+    // format is genuinely ambiguous rather than merely versioned. The importer
+    // inherits whatever this does.
+    Settings settings;
+
+    SECTION("the later layout reads chef_time and made_time as TimeInfos")
+    {
+        TempPath file("vt_check_v10_new.dat");
+        LegacyFileBuilder b;
+        BuildCheckV10Prefix(b, 5001);
+        b.Int(3);                     // check_state
+        b.Time(9 * 3600, 2002);       // chef_time  (two tokens)
+        b.Time(10 * 3600, 2002);      // made_time  (two tokens)
+        b.Int(77);                    // checknum
+        b.Int(0, true);               // subcheck count, then newline
+        b.WriteTo(file.path.string(), 10);
+
+        Check check;
+        REQUIRE(ReadCheckInto(check, file.path, settings) == 0);
+        REQUIRE(check.serial_number == 5001);
+        REQUIRE(check.check_state == 3);
+        REQUIRE(check.checknum == 77);
+        REQUIRE(check.chef_time.IsSet());
+        REQUIRE(check.chef_time.Year() == 2002);
+        REQUIRE(check.chef_time.Hour() == 9);
+        REQUIRE(check.made_time.Hour() == 10);
+    }
+
+    SECTION("the earlier layout reads them as ints, and loses them")
+    {
+        TempPath file("vt_check_v10_old.dat");
+        LegacyFileBuilder b;
+        BuildCheckV10Prefix(b, 5002);
+        b.Int(3);                     // check_state
+        b.Int(1234);                  // chef, as a plain int
+        b.Int(5678);                  // made, as a plain int
+        b.Int(88);                    // checknum
+        b.Int(0, true);               // subcheck count, then newline
+        b.WriteTo(file.path.string(), 10);
+
+        Check check;
+        REQUIRE(ReadCheckInto(check, file.path, settings) == 0);
+        REQUIRE(check.serial_number == 5002);
+        REQUIRE(check.check_state == 3);
+        REQUIRE(check.checknum == 88);
+
+        // The stream is realigned, which is ReadFix's whole job. But the two
+        // integers it consumed are discarded: ReadFix calls TimeInfo::Set()
+        // with no argument, which is *the current time*, not the value read.
+        // So a check from one of these archives reports having been sent to the
+        // kitchen at the moment it was imported. That is data loss, it is
+        // silent, and it is worth stating because the importer inherits it --
+        // an imported chef_time from a pre-11 archive is meaningless.
+        REQUIRE(check.chef_time.IsSet());
+        REQUIRE(check.made_time.IsSet());
+        REQUIRE(check.chef_time.Year() >= 2020);
+    }
+}
+
+TEST_CASE_METHOD(vt_test::VtSystemFixture,
+                 "PeekTokens leaves the reader as it found it",
+                 "[corpus][datafile][peek]")
+{
+    // PeekTokens is a peek: it saves the file offset and seeks back. But it
+    // also sets `end_of_file` as a side effect when the line it is counting
+    // runs to the end of the file, and never clears it -- so the position is
+    // restored while the flag is not, and every later read on that reader
+    // believes the file is exhausted.
+    //
+    // Found while covering ReadFix, its only caller. Not reachable through
+    // Check::Read today, because Check::Write always follows the kitchen-video
+    // fields with a newline-terminated subcheck count. The defect is in the
+    // peek, not in the caller that currently happens to avoid it.
+    TempPath file("vt_peek_eof.dat");
+    LegacyFileBuilder b;
+    b.Int(11).Int(22).Int(33);      // three tokens, no newline, then EOF
+    b.WriteTo(file.path.string(), CHECK_VERSION);
+
+    int version = 0;
+    InputDataFile in;
+    REQUIRE(in.Open(file.path.string(), version) == 0);
+
+    REQUIRE_FALSE(in.end_of_file);
+    (void)in.PeekTokens();
+    REQUIRE_FALSE(in.end_of_file);
+
+    // And the values are still there to be read, which is the point of a peek.
+    int first = 0;
+    int second = 0;
+    in.Read(first);
+    in.Read(second);
+    REQUIRE(first == 11);
+    REQUIRE(second == 22);
+}

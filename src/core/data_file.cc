@@ -437,6 +437,12 @@ int InputDataFile::PeekTokens()
         return 0;
     }
 
+    // This is a peek, so both the offset and the reader's state are restored.
+    // Counting a line that runs to the end of the file used to leave
+    // `end_of_file` set: the position went back, the flag did not, and every
+    // subsequent read on the reader believed the file was exhausted.
+    const bool was_at_end = end_of_file;
+
     int count = 0;
     bool newline_found = false;
     bool started = false;
@@ -465,6 +471,7 @@ int InputDataFile::PeekTokens()
     }
 
     gzseek(fp, savepos, SEEK_SET);
+    end_of_file = was_at_end;
     return count;
 }
 

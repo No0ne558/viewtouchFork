@@ -553,22 +553,30 @@ int Check::Read(Settings *settings, InputDataFile &infile, int version)
  *  token written, so any archives created between the two changes cannot
  *  be read by the latest code.  So we have to fix that.  We'll peek
  *  ahead and see how many tokens we have before the next newline.
- *  If we only have 5, then we have the old data style.  If we have 7
- *  we have the new data style, so we'll just return 0 and let the
- *  parent function read it.
+ *
+ *  The line is check_state, chef, made, checknum, subcheck-count -- five
+ *  tokens in the old layout, seven in the new one, where each TimeInfo
+ *  costs two.  PeekTokens counts separators after the first, so it reports
+ *  one less than that: 4 for the old layout, 6 for the new.  Returning 0
+ *  leaves the stream alone and lets the parent read the new layout.
+ *
+ *  Note that the old layout's two integers are consumed and discarded --
+ *  TimeInfo::Set() with no argument is the *current* time, not the value
+ *  read -- so chef_time and made_time from a pre-11 archive are the moment
+ *  the file was opened.  Realigning the stream is the point; the kitchen
+ *  timings are not recoverable.  test_golden_corpus.cc pins both layouts.
  ****/
 int Check::ReadFix(InputDataFile &datFile, int /*version*/)
 {
     FnTrace("Check::ReadFix()");
     int retval = 0;
-    int tokens;
+    int separators;
     int chef;
     int made;
 
-    tokens = datFile.PeekTokens();
-    if (tokens == 4)
+    separators = datFile.PeekTokens();
+    if (separators == 4)   // five tokens: the old, all-int layout
     {
-        // read 4 tokens and convert the integers to TimeInfos
         datFile.Read(check_state);
         datFile.Read(chef);
         datFile.Read(made);
