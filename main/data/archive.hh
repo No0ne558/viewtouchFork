@@ -77,6 +77,25 @@ public:
     short    changed;  // has archive been changed since last load or save?
     short    corrupt;   // error in loading archive - no changes will save
 
+    // Boolean - did this archive's own frozen policy block actually load?
+    //
+    // The constructor seeds every rate below from today's Settings, and
+    // LoadPacked is expected to overwrite them from the file. When it cannot --
+    // the archive predates version 11 and has no policy block, or it is
+    // truncated -- nothing reports an error, because InputDataFile::Read(int)
+    // cannot return one and LoadPacked ignores the Flt reads that can. The
+    // archive then presents *today's* rates as the rates in force on the day it
+    // covers, which is the same class of error as the tax_VAT omission.
+    //
+    // Truncated archives are not hypothetical: writes were neither atomic nor
+    // durable until recently, and Archive::SavePacked rewrites a whole day, so
+    // one power loss mid-rewrite leaves exactly this shape on disk.
+    //
+    // This flag does not change whether an archive loads -- refusing one would
+    // make a recoverable day unreportable. It records what happened so the
+    // importer can say which days are affected.
+    short    policy_from_file;
+
     // Settings that shouldn't change (from settings.hh)
     Flt tax_food;
     Flt tax_alcohol;

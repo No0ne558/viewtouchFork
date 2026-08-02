@@ -43,6 +43,11 @@ public:
     // Append a string using the writer's escaping rules.
     LegacyFileBuilder &Str(std::string_view value, bool line_break = false);
 
+    // Append a Flt. Unlike integers these are written as plain decimal text --
+    // OutputDataFile::Write(Flt) formats the double and the reader strtod's it
+    // back -- so this is not base-64 encoded.
+    LegacyFileBuilder &Real(double value, bool line_break = false);
+
     // Append a TimeInfo as its two integers.
     LegacyFileBuilder &Time(int seconds_in_year, int year, bool line_break = false);
 

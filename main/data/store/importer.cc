@@ -375,6 +375,21 @@ ImportResult ImportArchives(const std::string &archive_path,
             }
             ++result.stats.archives_read;
 
+            if (archive.policy_from_file == 0)
+            {
+                // Not a failure: the day's checks and drawers are intact and
+                // worth importing. But its tax rates are today's, not the ones
+                // in force when it traded, so totals recomputed against them
+                // are not the figures that were printed. Named individually,
+                // because "some of your history has the wrong rates" is not
+                // something an operator can act on.
+                ++result.stats.policy_not_in_archive;
+                ::vt::Logger::warn(
+                    "import: {} carries no frozen policy of its own "
+                    "(archive version {}); day_policy holds current rates",
+                    file, archive.file_version);
+            }
+
             int64_t day_id = 0;
             StoreError step = InsertBusinessDay(db, archive, file, day_id);
             if (step == StoreError::Ok)

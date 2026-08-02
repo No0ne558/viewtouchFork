@@ -61,6 +61,13 @@ struct ImportStats
     int days{0};              // business_day rows created
     int archives_read{0};
     int archives_failed{0};   // unreadable or wrong version; recorded, not fatal
+    // Archives whose own frozen tax/rounding policy could not be read: either
+    // they predate archive version 11, which had no policy block, or they are
+    // truncated. Their day_policy rows hold today's rates rather than that
+    // day's. Every imported day already carries snapshot_complete = 0, so the
+    // database never claims otherwise -- this counts them so the operator can
+    // see how many, and the log names each one.
+    int policy_not_in_archive{0};
     int checks{0};
     int subchecks{0};
     int orders{0};

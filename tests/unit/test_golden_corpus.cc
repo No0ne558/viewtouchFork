@@ -19,6 +19,8 @@
 
 #include <catch2/catch_all.hpp>
 #include "main/business/check.hh"
+#include "main/data/archive.hh"
+#include "main/hardware/drawer.hh"
 #include "main/business/sales.hh"
 #include "main/data/settings.hh"
 #include "src/core/data_file.hh"
@@ -497,4 +499,251 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     in.Read(second);
     REQUIRE(first == 11);
     REQUIRE(second == 22);
+}
+
+// ---------------------------------------------------------------------------
+// Archive version ladder. This is the one the importer actually walks.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// An archive holding no drawers, checks, tips, exceptions, expenses or media,
+// built at any version from 6 upward. Emptiness is deliberate: what is under
+// test is the version ladder itself -- which trailing blocks a given version
+// carries -- not the entities, which have their own tests.
+//
+// Layout mirrors Archive::LoadPacked exactly. Every sub-database reads its own
+// version stamp followed by a count, so a zero count ends each block.
+void BuildEmptyArchive(LegacyFileBuilder &b, int version, int id,
+                       double tax_food = 0.0, double tax_vat = 0.0,
+                       double advertise_fund = 0.0)
+{
+    b.Int(id);
+    if (version >= 6)
+        b.Time(8 * 3600, 2004);            // start_time
+    b.Time(23 * 3600, 2004, true);         // end_time
+
+    b.Int(DRAWER_VERSION).Int(0);          // drawers
+    b.Int(CHECK_VERSION).Int(0);           // checks
+    b.Int(1).Int(0);                       // tips
+
+    if (version >= 6)
+    {
+        // Exceptions: version stamp, then THREE counts -- ExceptionDB::Read
+        // holds item, table and rebuild lists and reads a count for each.
+        b.Int(3).Int(0).Int(0).Int(0);
+    }
+    if (version >= 8)
+        b.Int(4).Int(0).Int(0);            // expenses: version, `entered`, count
+    if (version >= 10)
+    {
+        b.Int(1);                          // media_version
+        for (int i = 0; i < 5; ++i)
+            b.Int(0);                      // discounts, coupons, cards, comps, meals
+    }
+
+    if (version >= 11)
+    {
+        b.Real(tax_food);
+        b.Real(0.0);                       // tax_alcohol
+        b.Real(0.0);                       // tax_room
+        b.Real(0.0);                       // tax_merchandise
+        b.Real(0.0);                       // tax_GST
+        b.Real(0.0);                       // tax_PST
+        b.Real(0.0);                       // tax_HST
+        b.Real(0.0);                       // tax_QST
+        b.Real(0.0);                       // royalty_rate
+        b.Int(0);                          // price_rounding
+        b.Int(0);                          // change_for_credit
+        b.Int(0);                          // change_for_roomcharge
+        b.Int(0);                          // change_for_checks
+        b.Int(0);                          // change_for_gift
+        b.Int(0);                          // discount_alcohol
+    }
+
+    if (version >= 12)
+        b.Real(tax_vat);
+
+    if (version >= 13)
+    {
+        // Three CreditDBs then CCInit, CCSAFDetails and CCSettle. Each reads a
+        // version and a count, and stops at a count of zero.
+        for (int i = 0; i < 6; ++i)
+            b.Int(1).Int(0);
+    }
+
+    if (version >= 14)
+        b.Real(advertise_fund, true);
+}
+
+} // namespace
+
+TEST_CASE_METHOD(vt_test::VtSystemFixture,
+                 "Archive reads correctly at every historical version",
+                 "[corpus][archive][versions]")
+{
+    // Archives are what the importer opens, so this ladder is the one that
+    // decides what a decade of history means. Three gates carry money:
+    // version 11 introduced the frozen tax rates, 12 added tax_VAT and 14
+    // added advertise_fund.
+    //
+    // Production cannot produce these files: Archive::SavePacked only ever
+    // writes ARCHIVE_VERSION, so every version below 14 is reachable only from
+    // real customer data or from bytes built here.
+    Settings settings;
+    settings.tax_food = 0.11;
+
+    SECTION("version 10 predates the frozen tax rates entirely")
+    {
+        TempPath file("vt_archive_v10.dat");
+        LegacyFileBuilder b;
+        BuildEmptyArchive(b, 10, 601);
+        b.WriteTo(file.path.string(), 10);
+
+        Archive archive(&settings, file.path.string().c_str());
+        REQUIRE(archive.LoadPacked(&settings) == 0);
+        REQUIRE(archive.id == 601);
+
+        // Below 11 the archive carries no rates of its own and falls back to
+        // the alternate-settings file, which does not exist here. It loads
+        // rather than misparsing -- but says so, rather than presenting
+        // today's rates as though they were the day's.
+        REQUIRE(archive.policy_from_file == 0);
+    }
+
+    SECTION("version 11 carries frozen tax rates but no VAT")
+    {
+        TempPath file("vt_archive_v11.dat");
+        LegacyFileBuilder b;
+        BuildEmptyArchive(b, 11, 611, 0.075);
+        b.WriteTo(file.path.string(), 11);
+
+        Archive archive(&settings, file.path.string().c_str());
+        REQUIRE(archive.LoadPacked(&settings) == 0);
+        REQUIRE(archive.id == 611);
+        REQUIRE(archive.tax_food == Catch::Approx(0.075));
+        REQUIRE(archive.policy_from_file == 1);
+        // tax_VAT is not in the file. Whatever it holds was not read from disk.
+    }
+
+    SECTION("version 12 adds tax_VAT")
+    {
+        TempPath file("vt_archive_v12.dat");
+        LegacyFileBuilder b;
+        BuildEmptyArchive(b, 12, 621, 0.075, 0.20);
+        b.WriteTo(file.path.string(), 12);
+
+        Archive archive(&settings, file.path.string().c_str());
+        REQUIRE(archive.LoadPacked(&settings) == 0);
+        REQUIRE(archive.tax_food == Catch::Approx(0.075));
+        REQUIRE(archive.tax_VAT == Catch::Approx(0.20));
+        REQUIRE(archive.policy_from_file == 1);
+    }
+
+    SECTION("version 14 adds advertise_fund, after the credit databases")
+    {
+        // 13 inserted six credit-related blocks ahead of it. If those were
+        // miscounted, advertise_fund would read one of their tokens instead --
+        // which is exactly the kind of silent misalignment this ladder exists
+        // to catch.
+        TempPath file("vt_archive_v14.dat");
+        LegacyFileBuilder b;
+        BuildEmptyArchive(b, 14, 641, 0.075, 0.20, 0.03);
+        b.WriteTo(file.path.string(), 14);
+
+        Archive archive(&settings, file.path.string().c_str());
+        REQUIRE(archive.LoadPacked(&settings) == 0);
+        REQUIRE(archive.id == 641);
+        REQUIRE(archive.tax_food == Catch::Approx(0.075));
+        REQUIRE(archive.tax_VAT == Catch::Approx(0.20));
+        REQUIRE(archive.advertise_fund == Catch::Approx(0.03));
+        REQUIRE(archive.policy_from_file == 1);
+    }
+
+    SECTION("a version below the supported floor is refused")
+    {
+        TempPath file("vt_archive_v1.dat");
+        LegacyFileBuilder b;
+        b.Int(1).Int(0);
+        b.WriteTo(file.path.string(), 1);
+
+        Archive archive(&settings, file.path.string().c_str());
+        REQUIRE(archive.LoadPacked(&settings) != 0);
+    }
+
+    SECTION("a version above the current constant is refused")
+    {
+        TempPath file("vt_archive_future.dat");
+        LegacyFileBuilder b;
+        b.Int(1).Int(0);
+        b.WriteTo(file.path.string(), ARCHIVE_VERSION + 1);
+
+        Archive archive(&settings, file.path.string().c_str());
+        REQUIRE(archive.LoadPacked(&settings) != 0);
+    }
+}
+
+TEST_CASE_METHOD(vt_test::VtSystemFixture,
+                 "A truncated archive loads clean and reports today's rates",
+                 "[corpus][archive][known-limitation]")
+{
+    // Writing the ladder above got the exception block wrong -- ExceptionDB
+    // reads three counts, not one -- and the symptom was not an error. The
+    // archive loaded, LoadPacked returned 0, and every tax rate came back
+    // holding the *current* settings value.
+    //
+    // Two things combine to make that possible, and both are documented
+    // defects rather than surprises:
+    //
+    //   Archive's constructor calls CopyPolicyFrom(settings), seeding every
+    //   rate from today. LoadPacked is then expected to overwrite them.
+    //
+    //   InputDataFile::Read(int) always returns 0 -- it cannot signal failure
+    //   -- so `error` stays zero through a desynchronised stream. Read(Flt)
+    //   does return 1, but LoadPacked ignores the result and leaves the field
+    //   at its seeded value.
+    //
+    // So an archive that is truncated, or whose shape this reader misjudges,
+    // does not report a problem. It reports this year's tax rates as though
+    // they were the rates in force on the day it archived. That is the same
+    // class of error as the tax_VAT bug: historical totals restated by a
+    // change nobody made to that day's data.
+    //
+    // Pinned rather than fixed. Making it fail loudly means checking a return
+    // value that most of the format cannot produce, which is the wider
+    // "errors are structurally invisible" problem, not an archive fix.
+    Settings settings;
+    settings.tax_food = 0.11;
+    settings.tax_VAT  = 0.19;
+
+    TempPath file("vt_archive_truncated.dat");
+    LegacyFileBuilder b;
+    b.Int(701);
+    b.Time(8 * 3600, 2004);
+    b.Time(23 * 3600, 2004, true);
+    b.Int(DRAWER_VERSION).Int(0);
+    b.Int(CHECK_VERSION).Int(0);
+    b.Int(1).Int(0);
+    b.Int(3).Int(0).Int(0).Int(0);
+    b.Int(4).Int(0).Int(0);
+    b.Int(1);
+    for (int i = 0; i < 5; ++i)
+        b.Int(0);
+    // ...and then nothing. The fifteen frozen rates, tax_VAT and the credit
+    // blocks a version-14 archive promises are simply absent.
+    b.WriteTo(file.path.string(), 14);
+
+    Archive archive(&settings, file.path.string().c_str());
+
+    REQUIRE(archive.LoadPacked(&settings) == 0);      // no error reported
+    REQUIRE(archive.id == 701);                       // and the header was fine
+
+    // The rates are today's, not the file's -- because the file has none.
+    REQUIRE(archive.tax_food == Catch::Approx(0.11));
+    REQUIRE(archive.tax_VAT == Catch::Approx(0.19));
+
+    // What is no longer silent: the archive records that its policy block did
+    // not come from the file, so the importer can name the day rather than
+    // recording today's rates as that day's without comment.
+    REQUIRE(archive.policy_from_file == 0);
 }

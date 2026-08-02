@@ -67,6 +67,13 @@ void PrintResult(const vt::store::ImportResult &result, bool dry_run)
     std::printf("  payments        %d\n", s.payments);
     std::printf("  training checks skipped   %d\n", s.training_skipped);
     std::printf("  same-day serial collisions %d\n", s.serial_collisions);
+    if (s.policy_not_in_archive > 0)
+    {
+        std::printf("  days with no frozen policy of their own %d\n",
+                    s.policy_not_in_archive);
+        std::printf("    (pre-version-11 or truncated archives; their tax rates\n"
+                    "     are today's, not the day's -- each is named in the log)\n");
+    }
 
     // Naming them matters. A count alone tells an operator a day is missing
     // without telling them which one, which is not something they can act on.

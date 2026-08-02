@@ -30,6 +30,8 @@
 #include <unistd.h>
 
 #include <filesystem>
+#include "support/legacy_file_builder.hh"
+
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -716,4 +718,56 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM business_day "
                                 "WHERE legacy_filename IS NOT NULL;") == 2);
     }
+}
+
+TEST_CASE_METHOD(vt_test::VtSystemFixture,
+                 "An archive with no policy of its own is imported and named",
+                 "[importer][policy]")
+{
+    // A day whose frozen tax rates are not in its archive still holds real
+    // checks and real money, so it is imported rather than refused. What must
+    // not happen is importing it silently: its day_policy row then carries
+    // *today's* rates, and a report over that day restates history without
+    // saying so.
+    //
+    // Archive version 11 is where the policy block was introduced, so anything
+    // older simply does not have one. The same shape arises from a truncated
+    // archive -- writes were neither atomic nor durable until recently and
+    // SavePacked rewrites a whole day at once -- and neither reports an error,
+    // because InputDataFile::Read(int) cannot return one.
+    //
+    // The archive is built byte by byte because SavePacked only ever writes
+    // ARCHIVE_VERSION; there is no way to produce a version-10 file with the
+    // application's own code.
+    ArchiveDir dir("vt_import_policy");
+    Settings &settings = TestSettings();
+
+    WriteArchive(dir.File("archive_001"), settings, 1, {MakeClosedCheck(100, 950)});
+
+    {
+        vt_test::LegacyFileBuilder b;
+        b.Int(2);                              // archive id
+        b.Time(8 * 3600, 2001);                // start_time (version >= 6)
+        b.Time(23 * 3600, 2001, true);         // end_time
+        b.Int(DRAWER_VERSION).Int(0);          // drawers
+        b.Int(CHECK_VERSION).Int(0);           // checks
+        b.Int(1).Int(0);                       // tips
+        b.Int(3).Int(0).Int(0).Int(0);         // exceptions: item, table, rebuild
+        b.Int(4).Int(0).Int(0);                // expenses: version, entered, count
+        b.Int(1);                              // media_version
+        for (int i = 0; i < 5; ++i)
+            b.Int(0, i == 4);                  // five media counts
+        b.WriteTo(dir.File("archive_002"), 10);
+    }
+
+    const ImportResult result = ImportArchives(dir.path.string(), dir.db, settings);
+
+    REQUIRE(result.Ok());
+    REQUIRE(result.stats.archives_read == 2);
+    REQUIRE(result.stats.archives_failed == 0);
+
+    // Exactly one of the two: the version-10 day. The well-formed one carries
+    // its own policy and is not counted, which is what makes this a signal
+    // rather than a blanket warning on every import.
+    REQUIRE(result.stats.policy_not_in_archive == 1);
 }

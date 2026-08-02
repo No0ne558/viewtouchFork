@@ -1,5 +1,6 @@
 #include "legacy_file_builder.hh"
 
+#include <format>
 #include <fstream>
 #include <string>
 
@@ -61,6 +62,15 @@ LegacyFileBuilder &LegacyFileBuilder::Str(std::string_view value, bool line_brea
             body_ += (ch == ' ' || ch == '~') ? '_' : ch;
         }
     }
+    body_ += Separator(line_break);
+    return *this;
+}
+
+LegacyFileBuilder &LegacyFileBuilder::Real(double value, bool line_break)
+{
+    // std::format's default for double is the shortest round-trippable form,
+    // which is what vt::cpp23::format_to_buffer produces in the writer.
+    body_ += std::format("{}", value);
     body_ += Separator(line_break);
     return *this;
 }

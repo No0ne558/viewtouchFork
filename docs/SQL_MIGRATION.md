@@ -94,6 +94,28 @@ never copied `tax_VAT` or `advertise_fund` into the archive. Reports can
 therefore distinguish "the rate was zero" from "the rate was never recorded" —
 a distinction the file format could not express at all.
 
+**Some days have no frozen policy at all, and the import names them.** Archive
+version 11 introduced the block that stores a day's tax and rounding rates, so
+anything older never had one. A truncated archive has the same shape — writes
+were neither atomic nor durable until recently, and `Archive::SavePacked`
+rewrites a whole day at once, so one power loss mid-rewrite is enough.
+
+Neither case reports an error on its own. `Archive`'s constructor seeds every
+rate from *today's* settings expecting the load to overwrite them, and
+`InputDataFile::Read(int)` cannot signal failure at all, so the day loads clean
+and presents current rates as the rates in force when it traded.
+
+The import counts those days and names each one in the log:
+
+```
+  days with no frozen policy of their own 3
+```
+
+Those days are still imported — the checks and the money are intact and worth
+having. But any total recomputed for them uses today's rates. If your rates have
+changed since, treat those days' figures as approximate; `snapshot_complete = 0`
+already marks every imported day, so nothing in the database claims otherwise.
+
 ### 2. Run in dual mode
 
 Set `mode = dual` and trade normally. Every save goes to both backends. The

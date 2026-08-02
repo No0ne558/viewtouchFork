@@ -45,6 +45,7 @@ Archive::Archive(TimeInfo &end)
     loaded             = 1;
     changed            = 1;
     corrupt            = 0;
+    policy_from_file   = 0;
     last_serial_number = 0;
     file_version       = 0;
     altmedia.Set("");
@@ -125,6 +126,7 @@ Archive::Archive(Settings *settings, const char* file)
     changed            = 0;
     id                 = 0;
     corrupt            = 0;
+    policy_from_file   = 0;
     last_serial_number = 0;
     altmedia.Set("");
     from_disk          = 0;
@@ -436,30 +438,43 @@ int Archive::LoadPacked(Settings *settings, const char* file)
 
     if (version >= 11)
     {
-        df.Read(tax_food);
-        df.Read(tax_alcohol);
-        df.Read(tax_room);
-        df.Read(tax_merchandise);
-        df.Read(tax_GST);
-        df.Read(tax_PST);
-        df.Read(tax_HST);
-        df.Read(tax_QST);
-        df.Read(royalty_rate);
+        // Read(Flt) is one of the few readers that can actually report failure
+        // -- Read(int) always returns 0 -- so the rate reads are what tell us
+        // whether this block was really here. A truncated archive otherwise
+        // keeps the rates the constructor seeded from today's Settings and says
+        // nothing about it. See Archive::policy_from_file.
+        int policy_error = 0;
+        policy_error += df.Read(tax_food);
+        policy_error += df.Read(tax_alcohol);
+        policy_error += df.Read(tax_room);
+        policy_error += df.Read(tax_merchandise);
+        policy_error += df.Read(tax_GST);
+        policy_error += df.Read(tax_PST);
+        policy_error += df.Read(tax_HST);
+        policy_error += df.Read(tax_QST);
+        policy_error += df.Read(royalty_rate);
         df.Read(price_rounding);
         df.Read(change_for_credit);
         df.Read(change_for_roomcharge);
         df.Read(change_for_checks);
         df.Read(change_for_gift);
         df.Read(discount_alcohol);
+        policy_from_file = (policy_error == 0) ? 1 : 0;
     }
     else
     {
+        // Below version 11 the archive carries no policy of its own, so the
+        // rates are whatever the alternate-settings snapshot holds -- or, if
+        // that file is absent, today's. Either way they are not this day's.
         altsettings.Set(settings->altsettings_filename);
         LoadAlternateSettings();
     }
 
     if (version >= 12)
-        df.Read(tax_VAT);
+    {
+        if (df.Read(tax_VAT) != 0)
+            policy_from_file = 0;
+    }
 
     if (version >= 13)
     {
@@ -478,7 +493,10 @@ int Archive::LoadPacked(Settings *settings, const char* file)
         cc_settle_results->Read(df);
     }
     if (version >= 14)
-        df.Read(advertise_fund);
+    {
+        if (df.Read(advertise_fund) != 0)
+            policy_from_file = 0;
+    }
 
     // Initialize Data
     for (drawer = DrawerList(); drawer != nullptr; drawer = drawer->next)
