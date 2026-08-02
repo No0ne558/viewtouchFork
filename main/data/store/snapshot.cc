@@ -5,6 +5,7 @@
 #include "snapshot.hh"
 
 #include "check.hh"
+#include "drawer.hh"
 
 #include <algorithm>
 #include <map>
@@ -132,7 +133,114 @@ void CompareCheck(std::vector<Divergence> &out, const CheckSnapshot &left,
     }
 }
 
+void CompareDrawer(std::vector<Divergence> &out, const DrawerSnapshot &left,
+                   const DrawerSnapshot &right)
+{
+    const std::string prefix = "drawer[" + std::to_string(left.serial_number) + "]";
+
+    AddIfDifferent(out, prefix + ".host", left.host, right.host);
+    AddIfDifferent(out, prefix + ".position", left.position, right.position);
+    AddIfDifferent(out, prefix + ".number", left.number, right.number);
+    AddIfDifferent(out, prefix + ".owner_id", left.owner_id, right.owner_id);
+    AddIfDifferent(out, prefix + ".puller_id", left.puller_id, right.puller_id);
+    AddIfDifferent(out, prefix + ".media_balanced", left.media_balanced,
+                   right.media_balanced);
+
+    // Set-or-not rather than the values, because these three are what
+    // GetStatus() reads. A drawer that is open on one side and pulled on the
+    // other is the difference worth reporting.
+    AddIfDifferent(out, prefix + ".started", left.has_start ? 1 : 0,
+                   right.has_start ? 1 : 0);
+    AddIfDifferent(out, prefix + ".pulled", left.has_pull ? 1 : 0,
+                   right.has_pull ? 1 : 0);
+    AddIfDifferent(out, prefix + ".balanced", left.has_balance ? 1 : 0,
+                   right.has_balance ? 1 : 0);
+
+    if (left.payments.size() != right.payments.size())
+    {
+        out.push_back(Divergence{prefix + ".payment_count",
+                                 std::to_string(left.payments.size()),
+                                 std::to_string(right.payments.size()), ""});
+    }
+    else
+    {
+        for (std::size_t i = 0; i < left.payments.size(); ++i)
+        {
+            const std::string path = prefix + ".payment[" + std::to_string(i) + "]";
+            AddIfDifferent(out, path + ".tender_type", left.payments[i].tender_type,
+                           right.payments[i].tender_type);
+            AddIfDifferent(out, path + ".amount", left.payments[i].amount,
+                           right.payments[i].amount);
+            AddIfDifferent(out, path + ".user_id", left.payments[i].user_id,
+                           right.payments[i].user_id);
+            AddIfDifferent(out, path + ".target_id", left.payments[i].target_id,
+                           right.payments[i].target_id);
+        }
+    }
+
+    if (left.balances.size() != right.balances.size())
+    {
+        out.push_back(Divergence{
+            prefix + ".balance_count",
+            std::to_string(left.balances.size()),
+            std::to_string(right.balances.size()),
+            "Drawer::Write emits a balance row only when `entered` is non-zero, "
+            "so the legacy side cannot represent a tender that was counted and "
+            "came to nothing -- a real outcome, and different from never having "
+            "counted it. Expect the SQL side to hold more rows."});
+        return;
+    }
+
+    for (std::size_t i = 0; i < left.balances.size(); ++i)
+    {
+        const std::string path = prefix + ".balance[" + std::to_string(i) + "]";
+        AddIfDifferent(out, path + ".tender_type", left.balances[i].tender_type,
+                       right.balances[i].tender_type);
+        AddIfDifferent(out, path + ".tender_id", left.balances[i].tender_id,
+                       right.balances[i].tender_id);
+        AddIfDifferent(out, path + ".entered", left.balances[i].entered,
+                       right.balances[i].entered);
+    }
+}
+
 } // namespace
+
+DrawerSnapshot SnapshotOf(Drawer &drawer)
+{
+    DrawerSnapshot out;
+    out.serial_number = drawer.serial_number;
+    out.host = (drawer.host.Value() != nullptr) ? drawer.host.Value() : "";
+    out.position = drawer.position;
+    out.number = drawer.number;
+    out.owner_id = drawer.owner_id;
+    out.puller_id = drawer.puller_id;
+    out.media_balanced = drawer.media_balanced;
+    out.has_start = drawer.start_time.IsSet();
+    out.has_pull = drawer.pull_time.IsSet();
+    out.has_balance = drawer.balance_time.IsSet();
+
+    for (const DrawerPayment *payment = drawer.PaymentList(); payment != nullptr;
+         payment = payment->next)
+    {
+        DrawerPaymentSnapshot snap;
+        snap.tender_type = payment->tender_type;
+        snap.amount = payment->amount;
+        snap.user_id = payment->user_id;
+        snap.target_id = payment->target_id;
+        out.payments.push_back(snap);
+    }
+
+    for (const DrawerBalance *balance = drawer.BalanceList(); balance != nullptr;
+         balance = balance->next)
+    {
+        DrawerBalanceSnapshot snap;
+        snap.tender_type = balance->tender_type;
+        snap.tender_id = balance->tender_id;
+        snap.entered = balance->entered;
+        out.balances.push_back(snap);
+    }
+    return out;
+}
 
 CheckSnapshot SnapshotOf(Check &check)
 {
@@ -242,6 +350,36 @@ std::vector<Divergence> Diff(const StoreSnapshot &left, const StoreSnapshot &rig
         found.push_back(Divergence{"check[" + std::to_string(serial) + "]",
                                    "absent", "present",
                                    "this check exists only on the right backend"});
+    }
+
+    // Drawers, matched the same way. Omitting these was a real hole while they
+    // were being written but not compared: the report would say "no divergence"
+    // over half the money, which is worse than no coverage because it produces
+    // confidence rather than the absence of it.
+    std::map<int, const DrawerSnapshot *> right_drawers;
+    for (const DrawerSnapshot &drawer : right.drawers)
+        right_drawers[drawer.serial_number] = &drawer;
+
+    for (const DrawerSnapshot &drawer : left.drawers)
+    {
+        const auto it = right_drawers.find(drawer.serial_number);
+        if (it == right_drawers.end())
+        {
+            found.push_back(Divergence{
+                "drawer[" + std::to_string(drawer.serial_number) + "]", "present",
+                "absent", "this drawer exists only on the left backend"});
+            continue;
+        }
+        CompareDrawer(found, drawer, *it->second);
+        right_drawers.erase(it);
+    }
+
+    for (const auto &[serial, drawer] : right_drawers)
+    {
+        (void)drawer;
+        found.push_back(Divergence{"drawer[" + std::to_string(serial) + "]",
+                                   "absent", "present",
+                                   "this drawer exists only on the right backend"});
     }
 
     return found;

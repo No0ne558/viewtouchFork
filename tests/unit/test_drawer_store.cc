@@ -20,11 +20,13 @@
 #include "sql/statement.hh"
 #include "support/vt_test_env.hh"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <memory>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 using namespace vt::store;
@@ -423,4 +425,89 @@ TEST_CASE("Ending the day is a no-op on the legacy backend, not a failure",
     DrawerFixture fixture("vt_endday_legacy");
     auto store = MakeLegacyFileStore(MasterSystem.get());
     REQUIRE(store->EndBusinessDay() == StoreError::Ok);
+}
+
+TEST_CASE("The divergence report covers drawers, not just checks",
+          "[drawer][store][dualrun]")
+{
+    /*
+     * Closing a hole opened by migrating drawer WRITES without migrating drawer
+     * COMPARISON. For one commit the report walked both backends, said "no
+     * divergence", and silently omitted half the money. That is worse than no
+     * coverage: it produces confidence rather than the absence of it.
+     */
+    DrawerFixture fixture("vt_drawer_diverge");
+
+    auto legacy = MakeLegacyFileStore(MasterSystem.get());
+    StoreError error = StoreError::Io;
+    auto sqlite = MakeSqliteStore(fixture.db, error);
+    REQUIRE(error == StoreError::Ok);
+    auto dual = MakeDualRunStore(std::move(legacy), std::move(sqlite));
+
+    Drawer *drawer = BuildDrawer(7500, true);
+    REQUIRE(MasterSystem->Add(drawer) == 0);
+
+    auto tx = dual->Begin();
+    REQUIRE(dual->Drawers().Save(*tx, *drawer) == StoreError::Ok);
+    REQUIRE(tx->Commit() == StoreError::Ok);
+
+    StoreSnapshot legacy_snap;
+    StoreSnapshot sqlite_snap;
+    REQUIRE(dual->Primary().Snapshot(legacy_snap) == StoreError::Ok);
+    REQUIRE(dual->ShadowStore().Snapshot(sqlite_snap) == StoreError::Ok);
+
+    SECTION("both sides report the drawer at all")
+    {
+        REQUIRE(legacy_snap.drawers.size() == 1);
+        REQUIRE(sqlite_snap.drawers.size() == 1);
+        REQUIRE(legacy_snap.drawers[0].serial_number == 7500);
+        REQUIRE(sqlite_snap.drawers[0].serial_number == 7500);
+    }
+
+    SECTION("the zero-balance row the legacy writer drops is reported")
+    {
+        // Drawer::Write emits a balance only when `entered` is non-zero, so the
+        // file cannot say "this tender was counted and came to nothing". The
+        // SQL side keeps it, and the diff now names the difference instead of
+        // passing over it.
+        REQUIRE(legacy_snap.drawers[0].balances.size() == 1);
+        REQUIRE(sqlite_snap.drawers[0].balances.size() == 2);
+
+        std::vector<Divergence> found;
+        REQUIRE(dual->Compare(found) == StoreError::Ok);
+
+        const auto it = std::find_if(found.begin(), found.end(),
+                                     [](const Divergence &d) {
+                                         return d.path.find("balance_count") !=
+                                                std::string::npos;
+                                     });
+        REQUIRE(it != found.end());
+        REQUIRE(it->left == "1");
+        REQUIRE(it->right == "2");
+        REQUIRE_FALSE(it->note.empty());
+    }
+
+    SECTION("a drawer present on only one side is reported")
+    {
+        // The most dangerous shape of divergence, and the one a check-only diff
+        // could never have seen.
+        std::unique_ptr<Drawer> shadow_only(BuildDrawer(7501, false));
+        auto only = dual->ShadowStore().Begin();
+        REQUIRE(dual->ShadowStore().Drawers().Save(*only, *shadow_only)
+                == StoreError::Ok);
+        REQUIRE(only->Commit() == StoreError::Ok);
+
+        std::vector<Divergence> found;
+        REQUIRE(dual->Compare(found) == StoreError::Ok);
+
+        const auto it = std::find_if(found.begin(), found.end(),
+                                     [](const Divergence &d) {
+                                         return d.path == "drawer[7501]";
+                                     });
+        REQUIRE(it != found.end());
+        REQUIRE(it->left == "absent");
+        REQUIRE(it->right == "present");
+    }
+
+    MasterSystem->SetDataStore(nullptr);
 }

@@ -26,6 +26,7 @@
 #include <vector>
 
 class Check;
+class Drawer;
 
 namespace vt::store {
 
@@ -78,10 +79,48 @@ struct CheckSnapshot
     std::vector<SubCheckSnapshot> subchecks;
 };
 
+struct DrawerPaymentSnapshot
+{
+    int tender_type{0};
+    int amount{0};
+    int user_id{0};
+    int target_id{0};
+};
+
+struct DrawerBalanceSnapshot
+{
+    int tender_type{0};
+    int tender_id{0};
+    int entered{0};
+};
+
+struct DrawerSnapshot
+{
+    int serial_number{0};
+    std::string host;
+    int position{0};
+    int number{0};
+    int owner_id{0};
+    int puller_id{0};
+    int media_balanced{0};
+
+    // Which of the three timestamps are set, rather than their values. That is
+    // what GetStatus() actually reads, and comparing the values themselves
+    // would report a difference every time the two backends rounded a clock
+    // differently rather than when a drawer's state differed.
+    bool has_start{false};
+    bool has_pull{false};
+    bool has_balance{false};
+
+    std::vector<DrawerPaymentSnapshot> payments;
+    std::vector<DrawerBalanceSnapshot> balances;
+};
+
 struct StoreSnapshot
 {
     std::string backend;                  // Store::Name(), for attribution
     std::vector<CheckSnapshot> checks;    // ordered by serial number
+    std::vector<DrawerSnapshot> drawers;  // ordered by serial number
 };
 
 // One field that differs, named well enough to act on without re-running.
@@ -103,6 +142,9 @@ struct Divergence
  * holds, not what it wrote -- see the note at the top of this file.
  */
 [[nodiscard]] CheckSnapshot SnapshotOf(Check &check);
+
+// Same, for a drawer loaded back off disk.
+[[nodiscard]] DrawerSnapshot SnapshotOf(Drawer &drawer);
 
 // Compare two snapshots field by field. Checks are matched by serial number, so
 // a check present on one side only is reported as such rather than shifting

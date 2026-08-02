@@ -273,6 +273,32 @@ public:
                   [](const CheckSnapshot &a, const CheckSnapshot &b) {
                       return a.serial_number < b.serial_number;
                   });
+
+        // Drawers, reloaded from their files for the same reason: this has to
+        // describe what was persisted, not what the process happens to hold.
+        std::vector<std::string> drawer_files;
+        for (const Drawer *drawer = system_->DrawerList(); drawer != nullptr;
+             drawer = drawer->next)
+        {
+            if (drawer->archive != nullptr)
+                continue;
+            const char *name = drawer->filename.Value();
+            if (name != nullptr && name[0] != '\0')
+                drawer_files.emplace_back(name);
+        }
+
+        for (const std::string &file : drawer_files)
+        {
+            Drawer loaded;
+            if (loaded.Load(file.c_str()) != 0)
+                return StoreError::Corrupt;
+            out.drawers.push_back(SnapshotOf(loaded));
+        }
+
+        std::sort(out.drawers.begin(), out.drawers.end(),
+                  [](const DrawerSnapshot &a, const DrawerSnapshot &b) {
+                      return a.serial_number < b.serial_number;
+                  });
         return StoreError::Ok;
     }
 

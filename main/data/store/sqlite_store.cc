@@ -662,12 +662,108 @@ public:
             }
             out.checks.push_back(std::move(snap));
         }
-        return Translate(step);
+        if (step != Status::Ok)
+            return Translate(step);
+
+        return LoadDrawerSnapshots(out);
     }
 
     [[nodiscard]] const char *Name() const noexcept override { return "sqlite"; }
 
 private:
+    StoreError LoadDrawerSnapshots(StoreSnapshot &out)
+    {
+        Statement drawers;
+        if (Status s = drawers.Prepare(
+                db_, "SELECT id, serial_number, host, position, number,"
+                     "       owner_id, puller_id, media_balanced,"
+                     "       start_time_local, pull_time_local, balance_time_local"
+                     " FROM drawer WHERE business_day_id = ?1"
+                     " ORDER BY serial_number, serial_disambiguator;");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        if (Status s = drawers.BindInt(1, business_day_id_); s != Status::Ok)
+            return Translate(s);
+
+        Status step = Status::Ok;
+        while (drawers.Step(step))
+        {
+            const int64_t drawer_id = drawers.ColumnInt(0);
+            DrawerSnapshot snap;
+            snap.serial_number = static_cast<int>(drawers.ColumnInt(1));
+            snap.host = drawers.ColumnText(2);
+            snap.position = static_cast<int>(drawers.ColumnInt(3));
+            snap.number = static_cast<int>(drawers.ColumnInt(4));
+            snap.owner_id = static_cast<int>(drawers.ColumnInt(5));
+            snap.puller_id = static_cast<int>(drawers.ColumnInt(6));
+            snap.media_balanced = static_cast<int>(drawers.ColumnInt(7));
+            snap.has_start = !drawers.ColumnIsNull(8);
+            snap.has_pull = !drawers.ColumnIsNull(9);
+            snap.has_balance = !drawers.ColumnIsNull(10);
+
+            if (const StoreError e = LoadDrawerChildren(drawer_id, snap);
+                e != StoreError::Ok)
+            {
+                return e;
+            }
+            out.drawers.push_back(std::move(snap));
+        }
+        return Translate(step);
+    }
+
+    StoreError LoadDrawerChildren(int64_t drawer_id, DrawerSnapshot &out)
+    {
+        {
+            Statement stmt;
+            if (Status s = stmt.Prepare(
+                    db_, "SELECT tender_type, amount, user_id, target_id"
+                         " FROM drawer_payment WHERE drawer_id = ?1 ORDER BY seq;");
+                s != Status::Ok)
+            {
+                return Translate(s);
+            }
+            if (Status s = stmt.BindInt(1, drawer_id); s != Status::Ok)
+                return Translate(s);
+
+            Status step = Status::Ok;
+            while (stmt.Step(step))
+            {
+                DrawerPaymentSnapshot snap;
+                snap.tender_type = static_cast<int>(stmt.ColumnInt(0));
+                snap.amount = static_cast<int>(stmt.ColumnInt(1));
+                snap.user_id = static_cast<int>(stmt.ColumnInt(2));
+                snap.target_id = static_cast<int>(stmt.ColumnInt(3));
+                out.payments.push_back(snap);
+            }
+            if (step != Status::Ok)
+                return Translate(step);
+        }
+
+        Statement stmt;
+        if (Status s = stmt.Prepare(
+                db_, "SELECT tender_type, legacy_tender_id, entered"
+                     " FROM drawer_balance WHERE drawer_id = ?1 ORDER BY seq;");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        if (Status s = stmt.BindInt(1, drawer_id); s != Status::Ok)
+            return Translate(s);
+
+        Status step = Status::Ok;
+        while (stmt.Step(step))
+        {
+            DrawerBalanceSnapshot snap;
+            snap.tender_type = static_cast<int>(stmt.ColumnInt(0));
+            snap.tender_id = static_cast<int>(stmt.ColumnInt(1));
+            snap.entered = static_cast<int>(stmt.ColumnInt(2));
+            out.balances.push_back(snap);
+        }
+        return Translate(step);
+    }
+
     StoreError LoadSubChecks(int64_t check_id, CheckSnapshot &out)
     {
         Statement subs;

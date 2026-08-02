@@ -116,6 +116,10 @@ known places, and each line in the report carries its own explanation:
   and `'~'` onto `'_'` and the reader maps `'_'` back to `' '`, so `bar_side`
   reads back as `bar side`. Existing production data is already damaged this way;
   the report makes it visible rather than theoretical.
+- **`drawer[...].balance_count` differing.** `Drawer::Write` emits a balance row
+  only when `entered` is non-zero, so a file cannot say "this tender was counted
+  and came to nothing" — a real outcome, and different from never having counted
+  it. Expect the SQLite side to hold more balance rows than the legacy side.
 - **`payment.flags` differing by 128 (`TF_FINAL`).** `Payment::Read` sets that
   flag unconditionally on every payment it reads, so a payment that was *not*
   final becomes final simply by surviving a save and reload. The legacy side
