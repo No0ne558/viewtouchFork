@@ -34,6 +34,7 @@ add_executable(vt_tests
     unit/test_importer.cc
     unit/test_dual_run.cc
     unit/test_backend_config.cc
+    unit/test_crash_safety.cc
     support/vt_test_env.cc
     support/legacy_file_builder.cc
 )
@@ -66,6 +67,37 @@ target_link_libraries(vt_tests PRIVATE
     nlohmann_json::nlohmann_json
     magic_enum::magic_enum
 )
+
+# The crash-safety harness needs a victim process it can SIGKILL, which a test
+# cannot do to itself. test_crash_safety.cc drives this binary; the path is
+# passed in as a compile definition so the test does not have to guess where
+# CMake put it.
+add_executable(vt_crash_writer crash/crash_writer.cc)
+
+target_include_directories(vt_crash_writer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../main
+    ${CMAKE_CURRENT_SOURCE_DIR}/../main/business
+    ${CMAKE_CURRENT_SOURCE_DIR}/../main/data
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_BINARY_DIR}/../_deps/magic_enum-src/include
+    ${CMAKE_CURRENT_BINARY_DIR}/../_deps/spdlog-src/include
+    ${CMAKE_CURRENT_BINARY_DIR}/../_deps/json-src/include
+)
+
+target_link_libraries(vt_crash_writer PRIVATE
+    vtbusiness
+    vtcore
+    zone
+    spdlog::spdlog
+    nlohmann_json::nlohmann_json
+    magic_enum::magic_enum
+)
+
+add_dependencies(vt_tests vt_crash_writer)
+target_compile_definitions(vt_tests PRIVATE
+    VT_CRASH_WRITER_PATH="$<TARGET_FILE:vt_crash_writer>")
 
 # Test discovery
 include(Catch)
