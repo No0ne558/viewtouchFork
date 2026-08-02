@@ -8,13 +8,24 @@
  * against: whatever these tests say survives is exactly what the importer is
  * allowed to assume.
  *
- * Two documented losses below are real defects, deliberately pinned rather than
- * fixed here because repairing either changes the on-disk format and needs a
- * version bump plus a migration story:
+ * Two documented losses below are real defects of the FILE FORMAT, pinned here
+ * rather than fixed because repairing either needs an on-disk version bump and
+ * a migration story for existing files:
  *
  *   - Order::call_order is never written, yet Order::Add sorts modifiers by it.
  *   - Settings::tax_takeout_food is read live by FigureTotals and never frozen
  *     into the Archive, so toggling it restates historical takeout tax.
+ *
+ * Both are now CLOSED for the SQL backend, which was the agreed resolution
+ * rather than bumping the legacy format: order_item.call_order and
+ * day_policy.tax_takeout_food are written and asserted in test_sqlite_store.cc
+ * and test_importer.cc respectively. These tests stay because the legacy
+ * backend is still the default and still loses both, and they should be
+ * retired with it -- not treated as an open item waiting on a format bump that
+ * is no longer planned.
+ *
+ * Historical data cannot recover either value. The importer records
+ * day_policy.snapshot_complete = 0 to say so.
  */
 
 #include <catch2/catch_all.hpp>
@@ -128,14 +139,21 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
 {
     // Order::Add inserts modifiers by call_order (check.cc:5906), but neither
     // Order::Read nor Order::Write mentions the field. Every order therefore
-    // comes back with the constructor default, so modifiers attached after a
+    // comes back with a constructor default, so modifiers attached after a
     // reload sort differently from the same modifiers attached before one --
     // i.e. kitchen ticket ordering can change across a save/load cycle.
     //
-    // Fixing this means writing a new field, which requires a CHECK_VERSION
-    // bump and a migration path for existing files, so it is pinned here rather
-    // than changed. Historical orders cannot recover the value at all: it was
-    // never stored.
+    // Wider than it looks, which the dual-run diff is what revealed: the two
+    // Order constructors disagree about the default. Order() sets 1
+    // (check.cc:5612) and Order(name, price) sets 4 (check.cc:5708).
+    // Order::Read builds with the first while the application builds real
+    // orders with the second, so the value changes on EVERY order that has
+    // ever been saved and reloaded -- not only ones somebody set deliberately.
+    //
+    // Closed for the SQL backend (order_item.call_order), which was the agreed
+    // resolution instead of a CHECK_VERSION bump. Pinned here for as long as
+    // the file format is still the default. Historical orders cannot recover
+    // the value at all: it was never stored.
     TempPath file("vt_callorder_roundtrip.dat");
 
     Order written = MakeOrder();
