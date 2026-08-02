@@ -54,7 +54,7 @@ StoreError Translate(Status status) noexcept
 {
     switch (status)
     {
-    case Status::Ok:         return StoreError::None;
+    case Status::Ok:         return StoreError::Ok;
     case Status::CannotOpen: return StoreError::Io;
     case Status::Busy:       return StoreError::Busy;
     case Status::Constraint: return StoreError::Constraint;
@@ -83,7 +83,7 @@ public:
     StoreError Commit() override
     {
         if (!inner_.IsActive())
-            return StoreError::None;
+            return StoreError::Ok;
         return Translate(inner_.Commit());
     }
 
@@ -116,7 +116,7 @@ public:
             return StoreError::Unsupported;   // see the file header
 
         if (check.copy != 0)
-            return StoreError::None;          // a working copy is never persisted
+            return StoreError::Ok;          // a working copy is never persisted
 
         if (check.serial_number <= 0)
         {
@@ -132,7 +132,7 @@ public:
         int64_t check_id = 0;
         const StoreError found =
             FindCheckBySerial(db_, business_day_id_, check.serial_number, check_id);
-        if (found != StoreError::None && found != StoreError::NotFound)
+        if (found != StoreError::Ok && found != StoreError::NotFound)
             return found;
 
         // Live writes never freeze and record source 0 (computed live). The
@@ -152,7 +152,7 @@ public:
         // because it fires on UPDATE. Refusing here is what closes that.
         bool frozen = false;
         if (const StoreError e = CheckHasFrozenSubCheck(db_, check_id, frozen);
-            e != StoreError::None)
+            e != StoreError::Ok)
         {
             return e;
         }
@@ -171,7 +171,7 @@ public:
             return StoreError::Unsupported;
 
         if (check.copy != 0)
-            return StoreError::None;
+            return StoreError::Ok;
 
         // ON DELETE CASCADE carries the subchecks, orders, payments and totals
         // with it, so the aggregate leaves in one statement.
@@ -199,7 +199,7 @@ public:
         if (Status s = db_.QueryInt(sql, total); s != Status::Ok)
             return Translate(s);
         out = static_cast<int>(total);
-        return StoreError::None;
+        return StoreError::Ok;
     }
 
 private:
@@ -242,7 +242,7 @@ public:
         {
             return Translate(s);
         }
-        return (ignored == 0) ? StoreError::None : StoreError::Corrupt;
+        return (ignored == 0) ? StoreError::Ok : StoreError::Corrupt;
     }
 
     /*
@@ -283,7 +283,7 @@ public:
             snap.comment = checks.ColumnText(6);
 
             if (const StoreError e = LoadSubChecks(check_id, snap);
-                e != StoreError::None)
+                e != StoreError::Ok)
             {
                 return e;
             }
@@ -318,12 +318,12 @@ private:
             snap.check_type = static_cast<int>(subs.ColumnInt(3));
 
             if (const StoreError e = LoadOrders(sub_id, snap);
-                e != StoreError::None)
+                e != StoreError::Ok)
             {
                 return e;
             }
             if (const StoreError e = LoadPayments(sub_id, snap);
-                e != StoreError::None)
+                e != StoreError::Ok)
             {
                 return e;
             }
@@ -448,7 +448,7 @@ StoreError ResolveOpenDay(Database &db, int64_t &out)
         if (stmt.Step(step))
         {
             out = stmt.ColumnInt(0);
-            return StoreError::None;
+            return StoreError::Ok;
         }
         if (step != Status::Ok)
             return Translate(step);
@@ -466,7 +466,7 @@ StoreError ResolveOpenDay(Database &db, int64_t &out)
     if (!insert.Step(step))
         return (step == Status::Ok) ? StoreError::Io : Translate(step);
     out = insert.ColumnInt(0);
-    return StoreError::None;
+    return StoreError::Ok;
 }
 
 } // namespace
@@ -489,13 +489,13 @@ std::unique_ptr<Store> MakeSqliteStore(const std::string &path, StoreError &erro
 
     int64_t business_day_id = 0;
     if (const StoreError e = ResolveOpenDay(db, business_day_id);
-        e != StoreError::None)
+        e != StoreError::Ok)
     {
         error = e;
         return nullptr;
     }
 
-    error = StoreError::None;
+    error = StoreError::Ok;
     return std::make_unique<SqliteStore>(std::move(db), business_day_id);
 }
 

@@ -21,6 +21,7 @@
                             // ViewTouch includes
 #include "manager.hh"
 #include "system.hh"
+#include "store/backend_config.hh"
 #include "check.hh"
 #include "sales.hh"
 #include "pos_zone.hh"
@@ -1637,6 +1638,44 @@ int StartSystem(int my_use_net)
     {
         term->Initialize();
         term = term->next;
+    }
+
+    /*
+     * Choose the persistence backend, after loading and before the event loop.
+     *
+     * After loading deliberately: LoadCurrentData saves checks while it reads
+     * them, and those saves must not depend on config that has not been read
+     * yet. Check::Save() falls back to the file path while DataStore() is null,
+     * which covers exactly that window.
+     *
+     * Before the event loop, equally deliberately: from here on every save a
+     * terminal triggers goes through the configured backend.
+     *
+     * A site with no persistence.conf gets `legacy`, which routes to the same
+     * System::SaveCheck the fallback uses and writes identical bytes. A site
+     * that asked for a database it cannot open does NOT silently get files --
+     * see backend_config.hh -- so that case aborts startup rather than writing
+     * a day's takings somewhere nobody is looking.
+     */
+    {
+        const std::string persistence_conf =
+            std::string(VIEWTOUCH_PATH) + "/dat/persistence.conf";
+        const vt::store::BackendSettings backend =
+            vt::store::ReadBackendSettings(persistence_conf);
+
+        vt::store::StoreError store_error{};
+        auto store = vt::store::MakeConfiguredStore(backend, sys, store_error);
+        if (store == nullptr)
+        {
+            vt::Logger::critical("Persistence backend '{}' could not be opened: {}",
+                                 vt::store::BackendModeName(backend.mode),
+                                 vt::store::StoreErrorName(store_error));
+            ReportError(GlobalTranslate("Could not open the configured persistence backend"));
+            EndSystem();
+        }
+
+        vt::Logger::info("Persistence backend: {}", store->Name());
+        sys->SetDataStore(std::move(store));
     }
 
     // Cleanup/Init & start

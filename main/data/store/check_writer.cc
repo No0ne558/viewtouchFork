@@ -26,7 +26,7 @@ StoreError Translate(Status status) noexcept
 {
     switch (status)
     {
-    case Status::Ok:         return StoreError::None;
+    case Status::Ok:         return StoreError::Ok;
     case Status::CannotOpen: return StoreError::Io;
     case Status::Busy:       return StoreError::Busy;
     case Status::Constraint: return StoreError::Constraint;
@@ -60,7 +60,7 @@ StoreError Fail(Database &db, Status status, const char *what)
 
 StoreError Report(Database &db, Status status, const char *what)
 {
-    return (status == Status::Ok) ? StoreError::None : Fail(db, status, what);
+    return (status == Status::Ok) ? StoreError::Ok : Fail(db, status, what);
 }
 
 // TimeInfo is date::local_time, with no zone attached, so the only value that
@@ -138,7 +138,7 @@ StoreError BindCheckColumns(Database &db, Statement &stmt, const Check &check,
     if ((s = bind(17, LocalSeconds(check.check_in))) != Status::Ok) return Translate(s);
     if ((s = bind(18, LocalSeconds(check.check_out))) != Status::Ok) return Translate(s);
     if ((s = bind(19, LocalSeconds(check.date))) != Status::Ok) return Translate(s);
-    return StoreError::None;
+    return StoreError::Ok;
 }
 
 } // namespace
@@ -163,7 +163,7 @@ StoreError FindCheckBySerial(Database &db, int64_t business_day_id,
     if (stmt.Step(step))
     {
         out_id = stmt.ColumnInt(0);
-        return StoreError::None;
+        return StoreError::Ok;
     }
     if (step != Status::Ok)
         return Translate(step);
@@ -179,7 +179,7 @@ StoreError CheckHasFrozenSubCheck(Database &db, int64_t check_id, bool &out)
     if (Status s = db.QueryInt(sql, frozen); s != Status::Ok)
         return Translate(s);
     out = (frozen > 0);
-    return StoreError::None;
+    return StoreError::Ok;
 }
 
 CheckWriter::CheckWriter(Database &db, int64_t business_day_id, bool freeze,
@@ -216,7 +216,7 @@ StoreError CheckWriter::InsertAggregate(const Check &check,
     if (Status s = stmt.BindInt(3, serial_disambiguator); s != Status::Ok)
         return Translate(s);
     if (const StoreError e = BindCheckColumns(db_, stmt, check, 4);
-        e != StoreError::None)
+        e != StoreError::Ok)
     {
         return e;
     }
@@ -249,14 +249,14 @@ StoreError CheckWriter::ReplaceChildren(int64_t check_id, const Check &check)
             return Translate(s);
         }
         if (const StoreError e = BindCheckColumns(db_, stmt, check, 1);
-            e != StoreError::None)
+            e != StoreError::Ok)
         {
             return e;
         }
         if (Status s = stmt.BindInt(kCheckColumnCount + 1, check_id); s != Status::Ok)
             return Translate(s);
         if (const StoreError e = Report(db_, stmt.Execute(), "update check");
-            e != StoreError::None)
+            e != StoreError::Ok)
         {
             return e;
         }
@@ -273,7 +273,7 @@ StoreError CheckWriter::ReplaceChildren(int64_t check_id, const Check &check)
         if (Status s = stmt.BindInt(1, check_id); s != Status::Ok)
             return Translate(s);
         if (const StoreError e = Report(db_, stmt.Execute(), "delete subchecks");
-            e != StoreError::None)
+            e != StoreError::Ok)
         {
             return e;
         }
@@ -289,12 +289,12 @@ StoreError CheckWriter::WriteSubChecks(int64_t check_id, const Check &check)
          sub = sub->next, ++seq)
     {
         if (const StoreError e = WriteSubCheck(check_id, *sub, seq);
-            e != StoreError::None)
+            e != StoreError::Ok)
         {
             return e;
         }
     }
-    return StoreError::None;
+    return StoreError::Ok;
 }
 
 // Takes a non-const SubCheck only because OrderList() and PaymentList() have no
@@ -362,7 +362,7 @@ StoreError CheckWriter::WriteSubCheck(int64_t check_id, SubCheck &sub, int seq)
         int64_t order_id = 0;
         if (const StoreError e =
                 InsertOrder(sub_id, std::nullopt, order_seq, *order, order_id);
-            e != StoreError::None)
+            e != StoreError::Ok)
         {
             return e;
         }
@@ -375,7 +375,7 @@ StoreError CheckWriter::WriteSubCheck(int64_t check_id, SubCheck &sub, int seq)
             int64_t mod_id = 0;
             if (const StoreError e =
                     InsertOrder(sub_id, order_id, mod_seq, *mod, mod_id);
-                e != StoreError::None)
+                e != StoreError::Ok)
             {
                 return e;
             }
@@ -388,7 +388,7 @@ StoreError CheckWriter::WriteSubCheck(int64_t check_id, SubCheck &sub, int seq)
          payment = payment->next, ++payment_seq)
     {
         if (const StoreError e = InsertPayment(sub_id, payment_seq, *payment);
-            e != StoreError::None)
+            e != StoreError::Ok)
         {
             return e;
         }
@@ -450,7 +450,7 @@ StoreError CheckWriter::InsertOrder(int64_t sub_id,
     if (!stmt.Step(step))
         return Fail(db_, step, "insert order");
     out_id = stmt.ColumnInt(0);
-    return StoreError::None;
+    return StoreError::Ok;
 }
 
 StoreError CheckWriter::InsertPayment(int64_t sub_id, int seq,

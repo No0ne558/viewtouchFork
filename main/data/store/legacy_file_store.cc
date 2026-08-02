@@ -11,7 +11,6 @@
 
 #include "archive.hh"
 #include "check.hh"
-#include "data_persistence_manager.hh"
 #include "sales.hh"
 #include "system.hh"
 
@@ -26,7 +25,7 @@ const char *StoreErrorName(StoreError error) noexcept
 {
     switch (error)
     {
-    case StoreError::None:        return "ok";
+    case StoreError::Ok:        return "ok";
     case StoreError::NotFound:    return "not found";
     case StoreError::Io:          return "i/o error";
     case StoreError::Corrupt:     return "corrupt";
@@ -62,7 +61,7 @@ public:
     StoreError Commit() override
     {
         active_ = false;
-        return StoreError::None;
+        return StoreError::Ok;
     }
 
     void Rollback() noexcept override
@@ -94,10 +93,11 @@ public:
         // ignores `copy` entirely and would write a working copy to disk under
         // the real check's filename.
         //
-        // The dirty marking is part of the behaviour being preserved -- it is
-        // what tells DataPersistenceManager the check set needs an autosave --
-        // so it belongs on this side of the seam until call sites move over.
-        GetDataPersistenceManager().MarkDataDirty("checks");
+        // The DataPersistenceManager dirty-marking used to happen here, on the
+        // grounds that it belonged on this side of the seam "until call sites
+        // move over". They have: Check::Save() now routes through a store, and
+        // does the marking itself, so both backends behave the same and the
+        // autosave bookkeeping stays with the caller it belongs to.
 
         if (check.archive != nullptr)
         {
@@ -105,21 +105,18 @@ public:
             // rewrites its whole day the next time it is saved, so all this
             // does is mark that day dirty.
             check.archive->changed = 1;
-            return StoreError::None;
+            return StoreError::Ok;
         }
 
         if (check.copy != 0)
         {
             // A working copy shares the original's identity. Persisting it
             // would overwrite the original with an uncommitted edit.
-            return StoreError::None;
+            return StoreError::Ok;
         }
 
-        if (system_->SaveCheck(&check) != 0)
-            return StoreError::Io;
-
-        GetDataPersistenceManager().MarkDataClean("checks");
-        return StoreError::None;
+        return (system_->SaveCheck(&check) == 0) ? StoreError::Ok
+                                                 : StoreError::Io;
     }
 
     StoreError Remove(Transaction &, Check &check) override
@@ -127,7 +124,11 @@ public:
         if (system_ == nullptr)
             return StoreError::Io;
 
-        return (system_->DestroyCheck(&check) == 0) ? StoreError::None : StoreError::Io;
+        // DestroyCheckDirect, not DestroyCheck: the latter routes back through
+        // the configured store, which is this object. They have to be separate
+        // functions or they would call each other forever.
+        return (system_->DestroyCheckDirect(&check) == 0) ? StoreError::Ok
+                                                          : StoreError::Io;
     }
 
     StoreError Count(int &out) override
@@ -145,7 +146,7 @@ public:
             ++total;
         }
         out = total;
-        return StoreError::None;
+        return StoreError::Ok;
     }
 
 private:
@@ -172,7 +173,7 @@ public:
 
     [[nodiscard]] StoreError HealthCheck() override
     {
-        return (system_ != nullptr) ? StoreError::None : StoreError::Io;
+        return (system_ != nullptr) ? StoreError::Ok : StoreError::Io;
     }
 
     /*
@@ -218,7 +219,7 @@ public:
                   [](const CheckSnapshot &a, const CheckSnapshot &b) {
                       return a.serial_number < b.serial_number;
                   });
-        return StoreError::None;
+        return StoreError::Ok;
     }
 
     [[nodiscard]] const char *Name() const noexcept override

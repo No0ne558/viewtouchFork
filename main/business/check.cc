@@ -19,6 +19,7 @@
  */
 
 #include "check.hh"
+#include "store/store.hh"
 #include "sales.hh"
 #include "employee.hh"
 #include "terminal.hh"
@@ -326,13 +327,51 @@ int Check::Load(Settings *settings, const genericChar* file)
 int Check::Save()
 {
     FnTrace("Check::Save()");
-    
-    vt::Logger::debug("Saving check #{} - Serial: {}, Table: {}", 
+
+    vt::Logger::debug("Saving check #{} - Serial: {}, Table: {}",
                       checknum, serial_number, Table());
-    
-    // Mark check data as dirty for persistence tracking
+
+    // The autosave bookkeeping lives here rather than in a backend, so both of
+    // them behave identically and it stays with the caller it describes.
     GetDataPersistenceManager().MarkDataDirty("checks");
-    
+
+    if (vt::store::Store *store = MasterSystem->DataStore())
+    {
+        // Configured backend. For `legacy` this reaches the same
+        // System::SaveCheck the branch below calls, through the same three-case
+        // dispatch, so the bytes on disk are identical -- asserted by a test
+        // rather than assumed. For `dual` it also writes the shadow; for
+        // `sqlite` it writes only the database.
+        auto tx = store->Begin();
+        if (tx == nullptr)
+        {
+            vt::Logger::error("Failed to save check #{}: no transaction", checknum);
+            return 1;
+        }
+
+        const vt::store::StoreError result = store->Checks().Save(*tx, *this);
+        if (result != vt::store::StoreError::Ok)
+        {
+            tx->Rollback();
+            vt::Logger::error("Failed to save check #{} ({})", checknum,
+                              vt::store::StoreErrorName(result));
+            return 1;
+        }
+
+        if (tx->Commit() != vt::store::StoreError::Ok)
+        {
+            vt::Logger::error("Failed to commit check #{}", checknum);
+            return 1;
+        }
+
+        GetDataPersistenceManager().MarkDataClean("checks");
+        vt::Logger::info("Check #{} saved successfully", checknum);
+        return 0;
+    }
+
+    // No store configured yet. Not a degenerate case to tidy away: checks are
+    // saved while the current day is still loading, long before any config has
+    // been read, and those saves have to work.
     if (archive)
     {
         archive->changed = 1;

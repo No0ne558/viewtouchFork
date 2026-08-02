@@ -92,7 +92,7 @@ struct DualFixture : vt_test::VtSystemFixture
         auto legacy = MakeLegacyFileStore(MasterSystem.get());
         StoreError error = StoreError::Io;
         auto sqlite = MakeSqliteStore(db, error);
-        REQUIRE(error == StoreError::None);
+        REQUIRE(error == StoreError::Ok);
 
         auto dual = MakeDualRunStore(std::move(legacy), std::move(sqlite));
         REQUIRE(dual != nullptr);
@@ -166,7 +166,7 @@ TEST_CASE("A dual run writes through both backends", "[dualrun]")
 
     SECTION("health requires both sides")
     {
-        REQUIRE(dual->HealthCheck() == StoreError::None);
+        REQUIRE(dual->HealthCheck() == StoreError::Ok);
     }
 
     SECTION("one save reaches a file and a row")
@@ -175,24 +175,24 @@ TEST_CASE("A dual run writes through both backends", "[dualrun]")
         REQUIRE(MasterSystem->Add(check) == 0);
 
         auto tx = dual->Begin();
-        REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::None);
-        REQUIRE(tx->Commit() == StoreError::None);
+        REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::Ok);
+        REQUIRE(tx->Commit() == StoreError::Ok);
 
         REQUIRE(dual->Shadow().saves == 1);
         REQUIRE(dual->Shadow().save_failures == 0);
 
         StoreSnapshot legacy;
         StoreSnapshot sqlite;
-        REQUIRE(dual->Primary().Snapshot(legacy) == StoreError::None);
-        REQUIRE(dual->ShadowStore().Snapshot(sqlite) == StoreError::None);
+        REQUIRE(dual->Primary().Snapshot(legacy) == StoreError::Ok);
+        REQUIRE(dual->ShadowStore().Snapshot(sqlite) == StoreError::Ok);
         REQUIRE(legacy.checks.size() == 1);
         REQUIRE(sqlite.checks.size() == 1);
         REQUIRE(legacy.checks[0].serial_number == 501);
         REQUIRE(sqlite.checks[0].serial_number == 501);
 
         auto remove = dual->Begin();
-        REQUIRE(dual->Checks().Remove(*remove, *check) == StoreError::None);
-        REQUIRE(remove->Commit() == StoreError::None);
+        REQUIRE(dual->Checks().Remove(*remove, *check) == StoreError::Ok);
+        REQUIRE(remove->Commit() == StoreError::Ok);
     }
 }
 
@@ -206,11 +206,11 @@ TEST_CASE("The dual run measures where the two backends actually differ",
     REQUIRE(MasterSystem->Add(check) == 0);
 
     auto tx = dual->Begin();
-    REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::None);
-    REQUIRE(tx->Commit() == StoreError::None);
+    REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::Ok);
+    REQUIRE(tx->Commit() == StoreError::Ok);
 
     std::vector<Divergence> found;
-    REQUIRE(dual->Compare(found) == StoreError::None);
+    REQUIRE(dual->Compare(found) == StoreError::Ok);
 
     SECTION("call_order diverges, because the legacy format never wrote it")
     {
@@ -255,7 +255,7 @@ TEST_CASE("The dual run measures where the two backends actually differ",
     SECTION("the divergence report names both backends and the reason")
     {
         std::string report;
-        REQUIRE(dual->CompareAndDescribe(report) == StoreError::None);
+        REQUIRE(dual->CompareAndDescribe(report) == StoreError::Ok);
         REQUIRE_FALSE(report.empty());
         REQUIRE(report.find("legacy-file") != std::string::npos);
         REQUIRE(report.find("sqlite") != std::string::npos);
@@ -278,8 +278,8 @@ TEST_CASE("The dual run measures where the two backends actually differ",
     }
 
     auto remove = dual->Begin();
-    REQUIRE(dual->Checks().Remove(*remove, *check) == StoreError::None);
-    REQUIRE(remove->Commit() == StoreError::None);
+    REQUIRE(dual->Checks().Remove(*remove, *check) == StoreError::Ok);
+    REQUIRE(remove->Commit() == StoreError::Ok);
 }
 
 TEST_CASE("String escaping loss shows up in the diff", "[dualrun][divergence]")
@@ -295,11 +295,11 @@ TEST_CASE("String escaping loss shows up in the diff", "[dualrun][divergence]")
     REQUIRE(MasterSystem->Add(check) == 0);
 
     auto tx = dual->Begin();
-    REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::None);
-    REQUIRE(tx->Commit() == StoreError::None);
+    REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::Ok);
+    REQUIRE(tx->Commit() == StoreError::Ok);
 
     std::vector<Divergence> found;
-    REQUIRE(dual->Compare(found) == StoreError::None);
+    REQUIRE(dual->Compare(found) == StoreError::Ok);
 
     const auto it = std::find_if(found.begin(), found.end(),
                                  [](const Divergence &d) {
@@ -310,8 +310,8 @@ TEST_CASE("String escaping loss shows up in the diff", "[dualrun][divergence]")
     REQUIRE(it->right == "bar_side");   // sqlite: the bytes as given
 
     auto remove = dual->Begin();
-    REQUIRE(dual->Checks().Remove(*remove, *check) == StoreError::None);
-    REQUIRE(remove->Commit() == StoreError::None);
+    REQUIRE(dual->Checks().Remove(*remove, *check) == StoreError::Ok);
+    REQUIRE(remove->Commit() == StoreError::Ok);
 }
 
 TEST_CASE("A full business cycle stays consistent across both backends",
@@ -330,16 +330,16 @@ TEST_CASE("A full business cycle stays consistent across both backends",
         live.push_back(check);
 
         auto tx = dual->Begin();
-        REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::None);
-        REQUIRE(tx->Commit() == StoreError::None);
+        REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::Ok);
+        REQUIRE(tx->Commit() == StoreError::Ok);
     }
 
     SECTION("both backends hold the same set of checks")
     {
         StoreSnapshot legacy;
         StoreSnapshot sqlite;
-        REQUIRE(dual->Primary().Snapshot(legacy) == StoreError::None);
-        REQUIRE(dual->ShadowStore().Snapshot(sqlite) == StoreError::None);
+        REQUIRE(dual->Primary().Snapshot(legacy) == StoreError::Ok);
+        REQUIRE(dual->ShadowStore().Snapshot(sqlite) == StoreError::Ok);
 
         REQUIRE(legacy.checks.size() == 3);
         REQUIRE(sqlite.checks.size() == 3);
@@ -358,17 +358,17 @@ TEST_CASE("A full business cycle stays consistent across both backends",
         live[0]->SubList()->settle_time.Set();
 
         auto tx = dual->Begin();
-        REQUIRE(dual->Checks().Save(*tx, *live[0]) == StoreError::None);
-        REQUIRE(tx->Commit() == StoreError::None);
+        REQUIRE(dual->Checks().Save(*tx, *live[0]) == StoreError::Ok);
+        REQUIRE(tx->Commit() == StoreError::Ok);
 
         StoreSnapshot sqlite;
-        REQUIRE(dual->ShadowStore().Snapshot(sqlite) == StoreError::None);
+        REQUIRE(dual->ShadowStore().Snapshot(sqlite) == StoreError::Ok);
         REQUIRE(sqlite.checks.size() == 3);
         REQUIRE(sqlite.checks[0].subchecks.size() == 1);
         REQUIRE(sqlite.checks[0].subchecks[0].status == CHECK_CLOSED);
 
         std::vector<Divergence> found;
-        REQUIRE(dual->Compare(found) == StoreError::None);
+        REQUIRE(dual->Compare(found) == StoreError::Ok);
         REQUIRE_FALSE(HasPathEnding(found, ".status"));
         REQUIRE_FALSE(HasPathEnding(found, ".subcheck_count"));
     }
@@ -379,18 +379,18 @@ TEST_CASE("A full business cycle stays consistent across both backends",
         live.pop_back();
 
         auto tx = dual->Begin();
-        REQUIRE(dual->Checks().Remove(*tx, *doomed) == StoreError::None);
-        REQUIRE(tx->Commit() == StoreError::None);
+        REQUIRE(dual->Checks().Remove(*tx, *doomed) == StoreError::Ok);
+        REQUIRE(tx->Commit() == StoreError::Ok);
 
         StoreSnapshot legacy;
         StoreSnapshot sqlite;
-        REQUIRE(dual->Primary().Snapshot(legacy) == StoreError::None);
-        REQUIRE(dual->ShadowStore().Snapshot(sqlite) == StoreError::None);
+        REQUIRE(dual->Primary().Snapshot(legacy) == StoreError::Ok);
+        REQUIRE(dual->ShadowStore().Snapshot(sqlite) == StoreError::Ok);
         REQUIRE(legacy.checks.size() == 2);
         REQUIRE(sqlite.checks.size() == 2);
 
         std::vector<Divergence> found;
-        REQUIRE(dual->Compare(found) == StoreError::None);
+        REQUIRE(dual->Compare(found) == StoreError::Ok);
         // No "present on one side only" entries: a Remove that reached one
         // backend and not the other is the single most dangerous shadow bug,
         // because it looks like success at the call site.
@@ -403,8 +403,8 @@ TEST_CASE("A full business cycle stays consistent across both backends",
     for (Check *check : live)
     {
         auto tx = dual->Begin();
-        REQUIRE(dual->Checks().Remove(*tx, *check) == StoreError::None);
-        REQUIRE(tx->Commit() == StoreError::None);
+        REQUIRE(dual->Checks().Remove(*tx, *check) == StoreError::Ok);
+        REQUIRE(tx->Commit() == StoreError::Ok);
     }
 }
 
@@ -424,8 +424,8 @@ TEST_CASE("A shadow failure never fails a save", "[dualrun][safety]")
     REQUIRE(MasterSystem->Add(check) == 0);
 
     auto tx = dual->Begin();
-    REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::None);
-    REQUIRE(tx->Commit() == StoreError::None);
+    REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::Ok);
+    REQUIRE(tx->Commit() == StoreError::Ok);
 
     // The save succeeded from the caller's point of view, and the failure is
     // recorded rather than swallowed.
@@ -438,6 +438,6 @@ TEST_CASE("A shadow failure never fails a save", "[dualrun][safety]")
     REQUIRE(dual->HealthCheck() == StoreError::Io);
 
     auto remove = dual->Begin();
-    REQUIRE(dual->Checks().Remove(*remove, *check) == StoreError::None);
-    REQUIRE(remove->Commit() == StoreError::None);
+    REQUIRE(dual->Checks().Remove(*remove, *check) == StoreError::Ok);
+    REQUIRE(remove->Commit() == StoreError::Ok);
 }

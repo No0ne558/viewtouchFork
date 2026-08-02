@@ -36,7 +36,7 @@ StoreError Translate(Status status) noexcept
 {
     switch (status)
     {
-    case Status::Ok:         return StoreError::None;
+    case Status::Ok:         return StoreError::Ok;
     case Status::CannotOpen: return StoreError::Io;
     case Status::Busy:       return StoreError::Busy;
     case Status::Constraint: return StoreError::Constraint;
@@ -94,7 +94,7 @@ StoreError AlreadyImported(Database &db, const std::string &filename, bool &out)
     if (!stmt.Step(step))
         return (step == Status::Ok) ? StoreError::Io : Translate(step);
     out = stmt.ColumnInt(0) > 0;
-    return StoreError::None;
+    return StoreError::Ok;
 }
 
 StoreError InsertBusinessDay(Database &db, const Archive &archive,
@@ -150,7 +150,7 @@ StoreError InsertBusinessDay(Database &db, const Archive &archive,
     if (!stmt.Step(step))
         return (step == Status::Ok) ? StoreError::Io : Translate(step);
     out_id = stmt.ColumnInt(0);
-    return StoreError::None;
+    return StoreError::Ok;
 }
 
 StoreError InsertDayPolicy(Database &db, int64_t day_id, const Archive &archive,
@@ -243,9 +243,9 @@ StoreError ImportChecks(Database &db, int64_t day_id, Archive &archive,
         int64_t existing = 0;
         StoreError found = FindCheckBySerial(db, day_id, check->serial_number,
                                              existing);
-        if (found != StoreError::None && found != StoreError::NotFound)
+        if (found != StoreError::Ok && found != StoreError::NotFound)
             return found;
-        if (found == StoreError::None)
+        if (found == StoreError::Ok)
         {
             // Walk the disambiguator up until the (day, serial, disambiguator)
             // triple is free. Historical duplicates are legal data, so this is
@@ -280,7 +280,7 @@ StoreError ImportChecks(Database &db, int64_t day_id, Archive &archive,
         int64_t check_id = 0;
         if (const StoreError e =
                 writer.InsertAggregate(*check, disambiguator, check_id);
-            e != StoreError::None)
+            e != StoreError::Ok)
         {
             return e;
         }
@@ -294,7 +294,7 @@ StoreError ImportChecks(Database &db, int64_t day_id, Archive &archive,
     stats.orders += counts.orders;
     stats.modifiers += counts.modifiers;
     stats.payments += counts.payments;
-    return StoreError::None;
+    return StoreError::Ok;
 }
 
 } // namespace
@@ -324,7 +324,7 @@ ImportResult ImportArchives(const std::string &archive_path,
     {
         bool seen = false;
         if (const StoreError e = AlreadyImported(db, file, seen);
-            e != StoreError::None)
+            e != StoreError::Ok)
         {
             result.error = e;
             result.message = "cannot check for an existing import of " + file;
@@ -365,12 +365,12 @@ ImportResult ImportArchives(const std::string &archive_path,
 
             int64_t day_id = 0;
             StoreError step = InsertBusinessDay(db, archive, file, day_id);
-            if (step == StoreError::None)
+            if (step == StoreError::Ok)
                 step = InsertDayPolicy(db, day_id, archive, settings);
-            if (step == StoreError::None)
+            if (step == StoreError::Ok)
                 step = ImportChecks(db, day_id, archive, result.stats);
 
-            if (step != StoreError::None)
+            if (step != StoreError::Ok)
             {
                 result.error = step;
                 result.message = "failed importing " + file + ": " +

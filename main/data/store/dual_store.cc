@@ -44,12 +44,12 @@ public:
 
         if (shadow_ != nullptr)
         {
-            if (result != StoreError::None)
+            if (result != StoreError::Ok)
             {
                 shadow_->Rollback();
             }
             else if (const StoreError shadow_result = shadow_->Commit();
-                     shadow_result != StoreError::None)
+                     shadow_result != StoreError::Ok)
             {
                 ++health_.save_failures;
                 health_.last_error = StoreErrorName(shadow_result);
@@ -106,7 +106,7 @@ public:
             // Unsupported is not a failure. The SQL backend reports it for an
             // archived check, whose routing needs the importer's archive-to-day
             // mapping -- a known gap, not a divergence to chase.
-            if (shadow_result != StoreError::None &&
+            if (shadow_result != StoreError::Ok &&
                 shadow_result != StoreError::Unsupported)
             {
                 ++health_.save_failures;
@@ -134,7 +134,7 @@ public:
             const StoreError shadow_result =
                 shadow_.Checks().Remove(*dual->shadow(), check);
             ++health_.removes;
-            if (shadow_result != StoreError::None &&
+            if (shadow_result != StoreError::Ok &&
                 shadow_result != StoreError::Unsupported)
             {
                 ++health_.remove_failures;
@@ -210,7 +210,7 @@ bool DualRunStore::SupportsAtomicWrites() const noexcept
 
 StoreError DualRunStore::HealthCheck()
 {
-    if (const StoreError e = impl_->primary->HealthCheck(); e != StoreError::None)
+    if (const StoreError e = impl_->primary->HealthCheck(); e != StoreError::Ok)
         return e;
     return impl_->shadow->HealthCheck();
 }
@@ -226,40 +226,40 @@ StoreError DualRunStore::Compare(std::vector<Divergence> &out)
 {
     StoreSnapshot primary;
     if (const StoreError e = impl_->primary->Snapshot(primary);
-        e != StoreError::None)
+        e != StoreError::Ok)
     {
         return e;
     }
 
     StoreSnapshot shadow;
     if (const StoreError e = impl_->shadow->Snapshot(shadow);
-        e != StoreError::None)
+        e != StoreError::Ok)
     {
         return e;
     }
 
     out = Diff(primary, shadow);
-    return StoreError::None;
+    return StoreError::Ok;
 }
 
 StoreError DualRunStore::CompareAndDescribe(std::string &report)
 {
     StoreSnapshot primary;
     if (const StoreError e = impl_->primary->Snapshot(primary);
-        e != StoreError::None)
+        e != StoreError::Ok)
     {
         return e;
     }
 
     StoreSnapshot shadow;
     if (const StoreError e = impl_->shadow->Snapshot(shadow);
-        e != StoreError::None)
+        e != StoreError::Ok)
     {
         return e;
     }
 
     report = DescribeDivergence(primary, shadow, Diff(primary, shadow));
-    return StoreError::None;
+    return StoreError::Ok;
 }
 
 const ShadowHealth &DualRunStore::Shadow() const noexcept { return impl_->health; }

@@ -35,6 +35,7 @@ add_executable(vt_tests
     unit/test_dual_run.cc
     unit/test_backend_config.cc
     unit/test_crash_safety.cc
+    unit/test_store_routing.cc
     support/vt_test_env.cc
     support/legacy_file_builder.cc
 )

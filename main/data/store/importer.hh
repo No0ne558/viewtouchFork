@@ -73,7 +73,7 @@ struct ImportStats
 
 struct ImportResult
 {
-    StoreError error{StoreError::None};
+    StoreError error{StoreError::Ok};
     std::string message;
     ImportStats stats;
 
@@ -81,7 +81,7 @@ struct ImportResult
     // a day must say which one; a count alone is not actionable.
     std::vector<std::string> failures;
 
-    [[nodiscard]] bool Ok() const noexcept { return error == StoreError::None; }
+    [[nodiscard]] bool Ok() const noexcept { return error == StoreError::Ok; }
 };
 
 /*

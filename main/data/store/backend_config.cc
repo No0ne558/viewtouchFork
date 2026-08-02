@@ -124,12 +124,12 @@ BackendSettings ReadBackendSettings(const std::string &config_path)
 std::unique_ptr<Store> MakeConfiguredStore(const BackendSettings &settings,
                                            System *system, StoreError &error)
 {
-    error = StoreError::None;
+    error = StoreError::Ok;
 
     if (settings.mode == BackendMode::Legacy)
         return MakeLegacyFileStore(system);
 
-    StoreError sqlite_error = StoreError::None;
+    StoreError sqlite_error = StoreError::Ok;
     auto sqlite = MakeSqliteStore(settings.database_path, sqlite_error);
     if (sqlite == nullptr)
     {

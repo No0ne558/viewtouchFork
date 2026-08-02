@@ -102,7 +102,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
 
     SECTION("health check passes with a live system")
     {
-        REQUIRE(store->HealthCheck() == StoreError::None);
+        REQUIRE(store->HealthCheck() == StoreError::Ok);
     }
 
     SECTION("health check fails without one")
@@ -123,7 +123,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         auto tx = store->Begin();
         REQUIRE(tx != nullptr);
         REQUIRE(tx->IsActive());
-        REQUIRE(tx->Commit() == StoreError::None);
+        REQUIRE(tx->Commit() == StoreError::Ok);
         REQUIRE_FALSE(tx->IsActive());
     }
 
@@ -143,7 +143,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     {
         auto first = store->Begin();
         auto second = store->Begin();
-        REQUIRE(first->Commit() == StoreError::None);
+        REQUIRE(first->Commit() == StoreError::Ok);
         REQUIRE(second->IsActive());
     }
 }
@@ -162,7 +162,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         REQUIRE(FilesIn(current.dir) == 0);
 
         int before = -1;
-        REQUIRE(store->Checks().Count(before) == StoreError::None);
+        REQUIRE(store->Checks().Count(before) == StoreError::Ok);
         REQUIRE(before >= 0);
 
         // Heap-allocated and handed to System, because Remove() destroys it --
@@ -170,21 +170,21 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         Check *check = new Check;
         REQUIRE(system->Add(check) == 0);
 
-        REQUIRE(store->Checks().Save(*tx, *check) == StoreError::None);
+        REQUIRE(store->Checks().Save(*tx, *check) == StoreError::Ok);
         REQUIRE(FilesIn(current.dir) == 1);
         REQUIRE(fs::exists(check->filename.Value()));
 
         int after = -1;
-        REQUIRE(store->Checks().Count(after) == StoreError::None);
+        REQUIRE(store->Checks().Count(after) == StoreError::Ok);
         REQUIRE(after == before + 1);
 
         // Remove unlinks the file and destroys the object, so nothing may touch
         // `check` past this point.
-        REQUIRE(store->Checks().Remove(*tx, *check) == StoreError::None);
+        REQUIRE(store->Checks().Remove(*tx, *check) == StoreError::Ok);
         REQUIRE(FilesIn(current.dir) == 0);
 
         int removed = -1;
-        REQUIRE(store->Checks().Count(removed) == StoreError::None);
+        REQUIRE(store->Checks().Count(removed) == StoreError::Ok);
         REQUIRE(removed == before);
     }
 
@@ -199,7 +199,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
 
         Check check;
         check.copy = 1;
-        REQUIRE(store->Checks().Save(*tx, check) == StoreError::None);
+        REQUIRE(store->Checks().Save(*tx, check) == StoreError::Ok);
         REQUIRE(FilesIn(current.dir) == 0);
     }
 
@@ -218,7 +218,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         Check check;
         check.archive = &archive;
 
-        REQUIRE(store->Checks().Save(*tx, check) == StoreError::None);
+        REQUIRE(store->Checks().Save(*tx, check) == StoreError::Ok);
         REQUIRE(archive.changed == 1);
         REQUIRE(FilesIn(current.dir) == 0);
 
@@ -250,7 +250,7 @@ TEST_CASE("Store errors all have names", "[store][seam][errors]")
     // The dual-run divergence report prints these, so a missing case would show
     // up as "unknown" in exactly the output someone is relying on to diagnose a
     // mismatch.
-    REQUIRE(std::string(StoreErrorName(StoreError::None)) == "ok");
+    REQUIRE(std::string(StoreErrorName(StoreError::Ok)) == "ok");
     REQUIRE(std::string(StoreErrorName(StoreError::NotFound)) != "unknown");
     REQUIRE(std::string(StoreErrorName(StoreError::Io)) != "unknown");
     REQUIRE(std::string(StoreErrorName(StoreError::Corrupt)) != "unknown");

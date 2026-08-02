@@ -21,6 +21,7 @@
 
 #include "manager.hh"
 #include "system.hh"
+#include "store/store.hh"
 #include "data_file.hh"
 #include "terminal.hh"
 #include "manager.hh"
@@ -1159,9 +1160,46 @@ int System::SaveCheck(Check *check)
     return write_result;
 }
 
+void System::SetDataStore(std::unique_ptr<vt::store::Store> store)
+{
+    data_store_ = std::move(store);
+}
+
 int System::DestroyCheck(Check *check)
 {
     FnTrace("System::DestroyCheck()");
+
+    // Route through the configured backend when there is one, so a dual run
+    // removes from both sides. A removal that reached only one is the most
+    // dangerous shadow divergence available: it looks like success here, and
+    // shows up as a check that came back from the dead after cutover.
+    if (check != nullptr && data_store_ != nullptr)
+    {
+        auto tx = data_store_->Begin();
+        if (tx == nullptr)
+            return 1;
+
+        const vt::store::StoreError result =
+            data_store_->Checks().Remove(*tx, *check);
+        if (result != vt::store::StoreError::Ok)
+        {
+            tx->Rollback();
+            return 1;
+        }
+        // `check` is destroyed by now -- see the ownership note on
+        // CheckRepository::Remove. Nothing below may touch it.
+        return (tx->Commit() == vt::store::StoreError::Ok) ? 0 : 1;
+    }
+
+    return DestroyCheckDirect(check);
+}
+
+int System::DestroyCheckDirect(Check *check)
+{
+    FnTrace("System::DestroyCheckDirect()");
+    if (check == nullptr)
+        return 1;
+
     Archive *archive = check->archive;
     if (archive)
     {

@@ -110,7 +110,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
 
     StoreError error = StoreError::Constraint;
     auto store = MakeConfiguredStore(missing, MasterSystem.get(), error);
-    REQUIRE(error == StoreError::None);
+    REQUIRE(error == StoreError::Ok);
     REQUIRE(store != nullptr);
     REQUIRE(std::string(store->Name()) == "legacy-file");
 }
@@ -130,7 +130,7 @@ TEST_CASE("Configuration selects the backend it names", "[cutover][config]")
 
         StoreError error = StoreError::Constraint;
         auto store = MakeConfiguredStore(settings, MasterSystem.get(), error);
-        REQUIRE(error == StoreError::None);
+        REQUIRE(error == StoreError::Ok);
         REQUIRE(store != nullptr);
         REQUIRE(std::string(store->Name()) == "dual(legacy-file + sqlite)");
 
@@ -151,7 +151,7 @@ TEST_CASE("Configuration selects the backend it names", "[cutover][config]")
 
         StoreError error = StoreError::Constraint;
         auto store = MakeConfiguredStore(settings, MasterSystem.get(), error);
-        REQUIRE(error == StoreError::None);
+        REQUIRE(error == StoreError::Ok);
         REQUIRE(store != nullptr);
         REQUIRE(std::string(store->Name()) == "sqlite");
         REQUIRE(store->SupportsAtomicWrites());
@@ -182,10 +182,10 @@ TEST_CASE("A misconfiguration degrades safely or fails loudly, never quietly",
         settings.mode = BackendMode::Sqlite;
         settings.database_path = "/nonexistent-directory/vt.db";
 
-        StoreError error = StoreError::None;
+        StoreError error = StoreError::Ok;
         auto store = MakeConfiguredStore(settings, MasterSystem.get(), error);
         REQUIRE(store == nullptr);
-        REQUIRE(error != StoreError::None);
+        REQUIRE(error != StoreError::Ok);
     }
 
     SECTION("the same is true in dual mode")
@@ -194,10 +194,10 @@ TEST_CASE("A misconfiguration degrades safely or fails loudly, never quietly",
         settings.mode = BackendMode::Dual;
         settings.database_path = "/nonexistent-directory/vt.db";
 
-        StoreError error = StoreError::None;
+        StoreError error = StoreError::Ok;
         auto store = MakeConfiguredStore(settings, MasterSystem.get(), error);
         REQUIRE(store == nullptr);
-        REQUIRE(error != StoreError::None);
+        REQUIRE(error != StoreError::Ok);
     }
 }
 
@@ -218,7 +218,7 @@ TEST_CASE("Rolling back from dual mode leaves nothing to undo",
 
         StoreError error = StoreError::Constraint;
         auto store = MakeConfiguredStore(dual, MasterSystem.get(), error);
-        REQUIRE(error == StoreError::None);
+        REQUIRE(error == StoreError::Ok);
         REQUIRE(store != nullptr);
     }
 
@@ -230,7 +230,7 @@ TEST_CASE("Rolling back from dual mode leaves nothing to undo",
 
     StoreError error = StoreError::Constraint;
     auto store = MakeConfiguredStore(back, MasterSystem.get(), error);
-    REQUIRE(error == StoreError::None);
+    REQUIRE(error == StoreError::Ok);
     REQUIRE(std::string(store->Name()) == "legacy-file");
 
     // The database file is left where it is. Deleting it on rollback would

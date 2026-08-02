@@ -42,9 +42,18 @@ class System;
 
 namespace vt::store {
 
+/*
+ * Named `Ok` rather than `None`, matching vt::sql::Status.
+ *
+ * `None` is also an X11 macro (`#define None 0L`), so `StoreError::None`
+ * expands to `StoreError::0L` in any translation unit that includes X headers
+ * -- which is where the application's call sites live. Renaming it here is the
+ * durable fix; a per-file workaround would just move the trap to whoever wires
+ * up the next call site.
+ */
 enum class StoreError
 {
-    None = 0,
+    Ok = 0,
     NotFound,
     Io,          // the write did not reach disk
     Corrupt,     // what was read back is not usable

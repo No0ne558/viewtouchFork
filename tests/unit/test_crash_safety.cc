@@ -316,9 +316,9 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     // during a service.
     StoreError error = StoreError::Io;
     auto store = MakeSqliteStore(crash.db, error);
-    REQUIRE(error == StoreError::None);
+    REQUIRE(error == StoreError::Ok);
     REQUIRE(store != nullptr);
-    REQUIRE(store->HealthCheck() == StoreError::None);
+    REQUIRE(store->HealthCheck() == StoreError::Ok);
 
     // integrity_check, not the cheap quick_check the health probe uses. This is
     // the thorough one -- too slow to run at startup, which is exactly why it
@@ -340,8 +340,8 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     Check check;
     check.serial_number = 999999;
     check.NewSubCheck();
-    REQUIRE(store->Checks().Save(*tx, check) == StoreError::None);
-    REQUIRE(tx->Commit() == StoreError::None);
+    REQUIRE(store->Checks().Save(*tx, check) == StoreError::Ok);
+    REQUIRE(tx->Commit() == StoreError::Ok);
 
     const std::set<int> survivors = SurvivingSerialsSqlite(crash.db);
     REQUIRE(survivors.count(999999) == 1);

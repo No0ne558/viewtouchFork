@@ -69,7 +69,7 @@ std::unique_ptr<Store> OpenStore(const std::string &path)
 {
     StoreError error = StoreError::Io;
     auto store = MakeSqliteStore(path, error);
-    REQUIRE(error == StoreError::None);
+    REQUIRE(error == StoreError::Ok);
     REQUIRE(store != nullptr);
     return store;
 }
@@ -139,7 +139,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
 
     SECTION("health check passes on a freshly migrated database")
     {
-        REQUIRE(store->HealthCheck() == StoreError::None);
+        REQUIRE(store->HealthCheck() == StoreError::Ok);
     }
 
     SECTION("a transaction can be begun, committed and rolled back")
@@ -147,7 +147,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         auto tx = store->Begin();
         REQUIRE(tx != nullptr);
         REQUIRE(tx->IsActive());
-        REQUIRE(tx->Commit() == StoreError::None);
+        REQUIRE(tx->Commit() == StoreError::Ok);
         REQUIRE_FALSE(tx->IsActive());
 
         auto second = store->Begin();
@@ -159,7 +159,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     SECTION("counting an empty database yields zero")
     {
         int count = -1;
-        REQUIRE(store->Checks().Count(count) == StoreError::None);
+        REQUIRE(store->Checks().Count(count) == StoreError::Ok);
         REQUIRE(count == 0);
     }
 
@@ -186,11 +186,11 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         check.copy = 1;
 
         auto tx = store->Begin();
-        REQUIRE(store->Checks().Save(*tx, check) == StoreError::None);
-        REQUIRE(tx->Commit() == StoreError::None);
+        REQUIRE(store->Checks().Save(*tx, check) == StoreError::Ok);
+        REQUIRE(tx->Commit() == StoreError::Ok);
 
         int count = -1;
-        REQUIRE(store->Checks().Count(count) == StoreError::None);
+        REQUIRE(store->Checks().Count(count) == StoreError::Ok);
         REQUIRE(count == 0);
     }
 }
@@ -205,8 +205,8 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     std::unique_ptr<Check> check(BuildCheck(4242));
 
     auto tx = store->Begin();
-    REQUIRE(store->Checks().Save(*tx, *check) == StoreError::None);
-    REQUIRE(tx->Commit() == StoreError::None);
+    REQUIRE(store->Checks().Save(*tx, *check) == StoreError::Ok);
+    REQUIRE(tx->Commit() == StoreError::Ok);
 
     SECTION("the check row carries its identity and type")
     {
@@ -294,7 +294,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     SECTION("Count reports what is in the database")
     {
         int count = -1;
-        REQUIRE(store->Checks().Count(count) == StoreError::None);
+        REQUIRE(store->Checks().Count(count) == StoreError::Ok);
         REQUIRE(count == 1);
     }
 }
@@ -311,12 +311,12 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         std::unique_ptr<Check> check(BuildCheck(11));
 
         auto first = store->Begin();
-        REQUIRE(store->Checks().Save(*first, *check) == StoreError::None);
-        REQUIRE(first->Commit() == StoreError::None);
+        REQUIRE(store->Checks().Save(*first, *check) == StoreError::Ok);
+        REQUIRE(first->Commit() == StoreError::Ok);
 
         auto second = store->Begin();
-        REQUIRE(store->Checks().Save(*second, *check) == StoreError::None);
-        REQUIRE(second->Commit() == StoreError::None);
+        REQUIRE(store->Checks().Save(*second, *check) == StoreError::Ok);
+        REQUIRE(second->Commit() == StoreError::Ok);
 
         REQUIRE(Scalar(db.path, "SELECT COUNT(*) FROM pos_check;") == 1);
         REQUIRE(Scalar(db.path, "SELECT COUNT(*) FROM subcheck;") == 1);
@@ -332,7 +332,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         std::unique_ptr<Check> check(BuildCheck(12));
 
         auto tx = store->Begin();
-        REQUIRE(store->Checks().Save(*tx, *check) == StoreError::None);
+        REQUIRE(store->Checks().Save(*tx, *check) == StoreError::Ok);
         tx->Rollback();
 
         REQUIRE(Scalar(db.path, "SELECT COUNT(*) FROM pos_check;") == 0);
@@ -346,13 +346,13 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         std::unique_ptr<Check> check(BuildCheck(13));
 
         auto save = store->Begin();
-        REQUIRE(store->Checks().Save(*save, *check) == StoreError::None);
-        REQUIRE(save->Commit() == StoreError::None);
+        REQUIRE(store->Checks().Save(*save, *check) == StoreError::Ok);
+        REQUIRE(save->Commit() == StoreError::Ok);
         REQUIRE(Scalar(db.path, "SELECT COUNT(*) FROM order_item;") == 4);
 
         auto remove = store->Begin();
-        REQUIRE(store->Checks().Remove(*remove, *check) == StoreError::None);
-        REQUIRE(remove->Commit() == StoreError::None);
+        REQUIRE(store->Checks().Remove(*remove, *check) == StoreError::Ok);
+        REQUIRE(remove->Commit() == StoreError::Ok);
 
         REQUIRE(Scalar(db.path, "SELECT COUNT(*) FROM pos_check;") == 0);
         REQUIRE(Scalar(db.path, "SELECT COUNT(*) FROM subcheck;") == 0);
@@ -370,8 +370,8 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         REQUIRE(check->serial_number == 0);
 
         auto tx = store->Begin();
-        REQUIRE(store->Checks().Save(*tx, *check) == StoreError::None);
-        REQUIRE(tx->Commit() == StoreError::None);
+        REQUIRE(store->Checks().Save(*tx, *check) == StoreError::Ok);
+        REQUIRE(tx->Commit() == StoreError::Ok);
 
         REQUIRE(check->serial_number > 0);
         REQUIRE(Scalar(db.path,
@@ -390,8 +390,8 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     std::unique_ptr<Check> check(BuildCheck(77));
 
     auto save = store->Begin();
-    REQUIRE(store->Checks().Save(*save, *check) == StoreError::None);
-    REQUIRE(save->Commit() == StoreError::None);
+    REQUIRE(store->Checks().Save(*save, *check) == StoreError::Ok);
+    REQUIRE(save->Commit() == StoreError::Ok);
 
     // Nothing in this PR freezes automatically -- auto-freezing on close would
     // look right and would break the reopen path, since a settled subcheck can
@@ -422,8 +422,8 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
 TEST_CASE("The SQLite store reports why it could not open",
           "[store][sqlite][errors]")
 {
-    StoreError error = StoreError::None;
+    StoreError error = StoreError::Ok;
     auto store = MakeSqliteStore("/nonexistent-directory/vt.db", error);
     REQUIRE(store == nullptr);
-    REQUIRE(error != StoreError::None);
+    REQUIRE(error != StoreError::Ok);
 }

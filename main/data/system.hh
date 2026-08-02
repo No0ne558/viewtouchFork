@@ -36,6 +36,10 @@
 #include <array>
 #include <memory>
 
+// Forward-declared rather than including store.hh: system.hh is included almost
+// everywhere, and the store headers pull in the snapshot types with it.
+namespace vt::store { class Store; }
+
 #define CC_REPORT_NORMAL  1
 #define CC_REPORT_INIT    2
 #define CC_REPORT_TOTALS  3
@@ -214,6 +218,13 @@ public:
     // saves check to file
     int DestroyCheck(Check *check);
     // Deletes a check from memory (& disk for current checks)
+    int DestroyCheckDirect(Check *check);
+    // The file-backed half of DestroyCheck, without consulting the store.
+    //
+    // DestroyCheck routes through the configured store, and the legacy backend
+    // implements its Remove by doing exactly this -- so the two must be
+    // separate functions or they would call each other forever. Business logic
+    // should call DestroyCheck; only the legacy backend calls this.
 
     // Drawer functions
     int Add(Drawer *drawer);
@@ -272,6 +283,29 @@ public:
     int QuickBooksCSVExport(Terminal *term, const TimeInfo& start_time, const TimeInfo& end_time,
                             PrinterQuickBooksCSV *printer);
     int AddBatch(long long batchnum);
+
+    /*
+     * The configured persistence backend.
+     *
+     * Check::Save() and DestroyCheck() route through this when it is set. It is
+     * null until startup configures one, and that is not a degenerate case to
+     * tidy away: checks are saved while data is still loading, before any
+     * config has been read, and those saves must keep working. Both paths write
+     * the same bytes -- a test asserts that byte-for-byte -- because the legacy
+     * backend is a delegation to the same System methods the fallback uses.
+     *
+     * Ownership sits on System because MasterSystem is what business logic
+     * already reaches for. Removing that coupling is a much larger refactor and
+     * is not what this is for.
+     */
+    [[nodiscard]] vt::store::Store *DataStore() const noexcept
+    {
+        return data_store_.get();
+    }
+    void SetDataStore(std::unique_ptr<vt::store::Store> store);
+
+private:
+    std::unique_ptr<vt::store::Store> data_store_;
 };
 
 

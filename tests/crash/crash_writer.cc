@@ -111,7 +111,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        vt::store::StoreError error = vt::store::StoreError::None;
+        vt::store::StoreError error = vt::store::StoreError::Ok;
         store = vt::store::MakeSqliteStore(path, error);
         if (store == nullptr)
         {
@@ -143,14 +143,14 @@ int main(int argc, char **argv)
 
             const int serial = kSerialBase + batch * batch_size + i;
             std::unique_ptr<Check> check(BuildCheck(serial));
-            if (store->Checks().Save(*tx, *check) != vt::store::StoreError::None)
+            if (store->Checks().Save(*tx, *check) != vt::store::StoreError::Ok)
             {
                 std::fprintf(stderr, "save of check %d failed\n", serial);
                 return 1;
             }
         }
 
-        if (tx->Commit() != vt::store::StoreError::None)
+        if (tx->Commit() != vt::store::StoreError::Ok)
         {
             std::fprintf(stderr, "commit of batch %d failed\n", batch);
             return 1;
