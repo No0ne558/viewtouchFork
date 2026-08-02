@@ -566,6 +566,7 @@ add_library(vtbusiness
     main/data/store/importer.cc     main/data/store/importer.hh
     main/data/store/snapshot.cc     main/data/store/snapshot.hh
     main/data/store/dual_store.cc   main/data/store/dual_store.hh
+    main/data/store/backend_config.cc main/data/store/backend_config.hh
     main/data/store/store.hh
     main/data/archive.cc         main/data/archive.hh
     main/hardware/drawer.cc          main/hardware/drawer.hh

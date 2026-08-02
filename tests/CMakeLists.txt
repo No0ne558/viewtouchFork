@@ -33,6 +33,7 @@ add_executable(vt_tests
     unit/test_sqlite_store.cc
     unit/test_importer.cc
     unit/test_dual_run.cc
+    unit/test_backend_config.cc
     support/vt_test_env.cc
     support/legacy_file_builder.cc
 )
