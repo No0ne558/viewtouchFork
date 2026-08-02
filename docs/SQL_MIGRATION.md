@@ -103,8 +103,11 @@ of truth.
 A shadow failure never fails a save. The primary's result is what the till sees;
 shadow problems are counted and logged.
 
-**The divergence report is written at every end of day**, to
-`dat/divergence_YYYYMMDDHHMM.txt`, and a summary line goes to the log. It walks
+**The divergence report is written at the start of every end of day**, to
+`dat/divergence_YYYYMMDDHHMM.txt`, and a summary line goes to the log. The
+timing is deliberate: that is the last moment at which both backends still
+describe the day that just traded, before the checks are archived and the
+business day rolls over. It walks
 both backends in full — which is why it runs then and not on the save path — and
 lists every field that differs, naming each side and why.
 

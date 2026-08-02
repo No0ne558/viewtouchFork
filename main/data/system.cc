@@ -473,6 +473,26 @@ int System::EndDay()
     if (!AllDrawersPulled())
         return 1;  // all drawers must be pulled at once to end day
 
+    /*
+     * Compare the backends FIRST, before anything is archived.
+     *
+     * This is the only point in EndDay where both sides still describe the day
+     * that just traded. Ten lines further down the closed checks are removed
+     * from the list and their files unlinked, so the legacy snapshot -- which
+     * reads the persisted form -- would show almost nothing while SQL still
+     * held the whole day. Further down again the business day rolls over, and
+     * both sides would then describe the fresh, empty one.
+     *
+     * That last arrangement is what this originally shipped as, and it made the
+     * report worthless: it compared tomorrow against tomorrow and reported no
+     * divergence every night, on a day nobody had traded yet.
+     *
+     * End of day is still the right moment for the comparison -- it walks both
+     * backends in full, so it must never run on the save path -- but it has to
+     * be the start of end of day, not the end of it.
+     */
+    WriteDivergenceReport();
+
     menu.ResetAdmissionItems();
         
     UnloadArchives();
@@ -680,12 +700,6 @@ int System::EndDay()
     CreateFixedDrawers();
     tip_db.Update(this);
     settings.RemoveInactiveMedia();
-
-    // A dual run is only worth anything if someone sees the divergence. End of
-    // day is the quiet moment the comparison needs -- it walks both backends in
-    // full, so it must not run on the save path -- and it is the point at which
-    // an operator would look anyway.
-    WriteDivergenceReport();
 
     return 0;
 }
@@ -1343,6 +1357,15 @@ Drawer *System::GetServerBank(Employee *e)
 int System::CreateFixedDrawers()
 {
     FnTrace("System::CreateFixedDrawers()");
+
+    // MasterControl is a global that startup happens to initialise before any
+    // caller runs, so this is not a live crash -- but it is dereferenced with
+    // nothing checking, and EndSystem sets it back to null during shutdown.
+    // Guarding it is also what makes the end-of-day path testable at all:
+    // without this, any test that drives EndDay() segfaults here rather than
+    // exercising the day it is trying to end.
+    if (MasterControl == nullptr)
+        return 0;   // no terminals, so no fixed drawers to create
 
     // Scan System for drawers that need to be created
     int drawer_no = 1;

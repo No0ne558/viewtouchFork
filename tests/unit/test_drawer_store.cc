@@ -511,3 +511,69 @@ TEST_CASE("The divergence report covers drawers, not just checks",
 
     MasterSystem->SetDataStore(nullptr);
 }
+
+TEST_CASE("EndDay reports on the day that traded, not the one about to start",
+          "[endday][dualrun][report]")
+{
+    /*
+     * Drives the real System::EndDay(), which is what would have caught the
+     * ordering this fixes. The divergence report originally ran at the END of
+     * EndDay -- after the closed checks were archived and their files unlinked,
+     * and after the business day had rolled over -- so both snapshots described
+     * the fresh, empty day. It reported no divergence every night, about a day
+     * nobody had traded yet.
+     *
+     * The report has to run at the START of EndDay: that is the only point
+     * where both backends still describe the day that just finished.
+     */
+    DrawerFixture fixture("vt_endday_report");
+
+    System *system = MasterSystem.get();
+    const std::string previous_data = (system->data_path.Value() != nullptr)
+                                          ? system->data_path.Value() : "";
+    const std::string previous_archive = (system->archive_path.Value() != nullptr)
+                                             ? system->archive_path.Value() : "";
+    system->data_path.Set(fixture.dir.string().c_str());
+    system->archive_path.Set(fixture.dir.string().c_str());
+
+    auto legacy = MakeLegacyFileStore(system);
+    StoreError error = StoreError::Io;
+    auto sqlite = MakeSqliteStore(fixture.db, error);
+    REQUIRE(error == StoreError::Ok);
+    system->SetDataStore(MakeDualRunStore(std::move(legacy), std::move(sqlite)));
+
+    // A drawer that traded today. Balanced, so AllDrawersPulled() lets the day
+    // end, and carrying the zero-`entered` balance the legacy writer drops --
+    // which is the divergence this asserts on.
+    Drawer *drawer = BuildDrawer(8100, /*balanced=*/true);
+    REQUIRE(system->Add(drawer) == 0);
+    REQUIRE(drawer->Save() == 0);
+
+    REQUIRE(system->EndDay() == 0);
+
+    // The report exists and describes the drawer that traded.
+    fs::path report;
+    std::error_code ec;
+    for (const auto &entry : fs::directory_iterator(fixture.dir, ec))
+    {
+        if (entry.path().filename().string().rfind("divergence_", 0) == 0)
+            report = entry.path();
+    }
+    REQUIRE_FALSE(report.empty());
+
+    std::ifstream in(report);
+    std::stringstream body;
+    body << in.rdbuf();
+    const std::string text = body.str();
+
+    INFO(text);
+    REQUIRE(text.find("drawer[8100]") != std::string::npos);
+
+    // And the day did roll over, so tomorrow starts clean.
+    REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM business_day "
+                               "WHERE closed_at_local IS NOT NULL;") == 1);
+
+    system->SetDataStore(nullptr);
+    system->data_path.Set(previous_data.c_str());
+    system->archive_path.Set(previous_archive.c_str());
+}
