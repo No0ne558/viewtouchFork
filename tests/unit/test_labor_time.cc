@@ -6,13 +6,14 @@
  * into the vt_main executable and no test could link it.
  *
  * TimeInfo is date::local_time<seconds> (time_info.hh:36) -- wall-clock time
- * with no zone attached -- so a duration that spans a DST transition is
- * measured in wall-clock terms rather than elapsed real time. The last test
- * case below pins that explicitly; see its comment for what it does and does
- * not prove.
+ * with no zone attached. Durations used to be computed by subtracting two of
+ * those readings, which is not elapsed real time across a daylight-saving
+ * transition. The last two cases below cover the fix: the calculation against
+ * a pinned zone, and the wiring that gets payroll to it.
  */
 
 #include <catch2/catch_all.hpp>
+#include "main/business/check.hh"
 #include "main/business/labor.hh"
 #include "main/data/settings.hh"
 #include "src/core/time_info.hh"
@@ -259,47 +260,117 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     }
 }
 
-TEST_CASE_METHOD(vt_test::VtSystemFixture,
-                 "Shift duration is wall-clock, not elapsed real time",
-                 "[labor][time][dst][known-limitation]")
+TEST_CASE("A shift spanning a DST transition measures elapsed real time",
+          "[labor][time][dst]")
 {
-    // TimeInfo is date::local_time<seconds>: a naive wall-clock reading with no
-    // zone. MinutesElapsed subtracts two such readings, so a shift that spans a
-    // DST transition is off by an hour of real time -- an 8-hour night shift
-    // across a spring-forward boundary is really 7 hours worked, and across
-    // autumn's is really 9.
+    // The defect this replaces: TimeInfo is date::local_time<seconds>, a
+    // wall-clock reading with no zone, and SecondsElapsed used to subtract two
+    // of them directly. A night shift across a transition was therefore off by
+    // a full hour -- in payroll.
     //
-    // What this test pins is the mechanism, not a specific jurisdiction's
-    // transition date: the arithmetic is pure wall-clock subtraction, with no
-    // zone consulted anywhere. That is what makes the discrepancy possible, and
-    // it is why the SQL schema stores a UTC companion alongside the local time
-    // rather than migrating the local value alone.
-    //
-    // Not fixed here: correcting it needs a timezone attached to stored times,
-    // which is a data-model change, and payroll numbers should not shift
-    // underneath anyone as a side effect of a test-coverage pass.
+    // The zone is pinned rather than taken from the machine. date's
+    // current_zone() reads /etc/localtime and ignores TZ, so a test process
+    // cannot choose its own zone; CI also runs in UTC, which has no
+    // transitions to span. Passing the zone in is what makes these figures
+    // reproducible on any machine.
+    const date::time_zone *ny = date::locate_zone("America/New_York");
+    REQUIRE(ny != nullptr);
 
-    SECTION("identical wall-clock spans measure identically regardless of date")
+    // Day indices are 0-based from Jan 1, matching TimeInfo::Set's encoding.
+    // 2026 is not a leap year, so day 65 is Mar 7 and day 66 Mar 8 (clocks go
+    // forward 02:00 -> 03:00); day 303 is Oct 31 and day 304 Nov 1 (clocks go
+    // back 02:00 -> 01:00).
+    constexpr int mar_7 = 65, mar_8 = 66, oct_31 = 303, nov_1 = 304;
+
+    SECTION("clocks forward: eight hours on the clock, seven worked")
     {
-        // Day 68 and day 300 of 2026 sit on opposite sides of both US DST
-        // transitions. Real elapsed time across these two 02:00->04:00 spans
-        // differs by an hour in any DST-observing zone; wall-clock arithmetic
-        // reports them as equal.
-        WorkEntry spring = MakeShift(At(2026, 68, 2), At(2026, 68, 4));
-        WorkEntry autumn = MakeShift(At(2026, 300, 2), At(2026, 300, 4));
+        const TimeInfo in  = At(2026, mar_7, 22);
+        const TimeInfo out = At(2026, mar_8, 6);
 
-        REQUIRE(spring.MinutesWorked() == 2 * 60);
-        REQUIRE(autumn.MinutesWorked() == 2 * 60);
-        REQUIRE(spring.MinutesWorked() == autumn.MinutesWorked());
+        REQUIRE(SecondsElapsedIn(ny, out, in) == 7 * 3600);
+
+        // Falsification, permanently in the test rather than done once by hand:
+        // a null zone is the arithmetic this used to do, and it is an hour out.
+        REQUIRE(SecondsElapsedIn(nullptr, out, in) == 8 * 3600);
     }
 
-    SECTION("pay follows the wall-clock duration")
+    SECTION("clocks back: eight hours on the clock, nine worked")
     {
-        // The consequence: an employee is paid for wall-clock hours, so the
-        // spring-forward shift is overpaid by an hour and the autumn one
-        // underpaid, relative to hours actually present.
-        WorkEntry entry = MakeShift(At(2026, 68, 1), At(2026, 68, 5), 1500);
-        REQUIRE(entry.MinutesWorked() == 4 * 60);
-        REQUIRE(entry.LaborCost() == 4 * 1500);
+        const TimeInfo in  = At(2026, oct_31, 22);
+        const TimeInfo out = At(2026, nov_1, 6);
+
+        REQUIRE(SecondsElapsedIn(ny, out, in) == 9 * 3600);
+        REQUIRE(SecondsElapsedIn(nullptr, out, in) == 8 * 3600);
     }
+
+    SECTION("the same wall-clock span differs by date, which is the point")
+    {
+        // Two 22:00->06:00 shifts a week either side of the spring transition.
+        // The old arithmetic reported them equal; they are an hour apart.
+        const int across = SecondsElapsedIn(ny, At(2026, mar_8, 6), At(2026, mar_7, 22));
+        const int clear  = SecondsElapsedIn(ny, At(2026, mar_8 + 7, 6),
+                                                At(2026, mar_7 + 7, 22));
+        REQUIRE(clear - across == 3600);
+    }
+
+    SECTION("a break inside the repeated hour is not inflated")
+    {
+        // Both readings resolve with choose::earliest, so 01:15 -> 01:45 on the
+        // autumn transition night is thirty minutes. Resolving the two ends
+        // differently -- widening the interval to be safe -- would report
+        // ninety, every autumn, for every short break in that hour.
+        REQUIRE(SecondsElapsedIn(ny, At(2026, nov_1, 1, 45),
+                                     At(2026, nov_1, 1, 15)) == 30 * 60);
+    }
+
+    SECTION("a reading in the hour that never happened still yields a duration")
+    {
+        // 02:30 on the spring transition day does not exist. date resolves it
+        // to the transition instant, so 01:30 -> 02:30 is thirty minutes of
+        // real time rather than an exception thrown at a payroll report.
+        REQUIRE(SecondsElapsedIn(ny, At(2026, mar_8, 2, 30),
+                                     At(2026, mar_8, 1, 30)) == 30 * 60);
+    }
+
+    SECTION("argument order does not matter, as before")
+    {
+        const TimeInfo in  = At(2026, mar_7, 22);
+        const TimeInfo out = At(2026, mar_8, 6);
+        REQUIRE(SecondsElapsedIn(ny, in, out) == SecondsElapsedIn(ny, out, in));
+    }
+}
+
+TEST_CASE_METHOD(vt_test::VtSystemFixture,
+                 "WorkEntry and Check durations use the zone-aware path",
+                 "[labor][time][dst]")
+{
+    // The wiring claim. The section above proves the calculation is correct
+    // against a pinned zone; this proves the payroll and check-age callers
+    // actually reach it, rather than a second copy of the old subtraction.
+    //
+    // It cannot assert a DST figure end-to-end, because those callers resolve
+    // against the machine's zone and the machine's zone is not ours to choose.
+    // What it can assert is identity with the zone-aware function, which is
+    // what makes the section above evidence about MinutesWorked at all.
+    WorkEntry entry = MakeShift(At(2026, 65, 22), At(2026, 66, 6));
+
+    const date::time_zone *machine = nullptr;
+    REQUIRE_NOTHROW(machine = date::current_zone());
+
+    REQUIRE(entry.MinutesWorked()
+            == SecondsElapsedIn(machine, entry.end, entry.start) / 60);
+
+    // Check::SecondsOpen measures time_open to the latest settle_time, and
+    // returns time-to-now while any subcheck is still CHECK_OPEN -- so the
+    // subcheck has to be settled for the closed-check figure to be reachable.
+    Check check;
+    check.time_open = At(2026, 65, 22);
+    SubCheck *sub = check.NewSubCheck();
+    REQUIRE(sub != nullptr);
+    sub->status = CHECK_CLOSED;
+    sub->settle_time = At(2026, 66, 6);
+    REQUIRE(check.TimeClosed() != nullptr);
+
+    REQUIRE(check.SecondsOpen()
+            == SecondsElapsedIn(machine, At(2026, 66, 6), At(2026, 65, 22)));
 }

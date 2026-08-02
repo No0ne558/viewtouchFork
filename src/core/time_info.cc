@@ -694,9 +694,34 @@ int SecondsElapsedToNow(const TimeInfo &t1)
     return SecondsElapsed(t1, now);
 }
 
-int SecondsElapsed(const TimeInfo &t1, const TimeInfo &t2)
+namespace {
+
+// The machine's zone, looked up once. date::current_zone() reads the timezone
+// database, and SecondsElapsed sits underneath every report that totals hours,
+// so this is not a lookup to repeat per row. A null result means there is no
+// tzdb to read; durations then fall back to subtracting wall-clock readings,
+// which is exactly what this code did before.
+const date::time_zone *MachineZone()
 {
-    FnTrace("SecondsElapsed()");
+    static const date::time_zone *zone = []() -> const date::time_zone * {
+        try
+        {
+            return date::current_zone();
+        }
+        catch (const std::exception &)
+        {
+            return nullptr;
+        }
+    }();
+    return zone;
+}
+
+} // namespace
+
+int SecondsElapsedIn(const date::time_zone *zone,
+                     const TimeInfo &t1, const TimeInfo &t2)
+{
+    FnTrace("SecondsElapsedIn()");
     if (!t1.IsSet())
     {
         throw std::invalid_argument("SecondsElapsed(): t1 is not valid");
@@ -706,13 +731,58 @@ int SecondsElapsed(const TimeInfo &t1, const TimeInfo &t2)
         throw std::invalid_argument("SecondsElapsed(): t2 is not valid");
     }
 
-    if (t1>=t2)
+    const TimeInfo &later   = (t1 >= t2) ? t1 : t2;
+    const TimeInfo &earlier = (t1 >= t2) ? t2 : t1;
+
+    // A TimeInfo is a date::local_time -- a reading off a clock face, with no
+    // zone attached. Subtracting two of them gives the difference the clock
+    // face shows, which is not elapsed time whenever a daylight-saving
+    // transition falls between them: a shift clocked in at 22:00 and out at
+    // 06:00 across a spring-forward reads as eight hours and was seven. That
+    // lands on WorkEntry::MinutesWorked, so it is payroll, and on
+    // Check::SecondsOpen.
+    //
+    // Resolving both readings against a zone and subtracting the resulting
+    // instants gives elapsed real time. The zone is the machine's own, which is
+    // also the one the SQL layer records in day_policy.store_tz, so a duration
+    // and a stored timestamp are resolved the same way.
+    if (zone != nullptr)
     {
-        return static_cast<int>(std::chrono::seconds{t1-t2}.count());
-    } else
-    {
-        return static_cast<int>(std::chrono::seconds{t2-t1}.count());
+        try
+        {
+            // choose::earliest on both ends, not earliest-then-latest. It only
+            // matters for a reading inside the hour that happens twice when
+            // clocks go back, and one consistent rule is exact whenever both
+            // readings fall on the same side of the repeat -- which is nearly
+            // always. Widening the interval instead would turn a 30-minute
+            // break at 01:15 into 90 minutes every autumn.
+            //
+            // What survives is narrow and stated rather than hidden: an
+            // interval that starts in the first pass of the repeated hour and
+            // ends in the second reads one hour short. Nothing recorded
+            // distinguishes those two passes, so no rule can recover it -- the
+            // fix for that is a TimeInfo that carries its offset.
+            const auto a = zone->to_sys(earlier.get_local_time(),
+                                        date::choose::earliest);
+            const auto b = zone->to_sys(later.get_local_time(),
+                                        date::choose::earliest);
+            return static_cast<int>(
+                std::chrono::duration_cast<std::chrono::seconds>(b - a).count());
+        }
+        catch (const std::exception &)
+        {
+            // The tzdb failed to load on first real use. Fall through to the
+            // wall-clock difference rather than failing a payroll report.
+        }
     }
+
+    return static_cast<int>(std::chrono::seconds{later - earlier}.count());
+}
+
+int SecondsElapsed(const TimeInfo &t1, const TimeInfo &t2)
+{
+    FnTrace("SecondsElapsed()");
+    return SecondsElapsedIn(MachineZone(), t1, t2);
 }
 
 int MinutesElapsedToNow(const TimeInfo &t1)

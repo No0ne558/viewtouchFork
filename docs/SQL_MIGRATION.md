@@ -172,6 +172,12 @@ at the worst possible moment.
 
 ## Timestamps
 
+**The zone is the machine's own** — `date::current_zone()`, which on Linux is
+whatever `/etc/localtime` points at. There is no timezone setting in ViewTouch
+and this migration does not add one: a till sits in the restaurant it rings up,
+so the machine's zone is the restaurant's zone. Set the machine correctly and
+everything below follows.
+
 Every stored time has two columns: `*_local` is the wall-clock reading the
 legacy format kept, and `*_utc` is the unambiguous instant. Both are written,
 and `day_policy.store_tz` records the zone they were resolved against, so a
@@ -186,10 +192,34 @@ rather than a gap:
 - The hour that is **skipped** when clocks go forward. That reading names none,
   so a timestamp inside it is corrupt rather than merely unclear.
 
-This is what the legacy format could never express: a `TimeInfo` is a local
-time with no zone attached, so any *duration* spanning a daylight-saving
-boundary is out by an hour. That defect is unfixed for the file format and for
-data already written; it is closed for anything the database stores from here.
+This is what the legacy format could never express: a `TimeInfo` is a local time
+with no zone attached. Storage now records the instant alongside it, so what the
+format could not say, the database does.
+
+### Durations
+
+Separately from storage, *computing* a duration from two `TimeInfo`s used to
+subtract one wall-clock reading from the other, which is not elapsed time across
+a daylight-saving transition — a shift clocked in at 22:00 and out at 06:00
+across a spring-forward read as eight hours and was seven. **That is now fixed**:
+`SecondsElapsed` resolves both readings against the machine's zone and subtracts
+the instants. It covers payroll (`WorkEntry::MinutesWorked`, `MinutesOvertime`,
+`Overlap`), check age (`Check::SecondsOpen`), and kitchen-display ticket timers.
+
+It applies to data already on disk too, because it changes the arithmetic rather
+than the format. A `TimeInfo` written years ago is still a bare wall-clock
+reading, and resolving it against today's zone is the best available answer;
+where that reading is genuinely ambiguous the residue is stated below.
+
+One case is not recoverable and is not claimed to be. A reading inside the hour
+that happens twice when clocks go back names two instants; both ends resolve to
+the first of them, so an interval that starts in the first pass and ends in the
+second reads an hour short. Nothing recorded distinguishes those passes. Closing
+it needs a `TimeInfo` that carries its offset, which is a data-model change.
+
+The alternative — resolving the two ends differently to widen the interval —
+was rejected. It would be wrong far more often, inflating every short break
+inside that hour: 01:15 to 01:45 would report ninety minutes, every autumn.
 
 ## What is migrated, and what is not
 
@@ -204,6 +234,36 @@ So a site in `sqlite` mode is in a coherent but partial state: current checks
 and drawers live in the database, the archive of each closed day is still a
 file, and `EndDay` still performs its whole-day rewrite. Plan accordingly —
 this is a staged migration, not a finished one.
+
+## Retention
+
+**Nothing is ever purged, and that is the policy rather than an omission.** An
+operator who wants to see what was archived a year ago — or ten — can. There is
+no retention setting to configure, no default that quietly deletes financial
+records, and no plan to add one.
+
+Two things make that affordable, and the migration is what delivers the second.
+
+Volume was never the problem. The code's own sanity limits imply about one
+archive per business day and under 10,000 checks in a day (`archive.cc:265`,
+`check.cc:3427`), so a decade of trading is roughly 3,650 archives and low
+millions of check rows. That is small for SQLite.
+
+Reading it back was the problem. Any report covering a date range makes
+`Archive::LoadPacked` deserialize **every archive in that range**, so a
+year-over-year comparison parses a year of files to answer one question, and the
+cost of keeping history grew with how much of it you kept. Indexed queries do not
+work that way: the cost tracks the rows a report actually selects, not the days
+it spans. Keeping everything gets cheaper to use the further the migration goes.
+
+The caveat is scope. `sqlite` mode moves checks and drawers; **archives are still
+files** (see below), so today the fast path exists for current data and the
+whole-archive deserialize is still what a historical report does. Moving archives
+is the next entity in line, and it is what turns indefinite retention from
+affordable storage into affordable reporting.
+
+Disk is the operator's to watch. Nothing in ViewTouch will warn about it, and
+nothing will delete anything to make room.
 
 ## Checking a database
 

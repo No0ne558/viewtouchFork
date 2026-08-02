@@ -77,6 +77,11 @@ public:
     bool operator != (const TimeInfo &other) const;
 
     // arithmetic
+    // Raw wall-clock difference. This is almost never what a caller wants:
+    // it ignores daylight-saving transitions, so any duration spanning one is
+    // an hour out. Use SecondsElapsed/MinutesElapsed, which resolve both
+    // readings against the machine's zone. Kept because SecondsElapsedIn needs
+    // it for the no-tzdb fallback.
     std::chrono::seconds operator -(const TimeInfo &other) const;
 
     void throw_if_uninitialized(const std::string &op_name) const;
@@ -161,6 +166,14 @@ int SecondsElapsedToNow(const TimeInfo &t1);
 // SecondsElapsed always returns the absolute timedifference
 int SecondsElapsed(const TimeInfo &t1, const TimeInfo &t2);
 // Returns number of seconds between two times
+
+// The same calculation against a named zone rather than the machine's own.
+// SecondsElapsed is this function with date::current_zone() supplied; the zone
+// is a parameter here only so that a test can pin one and assert exact figures
+// across a daylight-saving transition, which is not reproducible otherwise.
+// A null zone falls back to subtracting the wall-clock readings.
+int SecondsElapsedIn(const date::time_zone *zone,
+                     const TimeInfo &t1, const TimeInfo &t2);
 
 int MinutesElapsedToNow(const TimeInfo &t1);
 int MinutesElapsed(const TimeInfo &t1, const TimeInfo &t2);

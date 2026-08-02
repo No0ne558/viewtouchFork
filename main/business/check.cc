@@ -1606,9 +1606,17 @@ int Check::PrintWorkOrder(Terminal *term, Report *report, int printer_id, int re
                 {
                     TimeInfo current_time;
                     current_time.Set();
-                    long elapsed_seconds = (current_time - chef_time).count();
-                    if (elapsed_seconds >= 0) {  // Prevent negative time
-                        int elapsed_minutes = static_cast<int>(elapsed_seconds / 60); // convert seconds to minutes
+                    // Elapsed real time, not the difference between two clock
+                    // faces. Subtracting TimeInfos directly makes every ticket
+                    // on a kitchen display jump an hour when the clocks change,
+                    // turning the whole board red or clearing it. MinutesElapsed
+                    // resolves both readings against the machine's zone.
+                    //
+                    // The ordering check stays explicit: MinutesElapsed returns
+                    // a magnitude, so a chef_time in the future would otherwise
+                    // read as a long-overdue ticket rather than no time at all.
+                    if (current_time >= chef_time) {
+                        int elapsed_minutes = MinutesElapsed(current_time, chef_time);
 
                         if (elapsed_minutes >= settings->kv_order_flash_time &&
                             settings->kv_order_flash_time > 0)
@@ -2434,9 +2442,17 @@ int Check::MakeReport(Terminal *term, Report *report, int show_what, int video_t
                 {
                     TimeInfo current_time;
                     current_time.Set();
-                    long elapsed_seconds = (current_time - chef_time).count();
-                    if (elapsed_seconds >= 0) {  // Prevent negative time
-                        int elapsed_minutes = static_cast<int>(elapsed_seconds / 60); // convert seconds to minutes
+                    // Elapsed real time, not the difference between two clock
+                    // faces. Subtracting TimeInfos directly makes every ticket
+                    // on a kitchen display jump an hour when the clocks change,
+                    // turning the whole board red or clearing it. MinutesElapsed
+                    // resolves both readings against the machine's zone.
+                    //
+                    // The ordering check stays explicit: MinutesElapsed returns
+                    // a magnitude, so a chef_time in the future would otherwise
+                    // read as a long-overdue ticket rather than no time at all.
+                    if (current_time >= chef_time) {
+                        int elapsed_minutes = MinutesElapsed(current_time, chef_time);
 
                         if (elapsed_minutes >= settings->kv_order_flash_time &&
                             settings->kv_order_flash_time > 0)
