@@ -60,6 +60,35 @@ namespace vt::store {
 // by an hour twice a year and silently so.
 [[nodiscard]] std::optional<int64_t> LocalSeconds(const TimeInfo &time);
 
+/*
+ * The same instant resolved to UTC, or nullopt when it cannot be.
+ *
+ * This is the companion the schema was designed with and which nothing wrote
+ * until now: `_local` is the legacy wall-clock value, `_utc` is the unambiguous
+ * instant. Storing both is what lets a report over a date range mean something
+ * across a daylight-saving boundary, which the legacy format structurally could
+ * not express -- a `TimeInfo` is a `date::local_time` with no zone attached.
+ *
+ * Two local times have no single UTC answer, and both return nullopt rather
+ * than a guess:
+ *
+ *   Ambiguous -- the hour that happens twice when clocks go back. There are
+ *   genuinely two instants and nothing was recorded to choose between them.
+ *
+ *   Nonexistent -- the hour skipped when clocks go forward. A timestamp inside
+ *   it is corrupt rather than merely unclear.
+ *
+ * NULL in those two cases is not a gap to fill in later. It is the honest
+ * statement that this particular wall-clock reading does not identify a moment,
+ * and it is why the column is nullable.
+ */
+[[nodiscard]] std::optional<int64_t> UtcSeconds(const TimeInfo &time);
+
+// The zone those conversions were made against, recorded per business day so a
+// later reader can tell what `_local` meant. Empty if no zone database is
+// available, in which case every `_utc` is NULL too.
+[[nodiscard]] std::string StoreTimeZoneName();
+
 // Ids are 0 when absent throughout this codebase. NULL says "nobody", which a
 // zero cannot, and keeps a foreign key from having to accept a sentinel.
 [[nodiscard]] std::optional<int64_t> NullableId(int id);

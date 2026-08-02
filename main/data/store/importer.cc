@@ -105,12 +105,13 @@ StoreError InsertBusinessDay(Database &db, const Archive &archive,
             db,
             "INSERT INTO business_day("
             "  legacy_filename, start_local, end_local, closed_at_local,"
+            "  start_utc, end_utc,"
             "  last_serial_number, corrupt,"
             "  src_file_version, src_check_version, src_drawer_version,"
             "  src_tip_version, src_work_version, src_exception_version,"
             "  src_expense_version, src_media_version, src_settings_version)"
             " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,"
-            "         ?14, ?15)"
+            "         ?14, ?15, ?16, ?17)"
             " RETURNING id;");
         s != Status::Ok)
     {
@@ -134,17 +135,24 @@ StoreError InsertBusinessDay(Database &db, const Archive &archive,
     // enforces.
     if ((s = stmt.BindInt(4, end.value_or(start.value_or(0)))) != Status::Ok)
         return Translate(s);
-    if ((s = stmt.BindInt(5, archive.last_serial_number)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(6, archive.corrupt ? 1 : 0)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(7, archive.file_version)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(8, archive.check_version)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(9, archive.drawer_version)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(10, archive.tip_version)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(11, archive.work_version)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(12, archive.exception_version)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(13, archive.expense_version)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(14, archive.media_version)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(15, archive.settings_version)) != Status::Ok) return Translate(s);
+    // The unambiguous companions. An archive's times came off a file that
+    // recorded no zone, so a day whose start or end lands in a repeated or
+    // skipped hour resolves to NULL rather than to a guess.
+    if ((s = stmt.BindOptionalInt(5, UtcSeconds(archive.start_time))) != Status::Ok)
+        return Translate(s);
+    if ((s = stmt.BindOptionalInt(6, UtcSeconds(archive.end_time))) != Status::Ok)
+        return Translate(s);
+    if ((s = stmt.BindInt(7, archive.last_serial_number)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(8, archive.corrupt ? 1 : 0)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(9, archive.file_version)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(10, archive.check_version)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(11, archive.drawer_version)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(12, archive.tip_version)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(13, archive.work_version)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(14, archive.exception_version)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(15, archive.expense_version)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(16, archive.media_version)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(17, archive.settings_version)) != Status::Ok) return Translate(s);
 
     Status step = Status::Ok;
     if (!stmt.Step(step))
@@ -164,9 +172,9 @@ StoreError InsertDayPolicy(Database &db, int64_t day_id, const Archive &archive,
             "  tax_GST, tax_PST, tax_HST, tax_QST, tax_VAT, royalty_rate,"
             "  advertise_fund, price_rounding, change_for_credit,"
             "  change_for_roomcharge, change_for_checks, change_for_gift,"
-            "  discount_alcohol, tax_takeout_food, snapshot_complete)"
+            "  discount_alcohol, tax_takeout_food, store_tz, snapshot_complete)"
             " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,"
-            "         ?14, ?15, ?16, ?17, ?18, ?19, 0);");
+            "         ?14, ?15, ?16, ?17, ?18, ?19, ?20, 0);");
         s != Status::Ok)
     {
         return Translate(s);
@@ -201,6 +209,10 @@ StoreError InsertDayPolicy(Database &db, int64_t day_id, const Archive &archive,
     // check. The live value is the best available answer and is recorded as
     // such: snapshot_complete = 0 says this day's policy is not authoritative.
     if ((s = stmt.BindInt(19, settings.tax_takeout_food)) != Status::Ok) return Translate(s);
+    // The zone the _utc columns were resolved against, so a later reader can
+    // tell what the _local values meant rather than assuming the machine that
+    // reads them is configured like the one that wrote them.
+    if ((s = stmt.BindText(20, StoreTimeZoneName())) != Status::Ok) return Translate(s);
 
     return Translate(stmt.Execute());
 }

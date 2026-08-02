@@ -7,6 +7,10 @@
 
 #include "check.hh"
 
+#include "date/tz.h"
+
+#include <exception>
+
 #include "sql/database.hh"
 #include "sql/statement.hh"
 #include "vt_logger.hh"
@@ -74,6 +78,51 @@ std::optional<int64_t> LocalSeconds(const TimeInfo &time)
     if (!time.IsSet())
         return std::nullopt;
     return static_cast<int64_t>(time.get_local_time().time_since_epoch().count());
+}
+
+std::optional<int64_t> UtcSeconds(const TimeInfo &time)
+{
+    if (!time.IsSet())
+        return std::nullopt;
+
+    try
+    {
+        const date::time_zone *zone = date::current_zone();
+        if (zone == nullptr)
+            return std::nullopt;
+        const auto instant = zone->to_sys(time.get_local_time());
+        return static_cast<int64_t>(instant.time_since_epoch().count());
+    }
+    catch (const date::ambiguous_local_time &)
+    {
+        // Clocks went back; this wall-clock reading names two instants.
+        return std::nullopt;
+    }
+    catch (const date::nonexistent_local_time &)
+    {
+        // Clocks went forward; this wall-clock reading names none.
+        return std::nullopt;
+    }
+    catch (const std::exception &)
+    {
+        // No timezone database. Every _utc column stays NULL, which is the
+        // same state the schema shipped in and is strictly better than a
+        // number computed against a zone nobody can name.
+        return std::nullopt;
+    }
+}
+
+std::string StoreTimeZoneName()
+{
+    try
+    {
+        const date::time_zone *zone = date::current_zone();
+        return (zone != nullptr) ? std::string(zone->name()) : std::string();
+    }
+    catch (const std::exception &)
+    {
+        return {};
+    }
 }
 
 std::optional<int64_t> NullableId(int id)
@@ -205,9 +254,10 @@ StoreError CheckWriter::InsertAggregate(const Check &check,
             "  call_center_id, guests, has_takeouts, checknum, is_training,"
             "  label, comment, termname,"
             "  time_open_local, chef_time_local, made_time_local,"
-            "  check_in_local, check_out_local, date_local)"
+            "  check_in_local, check_out_local, date_local, time_open_utc)"
             " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,"
-            "         ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)"
+            "         ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,"
+            "         ?24)"
             " RETURNING id;");
         s != Status::Ok)
     {
@@ -223,6 +273,14 @@ StoreError CheckWriter::InsertAggregate(const Check &check,
         e != StoreError::Ok)
     {
         return e;
+    }
+    // The unambiguous companion to time_open_local. NULL when the wall-clock
+    // reading names two instants or none -- see UtcSeconds.
+    if (Status s = stmt.BindOptionalInt(4 + kCheckColumnCount,
+                                        UtcSeconds(check.time_open));
+        s != Status::Ok)
+    {
+        return Translate(s);
     }
 
     Status step = Status::Ok;
@@ -246,8 +304,9 @@ StoreError CheckWriter::ReplaceChildren(int64_t check_id, const Check &check)
                 "  is_training = ?11, label = ?12, comment = ?13, termname = ?14,"
                 "  time_open_local = ?15, chef_time_local = ?16,"
                 "  made_time_local = ?17, check_in_local = ?18,"
-                "  check_out_local = ?19, date_local = ?20"
-                " WHERE id = ?21;");
+                "  check_out_local = ?19, date_local = ?20,"
+                "  time_open_utc = ?21"
+                " WHERE id = ?22;");
             s != Status::Ok)
         {
             return Translate(s);
@@ -257,7 +316,13 @@ StoreError CheckWriter::ReplaceChildren(int64_t check_id, const Check &check)
         {
             return e;
         }
-        if (Status s = stmt.BindInt(kCheckColumnCount + 1, check_id); s != Status::Ok)
+        if (Status s = stmt.BindOptionalInt(kCheckColumnCount + 1,
+                                            UtcSeconds(check.time_open));
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        if (Status s = stmt.BindInt(kCheckColumnCount + 2, check_id); s != Status::Ok)
             return Translate(s);
         if (const StoreError e = Report(db_, stmt.Execute(), "update check");
             e != StoreError::Ok)
@@ -313,8 +378,8 @@ StoreError CheckWriter::WriteSubCheck(int64_t check_id, SubCheck &sub, int seq)
                 "INSERT INTO subcheck("
                 "  check_id, business_day_id, seq, status, check_type,"
                 "  settle_user, settle_time_local, drawer_id, tax_exempt,"
-                "  new_QST_method, frozen_at_local)"
-                " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)"
+                "  new_QST_method, frozen_at_local, settle_time_utc)"
+                " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)"
                 " RETURNING id;");
             s != Status::Ok)
         {
@@ -346,6 +411,8 @@ StoreError CheckWriter::WriteSubCheck(int64_t check_id, SubCheck &sub, int seq)
         if (freeze_)
             frozen_at = settled.value_or(0);
         if ((s = stmt.BindOptionalInt(11, frozen_at)) != Status::Ok)
+            return Translate(s);
+        if ((s = stmt.BindOptionalInt(12, UtcSeconds(sub.settle_time))) != Status::Ok)
             return Translate(s);
 
         Status step = Status::Ok;

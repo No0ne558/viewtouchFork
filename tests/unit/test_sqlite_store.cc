@@ -22,10 +22,13 @@
 #include "main/business/check.hh"
 #include "main/business/sales.hh"
 #include "main/data/archive.hh"
+#include "date/tz.h"
 #include "sql/database.hh"
 #include "sql/migrations.hh"
 #include "support/vt_test_env.hh"
 
+#include <cstdlib>
+#include <exception>
 #include <memory>
 #include <string>
 
@@ -426,4 +429,116 @@ TEST_CASE("The SQLite store reports why it could not open",
     auto store = MakeSqliteStore("/nonexistent-directory/vt.db", error);
     REQUIRE(store == nullptr);
     REQUIRE(error != StoreError::Ok);
+}
+
+TEST_CASE_METHOD(vt_test::VtSystemFixture,
+                 "Timestamps get an unambiguous UTC companion",
+                 "[sqlite][time][utc]")
+{
+    /*
+     * The schema shipped with `_local` and `_utc` pairs and a comment saying
+     * `_utc` was "its resolved companion, NULL when the local time is
+     * ambiguous". Nothing wrote a single one of them until now, so every
+     * timestamp in the database was a wall-clock reading with no zone attached
+     * -- exactly the property the migration was supposed to fix, since a
+     * TimeInfo is a date::local_time and a report spanning a daylight-saving
+     * boundary cannot be computed from those alone.
+     */
+    TempDb db("vt_sqlite_utc");
+    auto store = OpenStore(db.path);
+
+    std::unique_ptr<Check> check(BuildCheck(8800));
+    check->time_open.Set();
+    check->SubList()->settle_time.Set();
+
+    auto tx = store->Begin();
+    REQUIRE(store->Checks().Save(*tx, *check) == StoreError::Ok);
+    REQUIRE(tx->Commit() == StoreError::Ok);
+
+    SECTION("an ordinary time resolves")
+    {
+        // "Now" is never in a repeated or skipped hour by the time a till
+        // records it, so this is the overwhelmingly common case and it must
+        // produce a number rather than a NULL.
+        REQUIRE(Scalar(db.path, "SELECT COUNT(*) FROM pos_check "
+                                "WHERE time_open_utc IS NOT NULL;") == 1);
+        REQUIRE(Scalar(db.path, "SELECT COUNT(*) FROM subcheck "
+                                "WHERE settle_time_utc IS NOT NULL;") == 1);
+    }
+
+    SECTION("local and UTC describe the same instant")
+    {
+        // They differ by the zone offset, which for any real zone is under a
+        // day. Asserting the bound rather than a specific offset keeps this
+        // meaningful wherever it runs, including CI.
+        const int64_t local =
+            Scalar(db.path, "SELECT time_open_local FROM pos_check;");
+        const int64_t utc =
+            Scalar(db.path, "SELECT time_open_utc FROM pos_check;");
+        REQUIRE(local != 0);
+        REQUIRE(utc != 0);
+        REQUIRE(std::llabs(local - utc) <= 24 * 60 * 60);
+    }
+
+    SECTION("an unset time stays NULL on both sides")
+    {
+        // chef_time is cleared by the Check constructor. Absent is different
+        // from midnight, and neither column may invent a value for it.
+        REQUIRE(Scalar(db.path, "SELECT COUNT(*) FROM pos_check "
+                                "WHERE chef_time_local IS NULL;") == 1);
+    }
+
+    SECTION("the open business day carries a UTC start")
+    {
+        REQUIRE(Scalar(db.path, "SELECT COUNT(*) FROM business_day "
+                                "WHERE start_utc IS NOT NULL;") == 1);
+    }
+}
+
+TEST_CASE("A wall-clock reading that names no single instant resolves to NULL",
+          "[sqlite][time][utc][dst]")
+{
+    /*
+     * The two cases where a local time genuinely has no UTC answer, which is
+     * why the column is nullable and why NULL is a statement rather than a gap.
+     *
+     * Driven through the conversion directly rather than through a save,
+     * because constructing a check whose time_open lands in a skipped hour
+     * requires setting the clock, and the interesting behaviour is entirely in
+     * the conversion.
+     */
+    const date::time_zone *zone = nullptr;
+    try
+    {
+        zone = date::locate_zone("America/Los_Angeles");
+    }
+    catch (const std::exception &)
+    {
+        SUCCEED("no timezone database available; skipping");
+        return;
+    }
+    REQUIRE(zone != nullptr);
+
+    SECTION("the hour that happens twice has two answers, so neither is chosen")
+    {
+        // 2024-11-03 01:30 Pacific occurs before and after the clocks go back.
+        const auto ambiguous = date::local_days{date::year{2024} / 11 / 3} +
+                               std::chrono::hours{1} + std::chrono::minutes{30};
+        REQUIRE_THROWS_AS(zone->to_sys(ambiguous), date::ambiguous_local_time);
+    }
+
+    SECTION("the hour that never happened has none")
+    {
+        // 2024-03-10 02:30 Pacific is skipped when the clocks go forward.
+        const auto nonexistent = date::local_days{date::year{2024} / 3 / 10} +
+                                 std::chrono::hours{2} + std::chrono::minutes{30};
+        REQUIRE_THROWS_AS(zone->to_sys(nonexistent), date::nonexistent_local_time);
+    }
+
+    SECTION("an ordinary reading resolves to exactly one instant")
+    {
+        const auto ordinary = date::local_days{date::year{2024} / 6 / 15} +
+                              std::chrono::hours{12};
+        REQUIRE_NOTHROW(zone->to_sys(ordinary));
+    }
 }

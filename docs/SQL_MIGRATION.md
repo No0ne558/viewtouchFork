@@ -170,6 +170,27 @@ files an older binary would read once the format has moved on. Shipping one
 without that caveat understood would be selling a rollback that silently fails
 at the worst possible moment.
 
+## Timestamps
+
+Every stored time has two columns: `*_local` is the wall-clock reading the
+legacy format kept, and `*_utc` is the unambiguous instant. Both are written,
+and `day_policy.store_tz` records the zone they were resolved against, so a
+later reader does not have to assume the machine reading them is configured
+like the one that wrote them.
+
+`*_utc` is NULL in exactly two cases, and in both of them NULL is a statement
+rather than a gap:
+
+- The hour that happens **twice** when clocks go back. That wall-clock reading
+  names two instants and nothing was recorded to choose between them.
+- The hour that is **skipped** when clocks go forward. That reading names none,
+  so a timestamp inside it is corrupt rather than merely unclear.
+
+This is what the legacy format could never express: a `TimeInfo` is a local
+time with no zone attached, so any *duration* spanning a daylight-saving
+boundary is out by an hour. That defect is unfixed for the file format and for
+data already written; it is closed for anything the database stores from here.
+
 ## What is migrated, and what is not
 
 `sqlite` mode moves **checks and drawers** — the two halves of end-of-day

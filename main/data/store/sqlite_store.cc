@@ -579,9 +579,11 @@ public:
         {
             Statement stmt;
             if (Status s = stmt.Prepare(
-                    db_, "UPDATE business_day SET closed_at_local = "
-                         "strftime('%s','now'), end_local = strftime('%s','now') "
-                         "WHERE id = ?1 AND closed_at_local IS NULL;");
+                    db_, "UPDATE business_day SET"
+                         "  closed_at_local = strftime('%s','now'),"
+                         "  end_local = strftime('%s','now'),"
+                         "  end_utc = strftime('%s','now')"
+                         " WHERE id = ?1 AND closed_at_local IS NULL;");
                 s != Status::Ok)
             {
                 return Translate(s);
@@ -924,10 +926,14 @@ StoreError ResolveOpenDay(Database &db, int64_t &out)
             return Translate(step);
     }
 
+    // start_local and start_utc are both "now", so they agree by construction
+    // here -- unlike an imported day, whose local time came off a file with no
+    // zone attached and may not resolve at all.
     Statement insert;
     if (Status s = insert.Prepare(
-            db, "INSERT INTO business_day(start_local) "
-                "VALUES (strftime('%s','now')) RETURNING id;");
+            db, "INSERT INTO business_day(start_local, start_utc) "
+                "VALUES (strftime('%s','now'), strftime('%s','now')) "
+                "RETURNING id;");
         s != Status::Ok)
     {
         return Translate(s);
