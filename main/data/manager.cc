@@ -3558,24 +3558,24 @@ void UpdateSystemCB(XtPointer client_data, XtIntervalId *time_id)
         printer_check_counter = 0;
         
         // Log printer status for monitoring
-        int online_count = 0;
-        int total_count = 0;
-        
+        int printer_count = 0;
+
         for (Printer *p = MasterControl->PrinterList(); p != nullptr; p = p->next)
         {
-            // Attempt to reconnect offline remote printers (failure == 999)
+            // Reconnection hook. Printer::ReconnectIfOffline() is a no-op and no
+            // backend currently overrides it, so this reconnects nothing today --
+            // the only implementation lived in remote_printer.cc, which was in no
+            // CMake target and has been deleted. Kept as the extension point a
+            // reconnecting backend would implement.
             p->ReconnectIfOffline();
-            total_count++;
-            // For now, just log that we're monitoring printers
-            // The actual reconnection logic is handled in RemotePrinter::ReconnectIfOffline()
-            online_count++; // Assume online unless proven otherwise
+            printer_count++;
         }
-        
-        if (total_count > 0)
+
+        if (printer_count > 0)
         {
             std::array<char, 256> msg{};
-            vt::cpp23::format_to_buffer(msg.data(), msg.size(), "Printer health check: {}/{} printers monitored", 
-                     online_count, total_count);
+            vt::cpp23::format_to_buffer(msg.data(), msg.size(), "Printer health check: {} printers monitored",
+                     printer_count);
             if (debug_mode)
                 ReportError(msg.data());
         }

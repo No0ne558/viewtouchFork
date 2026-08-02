@@ -93,6 +93,15 @@ Check *BuildCheck(int serial)
     check->guests = 3;
     check->label.Set("table 12");
 
+    // Pin the serialized times. Check::Check() runs `date.Set()` -- the current
+    // wall clock at one-second resolution -- and Check::Write emits it, so any
+    // comparison of bytes from two separately-constructed checks is a coin flip
+    // on whether construction straddled a second boundary. The equivalence case
+    // no longer builds two checks, so this is belt and braces rather than the
+    // fix; it stays because the hazard is invisible from the call site.
+    check->date.Set(12 * 3600, 2024);
+    check->time_open.Set(12 * 3600, 2024);
+
     SubCheck *sub = check->NewSubCheck();
 
     auto *burger = new Order("Burger", 950);
@@ -138,31 +147,31 @@ TEST_CASE("The routed path writes the same bytes as the unrouted one",
 {
     // The assertion the default configuration rests on. If these ever differ,
     // every deployed site's data changed shape the day it upgraded.
-    std::string unrouted;
-    std::string routed;
+    //
+    // One check object, saved twice, is deliberate. An earlier version built a
+    // fresh check for each side, which let construction-time state -- the clock,
+    // above all -- into a byte-for-byte comparison and made the test flaky.
+    // Saving the same object down both paths compares the two writers and
+    // nothing else, which is the whole claim.
+    RoutingFixture fixture("vt_routing_equivalence");
+    std::unique_ptr<Check> check(BuildCheck(4001));
 
-    {
-        RoutingFixture fixture("vt_routing_fallback");
-        REQUIRE(MasterSystem->DataStore() == nullptr);   // fallback path
+    REQUIRE(MasterSystem->DataStore() == nullptr);       // fallback path
+    REQUIRE(check->Save() == 0);
+    REQUIRE(FilesIn(fixture.dir) == 1);
+    const std::string unrouted = ReadBytes(fixture.dir / "check_4001");
+    REQUIRE_FALSE(unrouted.empty());
 
-        std::unique_ptr<Check> check(BuildCheck(4001));
-        REQUIRE(check->Save() == 0);
-        REQUIRE(FilesIn(fixture.dir) == 1);
-        unrouted = ReadBytes(fixture.dir / "check_4001");
-        REQUIRE_FALSE(unrouted.empty());
-    }
+    std::error_code ec;
+    fs::remove(fixture.dir / "check_4001", ec);
+    REQUIRE(FilesIn(fixture.dir) == 0);
 
-    {
-        RoutingFixture fixture("vt_routing_legacy");
-        MasterSystem->SetDataStore(MakeLegacyFileStore(MasterSystem.get()));
-        REQUIRE(MasterSystem->DataStore() != nullptr);   // routed path
-
-        std::unique_ptr<Check> check(BuildCheck(4001));
-        REQUIRE(check->Save() == 0);
-        REQUIRE(FilesIn(fixture.dir) == 1);
-        routed = ReadBytes(fixture.dir / "check_4001");
-        REQUIRE_FALSE(routed.empty());
-    }
+    MasterSystem->SetDataStore(MakeLegacyFileStore(MasterSystem.get()));
+    REQUIRE(MasterSystem->DataStore() != nullptr);       // routed path
+    REQUIRE(check->Save() == 0);
+    REQUIRE(FilesIn(fixture.dir) == 1);
+    const std::string routed = ReadBytes(fixture.dir / "check_4001");
+    REQUIRE_FALSE(routed.empty());
 
     REQUIRE(routed == unrouted);
 }

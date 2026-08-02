@@ -23,6 +23,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   - Files modified: `main/hardware/remote_printer.cc`, `main/hardware/printer.cc`, `main/data/archive.cc`, `src/core/data_file.hh`.
 
 ### Removed
+- **Delete dead `main/hardware/remote_printer.{cc,hh}`** (2026-08-02)
+  - The file was in no CMake target, `#include`d by no translation unit, and its only entry point `NewRemotePrinter()` had no callers. (The header declared a differently-named `NewReportPrinter()` that was never defined — the two had drifted apart, which is only possible in code nobody compiles.) Nothing in it has been built into any shipped binary.
+  - **This retroactively corrects two entries above.** The 2026-06-09 "Bug D — `RemotePrinter::Send()` flush threshold" and the 2026-06-02 "Root cause — stale Xt input handler spin loop" both describe fixes made in `remote_printer.cc`. Those fixes never ran, so neither could have been the cause of the freeze or the 10-12 hour failure they were credited with. The other bugs listed in each entry are real and were fixed in files that do build.
+  - `Printer::ReconnectIfOffline()` (`main/hardware/printer.hh`) survives as a virtual no-op with no overrides. `manager.cc`'s 30-second printer health check still calls it, but it reconnects nothing today; the comment there now says so, and the log line no longer reports a fabricated "online" count that was assigned unconditionally.
+  - Files removed: `main/hardware/remote_printer.cc`, `main/hardware/remote_printer.hh`. Files modified: `main/data/manager.cc`.
+
 - **Button Properties Dialog: Remove redundant "Menu Type" field** (2026-05-28)
   - The "Menu Type" selector (`item_type` `DialogMenu` widget in `ZoneDialog`) was redundant with the more specific zone types already present in "Button's Type" (`ZONE_ITEM_NORMAL`, `ZONE_ITEM_MODIFIER`, `ZONE_ITEM_METHOD`, `ZONE_ITEM_SUBSTITUTE`, `ZONE_ITEM_POUND`, `ZONE_ITEM_ADMISSION`). The item classification (`itype`) is now derived entirely from the selected zone type; for the legacy generic `ZONE_ITEM` type the classification defaults to `ITEM_NORMAL`. The network protocol byte is preserved unchanged.
   - Files modified: `term/term_dialog.hh`, `term/term_dialog.cc`.
