@@ -26,13 +26,17 @@ Two smaller things it also fixes, both of which currently lose data silently:
 
 ## The three modes
 
-Set `mode` in the `[persistence]` section of the configuration file:
+Set `mode` in the `[persistence]` section of `/usr/viewtouch/dat/persistence.conf`:
 
 ```ini
 [persistence]
 mode = dual
 database_path = /usr/viewtouch/dat/viewtouch.db
 ```
+
+The file does not exist by default, and its absence means `legacy`. The backend
+is chosen once at startup, after the current day is loaded and before the
+terminals come up, so changing it takes effect on the next restart.
 
 | Mode | Authoritative | What it is for |
 |---|---|---|
@@ -43,7 +47,7 @@ database_path = /usr/viewtouch/dat/viewtouch.db
 An unrecognised mode, or a database mode with no `database_path`, falls back to
 `legacy` and logs why. A missing configuration file is not an error.
 
-A database that cannot be **opened** is different: that fails startup rather
+A database that cannot be **opened** is different: that aborts startup rather
 than falling back. A site that asked for SQLite and silently got files would be
 writing a day's takings somewhere nobody is looking for them, and would find out
 at the next reconciliation.
