@@ -335,3 +335,92 @@ TEST_CASE("A dual-mode site writes drawers to both sides from Drawer::Save",
                    "SELECT COUNT(*) FROM drawer WHERE serial_number = 7400;") == 1);
     REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM drawer_balance;") == 2);
 }
+
+TEST_CASE("The business day rolls over, so a second day of trading works",
+          "[store][sqlite][endday]")
+{
+    /*
+     * The gap this closes, and it is worse than the constraint failure I first
+     * assumed. serial_number identifies a drawer WITHIN a business day, so a
+     * repeated serial in the same day is an update, not a collision. With
+     * nothing closing the day, a database that traded for two days put both
+     * days in the same open day -- and day two's drawer #9001 silently
+     * OVERWROTE day one's. No error, no constraint, just yesterday's cash count
+     * replaced by today's.
+     */
+    DrawerFixture fixture("vt_endday_rollover");
+    StoreError error = StoreError::Io;
+    auto store = MakeSqliteStore(fixture.db, error);
+    REQUIRE(error == StoreError::Ok);
+
+    const auto save_drawer = [&](int serial) {
+        std::unique_ptr<Drawer> drawer(BuildDrawer(serial, true));
+        auto tx = store->Begin();
+        const StoreError result = store->Drawers().Save(*tx, *drawer);
+        if (result != StoreError::Ok)
+        {
+            tx->Rollback();
+            return result;
+        }
+        return tx->Commit();
+    };
+
+    REQUIRE(save_drawer(9001) == StoreError::Ok);
+    REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM business_day "
+                               "WHERE closed_at_local IS NULL;") == 1);
+
+    SECTION("the same serial in a new day is fine")
+    {
+        REQUIRE(store->EndBusinessDay() == StoreError::Ok);
+
+        // Exactly one open day still, and the previous one is closed rather
+        // than deleted -- yesterday's takings do not go anywhere.
+        REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM business_day;") == 2);
+        REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM business_day "
+                                   "WHERE closed_at_local IS NULL;") == 1);
+        REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM drawer;") == 1);
+
+        // The serial that would have collided.
+        REQUIRE(save_drawer(9001) == StoreError::Ok);
+        REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM drawer "
+                                   "WHERE serial_number = 9001;") == 2);
+    }
+
+    SECTION("without the rollover the same serial silently overwrites")
+    {
+        // The failure a site would have hit on its second day, and the reason
+        // the rollover is not optional. It reports success -- which is what
+        // makes it dangerous rather than merely broken.
+        REQUIRE(save_drawer(9001) == StoreError::Ok);
+        REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM drawer;") == 1);
+        REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM business_day;") == 1);
+    }
+
+    SECTION("yesterday's rows stay attached to yesterday")
+    {
+        REQUIRE(store->EndBusinessDay() == StoreError::Ok);
+        REQUIRE(save_drawer(9002) == StoreError::Ok);
+
+        // One drawer in the closed day, one in the open one. Reports over a
+        // date range depend on this and nothing else.
+        REQUIRE(Scalar(fixture.db,
+                       "SELECT COUNT(*) FROM drawer d JOIN business_day b "
+                       "ON b.id = d.business_day_id "
+                       "WHERE b.closed_at_local IS NOT NULL;") == 1);
+        REQUIRE(Scalar(fixture.db,
+                       "SELECT COUNT(*) FROM drawer d JOIN business_day b "
+                       "ON b.id = d.business_day_id "
+                       "WHERE b.closed_at_local IS NULL;") == 1);
+    }
+}
+
+TEST_CASE("Ending the day is a no-op on the legacy backend, not a failure",
+          "[store][endday]")
+{
+    // The archive file IS the day there, and EndDay writes it directly.
+    // Returning Unsupported would make EndDay log an error every night on
+    // every site that never enabled SQL.
+    DrawerFixture fixture("vt_endday_legacy");
+    auto store = MakeLegacyFileStore(MasterSystem.get());
+    REQUIRE(store->EndBusinessDay() == StoreError::Ok);
+}

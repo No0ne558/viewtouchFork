@@ -149,6 +149,26 @@ public:
     // EndDay above all -- has to check this rather than assume.
     [[nodiscard]] virtual bool SupportsAtomicWrites() const noexcept = 0;
 
+    /*
+     * Close the current business day and open the next.
+     *
+     * Called from System::EndDay. On the legacy backend this is a no-op: there
+     * is no day container to close, because the archive file IS the day and
+     * EndDay writes it directly.
+     *
+     * On SQL it is the whole point of the business_day table -- EndDay stops
+     * being "copy everything into a new file" and becomes "stamp a timestamp,
+     * insert the next row". Checks and drawers already written stay in the day
+     * that just closed; nothing is copied.
+     *
+     * Not optional on SQL, and the failure it prevents is silent rather than
+     * loud. serial_number identifies a check or drawer WITHIN a day, so a
+     * repeated serial in the same day is an update. A database whose day never
+     * closes therefore has day two overwrite day one -- reporting success the
+     * whole way -- rather than rejecting anything.
+     */
+    [[nodiscard]] virtual StoreError EndBusinessDay() = 0;
+
     // Cheap readiness probe: is the backing store reachable and writable.
     [[nodiscard]] virtual StoreError HealthCheck() = 0;
 

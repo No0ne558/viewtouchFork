@@ -215,6 +215,16 @@ public:
         return false;   // see LegacyTransaction
     }
 
+    [[nodiscard]] StoreError EndBusinessDay() override
+    {
+        // Nothing to do. There is no day container in the file layout: the
+        // archive file that EndDay writes IS the day, and EndDay writes it
+        // itself. Reporting Ok rather than Unsupported because the day did end
+        // successfully -- this backend simply has no separate bookkeeping for
+        // it, which is not a failure to report to a caller mid-EndDay.
+        return StoreError::Ok;
+    }
+
     [[nodiscard]] StoreError HealthCheck() override
     {
         return (system_ != nullptr) ? StoreError::Ok : StoreError::Io;

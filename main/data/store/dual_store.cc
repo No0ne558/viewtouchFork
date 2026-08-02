@@ -261,6 +261,26 @@ bool DualRunStore::SupportsAtomicWrites() const noexcept
     return impl_->primary->SupportsAtomicWrites();
 }
 
+StoreError DualRunStore::EndBusinessDay()
+{
+    const StoreError result = impl_->primary->EndBusinessDay();
+
+    if (const StoreError shadow_result = impl_->shadow->EndBusinessDay();
+        shadow_result != StoreError::Ok)
+    {
+        // Logged loudly rather than counted quietly. A shadow whose day never
+        // closes silently overwrites today's records with tomorrow's, so the
+        // divergence report would only reveal it after a day of trading had
+        // already been lost on that side.
+        ++impl_->health.save_failures;
+        impl_->health.last_error = StoreErrorName(shadow_result);
+        ::vt::Logger::error("dual run: shadow could not end the business day "
+                            "({}); it will reject writes tomorrow",
+                            StoreErrorName(shadow_result));
+    }
+    return result;
+}
+
 StoreError DualRunStore::HealthCheck()
 {
     if (const StoreError e = impl_->primary->HealthCheck(); e != StoreError::Ok)

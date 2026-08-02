@@ -99,10 +99,17 @@ private:
     vt::sql::Transaction inner_;
 };
 
+// Defined below; declared here because EndBusinessDay needs it to open the
+// next day and the definition sits with the other factory-time helpers.
+StoreError ResolveOpenDay(Database &db, int64_t &out);
+
 class SqliteCheckRepository final : public CheckRepository
 {
 public:
-    SqliteCheckRepository(Database &db, int64_t business_day_id)
+    // The day id is held by reference, not copied: EndBusinessDay advances it
+    // on the store, and a repository holding a stale copy would keep writing
+    // into the day that just closed.
+    SqliteCheckRepository(Database &db, const int64_t &business_day_id)
         : db_(db), business_day_id_(business_day_id) {}
 
     StoreError Save(Transaction &tx, Check &check) override
@@ -205,7 +212,7 @@ public:
 
 private:
     Database &db_;
-    int64_t business_day_id_;
+    const int64_t &business_day_id_;
 };
 
 /*
@@ -224,7 +231,7 @@ private:
 class SqliteDrawerRepository final : public DrawerRepository
 {
 public:
-    SqliteDrawerRepository(Database &db, int64_t business_day_id)
+    SqliteDrawerRepository(Database &db, const int64_t &business_day_id)
         : db_(db), business_day_id_(business_day_id) {}
 
     StoreError Save(Transaction &tx, Drawer &drawer) override
@@ -530,7 +537,7 @@ private:
     }
 
     Database &db_;
-    int64_t business_day_id_;
+    const int64_t &business_day_id_;
 };
 
 class SqliteStore final : public Store
@@ -538,7 +545,12 @@ class SqliteStore final : public Store
 public:
     SqliteStore(Database db, int64_t business_day_id)
         : db_(std::move(db)), business_day_id_(business_day_id),
-          checks_(db_, business_day_id), drawers_(db_, business_day_id) {}
+          // business_day_id_, the member -- NOT the constructor parameter. The
+          // repositories hold this by reference so EndBusinessDay's update is
+          // visible to them, and binding to the parameter leaves them pointing
+          // at a stack slot that dies here. That compiles, and reads correctly
+          // right up until the first rollover writes through it.
+          checks_(db_, business_day_id_), drawers_(db_, business_day_id_) {}
 
     [[nodiscard]] std::unique_ptr<Transaction> Begin() override
     {
@@ -554,6 +566,39 @@ public:
 
     // The whole point. Every write in a transaction lands or none does.
     [[nodiscard]] bool SupportsAtomicWrites() const noexcept override { return true; }
+
+    [[nodiscard]] StoreError EndBusinessDay() override
+    {
+        // Stamp the day closed and open the next. Everything already written
+        // stays where it is -- it belongs to the day that just ended, which is
+        // the whole reason the container exists.
+        //
+        // One statement each, and the caller is expected to have a transaction
+        // open around EndDay's other work, so a crash between them cannot leave
+        // two open days (which ux_business_day_open would reject anyway).
+        {
+            Statement stmt;
+            if (Status s = stmt.Prepare(
+                    db_, "UPDATE business_day SET closed_at_local = "
+                         "strftime('%s','now'), end_local = strftime('%s','now') "
+                         "WHERE id = ?1 AND closed_at_local IS NULL;");
+                s != Status::Ok)
+            {
+                return Translate(s);
+            }
+            if (Status s = stmt.BindInt(1, business_day_id_); s != Status::Ok)
+                return Translate(s);
+            if (Status s = stmt.Execute(); s != Status::Ok)
+                return Fail(db_, s, "close business day");
+        }
+
+        int64_t next = 0;
+        if (const StoreError e = ResolveOpenDay(db_, next); e != StoreError::Ok)
+            return e;
+
+        business_day_id_ = next;
+        return StoreError::Ok;
+    }
 
     [[nodiscard]] StoreError HealthCheck() override
     {

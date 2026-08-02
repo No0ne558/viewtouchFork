@@ -584,6 +584,36 @@ int System::EndDay()
         check = check_next;
     }
 
+    /*
+     * Roll the business day over before the carried-forward checks are saved.
+     *
+     * Order matters and is the whole reason this sits here rather than at the
+     * end. Everything above has been moved into the archive and belongs to the
+     * day that just finished; the still-open checks below belong to the new
+     * one. Closing the day between the two puts each on the right side without
+     * copying anything.
+     *
+     * On the legacy backend this does nothing -- the archive file is the day.
+     * On SQL it is not optional, and skipping it fails silently rather than
+     * loudly: a serial identifies a record within a day, so a day that never
+     * closes has tomorrow's check #143 overwrite today's and report success.
+     */
+    if (data_store_ != nullptr)
+    {
+        if (const vt::store::StoreError e = data_store_->EndBusinessDay();
+            e != vt::store::StoreError::Ok)
+        {
+            // Not fatal to EndDay: the archive is already written and the day
+            // has genuinely ended. Failing here would leave the operator unable
+            // to close a day over a bookkeeping problem in a backend that may
+            // not even be authoritative.
+            ::vt::Logger::error("could not roll the business day over ({}); "
+                                "the archive is written but the store still "
+                                "thinks the previous day is open",
+                                vt::store::StoreErrorName(e));
+        }
+    }
+
     // Move open checks back to todays checks
     while (tmp_list.Head())
     {
