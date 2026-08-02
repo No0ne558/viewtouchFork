@@ -11,6 +11,7 @@
 
 #include "archive.hh"
 #include "check.hh"
+#include "drawer.hh"
 #include "sales.hh"
 #include "system.hh"
 
@@ -153,11 +154,52 @@ private:
     System *system_;
 };
 
+class LegacyDrawerRepository final : public DrawerRepository
+{
+public:
+    explicit LegacyDrawerRepository(System *system) : system_(system) {}
+
+    StoreError Save(Transaction &, Drawer &drawer) override
+    {
+        if (system_ == nullptr)
+            return StoreError::Io;
+
+        // Mirrors Drawer::Save() (drawer.cc:348). Two cases rather than the
+        // three a check has: there is no such thing as a drawer copy.
+        if (drawer.archive != nullptr)
+        {
+            drawer.archive->changed = 1;
+            return StoreError::Ok;
+        }
+
+        return (system_->SaveDrawer(&drawer) == 0) ? StoreError::Ok
+                                                   : StoreError::Io;
+    }
+
+    StoreError Count(int &out) override
+    {
+        if (system_ == nullptr)
+            return StoreError::Io;
+
+        int total = 0;
+        for (const Drawer *drawer = system_->DrawerList(); drawer != nullptr;
+             drawer = drawer->next)
+        {
+            ++total;
+        }
+        out = total;
+        return StoreError::Ok;
+    }
+
+private:
+    System *system_;
+};
+
 class LegacyFileStore final : public Store
 {
 public:
     explicit LegacyFileStore(System *system)
-        : system_(system), checks_(system) {}
+        : system_(system), checks_(system), drawers_(system) {}
 
     [[nodiscard]] std::unique_ptr<Transaction> Begin() override
     {
@@ -165,6 +207,8 @@ public:
     }
 
     [[nodiscard]] CheckRepository &Checks() override { return checks_; }
+
+    [[nodiscard]] DrawerRepository &Drawers() override { return drawers_; }
 
     [[nodiscard]] bool SupportsAtomicWrites() const noexcept override
     {
@@ -230,6 +274,7 @@ public:
 private:
     System *system_;
     LegacyCheckRepository checks_;
+    LegacyDrawerRepository drawers_;
 };
 
 } // namespace

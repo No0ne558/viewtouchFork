@@ -37,6 +37,8 @@ StoreError Translate(Status status) noexcept
     return StoreError::Io;
 }
 
+} // namespace
+
 /*
  * Log why a statement failed, then translate.
  *
@@ -84,6 +86,8 @@ std::string TextOf(const Str &value)
     const char *text = value.Value();
     return (text != nullptr) ? std::string(text) : std::string();
 }
+
+namespace {
 
 // FigureTotals deletes and recreates these three on every call, so a reader
 // needs to tell a regenerated row from one that was actually tendered.

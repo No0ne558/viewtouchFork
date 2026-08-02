@@ -31,17 +31,50 @@
 
 #include "store.hh"
 
+#include "sql/database.hh"
+
 #include <cstdint>
 #include <optional>
-
-namespace vt::sql { class Database; }
+#include <string>
 
 class Check;
 class Order;
 class Payment;
+class Str;
 class SubCheck;
+class TimeInfo;
 
 namespace vt::store {
+
+/*
+ * Shared SQL binding helpers.
+ *
+ * These live here rather than in each repository because the drawer repository
+ * needs exactly the same conversions the check writer does, and two copies of
+ * "how a TimeInfo becomes a column" is two places for them to drift.
+ */
+
+// TimeInfo is date::local_time with no zone attached, so the only value that can
+// be written without inventing information is the local one. The matching *_utc
+// columns stay NULL until TimeInfo records a zone; guessing one would be wrong
+// by an hour twice a year and silently so.
+[[nodiscard]] std::optional<int64_t> LocalSeconds(const TimeInfo &time);
+
+// Ids are 0 when absent throughout this codebase. NULL says "nobody", which a
+// zero cannot, and keeps a foreign key from having to accept a sentinel.
+[[nodiscard]] std::optional<int64_t> NullableId(int id);
+
+[[nodiscard]] std::string TextOf(const Str &value);
+
+// Log why a statement failed, then translate. A Constraint return alone says a
+// rule was broken but not which one, and the schema has foreign keys, partial
+// unique indexes, CHECK constraints and five triggers that all produce it.
+[[nodiscard]] StoreError Fail(vt::sql::Database &db, vt::sql::Status status,
+                              const char *what);
+
+// Same, for statements run via Execute() whose result is a bare Status.
+[[nodiscard]] StoreError Report(vt::sql::Database &db, vt::sql::Status status,
+                                const char *what);
 
 // Row counts, so an import can report what it actually moved rather than
 // "done".

@@ -644,6 +644,152 @@ INSERT OR IGNORE INTO item_family(id, code, name, sort_order) VALUES
 
 )SQL";
 
+/*
+ * Migration 0004 - drawers.
+ *
+ * The other half of end-of-day cash reconciliation. Checks say what was owed;
+ * drawers say what was in the till, and the difference between them is what a
+ * manager actually signs off on.
+ *
+ * Three things the legacy format could not express, each of which is why the
+ * columns below are not a straight transcription of Drawer::Write:
+ *
+ *   Status is derived, never stored. Drawer::GetStatus() reads it off which of
+ *   start_time / pull_time / balance_time are set. Keeping those three and
+ *   deriving the same way means the status cannot drift from the timestamps
+ *   that justify it, which a status column would allow.
+ *
+ *   Only counted cash is real. Drawer::Write emits a balance row only when
+ *   `entered` is non-zero, and recomputes `amount` and `count` from the checks
+ *   on every load. So the expected side is derived and the counted side is
+ *   stored -- expected_amount and expected_count are recorded here as the value
+ *   in force when the drawer was balanced, and are nullable because before that
+ *   moment there is no meaningful answer rather than a zero one.
+ *
+ *   Payments and balances are different things sharing a tender type. A payment
+ *   is money leaving the till (a tip paid out, an expense); a balance is a
+ *   count of what should be in it. The legacy file interleaves them in one
+ *   record stream; separate tables stop a report having to know which is which
+ *   by position.
+ */
+constexpr std::string_view kMigration0004 = R"SQL(
+
+CREATE TABLE drawer (
+    id                INTEGER PRIMARY KEY,
+    business_day_id   INTEGER NOT NULL REFERENCES business_day(id),
+
+    -- Shares the pos_serial sequence with checks, matching
+    -- System::NewSerialNumber, and carries the same historical-duplicate
+    -- problem, so it is scoped and disambiguated exactly like pos_check.
+    serial_number        INTEGER NOT NULL,
+    serial_disambiguator INTEGER NOT NULL DEFAULT 0,
+
+    host              TEXT,
+    position          INTEGER NOT NULL DEFAULT 0,
+    number            INTEGER NOT NULL DEFAULT 0,
+    owner_id          INTEGER,
+    puller_id         INTEGER,
+    media_balanced    INTEGER NOT NULL DEFAULT 0,   -- bitfield of media flags
+
+    -- The three timestamps GetStatus() derives from. All nullable: a drawer
+    -- that has not been pulled has no pull time, which is different from a pull
+    -- time of zero.
+    start_time_local   INTEGER,
+    pull_time_local    INTEGER,
+    balance_time_local INTEGER,
+
+    -- Non-NULL means the counted amounts below are immutable, same contract as
+    -- subcheck.frozen_at_local.
+    frozen_at_local   INTEGER,
+
+    UNIQUE(business_day_id, serial_number, serial_disambiguator)
+);
+
+CREATE INDEX ix_drawer_day ON drawer(business_day_id);
+
+-- Money out of the till: tips paid, expenses, payouts.
+CREATE TABLE drawer_payment (
+    id              INTEGER PRIMARY KEY,
+    drawer_id       INTEGER NOT NULL REFERENCES drawer(id) ON DELETE CASCADE,
+    business_day_id INTEGER NOT NULL REFERENCES business_day(id),
+    seq             INTEGER NOT NULL,
+
+    tender_type     INTEGER NOT NULL REFERENCES tender_type_ref(id),
+    amount          INTEGER NOT NULL,
+    user_id         INTEGER,
+    target_id       INTEGER,
+    time_local      INTEGER,
+
+    UNIQUE(drawer_id, seq)
+);
+
+CREATE INDEX ix_drawer_payment_drawer ON drawer_payment(drawer_id);
+
+-- What was counted, against what was expected.
+CREATE TABLE drawer_balance (
+    id              INTEGER PRIMARY KEY,
+    drawer_id       INTEGER NOT NULL REFERENCES drawer(id) ON DELETE CASCADE,
+    business_day_id INTEGER NOT NULL REFERENCES business_day(id),
+    seq             INTEGER NOT NULL,
+
+    tender_type     INTEGER NOT NULL REFERENCES tender_type_ref(id),
+    legacy_tender_id INTEGER NOT NULL DEFAULT 0,
+
+    -- The counted side. This is the only figure a person actually produced.
+    entered         INTEGER NOT NULL,
+
+    -- The expected side, as computed when the drawer was balanced. NULL before
+    -- that: the legacy code recomputes these on every load from whatever checks
+    -- are currently in scope, so a stored zero would be indistinguishable from
+    -- "nothing was owed" when the truth is "nobody has counted yet".
+    expected_amount INTEGER,
+    expected_count  INTEGER,
+
+    UNIQUE(drawer_id, seq)
+);
+
+CREATE INDEX ix_drawer_balance_drawer ON drawer_balance(drawer_id);
+
+-- Same denormalization guard the subchecks get: business_day_id is copied down
+-- for reporting speed, so a trigger has to keep it honest.
+CREATE TRIGGER trg_drawer_payment_day_matches
+BEFORE INSERT ON drawer_payment
+WHEN NEW.business_day_id <>
+     (SELECT business_day_id FROM drawer WHERE id = NEW.drawer_id)
+BEGIN
+    SELECT RAISE(ABORT, 'drawer_payment.business_day_id disagrees with its drawer');
+END;
+
+CREATE TRIGGER trg_drawer_balance_day_matches
+BEFORE INSERT ON drawer_balance
+WHEN NEW.business_day_id <>
+     (SELECT business_day_id FROM drawer WHERE id = NEW.drawer_id)
+BEGIN
+    SELECT RAISE(ABORT, 'drawer_balance.business_day_id disagrees with its drawer');
+END;
+
+-- A frozen drawer's counted amounts are what a manager signed off on.
+CREATE TRIGGER trg_drawer_balance_frozen
+BEFORE UPDATE ON drawer_balance
+WHEN (SELECT frozen_at_local FROM drawer WHERE id = NEW.drawer_id) IS NOT NULL
+BEGIN
+    SELECT RAISE(ABORT, 'balances for a frozen drawer cannot be modified');
+END;
+
+-- Over/short per drawer, derived rather than stored: it is a subtraction of two
+-- columns that are already frozen, and a stored copy could only ever drift.
+CREATE VIEW drawer_difference AS
+SELECT d.id                                   AS drawer_id,
+       d.business_day_id                      AS business_day_id,
+       SUM(b.entered)                         AS counted,
+       SUM(COALESCE(b.expected_amount, 0))    AS expected,
+       SUM(b.entered - COALESCE(b.expected_amount, 0)) AS difference
+FROM drawer d
+JOIN drawer_balance b ON b.drawer_id = d.id
+GROUP BY d.id;
+
+)SQL";
+
 std::string_view SeedFor(int version)
 {
     switch (version)
@@ -665,6 +811,8 @@ const std::vector<Migration> &AllMigrations()
                   kMigration0002},
         Migration{3, "correct check_type_ref ids and complete item_family",
                   kMigration0003},
+        Migration{4, "drawers: payments, balances and over/short",
+                  kMigration0004},
     };
     return migrations;
 }

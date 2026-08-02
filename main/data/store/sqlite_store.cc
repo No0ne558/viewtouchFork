@@ -31,6 +31,7 @@
 
 #include "check.hh"
 #include "check_writer.hh"
+#include "drawer.hh"
 
 #include "sql/database.hh"
 #include "sql/migrations.hh"
@@ -207,12 +208,337 @@ private:
     int64_t business_day_id_;
 };
 
+/*
+ * Drawers in SQL.
+ *
+ * Whole-drawer replace, matching the check repository and matching what
+ * Drawer::Write does to a file: the payments and balances are rewritten as a
+ * set, because there is no dirty-tracking to do anything finer with.
+ *
+ * The expected side of a balance is written only once the drawer has been
+ * balanced. Before that the legacy code recomputes `amount` and `count` from
+ * whatever checks are in scope on every load, so storing a zero would be
+ * indistinguishable from "nothing was owed" when the truth is "nobody has
+ * counted yet" -- hence NULL, and hence the columns being nullable.
+ */
+class SqliteDrawerRepository final : public DrawerRepository
+{
+public:
+    SqliteDrawerRepository(Database &db, int64_t business_day_id)
+        : db_(db), business_day_id_(business_day_id) {}
+
+    StoreError Save(Transaction &tx, Drawer &drawer) override
+    {
+        if (!tx.IsActive())
+            return StoreError::Constraint;
+
+        // Same dispatch as Drawer::Save() and as the legacy backend.
+        if (drawer.archive != nullptr)
+            return StoreError::Unsupported;   // see the file header
+
+        if (drawer.serial_number <= 0)
+        {
+            int64_t serial = 0;
+            if (Status s = vt::sql::NextSequenceValue(
+                    db_, vt::sql::kPosSerialSequence, serial); s != Status::Ok)
+            {
+                return Translate(s);
+            }
+            drawer.serial_number = static_cast<int>(serial);
+        }
+
+        int64_t drawer_id = 0;
+        const StoreError found = FindDrawer(drawer.serial_number, drawer_id);
+        if (found != StoreError::Ok && found != StoreError::NotFound)
+            return found;
+
+        if (found == StoreError::Ok)
+        {
+            bool frozen = false;
+            if (const StoreError e = IsFrozen(drawer_id, frozen);
+                e != StoreError::Ok)
+            {
+                return e;
+            }
+            // A balanced drawer is what a manager signed off on. Rewriting it
+            // deletes and reinserts the counted amounts, which the frozen
+            // trigger cannot catch because it fires on UPDATE.
+            if (frozen)
+                return StoreError::Constraint;
+
+            if (const StoreError e = UpdateDrawer(drawer_id, drawer);
+                e != StoreError::Ok)
+            {
+                return e;
+            }
+            if (const StoreError e = DeleteChildren(drawer_id);
+                e != StoreError::Ok)
+            {
+                return e;
+            }
+        }
+        else if (const StoreError e = InsertDrawer(drawer, drawer_id);
+                 e != StoreError::Ok)
+        {
+            return e;
+        }
+
+        return WriteChildren(drawer_id, drawer);
+    }
+
+    StoreError Count(int &out) override
+    {
+        int64_t total = 0;
+        const std::string sql =
+            "SELECT COUNT(*) FROM drawer WHERE business_day_id = " +
+            std::to_string(business_day_id_) + ";";
+        if (Status s = db_.QueryInt(sql, total); s != Status::Ok)
+            return Translate(s);
+        out = static_cast<int>(total);
+        return StoreError::Ok;
+    }
+
+private:
+    StoreError FindDrawer(int serial_number, int64_t &out)
+    {
+        Statement stmt;
+        if (Status s = stmt.Prepare(
+                db_, "SELECT id FROM drawer "
+                     "WHERE business_day_id = ?1 AND serial_number = ?2;");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        if (Status s = stmt.BindInt(1, business_day_id_); s != Status::Ok)
+            return Translate(s);
+        if (Status s = stmt.BindInt(2, serial_number); s != Status::Ok)
+            return Translate(s);
+
+        Status step = Status::Ok;
+        if (stmt.Step(step))
+        {
+            out = stmt.ColumnInt(0);
+            return StoreError::Ok;
+        }
+        return (step != Status::Ok) ? Translate(step) : StoreError::NotFound;
+    }
+
+    StoreError IsFrozen(int64_t drawer_id, bool &out)
+    {
+        int64_t frozen = 0;
+        const std::string sql =
+            "SELECT COUNT(*) FROM drawer WHERE id = " +
+            std::to_string(drawer_id) + " AND frozen_at_local IS NOT NULL;";
+        if (Status s = db_.QueryInt(sql, frozen); s != Status::Ok)
+            return Translate(s);
+        out = (frozen > 0);
+        return StoreError::Ok;
+    }
+
+    StoreError BindDrawerColumns(Statement &stmt, const Drawer &drawer, int base)
+    {
+        Status s = Status::Ok;
+        const auto at = [base](int offset) { return base + offset; };
+
+        if ((s = stmt.BindText(at(0), TextOf(drawer.host))) != Status::Ok)
+            return Translate(s);
+        if ((s = stmt.BindInt(at(1), drawer.position)) != Status::Ok) return Translate(s);
+        if ((s = stmt.BindInt(at(2), drawer.number)) != Status::Ok) return Translate(s);
+        if ((s = stmt.BindOptionalInt(at(3), NullableId(drawer.owner_id))) != Status::Ok)
+            return Translate(s);
+        if ((s = stmt.BindOptionalInt(at(4), NullableId(drawer.puller_id))) != Status::Ok)
+            return Translate(s);
+        if ((s = stmt.BindInt(at(5), drawer.media_balanced)) != Status::Ok)
+            return Translate(s);
+        // The three timestamps GetStatus() derives from. Nullable, because a
+        // drawer that has not been pulled has no pull time -- which is a
+        // different fact from a pull time of zero.
+        if ((s = stmt.BindOptionalInt(at(6), LocalSeconds(drawer.start_time))) != Status::Ok)
+            return Translate(s);
+        if ((s = stmt.BindOptionalInt(at(7), LocalSeconds(drawer.pull_time))) != Status::Ok)
+            return Translate(s);
+        if ((s = stmt.BindOptionalInt(at(8), LocalSeconds(drawer.balance_time))) != Status::Ok)
+            return Translate(s);
+        return StoreError::Ok;
+    }
+
+    static constexpr int kDrawerColumnCount = 9;
+
+    StoreError InsertDrawer(const Drawer &drawer, int64_t &out_id)
+    {
+        Statement stmt;
+        if (Status s = stmt.Prepare(
+                db_,
+                "INSERT INTO drawer("
+                "  business_day_id, serial_number, host, position, number,"
+                "  owner_id, puller_id, media_balanced,"
+                "  start_time_local, pull_time_local, balance_time_local)"
+                " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)"
+                " RETURNING id;");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        if (Status s = stmt.BindInt(1, business_day_id_); s != Status::Ok)
+            return Translate(s);
+        if (Status s = stmt.BindInt(2, drawer.serial_number); s != Status::Ok)
+            return Translate(s);
+        if (const StoreError e = BindDrawerColumns(stmt, drawer, 3);
+            e != StoreError::Ok)
+        {
+            return e;
+        }
+
+        Status step = Status::Ok;
+        if (!stmt.Step(step))
+            return Fail(db_, step, "insert drawer");
+        out_id = stmt.ColumnInt(0);
+        return StoreError::Ok;
+    }
+
+    StoreError UpdateDrawer(int64_t drawer_id, const Drawer &drawer)
+    {
+        Statement stmt;
+        if (Status s = stmt.Prepare(
+                db_,
+                "UPDATE drawer SET host = ?1, position = ?2, number = ?3,"
+                "  owner_id = ?4, puller_id = ?5, media_balanced = ?6,"
+                "  start_time_local = ?7, pull_time_local = ?8,"
+                "  balance_time_local = ?9"
+                " WHERE id = ?10;");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        if (const StoreError e = BindDrawerColumns(stmt, drawer, 1);
+            e != StoreError::Ok)
+        {
+            return e;
+        }
+        if (Status s = stmt.BindInt(kDrawerColumnCount + 1, drawer_id);
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        return Report(stmt.Execute(), "update drawer");
+    }
+
+    StoreError DeleteChildren(int64_t drawer_id)
+    {
+        for (const char *sql : {"DELETE FROM drawer_payment WHERE drawer_id = ?1;",
+                                "DELETE FROM drawer_balance WHERE drawer_id = ?1;"})
+        {
+            Statement stmt;
+            if (Status s = stmt.Prepare(db_, sql); s != Status::Ok)
+                return Translate(s);
+            if (Status s = stmt.BindInt(1, drawer_id); s != Status::Ok)
+                return Translate(s);
+            if (const StoreError e = Report(stmt.Execute(), "delete drawer children");
+                e != StoreError::Ok)
+            {
+                return e;
+            }
+        }
+        return StoreError::Ok;
+    }
+
+    StoreError WriteChildren(int64_t drawer_id, Drawer &drawer)
+    {
+        int seq = 0;
+        for (const DrawerPayment *payment = drawer.PaymentList();
+             payment != nullptr; payment = payment->next, ++seq)
+        {
+            Statement stmt;
+            if (Status s = stmt.Prepare(
+                    db_,
+                    "INSERT INTO drawer_payment("
+                    "  drawer_id, business_day_id, seq, tender_type, amount,"
+                    "  user_id, target_id, time_local)"
+                    " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);");
+                s != Status::Ok)
+            {
+                return Translate(s);
+            }
+            Status s = Status::Ok;
+            if ((s = stmt.BindInt(1, drawer_id)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(2, business_day_id_)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(3, seq)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(4, payment->tender_type)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(5, payment->amount)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindOptionalInt(6, NullableId(payment->user_id))) != Status::Ok)
+                return Translate(s);
+            if ((s = stmt.BindOptionalInt(7, NullableId(payment->target_id))) != Status::Ok)
+                return Translate(s);
+            if ((s = stmt.BindOptionalInt(8, LocalSeconds(payment->time))) != Status::Ok)
+                return Translate(s);
+            if (const StoreError e = Report(stmt.Execute(), "insert drawer payment");
+                e != StoreError::Ok)
+            {
+                return e;
+            }
+        }
+
+        // Every balance, not only the ones with a non-zero `entered`.
+        // Drawer::Write filters those out, so the legacy file cannot represent
+        // "this tender was counted and came to nothing" -- which is a real
+        // outcome and different from never having been counted.
+        const bool balanced = drawer.balance_time.IsSet();
+        seq = 0;
+        for (const DrawerBalance *balance = drawer.BalanceList();
+             balance != nullptr; balance = balance->next, ++seq)
+        {
+            Statement stmt;
+            if (Status s = stmt.Prepare(
+                    db_,
+                    "INSERT INTO drawer_balance("
+                    "  drawer_id, business_day_id, seq, tender_type,"
+                    "  legacy_tender_id, entered, expected_amount, expected_count)"
+                    " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);");
+                s != Status::Ok)
+            {
+                return Translate(s);
+            }
+            Status s = Status::Ok;
+            if ((s = stmt.BindInt(1, drawer_id)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(2, business_day_id_)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(3, seq)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(4, balance->tender_type)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(5, balance->tender_id)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(6, balance->entered)) != Status::Ok) return Translate(s);
+
+            const std::optional<int64_t> expected_amount =
+                balanced ? std::optional<int64_t>(balance->amount) : std::nullopt;
+            const std::optional<int64_t> expected_count =
+                balanced ? std::optional<int64_t>(balance->count) : std::nullopt;
+            if ((s = stmt.BindOptionalInt(7, expected_amount)) != Status::Ok)
+                return Translate(s);
+            if ((s = stmt.BindOptionalInt(8, expected_count)) != Status::Ok)
+                return Translate(s);
+
+            if (const StoreError e = Report(stmt.Execute(), "insert drawer balance");
+                e != StoreError::Ok)
+            {
+                return e;
+            }
+        }
+        return StoreError::Ok;
+    }
+
+    StoreError Report(Status status, const char *what)
+    {
+        return (status == Status::Ok) ? StoreError::Ok : Fail(db_, status, what);
+    }
+
+    Database &db_;
+    int64_t business_day_id_;
+};
+
 class SqliteStore final : public Store
 {
 public:
     SqliteStore(Database db, int64_t business_day_id)
         : db_(std::move(db)), business_day_id_(business_day_id),
-          checks_(db_, business_day_id) {}
+          checks_(db_, business_day_id), drawers_(db_, business_day_id) {}
 
     [[nodiscard]] std::unique_ptr<Transaction> Begin() override
     {
@@ -223,6 +549,8 @@ public:
     }
 
     [[nodiscard]] CheckRepository &Checks() override { return checks_; }
+
+    [[nodiscard]] DrawerRepository &Drawers() override { return drawers_; }
 
     // The whole point. Every write in a transaction lands or none does.
     [[nodiscard]] bool SupportsAtomicWrites() const noexcept override { return true; }
@@ -429,6 +757,7 @@ private:
     Database db_;
     int64_t business_day_id_;
     SqliteCheckRepository checks_;
+    SqliteDrawerRepository drawers_;
 };
 
 // Resolve the single open business day, creating it if the database has none.

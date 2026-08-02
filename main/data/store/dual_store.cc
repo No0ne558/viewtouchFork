@@ -6,6 +6,7 @@
 #include "dual_store.hh"
 
 #include "check.hh"
+#include "drawer.hh"
 #include "vt_logger.hh"
 
 #include <memory>
@@ -156,6 +157,53 @@ private:
     ShadowHealth &health_;
 };
 
+/*
+ * Drawers, same posture as checks: primary first and authoritative, shadow
+ * afterwards so it cannot influence the answer.
+ *
+ * No Remove here because DrawerRepository has none -- the legacy code never
+ * deletes a drawer through a System method.
+ */
+class DualDrawerRepository final : public DrawerRepository
+{
+public:
+    DualDrawerRepository(Store &primary, Store &shadow, ShadowHealth &health)
+        : primary_(primary), shadow_(shadow), health_(health) {}
+
+    StoreError Save(Transaction &tx, Drawer &drawer) override
+    {
+        auto *dual = dynamic_cast<DualTransaction *>(&tx);
+        if (dual == nullptr || dual->primary() == nullptr)
+            return StoreError::Io;
+
+        const StoreError result = primary_.Drawers().Save(*dual->primary(), drawer);
+        ++health_.saves;
+
+        if (dual->shadow() != nullptr)
+        {
+            const StoreError shadow_result =
+                shadow_.Drawers().Save(*dual->shadow(), drawer);
+            if (shadow_result != StoreError::Ok &&
+                shadow_result != StoreError::Unsupported)
+            {
+                ++health_.save_failures;
+                health_.last_error = StoreErrorName(shadow_result);
+                ::vt::Logger::error(
+                    "dual run: shadow save of drawer #{} failed ({})",
+                    drawer.serial_number, StoreErrorName(shadow_result));
+            }
+        }
+        return result;
+    }
+
+    StoreError Count(int &out) override { return primary_.Drawers().Count(out); }
+
+private:
+    Store &primary_;
+    Store &shadow_;
+    ShadowHealth &health_;
+};
+
 } // namespace
 
 struct DualRunStore::Impl
@@ -164,6 +212,7 @@ struct DualRunStore::Impl
     std::unique_ptr<Store> shadow;
     ShadowHealth health;
     std::unique_ptr<DualCheckRepository> checks;
+    std::unique_ptr<DualDrawerRepository> drawers;
     std::string name;
 };
 
@@ -174,6 +223,8 @@ DualRunStore::DualRunStore(std::unique_ptr<Store> primary,
     impl_->primary = std::move(primary);
     impl_->shadow = std::move(shadow);
     impl_->checks = std::make_unique<DualCheckRepository>(
+        *impl_->primary, *impl_->shadow, impl_->health);
+    impl_->drawers = std::make_unique<DualDrawerRepository>(
         *impl_->primary, *impl_->shadow, impl_->health);
     impl_->name = std::string("dual(") + impl_->primary->Name() + " + " +
                   impl_->shadow->Name() + ")";
@@ -202,6 +253,8 @@ std::unique_ptr<Transaction> DualRunStore::Begin()
 }
 
 CheckRepository &DualRunStore::Checks() { return *impl_->checks; }
+
+DrawerRepository &DualRunStore::Drawers() { return *impl_->drawers; }
 
 bool DualRunStore::SupportsAtomicWrites() const noexcept
 {

@@ -38,6 +38,7 @@
 #include "snapshot.hh"
 
 class Check;
+class Drawer;
 class System;
 
 namespace vt::store {
@@ -112,6 +113,28 @@ public:
     [[nodiscard]] virtual StoreError Count(int &out) = 0;
 };
 
+/*
+ * Drawers: the other half of end-of-day reconciliation.
+ *
+ * Simpler than checks because Drawer::Save() has only two cases rather than
+ * three -- there is no such thing as a drawer copy. Deletion is not on this
+ * interface at all: the legacy code never deletes a drawer through a System
+ * method, it calls Drawer::DestroyFile() directly from EndDay, and inventing a
+ * Remove() nothing calls would be interface for its own sake.
+ */
+class DrawerRepository
+{
+public:
+    virtual ~DrawerRepository() = default;
+
+    // Persist the whole drawer -- its payments and its balances. An archived
+    // drawer marks its archive dirty and is not written on its own, matching
+    // Drawer::Save().
+    virtual StoreError Save(Transaction &tx, Drawer &drawer) = 0;
+
+    [[nodiscard]] virtual StoreError Count(int &out) = 0;
+};
+
 class Store
 {
 public:
@@ -119,6 +142,7 @@ public:
 
     [[nodiscard]] virtual std::unique_ptr<Transaction> Begin() = 0;
     [[nodiscard]] virtual CheckRepository &Checks() = 0;
+    [[nodiscard]] virtual DrawerRepository &Drawers() = 0;
 
     // Whether a Transaction from this store actually groups its writes. False
     // for the legacy backend. A caller that must not leave a partial state --

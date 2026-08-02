@@ -19,6 +19,7 @@
  */
 
 #include "drawer.hh"
+#include "store/store.hh"
 #include "report.hh"
 #include "check.hh"
 #include "employee.hh"
@@ -348,6 +349,26 @@ int Drawer::Load(const char* file)
 int Drawer::Save()
 {
     FnTrace("Drawer::Save()");
+
+    if (vt::store::Store *store = MasterSystem->DataStore())
+    {
+        // Configured backend. For `legacy` this reaches the same
+        // System::SaveDrawer the branch below calls, so the bytes on disk are
+        // identical -- asserted by a test rather than assumed.
+        auto tx = store->Begin();
+        if (tx == nullptr)
+            return 1;
+
+        if (store->Drawers().Save(*tx, *this) != vt::store::StoreError::Ok)
+        {
+            tx->Rollback();
+            return 1;
+        }
+        return (tx->Commit() == vt::store::StoreError::Ok) ? 0 : 1;
+    }
+
+    // No store configured yet -- drawers are loaded and saved during startup,
+    // before any config has been read. Same window Check::Save() covers.
     int retval = 0;
 
     if (archive)

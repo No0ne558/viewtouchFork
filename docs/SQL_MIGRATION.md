@@ -163,6 +163,20 @@ files an older binary would read once the format has moved on. Shipping one
 without that caveat understood would be selling a rollback that silently fails
 at the worst possible moment.
 
+## What is migrated, and what is not
+
+`sqlite` mode moves **checks and drawers** — the two halves of end-of-day
+reconciliation. Everything else still writes files on every mode:
+
+archives (the whole-day file rewrite), settings, employees, labor and work
+records, tips, expenses, inventory, customers, accounts, and the credit
+databases.
+
+So a site in `sqlite` mode is in a coherent but partial state: current checks
+and drawers live in the database, the archive of each closed day is still a
+file, and `EndDay` still performs its whole-day rewrite. Plan accordingly —
+this is a staged migration, not a finished one.
+
 ## Checking a database
 
 - The health check is a cheap readiness probe, safe to run at startup.
