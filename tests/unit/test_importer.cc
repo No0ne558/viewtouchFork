@@ -25,10 +25,15 @@
 #include "sql/statement.hh"
 #include "support/vt_test_env.hh"
 
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 using namespace vt::store;
@@ -424,5 +429,191 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         const ImportResult result = ImportArchives(dir.path.string(), dir.db, settings);
         REQUIRE(result.Ok());
         REQUIRE(result.stats.days == 0);
+    }
+}
+
+
+namespace {
+
+struct ToolRun
+{
+    int exit_code{-1};
+    std::string output;
+};
+
+// Run the vt_import binary and capture what an operator would see.
+ToolRun RunImportTool(const std::vector<std::string> &args)
+{
+    int pipe_fds[2] = {-1, -1};
+    REQUIRE(::pipe(pipe_fds) == 0);
+
+    std::vector<char *> argv;
+    argv.push_back(const_cast<char *>(VT_IMPORT_PATH));
+    for (const std::string &arg : args)
+        argv.push_back(const_cast<char *>(arg.c_str()));
+    argv.push_back(nullptr);
+
+    const pid_t pid = ::fork();
+    if (pid == 0)
+    {
+        ::close(pipe_fds[0]);
+        ::dup2(pipe_fds[1], STDOUT_FILENO);
+        ::dup2(pipe_fds[1], STDERR_FILENO);
+        ::close(pipe_fds[1]);
+        ::execv(VT_IMPORT_PATH, argv.data());
+        ::_exit(127);
+    }
+
+    ::close(pipe_fds[1]);
+    REQUIRE(pid > 0);
+
+    ToolRun run;
+    char chunk[4096];
+    ssize_t got = 0;
+    while ((got = ::read(pipe_fds[0], chunk, sizeof(chunk))) > 0)
+        run.output.append(chunk, static_cast<std::size_t>(got));
+    ::close(pipe_fds[0]);
+
+    int status = 0;
+    ::waitpid(pid, &status, 0);
+    if (WIFEXITED(status))
+        run.exit_code = WEXITSTATUS(status);
+    return run;
+}
+
+// A data directory shaped the way vt_import expects to find one.
+struct DataDir
+{
+    fs::path root;
+    fs::path archives;
+    std::string db;
+
+    explicit DataDir(const std::string &name)
+        : root(fs::temp_directory_path() / name),
+          archives(root / "archive"),
+          db((root / "viewtouch.db").string())
+    {
+        Clean();
+        std::error_code ec;
+        fs::create_directories(archives, ec);
+    }
+    ~DataDir() { Clean(); }
+
+    void Clean() const
+    {
+        std::error_code ec;
+        fs::remove_all(root, ec);
+    }
+
+    void WriteConfig() const
+    {
+        std::ofstream out(root / "persistence.conf");
+        out << "[persistence]\nmode = dual\ndatabase_path = " << db << "\n";
+    }
+};
+
+} // namespace
+
+TEST_CASE_METHOD(vt_test::VtSystemFixture,
+                 "The vt_import tool migrates a data directory",
+                 "[importer][tool]")
+{
+    // Exercises the binary an operator actually runs, not just the function it
+    // wraps. Argument handling, the config lookup and the exit codes are what
+    // they meet first, and none of them are covered by calling ImportArchives()
+    // directly -- which is how docs/SQL_MIGRATION.md came to describe a step
+    // that could not be performed.
+    DataDir data("vt_import_tool");
+    Settings &settings = TestSettings();
+
+    WriteArchive((data.archives / "archive_001").string(), settings, 1,
+                 {MakeClosedCheck(100, 950), MakeClosedCheck(101, 1250)});
+    WriteArchive((data.archives / "archive_002").string(), settings, 2,
+                 {MakeClosedCheck(200, 700)});
+
+    SECTION("it finds the database path in persistence.conf")
+    {
+        // So an operator cannot type the path differently from what the running
+        // system will open.
+        data.WriteConfig();
+
+        const ToolRun run = RunImportTool({"--data-path", data.root.string()});
+        INFO(run.output);
+        REQUIRE(run.exit_code == 0);
+        REQUIRE(run.output.find("business days   2") != std::string::npos);
+        REQUIRE(run.output.find("checks          3") != std::string::npos);
+
+        REQUIRE(fs::exists(data.db));
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM pos_check;") == 3);
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM business_day;") == 2);
+    }
+
+    SECTION("an explicit --database overrides the config")
+    {
+        const std::string elsewhere = (data.root / "other.db").string();
+        const ToolRun run = RunImportTool(
+            {"--data-path", data.root.string(), "--database", elsewhere});
+        INFO(run.output);
+        REQUIRE(run.exit_code == 0);
+        REQUIRE(fs::exists(elsewhere));
+        REQUIRE_FALSE(fs::exists(data.db));
+    }
+
+    SECTION("--dry-run reports without leaving a database behind")
+    {
+        data.WriteConfig();
+
+        const ToolRun run = RunImportTool(
+            {"--data-path", data.root.string(), "--dry-run"});
+        INFO(run.output);
+        REQUIRE(run.exit_code == 0);
+        REQUIRE(run.output.find("Dry run") != std::string::npos);
+        REQUIRE(run.output.find("checks          3") != std::string::npos);
+
+        // The whole point: a site can see what an import would do before
+        // committing to one.
+        REQUIRE_FALSE(fs::exists(data.db));
+        REQUIRE_FALSE(fs::exists(data.db + ".dryrun"));
+    }
+
+    SECTION("re-running is safe and reports nothing new")
+    {
+        data.WriteConfig();
+        REQUIRE(RunImportTool({"--data-path", data.root.string()}).exit_code == 0);
+
+        const ToolRun again = RunImportTool({"--data-path", data.root.string()});
+        INFO(again.output);
+        REQUIRE(again.exit_code == 0);
+        REQUIRE(again.output.find("business days   0") != std::string::npos);
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM pos_check;") == 3);
+    }
+
+    SECTION("an unreadable archive is named and changes the exit code")
+    {
+        // Exit 2 rather than 0: the import succeeded, but a day is missing and
+        // a script that treats 0 as "nothing to look at" would never find out.
+        data.WriteConfig();
+        {
+            std::ofstream bad(data.archives / "archive_003", std::ios::binary);
+            bad << "not an archive";
+        }
+
+        const ToolRun run = RunImportTool({"--data-path", data.root.string()});
+        INFO(run.output);
+        REQUIRE(run.exit_code == 2);
+        REQUIRE(run.output.find("archives failed 1") != std::string::npos);
+        REQUIRE(run.output.find("archive_003") != std::string::npos);
+    }
+
+    SECTION("it refuses a data directory with no archives")
+    {
+        DataDir empty("vt_import_tool_noarchives");
+        std::error_code ec;
+        fs::remove_all(empty.archives, ec);
+
+        const ToolRun run = RunImportTool(
+            {"--data-path", empty.root.string(), "--database", empty.db});
+        REQUIRE(run.exit_code == 1);
+        REQUIRE(run.output.find("no archive directory") != std::string::npos);
     }
 }

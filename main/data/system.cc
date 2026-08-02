@@ -22,6 +22,8 @@
 #include "manager.hh"
 #include "system.hh"
 #include "store/store.hh"
+#include "store/dual_store.hh"
+#include "vt_logger.hh"
 #include "data_file.hh"
 #include "terminal.hh"
 #include "manager.hh"
@@ -649,6 +651,77 @@ int System::EndDay()
     tip_db.Update(this);
     settings.RemoveInactiveMedia();
 
+    // A dual run is only worth anything if someone sees the divergence. End of
+    // day is the quiet moment the comparison needs -- it walks both backends in
+    // full, so it must not run on the save path -- and it is the point at which
+    // an operator would look anyway.
+    WriteDivergenceReport();
+
+    return 0;
+}
+
+/****
+ * WriteDivergenceReport: compare the two backends and leave the result where
+ *   somebody will find it.
+ *
+ * Does nothing unless the configured backend is a dual run. Failures here are
+ * logged and swallowed: this is a diagnostic, and a diagnostic that can fail
+ * an end of day is worse than no diagnostic at all.
+ *
+ * A non-empty report is the expected result, not an alarm. The two backends
+ * genuinely differ in known places -- call_order, and any string the legacy
+ * escaping mangles. What matters is whether anything OUTSIDE that list appears,
+ * which is a judgement the report exists to let a person make.
+ ****/
+int System::WriteDivergenceReport()
+{
+    FnTrace("System::WriteDivergenceReport()");
+
+    auto *dual = dynamic_cast<vt::store::DualRunStore *>(data_store_.get());
+    if (dual == nullptr)
+        return 0;   // not a dual run; nothing to compare
+
+    std::string report;
+    if (dual->CompareAndDescribe(report) != vt::store::StoreError::Ok)
+    {
+        ::vt::Logger::error("dual run: could not produce a divergence report");
+        return 1;
+    }
+
+    const vt::store::ShadowHealth &health = dual->Shadow();
+    ::vt::Logger::info("dual run: {} saves, {} save failures, {} removes, "
+                     "{} remove failures",
+                     health.saves, health.save_failures, health.removes,
+                     health.remove_failures);
+
+    if (report.empty())
+    {
+        ::vt::Logger::info("dual run: no divergence between the backends");
+        return 0;
+    }
+
+    // Written next to the data rather than only logged, because the point is
+    // for someone to read it and decide whether cutover is safe. Timestamped so
+    // successive days accumulate instead of overwriting the evidence.
+    genericChar filename[STRLONG];
+    vt_safe_string::safe_format(filename, STRLONG,
+                                "%s/divergence_%04d%02d%02d%02d%02d.txt",
+                                data_path.Value(), SystemTime.Year(),
+                                SystemTime.Month(), SystemTime.Day(),
+                                SystemTime.Hour(), SystemTime.Min());
+
+    FILE *out = std::fopen(filename, "w");
+    if (out == nullptr)
+    {
+        // Still log it. Losing the file is not a reason to lose the finding.
+        ::vt::Logger::error("dual run: cannot write {}; report follows\n{}",
+                          filename, report);
+        return 1;
+    }
+    std::fputs(report.c_str(), out);
+    std::fclose(out);
+
+    ::vt::Logger::info("dual run: divergence report written to {}", filename);
     return 0;
 }
 

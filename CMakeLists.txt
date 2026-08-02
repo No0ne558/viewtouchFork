@@ -607,6 +607,16 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_L
     target_link_libraries(vt_main stdc++fs)
 endif()
 
+# One-time migration tool. A separate binary rather than a mode of vt_main:
+# the import should run against a stopped POS, and folding it into the binary
+# that opens tills would invite running it against a live one.
+add_executable(vt_import
+    main/data/store/vt_import_main.cc
+    )
+target_include_directories(vt_import PRIVATE ${VT_XLIBS_INCLUDE_DIRS})
+target_link_libraries(vt_import vtbusiness zone vtcore ${VT_XLIBS})
+target_link_libraries(vt_import tz curlpp_static)
+
 add_executable(vt_term
     term/term_main.cc
     term/term_view.cc
@@ -667,7 +677,7 @@ install(CODE "file(MAKE_DIRECTORY \${CMAKE_INSTALL_PREFIX}/viewtouch/dat/crashre
 install(CODE "file(MAKE_DIRECTORY \${CMAKE_INSTALL_PREFIX}/viewtouch/bin/vtcommands)")
 install(CODE "file(MAKE_DIRECTORY \${CMAKE_INSTALL_PREFIX}/share/viewtouch/fonts)")
 
-install(TARGETS vtpos vt_cdu vt_print vt_term vt_main
+install(TARGETS vtpos vt_cdu vt_print vt_term vt_main vt_import
 	RUNTIME DESTINATION viewtouch/bin
         LIBRARY DESTINATION viewtouch/lib
 	ARCHIVE DESTINATION viewtouch/lib/static)

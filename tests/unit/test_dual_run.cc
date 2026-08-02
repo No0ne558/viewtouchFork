@@ -21,7 +21,9 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <memory>
+#include <sstream>
 #include <string>
 
 namespace fs = std::filesystem;
@@ -440,4 +442,122 @@ TEST_CASE("A shadow failure never fails a save", "[dualrun][safety]")
     auto remove = dual->Begin();
     REQUIRE(dual->Checks().Remove(*remove, *check) == StoreError::Ok);
     REQUIRE(remove->Commit() == StoreError::Ok);
+}
+
+
+TEST_CASE("Reading a payment marks it final whether it was or not",
+          "[dualrun][divergence]")
+{
+    // Found by reading a generated report rather than by reading the code:
+    // Payment::Read does `flags |= TF_FINAL` unconditionally (check.cc:6474),
+    // so a payment that was deliberately left non-final becomes final simply by
+    // surviving a save and reload. TF_FINAL means "money received" and other
+    // code branches on it.
+    //
+    // Pinned rather than fixed. Clearing it would change what every existing
+    // deployment reads back from its own files, which is a decision about
+    // behaviour rather than about storage, and the SQL backend does not need
+    // the mutation in the first place.
+    DualFixture fixture("vt_dual_final_flag");
+    auto dual = fixture.OpenDual();
+
+    Check *check = BuildCheck(1101, "table 4");
+    REQUIRE(MasterSystem->Add(check) == 0);
+    REQUIRE(check->SubList()->PaymentList()->flags == 0);   // not final
+
+    auto tx = dual->Begin();
+    REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::Ok);
+    REQUIRE(tx->Commit() == StoreError::Ok);
+
+    std::vector<Divergence> found;
+    REQUIRE(dual->Compare(found) == StoreError::Ok);
+
+    const auto it = std::find_if(found.begin(), found.end(),
+                                 [](const Divergence &d) {
+                                     return d.path.find("payment[0].flags") !=
+                                            std::string::npos;
+                                 });
+    REQUIRE(it != found.end());
+    REQUIRE(it->left == "128");   // legacy: TF_FINAL, added by Payment::Read
+    REQUIRE(it->right == "0");    // sqlite: what was actually in memory
+
+    // The report has to explain it, or it reads as an unexplained difference
+    // and the migration guide says an unexplained difference blocks cutover.
+    REQUIRE_FALSE(it->note.empty());
+    REQUIRE(it->note.find("TF_FINAL") != std::string::npos);
+
+    auto remove = dual->Begin();
+    REQUIRE(dual->Checks().Remove(*remove, *check) == StoreError::Ok);
+    REQUIRE(remove->Commit() == StoreError::Ok);
+}
+
+TEST_CASE("The divergence report reaches somewhere a person will look",
+          "[dualrun][report]")
+{
+    // A dual run is only worth anything if someone sees the result. Until this
+    // existed, CompareAndDescribe() had no caller outside tests, so the
+    // migration guide described a step an operator could not perform.
+    DualFixture fixture("vt_dual_report");
+    auto dual = fixture.OpenDual();
+
+    Check *check = BuildCheck(1001, "bar_side");
+    REQUIRE(MasterSystem->Add(check) == 0);
+
+    auto tx = dual->Begin();
+    REQUIRE(dual->Checks().Save(*tx, *check) == StoreError::Ok);
+    REQUIRE(tx->Commit() == StoreError::Ok);
+
+    // WriteDivergenceReport writes next to the data, so point data_path at the
+    // fixture's directory rather than the installed one.
+    const std::string previous_data = (MasterSystem->data_path.Value() != nullptr)
+                                          ? MasterSystem->data_path.Value() : "";
+    MasterSystem->data_path.Set(fixture.dir.string().c_str());
+    MasterSystem->SetDataStore(std::move(dual));
+
+    REQUIRE(MasterSystem->WriteDivergenceReport() == 0);
+
+    // One divergence_*.txt file, named by timestamp so successive days
+    // accumulate rather than overwriting the evidence.
+    fs::path report;
+    std::error_code ec;
+    for (const auto &entry : fs::directory_iterator(fixture.dir, ec))
+    {
+        if (entry.path().filename().string().rfind("divergence_", 0) == 0)
+            report = entry.path();
+    }
+    REQUIRE_FALSE(report.empty());
+
+    std::ifstream in(report);
+    std::stringstream body;
+    body << in.rdbuf();
+    const std::string text = body.str();
+
+    // It has to name both sides and the field, or it is not actionable.
+    REQUIRE(text.find("legacy-file") != std::string::npos);
+    REQUIRE(text.find("sqlite") != std::string::npos);
+    REQUIRE(text.find("call_order") != std::string::npos);
+    REQUIRE(text.find("bar side") != std::string::npos);   // the escaping loss
+
+    MasterSystem->SetDataStore(nullptr);
+    MasterSystem->data_path.Set(previous_data.c_str());
+}
+
+TEST_CASE("A non-dual backend produces no report and no complaint",
+          "[dualrun][report]")
+{
+    // Reporting is a diagnostic, and one that fires on a backend it does not
+    // apply to would be noise at every end of day for every site that never
+    // enabled a dual run.
+    DualFixture fixture("vt_dual_report_none");
+    MasterSystem->SetDataStore(MakeLegacyFileStore(MasterSystem.get()));
+
+    REQUIRE(MasterSystem->WriteDivergenceReport() == 0);
+
+    std::error_code ec;
+    for (const auto &entry : fs::directory_iterator(fixture.dir, ec))
+    {
+        REQUIRE(entry.path().filename().string().rfind("divergence_", 0) != 0);
+    }
+
+    MasterSystem->SetDataStore(nullptr);
 }

@@ -89,7 +89,12 @@ void ComparePayments(std::vector<Divergence> &out, const std::string &prefix,
         AddIfDifferent(out, path + ".tender_type", left[i].tender_type, right[i].tender_type);
         AddIfDifferent(out, path + ".tender_id", left[i].tender_id, right[i].tender_id);
         AddIfDifferent(out, path + ".amount", left[i].amount, right[i].amount);
-        AddIfDifferent(out, path + ".flags", left[i].flags, right[i].flags);
+        AddIfDifferent(out, path + ".flags", left[i].flags, right[i].flags,
+                       "Payment::Read sets TF_FINAL (128) unconditionally on "
+                       "every payment it reads (check.cc:6474), so a payment "
+                       "that was not final becomes final simply by surviving a "
+                       "save and reload. The legacy side reports the mutated "
+                       "value; SQL reports what was actually in memory.");
     }
 }
 

@@ -304,6 +304,11 @@ public:
     }
     void SetDataStore(std::unique_ptr<vt::store::Store> store);
 
+    // Compare the two backends of a dual run and write the result where an
+    // operator will find it. A no-op on any other backend. Called from EndDay,
+    // which is the quiet moment a full walk of both sides needs.
+    int WriteDivergenceReport();
+
 private:
     std::unique_ptr<vt::store::Store> data_store_;
 };

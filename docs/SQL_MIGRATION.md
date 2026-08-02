@@ -56,9 +56,22 @@ at the next reconciliation.
 
 ### 1. Import the history
 
-The importer reads existing archives and writes them into the database. It opens
-the originals read-only and never renames, truncates or deletes one. A test
-asserts that on the file bytes rather than trusting it.
+Stop ViewTouch, then run:
+
+```
+vt_import --data-path /usr/viewtouch/dat
+```
+
+It reads `database_path` from `persistence.conf`, so you cannot type the path
+differently from what the running system will open. `--database PATH` overrides
+that, and `--dry-run` imports into a throwaway copy and deletes it, so you can
+see what a real run would report before committing to one.
+
+Exit codes: `0` clean, `2` finished but at least one archive could not be read
+(it is named in the output), `1` the import itself failed.
+
+The originals are opened read-only and never renamed, truncated or deleted. A
+test asserts that on the file bytes rather than trusting it.
 
 Re-running is safe: archives already imported are skipped, so a run interrupted
 partway can simply be repeated. One unreadable archive does not stop the rest —
@@ -90,19 +103,28 @@ of truth.
 A shadow failure never fails a save. The primary's result is what the till sees;
 shadow problems are counted and logged.
 
-Ask for the divergence report at a quiet moment. It walks both backends and
-lists every field that differs, naming each side. **A non-empty report is
-expected.** The two backends genuinely disagree in known places:
+**The divergence report is written at every end of day**, to
+`dat/divergence_YYYYMMDDHHMM.txt`, and a summary line goes to the log. It walks
+both backends in full — which is why it runs then and not on the save path — and
+lists every field that differs, naming each side and why.
 
-- `call_order`, as above.
-- Any string containing `_`, `~` or a run of spaces. The legacy writer maps `' '`
+**A non-empty report is expected.** The two backends genuinely disagree in three
+known places, and each line in the report carries its own explanation:
+
+- **`call_order`.** As above. Appears on essentially every order.
+- **Strings containing `_`, `~` or runs of spaces.** The legacy writer maps `' '`
   and `'~'` onto `'_'` and the reader maps `'_'` back to `' '`, so `bar_side`
-  reads back as `bar side`. Existing production data is already damaged this
-  way; the report makes it visible rather than theoretical.
+  reads back as `bar side`. Existing production data is already damaged this way;
+  the report makes it visible rather than theoretical.
+- **`payment.flags` differing by 128 (`TF_FINAL`).** `Payment::Read` sets that
+  flag unconditionally on every payment it reads, so a payment that was *not*
+  final becomes final simply by surviving a save and reload. The legacy side
+  reports the mutated value; SQLite reports what was actually in memory.
 
-What matters is that *only* the known differences appear. Item names, costs,
-families, seats, tree shape, payment and subcheck counts must all agree. A
-divergence outside that list means something is wrong and cutover should wait.
+What matters is that *only* those appear. Item names, costs, families, seats,
+tree shape, payment and subcheck counts must all agree. **A divergence outside
+that list, or one with no explanation attached, means something is wrong and
+cutover should wait.**
 
 Stay in dual mode long enough that cutover is boring. This is the only mode
 where the new backend is exercised on real data and rollback still costs

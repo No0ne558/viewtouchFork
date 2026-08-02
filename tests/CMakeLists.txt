@@ -97,8 +97,16 @@ target_link_libraries(vt_crash_writer PRIVATE
 )
 
 add_dependencies(vt_tests vt_crash_writer)
+
+# vt_import is the operator-facing migration tool. Testing the binary rather
+# than only the library it wraps is the point: argument handling, the config
+# lookup and the exit codes are what an operator actually meets, and none of
+# them are exercised by calling ImportArchives() directly.
+add_dependencies(vt_tests vt_import)
+
 target_compile_definitions(vt_tests PRIVATE
-    VT_CRASH_WRITER_PATH="$<TARGET_FILE:vt_crash_writer>")
+    VT_CRASH_WRITER_PATH="$<TARGET_FILE:vt_crash_writer>"
+    VT_IMPORT_PATH="$<TARGET_FILE:vt_import>")
 
 # Test discovery
 include(Catch)
