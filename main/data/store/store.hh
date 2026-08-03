@@ -47,6 +47,7 @@ class CreditCardInfo;
 class DiscountInfo;
 class ExceptionDB;
 class ExpenseDB;
+class LaborPeriod;
 class MealInfo;
 class Settings;
 class TipDB;
@@ -183,6 +184,25 @@ public:
     [[nodiscard]] virtual StoreError Count(int &out) = 0;
 };
 
+/*
+ * Payroll. A labor period is a pay period and does not line up with a business
+ * day -- one spans many days and closes on its own schedule -- so it hangs off
+ * nothing in the day tables.
+ *
+ * Whole-period saves, matching LaborPeriod::Save(), which rewrites its file
+ * entirely. There is no Remove: nothing in the application deletes a labor
+ * period, and inventing a way to would be inventing a way to delete payroll.
+ */
+class LaborRepository
+{
+public:
+    virtual ~LaborRepository() = default;
+
+    virtual StoreError Save(Transaction &tx, LaborPeriod &period) = 0;
+
+    [[nodiscard]] virtual StoreError Count(int &out) = 0;
+};
+
 class Store
 {
 public:
@@ -191,6 +211,7 @@ public:
     [[nodiscard]] virtual std::unique_ptr<Transaction> Begin() = 0;
     [[nodiscard]] virtual CheckRepository &Checks() = 0;
     [[nodiscard]] virtual DrawerRepository &Drawers() = 0;
+    [[nodiscard]] virtual LaborRepository &Labor() = 0;
 
     // Whether a Transaction from this store actually groups its writes. False
     // for the legacy backend. A caller that must not leave a partial state --

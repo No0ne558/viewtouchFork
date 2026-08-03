@@ -7,6 +7,7 @@
 
 #include "check.hh"
 #include "drawer.hh"
+#include "labor.hh"
 #include "vt_logger.hh"
 
 #include <memory>
@@ -204,6 +205,49 @@ private:
     ShadowHealth &health_;
 };
 
+/*
+ * Labor periods. Same posture again: primary first and authoritative.
+ */
+class DualLaborRepository final : public LaborRepository
+{
+public:
+    DualLaborRepository(Store &primary, Store &shadow, ShadowHealth &health)
+        : primary_(primary), shadow_(shadow), health_(health) {}
+
+    StoreError Save(Transaction &tx, LaborPeriod &period) override
+    {
+        auto *dual = dynamic_cast<DualTransaction *>(&tx);
+        if (dual == nullptr || dual->primary() == nullptr)
+            return StoreError::Io;
+
+        const StoreError result = primary_.Labor().Save(*dual->primary(), period);
+        ++health_.saves;
+
+        if (dual->shadow() != nullptr)
+        {
+            const StoreError shadow_result =
+                shadow_.Labor().Save(*dual->shadow(), period);
+            if (shadow_result != StoreError::Ok &&
+                shadow_result != StoreError::Unsupported)
+            {
+                ++health_.save_failures;
+                health_.last_error = StoreErrorName(shadow_result);
+                ::vt::Logger::error(
+                    "dual run: shadow save of labor period #{} failed ({})",
+                    period.serial_number, StoreErrorName(shadow_result));
+            }
+        }
+        return result;
+    }
+
+    StoreError Count(int &out) override { return primary_.Labor().Count(out); }
+
+private:
+    Store &primary_;
+    Store &shadow_;
+    ShadowHealth &health_;
+};
+
 } // namespace
 
 struct DualRunStore::Impl
@@ -213,6 +257,7 @@ struct DualRunStore::Impl
     ShadowHealth health;
     std::unique_ptr<DualCheckRepository> checks;
     std::unique_ptr<DualDrawerRepository> drawers;
+    std::unique_ptr<DualLaborRepository> labor;
     std::string name;
 };
 
@@ -225,6 +270,8 @@ DualRunStore::DualRunStore(std::unique_ptr<Store> primary,
     impl_->checks = std::make_unique<DualCheckRepository>(
         *impl_->primary, *impl_->shadow, impl_->health);
     impl_->drawers = std::make_unique<DualDrawerRepository>(
+        *impl_->primary, *impl_->shadow, impl_->health);
+    impl_->labor = std::make_unique<DualLaborRepository>(
         *impl_->primary, *impl_->shadow, impl_->health);
     impl_->name = std::string("dual(") + impl_->primary->Name() + " + " +
                   impl_->shadow->Name() + ")";
@@ -255,6 +302,8 @@ std::unique_ptr<Transaction> DualRunStore::Begin()
 CheckRepository &DualRunStore::Checks() { return *impl_->checks; }
 
 DrawerRepository &DualRunStore::Drawers() { return *impl_->drawers; }
+
+LaborRepository &DualRunStore::Labor() { return *impl_->labor; }
 
 bool DualRunStore::SupportsAtomicWrites() const noexcept
 {

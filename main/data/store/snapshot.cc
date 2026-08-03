@@ -6,6 +6,7 @@
 
 #include "check.hh"
 #include "drawer.hh"
+#include "labor.hh"
 
 #include <algorithm>
 #include <map>
@@ -133,6 +134,59 @@ void CompareCheck(std::vector<Divergence> &out, const CheckSnapshot &left,
     }
 }
 
+void CompareLaborPeriod(std::vector<Divergence> &out,
+                        const LaborPeriodSnapshot &left,
+                        const LaborPeriodSnapshot &right)
+{
+    const std::string prefix = "labor[" + std::to_string(left.serial_number) + "]";
+
+    // A period open on one side and closed on the other is a real difference:
+    // LaborDB::CurrentPeriod picks the open one, so two answers means two
+    // different ideas of which period a clock-in belongs to.
+    AddIfDifferent(out, prefix + ".closed", left.has_end ? 1 : 0,
+                   right.has_end ? 1 : 0);
+
+    if (left.entries.size() != right.entries.size())
+    {
+        out.push_back(Divergence{prefix + ".entry_count",
+                                 std::to_string(left.entries.size()),
+                                 std::to_string(right.entries.size()), ""});
+        return;
+    }
+
+    for (std::size_t i = 0; i < left.entries.size(); ++i)
+    {
+        const std::string path = prefix + ".entry[" + std::to_string(i) + "]";
+        AddIfDifferent(out, path + ".user_id", left.entries[i].user_id,
+                       right.entries[i].user_id);
+        AddIfDifferent(out, path + ".job", left.entries[i].job,
+                       right.entries[i].job);
+        AddIfDifferent(out, path + ".pay_rate", left.entries[i].pay_rate,
+                       right.entries[i].pay_rate);
+        AddIfDifferent(out, path + ".pay_amount", left.entries[i].pay_amount,
+                       right.entries[i].pay_amount);
+        AddIfDifferent(out, path + ".tips", left.entries[i].tips,
+                       right.entries[i].tips);
+        AddIfDifferent(out, path + ".overtime", left.entries[i].overtime,
+                       right.entries[i].overtime,
+                       "WorkEntry::Write never emitted overtime, so the legacy "
+                       "side always reports zero. Worse, the value SQL reports "
+                       "is only non-zero if someone happened to open a labor "
+                       "report first: LaborPeriod::WorkReport assigns it as a "
+                       "side effect of drawing the line. Neither side is "
+                       "authoritative -- see MinutesOvertime for the real "
+                       "figure.");
+        AddIfDifferent(out, path + ".end_shift", left.entries[i].end_shift,
+                       right.entries[i].end_shift);
+        AddIfDifferent(out, path + ".started", left.entries[i].has_start ? 1 : 0,
+                       right.entries[i].has_start ? 1 : 0);
+        // Still on the clock, or not. The one that decides whether a shift is
+        // billable yet.
+        AddIfDifferent(out, path + ".ended", left.entries[i].has_end ? 1 : 0,
+                       right.entries[i].has_end ? 1 : 0);
+    }
+}
+
 void CompareDrawer(std::vector<Divergence> &out, const DrawerSnapshot &left,
                    const DrawerSnapshot &right)
 {
@@ -204,6 +258,30 @@ void CompareDrawer(std::vector<Divergence> &out, const DrawerSnapshot &left,
 }
 
 } // namespace
+
+LaborPeriodSnapshot SnapshotOf(LaborPeriod &period)
+{
+    LaborPeriodSnapshot out;
+    out.serial_number = period.serial_number;
+    out.has_end = period.end_time.IsSet();
+
+    for (WorkEntry *entry = period.WorkList(); entry != nullptr;
+         entry = entry->next)
+    {
+        WorkEntrySnapshot snap;
+        snap.user_id = entry->user_id;
+        snap.job = entry->job;
+        snap.pay_rate = entry->pay_rate;
+        snap.pay_amount = entry->pay_amount;
+        snap.tips = entry->tips;
+        snap.overtime = entry->overtime;
+        snap.end_shift = entry->end_shift;
+        snap.has_start = entry->start.IsSet();
+        snap.has_end = entry->end.IsSet();
+        out.entries.push_back(snap);
+    }
+    return out;
+}
 
 DrawerSnapshot SnapshotOf(Drawer &drawer)
 {
@@ -350,6 +428,35 @@ std::vector<Divergence> Diff(const StoreSnapshot &left, const StoreSnapshot &rig
         found.push_back(Divergence{"check[" + std::to_string(serial) + "]",
                                    "absent", "present",
                                    "this check exists only on the right backend"});
+    }
+
+    // Labor periods, matched by serial. Included from the day they became
+    // dual-written, deliberately: the drawer hole below is what happens when
+    // that step is skipped.
+    std::map<int, const LaborPeriodSnapshot *> right_labor;
+    for (const LaborPeriodSnapshot &period : right.labor)
+        right_labor[period.serial_number] = &period;
+
+    for (const LaborPeriodSnapshot &period : left.labor)
+    {
+        const auto it = right_labor.find(period.serial_number);
+        if (it == right_labor.end())
+        {
+            found.push_back(Divergence{
+                "labor[" + std::to_string(period.serial_number) + "]", "present",
+                "absent", "this labor period exists only on the left backend"});
+            continue;
+        }
+        CompareLaborPeriod(found, period, *it->second);
+        right_labor.erase(it);
+    }
+
+    for (const auto &[serial, period] : right_labor)
+    {
+        (void)period;
+        found.push_back(Divergence{"labor[" + std::to_string(serial) + "]",
+                                   "absent", "present",
+                                   "this labor period exists only on the right backend"});
     }
 
     // Drawers, matched the same way. Omitting these was a real hole while they

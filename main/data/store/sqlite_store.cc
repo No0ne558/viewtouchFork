@@ -31,6 +31,7 @@
 
 #include "check.hh"
 #include "check_writer.hh"
+#include "labor.hh"
 #include "tips.hh"
 #include "day_contents.hh"
 #include "day_policy.hh"
@@ -45,6 +46,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace vt::store {
 
@@ -217,6 +220,146 @@ private:
  * indistinguishable from "nothing was owed" when the truth is "nobody has
  * counted yet" -- hence NULL, and hence the columns being nullable.
  */
+/*
+ * Labor periods. Unlike checks and drawers these hang off no business day: a
+ * pay period spans many, and closes on its own schedule.
+ *
+ * Whole-period upsert. LaborPeriod::Save rewrites its entire file, so the
+ * equivalent here replaces the period's work entries rather than appending --
+ * an entry edited or removed in memory has to disappear from the database too,
+ * and a save is the only signal that happened.
+ */
+class SqliteLaborRepository final : public LaborRepository
+{
+public:
+    explicit SqliteLaborRepository(Database &db) : db_(db) {}
+
+    StoreError Save(Transaction &tx, LaborPeriod &period) override
+    {
+        if (!tx.IsActive())
+            return StoreError::Constraint;
+
+        int64_t period_id = 0;
+        {
+            Statement stmt;
+            if (Status s = stmt.Prepare(
+                    db_, "INSERT INTO labor_period("
+                         "  serial_number, end_time_local, end_time_utc,"
+                         "  legacy_filename)"
+                         " VALUES (?1, ?2, ?3, ?4)"
+                         " ON CONFLICT(serial_number) DO UPDATE SET"
+                         "  end_time_local = excluded.end_time_local,"
+                         "  end_time_utc = excluded.end_time_utc,"
+                         "  legacy_filename = excluded.legacy_filename"
+                         " RETURNING id;");
+                s != Status::Ok)
+            {
+                return Translate(s);
+            }
+
+            Status s = Status::Ok;
+            if ((s = stmt.BindInt(1, period.serial_number)) != Status::Ok)
+                return Translate(s);
+            // NULL while the period is open, which is what CurrentPeriod finds.
+            if ((s = stmt.BindOptionalInt(2, LocalSeconds(period.end_time))) != Status::Ok)
+                return Translate(s);
+            if ((s = stmt.BindOptionalInt(3, UtcSeconds(period.end_time))) != Status::Ok)
+                return Translate(s);
+            if ((s = stmt.BindText(4, TextOf(period.file_name))) != Status::Ok)
+                return Translate(s);
+
+            Status step = Status::Ok;
+            if (!stmt.Step(step))
+                return Fail(db_, step, "save labor period");
+            period_id = stmt.ColumnInt(0);
+        }
+
+        {
+            Statement stmt;
+            if (Status s = stmt.Prepare(
+                    db_, "DELETE FROM work_entry WHERE labor_period_id = ?1;");
+                s != Status::Ok)
+            {
+                return Translate(s);
+            }
+            if (Status s = stmt.BindInt(1, period_id); s != Status::Ok)
+                return Translate(s);
+            if (const StoreError e = Report(db_, stmt.Execute(), "clear work entries");
+                e != StoreError::Ok)
+            {
+                return e;
+            }
+        }
+
+        Statement stmt;
+        if (Status s = stmt.Prepare(
+                db_, "INSERT INTO work_entry("
+                     "  labor_period_id, user_id, job, pay_rate, pay_amount,"
+                     "  tips, overtime, end_shift, start_local, start_utc,"
+                     "  end_local, end_utc, sequence)"
+                     " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,"
+                     "         ?12, ?13);");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+
+        int64_t sequence = 0;
+        for (WorkEntry *w = period.WorkList(); w != nullptr; w = w->next)
+        {
+            Status s = Status::Ok;
+            if ((s = stmt.BindInt(1, period_id)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(2, w->user_id)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(3, w->job)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(4, w->pay_rate)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(5, w->pay_amount)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(6, w->tips)) != Status::Ok) return Translate(s);
+            // Recorded, not authoritative: nothing writes overtime to the
+            // legacy file and only LaborPeriod::WorkReport ever assigns it, as
+            // a side effect of drawing a report line. See migration 0007.
+            if ((s = stmt.BindInt(7, w->overtime)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(8, w->end_shift)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindOptionalInt(9, LocalSeconds(w->start))) != Status::Ok)
+                return Translate(s);
+            if ((s = stmt.BindOptionalInt(10, UtcSeconds(w->start))) != Status::Ok)
+                return Translate(s);
+            // No end means still on the clock, which is different from a shift
+            // that ended at the epoch.
+            if ((s = stmt.BindOptionalInt(11, LocalSeconds(w->end))) != Status::Ok)
+                return Translate(s);
+            if ((s = stmt.BindOptionalInt(12, UtcSeconds(w->end))) != Status::Ok)
+                return Translate(s);
+            if ((s = stmt.BindInt(13, sequence)) != Status::Ok) return Translate(s);
+            ++sequence;
+
+            if (const StoreError e = Report(db_, stmt.Execute(), "insert work entry");
+                e != StoreError::Ok)
+            {
+                return e;
+            }
+            if (Status r = stmt.Reset(); r != Status::Ok)
+                return Translate(r);
+        }
+
+        return StoreError::Ok;
+    }
+
+    StoreError Count(int &out) override
+    {
+        int64_t total = 0;
+        if (Status s = db_.QueryInt("SELECT COUNT(*) FROM labor_period;", total);
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+        out = static_cast<int>(total);
+        return StoreError::Ok;
+    }
+
+private:
+    Database &db_;
+};
+
 class SqliteDrawerRepository final : public DrawerRepository
 {
 public:
@@ -539,7 +682,8 @@ public:
           // visible to them, and binding to the parameter leaves them pointing
           // at a stack slot that dies here. That compiles, and reads correctly
           // right up until the first rollover writes through it.
-          checks_(db_, business_day_id_), drawers_(db_, business_day_id_) {}
+          checks_(db_, business_day_id_), drawers_(db_, business_day_id_),
+          labor_(db_) {}
 
     [[nodiscard]] std::unique_ptr<Transaction> Begin() override
     {
@@ -552,6 +696,8 @@ public:
     [[nodiscard]] CheckRepository &Checks() override { return checks_; }
 
     [[nodiscard]] DrawerRepository &Drawers() override { return drawers_; }
+
+    [[nodiscard]] LaborRepository &Labor() override { return labor_; }
 
     // The whole point. Every write in a transaction lands or none does.
     [[nodiscard]] bool SupportsAtomicWrites() const noexcept override { return true; }
@@ -738,7 +884,9 @@ public:
         if (step != Status::Ok)
             return Translate(step);
 
-        return LoadDrawerSnapshots(out);
+        if (const StoreError e = LoadDrawerSnapshots(out); e != StoreError::Ok)
+            return e;
+        return LoadLaborSnapshots(out);
     }
 
     [[nodiscard]] const char *Name() const noexcept override { return "sqlite"; }
@@ -784,6 +932,73 @@ private:
             out.drawers.push_back(std::move(snap));
         }
         return Translate(step);
+    }
+
+    /*
+     * Labor periods are NOT scoped to the business day, unlike everything else
+     * in this snapshot: a pay period spans many days. All of them are compared,
+     * which is what the legacy side does too -- it walks LaborDB's whole period
+     * list.
+     */
+    StoreError LoadLaborSnapshots(StoreSnapshot &out)
+    {
+        Statement periods;
+        if (Status s = periods.Prepare(
+                db_, "SELECT id, serial_number, end_time_local FROM labor_period"
+                     " ORDER BY serial_number;");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+
+        std::vector<std::pair<int64_t, LaborPeriodSnapshot>> found;
+        Status step = Status::Ok;
+        while (periods.Step(step))
+        {
+            LaborPeriodSnapshot snap;
+            snap.serial_number = static_cast<int>(periods.ColumnInt(1));
+            snap.has_end = !periods.ColumnIsNull(2);
+            found.emplace_back(periods.ColumnInt(0), std::move(snap));
+        }
+        if (step != Status::Ok)
+            return Translate(step);
+
+        for (auto &[period_id, snap] : found)
+        {
+            Statement entries;
+            if (Status s = entries.Prepare(
+                    db_, "SELECT user_id, job, pay_rate, pay_amount, tips,"
+                         "       overtime, end_shift, start_local, end_local"
+                         " FROM work_entry WHERE labor_period_id = ?1"
+                         " ORDER BY sequence;");
+                s != Status::Ok)
+            {
+                return Translate(s);
+            }
+            if (Status s = entries.BindInt(1, period_id); s != Status::Ok)
+                return Translate(s);
+
+            Status entry_step = Status::Ok;
+            while (entries.Step(entry_step))
+            {
+                WorkEntrySnapshot entry;
+                entry.user_id = static_cast<int>(entries.ColumnInt(0));
+                entry.job = static_cast<int>(entries.ColumnInt(1));
+                entry.pay_rate = static_cast<int>(entries.ColumnInt(2));
+                entry.pay_amount = static_cast<int>(entries.ColumnInt(3));
+                entry.tips = static_cast<int>(entries.ColumnInt(4));
+                entry.overtime = static_cast<int>(entries.ColumnInt(5));
+                entry.end_shift = static_cast<int>(entries.ColumnInt(6));
+                entry.has_start = !entries.ColumnIsNull(7);
+                entry.has_end = !entries.ColumnIsNull(8);
+                snap.entries.push_back(entry);
+            }
+            if (entry_step != Status::Ok)
+                return Translate(entry_step);
+
+            out.labor.push_back(std::move(snap));
+        }
+        return StoreError::Ok;
     }
 
     StoreError LoadDrawerChildren(int64_t drawer_id, DrawerSnapshot &out)
@@ -972,6 +1187,7 @@ private:
     int64_t business_day_id_;
     SqliteCheckRepository checks_;
     SqliteDrawerRepository drawers_;
+    SqliteLaborRepository labor_;
 };
 
 // Resolve the single open business day, creating it if the database has none.

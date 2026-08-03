@@ -27,6 +27,7 @@
 
 class Check;
 class Drawer;
+class LaborPeriod;
 
 namespace vt::store {
 
@@ -116,11 +117,45 @@ struct DrawerSnapshot
     std::vector<DrawerBalanceSnapshot> balances;
 };
 
+/*
+ * One shift. `overtime` is included even though neither side can be trusted on
+ * it -- the legacy format never wrote it and only a report render assigns it --
+ * because the comparison is where that gets said out loud rather than quietly
+ * omitted.
+ */
+struct WorkEntrySnapshot
+{
+    int user_id{0};
+    int job{0};
+    int pay_rate{0};
+    int pay_amount{0};
+    int tips{0};
+    int overtime{0};
+    int end_shift{0};
+
+    // Set-or-not rather than the values, for the same reason drawers compare
+    // their timestamps that way: an unfinished shift is what matters, not
+    // whether two backends rounded a clock identically.
+    bool has_start{false};
+    bool has_end{false};
+};
+
+struct LaborPeriodSnapshot
+{
+    int serial_number{0};
+    bool has_end{false};      // an open period is the one with no end
+    std::vector<WorkEntrySnapshot> entries;
+};
+
 struct StoreSnapshot
 {
     std::string backend;                  // Store::Name(), for attribution
     std::vector<CheckSnapshot> checks;    // ordered by serial number
     std::vector<DrawerSnapshot> drawers;  // ordered by serial number
+    // Ordered by period serial. Compared for the same reason drawers are: a
+    // dual-written entity that nothing compares produces confidence rather
+    // than coverage, which is worse than leaving it out.
+    std::vector<LaborPeriodSnapshot> labor;
 };
 
 // One field that differs, named well enough to act on without re-running.
@@ -145,6 +180,7 @@ struct Divergence
 
 // Same, for a drawer loaded back off disk.
 [[nodiscard]] DrawerSnapshot SnapshotOf(Drawer &drawer);
+[[nodiscard]] LaborPeriodSnapshot SnapshotOf(LaborPeriod &period);
 
 // Compare two snapshots field by field. Checks are matched by serial number, so
 // a check present on one side only is reported as such rather than shifting

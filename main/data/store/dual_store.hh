@@ -57,6 +57,7 @@ public:
     [[nodiscard]] std::unique_ptr<Transaction> Begin() override;
     [[nodiscard]] CheckRepository &Checks() override;
     [[nodiscard]] DrawerRepository &Drawers() override;
+    [[nodiscard]] LaborRepository &Labor() override;
 
     // Reports the primary's answer. A dual run does not gain the guarantee just
     // by having a backend that offers it -- callers must keep behaving as if

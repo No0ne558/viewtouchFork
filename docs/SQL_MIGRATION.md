@@ -86,6 +86,12 @@ Three things imported data cannot recover, because the format never stored them:
   end of day by reading the *previous* archive's amounts, and dies with the
   process. Imported days therefore carry zero. Days closed by this build store
   it, so the column fills in going forward.
+- **`work_entry.overtime`.** Not in the labor file either — and worse than the
+  other two, because nothing recomputes it on load. The only code that assigns
+  it is `LaborPeriod::WorkReport`, as a side effect of drawing a report line, so
+  a reloaded timesheet shows no overtime until somebody opens that report.
+  `MinutesOvertime` is the real figure and is computed on demand; the stored
+  column records what was in memory and must not be read as payroll.
 - **Historical totals.** Every money field on a subcheck is *derived*; the
   format stored none of them, and loading a check recomputes them. So imported
   totals are what today's engine computes from the orders against that day's
@@ -138,8 +144,8 @@ business day rolls over. It walks
 both backends in full — which is why it runs then and not on the save path — and
 lists every field that differs, naming each side and why.
 
-**A non-empty report is expected.** The two backends genuinely disagree in three
-known places, and each line in the report carries its own explanation:
+**A non-empty report is expected.** The two backends genuinely disagree in
+several known places, and each line in the report carries its own explanation:
 
 - **`call_order`.** As above. Appears on essentially every order.
 - **Strings containing `_`, `~` or runs of spaces.** The legacy writer maps `' '`
@@ -150,6 +156,9 @@ known places, and each line in the report carries its own explanation:
   only when `entered` is non-zero, so a file cannot say "this tender was counted
   and came to nothing" — a real outcome, and different from never having counted
   it. Expect the SQLite side to hold more balance rows than the legacy side.
+- **`labor[...].entry[...].overtime` differing.** `WorkEntry::Write` never
+  emitted it, so the legacy side reads zero. Neither side is authoritative here
+  — see the known-loss list above.
 - **`payment.flags` differing by 128 (`TF_FINAL`).** `Payment::Read` sets that
   flag unconditionally on every payment it reads, so a payment that was *not*
   final becomes final simply by surviving a save and reload. The legacy side
@@ -253,11 +262,12 @@ inside that hour: 01:15 to 01:45 would report ninety minutes, every autumn.
 `sqlite` mode moves **checks and drawers** — the two halves of end-of-day
 reconciliation — the **policy each day traded under**, the rest of a closed
 day's contents (**tips, expenses, and the audit exceptions**: item voids and
-comps, table moves, check rebuilds), and the **media snapshot** those payments
-resolve against. Everything else still writes files on every mode:
+comps, table moves, check rebuilds), the **media snapshot** those payments
+resolve against, and **labor periods with their work entries** (payroll).
+Everything else still writes files on every mode:
 
-archives (the whole-day file rewrite), settings, employees, labor and work
-records, inventory, customers, accounts, and the credit databases.
+archives (the whole-day file rewrite), settings, employees, inventory,
+customers, accounts, and the credit databases.
 
 ### Why the media definitions are stored per day
 

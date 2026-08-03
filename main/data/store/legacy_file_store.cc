@@ -195,11 +195,41 @@ private:
     System *system_;
 };
 
+/*
+ * Labor periods write their own file, exactly as they always have.
+ *
+ * LaborPeriod::Save is a whole-file rewrite keyed on the period's own
+ * file_name, so unlike checks and drawers there is no System method to route
+ * through -- the class owns its file. This calls the same write, which is what
+ * keeps `legacy` byte-identical.
+ */
+class LegacyLaborRepository final : public LaborRepository
+{
+public:
+    explicit LegacyLaborRepository(System *system) : system_(system) {}
+
+    StoreError Save(Transaction &, LaborPeriod &period) override
+    {
+        return (period.SaveDirect() == 0) ? StoreError::Ok : StoreError::Io;
+    }
+
+    StoreError Count(int &out) override
+    {
+        if (system_ == nullptr)
+            return StoreError::Io;
+        out = system_->labor_db.PeriodCount();
+        return StoreError::Ok;
+    }
+
+private:
+    System *system_;
+};
+
 class LegacyFileStore final : public Store
 {
 public:
     explicit LegacyFileStore(System *system)
-        : system_(system), checks_(system), drawers_(system) {}
+        : system_(system), checks_(system), drawers_(system), labor_(system) {}
 
     [[nodiscard]] std::unique_ptr<Transaction> Begin() override
     {
@@ -209,6 +239,8 @@ public:
     [[nodiscard]] CheckRepository &Checks() override { return checks_; }
 
     [[nodiscard]] DrawerRepository &Drawers() override { return drawers_; }
+
+    [[nodiscard]] LaborRepository &Labor() override { return labor_; }
 
     [[nodiscard]] bool SupportsAtomicWrites() const noexcept override
     {
@@ -308,6 +340,26 @@ public:
                   [](const DrawerSnapshot &a, const DrawerSnapshot &b) {
                       return a.serial_number < b.serial_number;
                   });
+
+        // Labor periods, reloaded from their files like everything else here.
+        // Included from the moment they became dual-written rather than after,
+        // because a dual-written entity nothing compares makes the report say
+        // "no divergence" over data it never looked at -- which is how the
+        // drawer hole above got there.
+        for (LaborPeriod *period = system_->labor_db.PeriodList();
+             period != nullptr; period = period->next)
+        {
+            LaborPeriod loaded;
+            loaded.file_name.Set(period->file_name.Value());
+            if (loaded.Load() != 0)
+                continue;   // a period with no file yet is not a divergence
+            out.labor.push_back(SnapshotOf(loaded));
+        }
+
+        std::sort(out.labor.begin(), out.labor.end(),
+                  [](const LaborPeriodSnapshot &a, const LaborPeriodSnapshot &b) {
+                      return a.serial_number < b.serial_number;
+                  });
         return StoreError::Ok;
     }
 
@@ -320,6 +372,7 @@ private:
     System *system_;
     LegacyCheckRepository checks_;
     LegacyDrawerRepository drawers_;
+    LegacyLaborRepository labor_;
 };
 
 } // namespace

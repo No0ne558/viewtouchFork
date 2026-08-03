@@ -25,6 +25,7 @@ add_executable(vt_tests
     unit/test_credit_parsing.cc
     unit/test_persistence_roundtrip.cc
     unit/test_drawer_balance.cc
+    unit/test_labor_store.cc
     unit/test_labor_time.cc
     unit/test_golden_corpus.cc
     unit/test_data_file_durability.cc

@@ -24,6 +24,9 @@
 #include "data_file.hh"
 #include "settings.hh"
 #include "system.hh"
+#include "store/store.hh"
+
+#include <memory>
 #include "archive.hh"
 #include "safe_string_utils.hh"
 
@@ -530,6 +533,41 @@ int LaborPeriod::Unload()
 int LaborPeriod::Save()
 {
     FnTrace("LaborPeriod::Save()");
+
+    /*
+     * Route through the configured backend, like Check::Save() and
+     * Drawer::Save(). The default configuration has no store, and the fallback
+     * below is the same file write this has always performed -- so a site that
+     * changes nothing writes the same bytes.
+     *
+     * The fallback is not a tidy-away case: LaborDB::Load runs at startup, and
+     * a period saved during load happens before any backend is configured.
+     */
+    if (MasterSystem != nullptr)
+    {
+        if (vt::store::Store *store = MasterSystem->DataStore(); store != nullptr)
+        {
+            std::unique_ptr<vt::store::Transaction> tx = store->Begin();
+            if (tx != nullptr)
+            {
+                const vt::store::StoreError e = store->Labor().Save(*tx, *this);
+                if (e == vt::store::StoreError::Ok && tx->Commit() ==
+                        vt::store::StoreError::Ok)
+                {
+                    return 0;
+                }
+                tx->Rollback();
+                return 1;
+            }
+        }
+    }
+
+    return SaveDirect();
+}
+
+int LaborPeriod::SaveDirect()
+{
+    FnTrace("LaborPeriod::SaveDirect()");
     if (loaded == 0)
         return 1;
 

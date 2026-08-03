@@ -880,6 +880,89 @@ CREATE INDEX ix_day_media_lookup ON day_media(business_day_id, media_kind, legac
 
 )SQL";
 
+/*
+ * Migration 0007 - labor periods and the work entries in them.
+ *
+ * Payroll. A labor period is a pay period, and it does not line up with a
+ * business day: one period spans many days and closes on its own schedule, so
+ * this hangs off nothing in the day tables.
+ *
+ * A correction worth recording, because the plan for this migration had it
+ * backwards. `WorkDB` is the class marked "will replace LaborPeriod & LaborDB",
+ * and it is wired to nothing at all -- System::work_db and Archive::work_db are
+ * members no code outside those classes touches. LaborDB, marked "obsolete", is
+ * the live one: manager.cc loads it at startup, terminal.cc reads it to decide
+ * whether someone is clocked in, and system_report.cc costs labor out of it.
+ * So this migrates LaborPeriod, not WorkDB.
+ *
+ * Shape notes:
+ *
+ *   serial_number identifies a period and is what the file name carries. It is
+ *   UNIQUE here, unlike check and drawer serials, because periods come from
+ *   LaborDB::last_serial rather than the shared pos_serial counter and do not
+ *   have the historical-duplicate problem those two do.
+ *
+ *   `end_time` unset means the period is still open. That is the one open
+ *   period LaborDB::CurrentPeriod returns, so it is nullable rather than
+ *   defaulted -- an open period has no end, which is different from ending at
+ *   the epoch.
+ *
+ *   `overtime` is recorded but is NOT authoritative, and the column says so.
+ *   It is never written to the legacy file at all, and the only code that
+ *   assigns it is LaborPeriod::WorkReport -- as a side effect of drawing a
+ *   report line. So it is zero unless somebody happened to open that report.
+ *   MinutesOvertime is the real figure, computed on demand. The column exists
+ *   because recording what was in memory is honest and dropping it would lose
+ *   the one case where it was computed; it must not be read as payroll.
+ */
+constexpr std::string_view kMigration0007 = R"SQL(
+
+CREATE TABLE labor_period (
+    id              INTEGER PRIMARY KEY,
+    serial_number   INTEGER NOT NULL UNIQUE,
+
+    -- NULL while the period is open. LaborDB::CurrentPeriod is the one with no
+    -- end, and an open period is not a period that ended at zero.
+    end_time_local  INTEGER,
+    end_time_utc    INTEGER,
+
+    -- Where it came from, for auditing an import back to its source.
+    legacy_filename TEXT
+);
+
+CREATE TABLE work_entry (
+    id              INTEGER PRIMARY KEY,
+    labor_period_id INTEGER NOT NULL REFERENCES labor_period(id) ON DELETE CASCADE,
+
+    user_id         INTEGER NOT NULL,
+    job             INTEGER NOT NULL DEFAULT 0,
+
+    pay_rate        INTEGER NOT NULL DEFAULT 0,   -- PERIOD_HOUR and friends
+    pay_amount      INTEGER NOT NULL DEFAULT 0,   -- cents, per pay_rate unit
+    tips            INTEGER NOT NULL DEFAULT 0,
+
+    -- NOT authoritative. Never written to the legacy file, and assigned only
+    -- by LaborPeriod::WorkReport as a side effect of rendering, so it is zero
+    -- unless that report was opened. MinutesOvertime computes the real figure.
+    overtime        INTEGER NOT NULL DEFAULT 0,
+    end_shift       INTEGER NOT NULL DEFAULT 0,
+
+    -- An entry with no end is someone still on the clock.
+    start_local     INTEGER,
+    start_utc       INTEGER,
+    end_local       INTEGER,
+    end_utc         INTEGER,
+
+    -- Order within the period, which the file carried only as position.
+    sequence        INTEGER NOT NULL,
+    UNIQUE(labor_period_id, sequence)
+);
+
+-- "What did this employee work over this range" is the payroll query.
+CREATE INDEX ix_work_entry_user ON work_entry(user_id, start_local);
+
+)SQL";
+
 std::string_view SeedFor(int version)
 {
     switch (version)
@@ -1059,6 +1142,8 @@ const std::vector<Migration> &AllMigrations()
                   kMigration0005},
         Migration{6, "media snapshot: what payment.tender_id resolved against",
                   kMigration0006},
+        Migration{7, "labor periods and work entries",
+                  kMigration0007},
     };
     return migrations;
 }

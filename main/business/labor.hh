@@ -117,7 +117,15 @@ public:
     int Scan(const char* filename);
     int Load();
     int Unload();
+
+    // Routes through the configured backend, exactly as Check::Save() and
+    // Drawer::Save() do. Every existing caller keeps calling this.
     int Save();
+
+    // The file write itself. Separated so the legacy backend can call it
+    // without recursing back through Save(), which is the same split
+    // System::DestroyCheck/DestroyCheckDirect uses for the same reason.
+    int SaveDirect();
 
     int ShiftReport(Terminal *t, WorkEntry *w, Report *r);
     int WorkReport(Terminal *t, Employee *e, TimeInfo &start,
