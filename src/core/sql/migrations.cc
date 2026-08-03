@@ -790,6 +790,96 @@ GROUP BY d.id;
 
 )SQL";
 
+/*
+ * Migration 0006 - the media snapshot a day traded under.
+ *
+ * This is what makes `payment.tender_id` mean something. A payment's tender_id
+ * is a polymorphic reference into one of five tables chosen by tender_type --
+ * discounts, coupons, credit cards, comps, meals -- and those definitions live
+ * in Settings, which is mutable. So a payment recorded against discount 4 says
+ * "whatever discount 4 is called today", not what it was called that night.
+ *
+ * The legacy format solved it the same way, by copying the media lists into
+ * each archive from version 10 on. Older archives fall back to a static
+ * alternate-media file for exactly this reason: the comment in Archive::
+ * LoadPacked says reports should not change every time a discount is added.
+ *
+ * Shape: one table for what all five share, plus an extension table for the
+ * coupon-only fields. Not five tables -- resolving a payment would then need to
+ * know which one to join before it could look -- and not one wide table with
+ * ten mostly-NULL columns either. media_kind carries the discriminator, and
+ * (business_day_id, media_kind, legacy_id) is what a payment resolves against.
+ *
+ * `active` and `flags` are snapshotted rather than dropped: a discount that was
+ * inactive that day still explains why nothing used it.
+ */
+constexpr std::string_view kMigration0006 = R"SQL(
+
+CREATE TABLE media_kind_ref (
+    id   INTEGER PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL
+);
+
+INSERT INTO media_kind_ref(id, code, name) VALUES
+    (1, 'DISCOUNT',    'Discount'),
+    (2, 'COUPON',      'Coupon'),
+    (3, 'CREDIT_CARD', 'Credit card'),
+    (4, 'COMP',        'Comp'),
+    (5, 'MEAL',        'Employee meal');
+
+CREATE TABLE day_media (
+    id               INTEGER PRIMARY KEY,
+    business_day_id  INTEGER NOT NULL REFERENCES business_day(id) ON DELETE CASCADE,
+    media_kind       INTEGER NOT NULL REFERENCES media_kind_ref(id),
+
+    -- MediaInfo::id, what payment.tender_id holds. Unique only within a day
+    -- and a kind, which is exactly the resolution a payment needs.
+    legacy_id        INTEGER NOT NULL,
+
+    name             TEXT NOT NULL DEFAULT '',
+    -- MediaInfo::local: defined on this terminal rather than store-wide.
+    is_local         INTEGER NOT NULL DEFAULT 0,
+
+    -- CreditCardInfo and CompInfo have no amount; zero is correct for them
+    -- rather than absent, because there is no amount to be missing.
+    amount           INTEGER NOT NULL DEFAULT 0,
+    flags            INTEGER NOT NULL DEFAULT 0,
+    -- Snapshotted rather than dropped: an inactive discount explains why
+    -- nothing used it that day.
+    active           INTEGER NOT NULL DEFAULT 0,
+
+    UNIQUE(business_day_id, media_kind, legacy_id)
+);
+
+-- Coupons carry six fields none of the others do. An extension table keeps
+-- them off the four kinds that would only ever hold NULL there.
+CREATE TABLE day_media_coupon (
+    day_media_id     INTEGER PRIMARY KEY
+                     REFERENCES day_media(id) ON DELETE CASCADE,
+
+    automatic        INTEGER NOT NULL DEFAULT 0,
+    item_family      INTEGER NOT NULL DEFAULT 0,
+    item_id          INTEGER NOT NULL DEFAULT 0,
+    item_name        TEXT NOT NULL DEFAULT '',
+
+    -- A coupon's validity window: a time of day range and a date range, plus
+    -- day-of-week and month bitmasks. All four times are nullable because a
+    -- coupon with no window is different from one starting at midnight.
+    start_time_local INTEGER,
+    end_time_local   INTEGER,
+    start_date_local INTEGER,
+    end_date_local   INTEGER,
+
+    days             INTEGER NOT NULL DEFAULT 0,
+    months           INTEGER NOT NULL DEFAULT 0
+);
+
+-- The resolution a report performs per payment row.
+CREATE INDEX ix_day_media_lookup ON day_media(business_day_id, media_kind, legacy_id);
+
+)SQL";
+
 std::string_view SeedFor(int version)
 {
     switch (version)
@@ -967,6 +1057,8 @@ const std::vector<Migration> &AllMigrations()
                   kMigration0004},
         Migration{5, "closed-day contents: tips, expenses and exceptions",
                   kMigration0005},
+        Migration{6, "media snapshot: what payment.tender_id resolved against",
+                  kMigration0006},
     };
     return migrations;
 }

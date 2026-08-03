@@ -347,7 +347,8 @@ ImportResult ImportArchives(const std::string &archive_path,
                 // rather than from two transcriptions that can drift.
                 step = WriteDayContents(db, day_id, archive.tip_db,
                                         archive.expense_db,
-                                        archive.exception_db);
+                                        archive.exception_db,
+                                        MediaFromArchive(archive));
             }
 
             if (step != StoreError::Ok)

@@ -583,7 +583,8 @@ public:
         if (const StoreError e = WriteDayContents(db_, business_day_id_,
                                                   contents.tips,
                                                   contents.expenses,
-                                                  contents.exceptions);
+                                                  contents.exceptions,
+                                                  contents.media);
             e != StoreError::Ok)
         {
             return e;

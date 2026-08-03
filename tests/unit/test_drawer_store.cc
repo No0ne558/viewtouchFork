@@ -864,3 +864,106 @@ TEST_CASE("A day closed in SQL keeps its tips, expenses and exceptions",
     system->data_path.Set(previous_data.c_str());
     system->archive_path.Set(previous_archive.c_str());
 }
+
+TEST_CASE("A closed day keeps the media its payments resolved against",
+          "[endday][media][sqlite]")
+{
+    /*
+     * What makes payment.tender_id mean anything.
+     *
+     * A payment records a tender_type and a tender_id, and the id points into
+     * one of five media lists chosen by the type -- discounts, coupons, credit
+     * cards, comps, meals. Those lists live in Settings, which an operator can
+     * edit at any time. So without a snapshot, a payment taken last March says
+     * "whatever discount 4 is called today", and renaming or repricing a
+     * discount silently rewrites what every historical payment appears to be.
+     *
+     * The legacy format froze the same lists into each archive from version 10
+     * for exactly this reason -- Archive::LoadPacked's own comment says reports
+     * should not change every time a discount is added.
+     */
+    DrawerFixture fixture("vt_endday_media");
+
+    System *system = MasterSystem.get();
+    const std::string previous_data = (system->data_path.Value() != nullptr)
+                                          ? system->data_path.Value() : "";
+    const std::string previous_archive = (system->archive_path.Value() != nullptr)
+                                             ? system->archive_path.Value() : "";
+    system->data_path.Set(fixture.dir.string().c_str());
+    system->archive_path.Set(fixture.dir.string().c_str());
+
+    Settings &settings = system->settings;
+
+    auto *discount = new DiscountInfo;
+    discount->id = 4;
+    discount->name.Set("Staff 20%");
+    discount->amount = 20;
+    discount->active = 1;
+    REQUIRE(settings.Add(discount) == 0);
+
+    auto *coupon = new CouponInfo;
+    coupon->id = 11;
+    coupon->name.Set("Tuesday Pizza");
+    coupon->amount = 500;
+    coupon->active = 1;
+    coupon->automatic = 1;
+    coupon->days = 4;                       // day-of-week bitmask
+    coupon->start_date.Set(0, 2026);
+    REQUIRE(settings.Add(coupon) == 0);
+
+    StoreError error = StoreError::Io;
+    auto sqlite = MakeSqliteStore(fixture.db, error);
+    REQUIRE(error == StoreError::Ok);
+    system->SetDataStore(std::move(sqlite));
+
+    Drawer *drawer = BuildDrawer(8400, /*balanced=*/true);
+    REQUIRE(system->Add(drawer) == 0);
+    REQUIRE(drawer->Save() == 0);
+
+    REQUIRE(system->EndDay() == 0);
+
+    // The day carries both, under the kind that says how to read them.
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT COUNT(*) FROM day_media m"
+                   " JOIN business_day d ON d.id = m.business_day_id"
+                   " WHERE d.closed_at_local IS NOT NULL;") >= 2);
+    REQUIRE(Text(fixture.db,
+                 "SELECT name FROM day_media"
+                 " WHERE media_kind = 1 AND legacy_id = 4;") == "Staff 20%");
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT amount FROM day_media"
+                   " WHERE media_kind = 1 AND legacy_id = 4;") == 20);
+
+    // Coupon-only fields land in the extension table, joined one to one.
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT c.days FROM day_media_coupon c"
+                   " JOIN day_media m ON m.id = c.day_media_id"
+                   " WHERE m.media_kind = 2 AND m.legacy_id = 11;") == 4);
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT c.automatic FROM day_media_coupon c"
+                   " JOIN day_media m ON m.id = c.day_media_id"
+                   " WHERE m.media_kind = 2 AND m.legacy_id = 11;") == 1);
+    // A window boundary that was set reads back set; the three unset ones stay
+    // NULL, which is different from starting at midnight.
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT COUNT(*) FROM day_media_coupon"
+                   " WHERE start_date_local IS NOT NULL;") == 1);
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT COUNT(*) FROM day_media_coupon"
+                   " WHERE start_time_local IS NULL;") == 1);
+
+    // The whole point: editing the live definition afterwards does not reach
+    // back into the day that already closed.
+    discount->name.Set("Staff 50%");
+    discount->amount = 50;
+    REQUIRE(Text(fixture.db,
+                 "SELECT name FROM day_media"
+                 " WHERE media_kind = 1 AND legacy_id = 4;") == "Staff 20%");
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT amount FROM day_media"
+                   " WHERE media_kind = 1 AND legacy_id = 4;") == 20);
+
+    system->SetDataStore(nullptr);
+    system->data_path.Set(previous_data.c_str());
+    system->archive_path.Set(previous_archive.c_str());
+}

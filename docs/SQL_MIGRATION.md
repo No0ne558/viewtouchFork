@@ -251,13 +251,30 @@ inside that hour: 01:15 to 01:45 would report ninety minutes, every autumn.
 ## What is migrated, and what is not
 
 `sqlite` mode moves **checks and drawers** — the two halves of end-of-day
-reconciliation — the **policy each day traded under**, and the rest of a closed
-day's contents: **tips, expenses, and the audit exceptions** (item voids and
-comps, table moves, check rebuilds). Everything else still writes files on every
-mode:
+reconciliation — the **policy each day traded under**, the rest of a closed
+day's contents (**tips, expenses, and the audit exceptions**: item voids and
+comps, table moves, check rebuilds), and the **media snapshot** those payments
+resolve against. Everything else still writes files on every mode:
 
 archives (the whole-day file rewrite), settings, employees, labor and work
 records, inventory, customers, accounts, and the credit databases.
+
+### Why the media definitions are stored per day
+
+A payment records a tender type and a `tender_id`, and that id points into one
+of five lists — discounts, coupons, credit cards, comps, employee meals — that
+live in `Settings` and an operator can edit at any time. Without a per-day copy,
+a payment taken last March means "whatever discount 4 is called *today*", so
+renaming or repricing one silently rewrites what every historical payment
+appears to be.
+
+The archive format solved it the same way from version 10 on, and
+`Archive::LoadPacked`'s own comment gives the reason: reports should not change
+every time a discount is added. `day_media` is that copy, keyed by
+`(business_day_id, media_kind, legacy_id)` — which is exactly the lookup a
+payment performs. Coupons carry six extra fields (an automatic flag, an item
+reference, and a validity window) and get a one-to-one extension table rather
+than six columns the other four kinds would never use.
 
 So a site in `sqlite` mode is in a coherent but partial state: current checks
 and drawers live in the database, the archive of each closed day is still a

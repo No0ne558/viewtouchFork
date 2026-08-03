@@ -93,6 +93,17 @@ int64_t Scalar(const std::string &db_path, const std::string &sql)
     return value;
 }
 
+std::string Text(const std::string &db_path, const std::string &sql)
+{
+    vt::sql::Database db;
+    REQUIRE(db.Open(db_path) == vt::sql::Status::Ok);
+    vt::sql::Statement stmt;
+    REQUIRE(stmt.Prepare(db, sql) == vt::sql::Status::Ok);
+    vt::sql::Status status = vt::sql::Status::Ok;
+    REQUIRE(stmt.Step(status));
+    return stmt.ColumnText(0);
+}
+
 double ScalarDouble(const std::string &db_path, const std::string &sql)
 {
     vt::sql::Database db;
@@ -832,6 +843,16 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         expense->exp_date.Set(11 * 3600, 2020);
         REQUIRE(archive.expense_db.Add(expense) == 0);
 
+        // The media definitions in force that day, which is what the archive
+        // format started carrying at version 10 so that reports would stop
+        // changing whenever a discount was edited.
+        auto *discount = new DiscountInfo;
+        discount->id = 4;
+        discount->name.Set("Early Bird");
+        discount->amount = 15;
+        discount->active = 1;
+        REQUIRE(archive.Add(discount) == 0);
+
         auto *item = new ItemException;
         item->user_id = 9;
         item->check_serial = 100;
@@ -871,6 +892,15 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     REQUIRE(Scalar(dir.db, "SELECT item_cost FROM item_exception;") == 4900);
     REQUIRE(Scalar(dir.db, "SELECT reason FROM item_exception;") == 3);
 
+    // The day's media, so a historical payment's tender_id resolves against
+    // what that discount was then rather than what it is now.
+    REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM day_media"
+                           " WHERE media_kind = 1;") == 1);
+    REQUIRE(Text(dir.db, "SELECT name FROM day_media"
+                         " WHERE media_kind = 1 AND legacy_id = 4;") == "Early Bird");
+    REQUIRE(Scalar(dir.db, "SELECT amount FROM day_media"
+                           " WHERE media_kind = 1 AND legacy_id = 4;") == 15);
+
     // Re-running an import must not double them. Archives already imported are
     // skipped, and the writers replace rather than append, so both layers of
     // that guarantee are exercised by simply running it again.
@@ -879,4 +909,5 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM tip_entry;") == 1);
     REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM expense;") == 1);
     REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM item_exception;") == 1);
+    REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM day_media;") == 1);
 }

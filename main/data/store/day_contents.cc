@@ -2,8 +2,10 @@
 
 #include "check_writer.hh"
 
+#include "archive.hh"
 #include "exception.hh"
 #include "expense.hh"
+#include "settings.hh"
 #include "sql/database.hh"
 #include "sql/statement.hh"
 #include "tips.hh"
@@ -299,14 +301,197 @@ StoreError WriteExceptions(Database &db, int64_t day_id, ExceptionDB &exceptions
     return StoreError::Ok;
 }
 
+MediaSnapshot MediaFromSettings(Settings &settings)
+{
+    return MediaSnapshot{settings.DiscountList(), settings.CouponList(),
+                         settings.CreditCardList(), settings.CompList(),
+                         settings.MealList()};
+}
+
+MediaSnapshot MediaFromArchive(Archive &archive)
+{
+    return MediaSnapshot{archive.DiscountList(), archive.CouponList(),
+                         archive.CreditCardList(), archive.CompList(),
+                         archive.MealList()};
+}
+
+namespace {
+
+// Media kind ids, matching media_kind_ref in migration 0006.
+constexpr int kMediaDiscount = 1;
+constexpr int kMediaCoupon = 2;
+constexpr int kMediaCreditCard = 3;
+constexpr int kMediaComp = 4;
+constexpr int kMediaMeal = 5;
+
+// Insert one media row and hand back its id, which the coupon extension needs.
+StoreError InsertMedia(Database &db, int64_t day_id, int kind, int legacy_id,
+                       const Str &name, int is_local, int amount, int flags,
+                       int active, int64_t &out_id)
+{
+    Statement stmt;
+    if (Status s = stmt.Prepare(
+            db, "INSERT INTO day_media("
+                "  business_day_id, media_kind, legacy_id, name, is_local,"
+                "  amount, flags, active)"
+                " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+                " RETURNING id;");
+        s != Status::Ok)
+    {
+        return Translate(s);
+    }
+
+    Status s = Status::Ok;
+    if ((s = stmt.BindInt(1, day_id)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(2, kind)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(3, legacy_id)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindText(4, TextOf(name))) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(5, is_local)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(6, amount)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(7, flags)) != Status::Ok) return Translate(s);
+    if ((s = stmt.BindInt(8, active)) != Status::Ok) return Translate(s);
+
+    Status step = Status::Ok;
+    if (!stmt.Step(step))
+        return Fail(db, step, "insert day media");
+
+    out_id = stmt.ColumnInt(0);
+    return StoreError::Ok;
+}
+
+// A coupon validity boundary. Nullable because a coupon with no window is a
+// different thing from one that starts at midnight, and TimeInfo distinguishes
+// them with IsSet().
+StoreError BindOptionalLocal(Statement &stmt, int index, const TimeInfo &time)
+{
+    const std::optional<int64_t> local = LocalSeconds(time);
+    const Status s = local.has_value() ? stmt.BindInt(index, *local)
+                                       : stmt.BindNull(index);
+    return (s == Status::Ok) ? StoreError::Ok : Translate(s);
+}
+
+} // namespace
+
+StoreError WriteDayMedia(Database &db, int64_t day_id, const MediaSnapshot &media)
+{
+    // day_media_coupon cascades from day_media, so clearing the parent is
+    // enough. Replace rather than append, like every other writer here.
+    if (const StoreError e = ClearDay(db, day_id, "day_media"); e != StoreError::Ok)
+        return e;
+
+    int64_t row_id = 0;
+
+    for (DiscountInfo *d = media.discounts; d != nullptr; d = d->next)
+    {
+        if (const StoreError e = InsertMedia(db, day_id, kMediaDiscount, d->id,
+                                             d->name, d->IsLocal(), d->amount,
+                                             d->flags, d->active, row_id);
+            e != StoreError::Ok)
+        {
+            return e;
+        }
+    }
+
+    for (CreditCardInfo *c = media.credit_cards; c != nullptr; c = c->next)
+    {
+        // No amount and no flags on this one -- zero is correct rather than
+        // absent, because there is no amount for it to be missing.
+        if (const StoreError e = InsertMedia(db, day_id, kMediaCreditCard, c->id,
+                                             c->name, c->IsLocal(), 0, 0,
+                                             c->active, row_id);
+            e != StoreError::Ok)
+        {
+            return e;
+        }
+    }
+
+    for (CompInfo *c = media.comps; c != nullptr; c = c->next)
+    {
+        if (const StoreError e = InsertMedia(db, day_id, kMediaComp, c->id,
+                                             c->name, c->IsLocal(), 0, c->flags,
+                                             c->active, row_id);
+            e != StoreError::Ok)
+        {
+            return e;
+        }
+    }
+
+    for (MealInfo *m = media.meals; m != nullptr; m = m->next)
+    {
+        if (const StoreError e = InsertMedia(db, day_id, kMediaMeal, m->id,
+                                             m->name, m->IsLocal(), m->amount,
+                                             m->flags, m->active, row_id);
+            e != StoreError::Ok)
+        {
+            return e;
+        }
+    }
+
+    for (CouponInfo *c = media.coupons; c != nullptr; c = c->next)
+    {
+        if (const StoreError e = InsertMedia(db, day_id, kMediaCoupon, c->id,
+                                             c->name, c->IsLocal(), c->amount,
+                                             c->flags, c->active, row_id);
+            e != StoreError::Ok)
+        {
+            return e;
+        }
+
+        Statement stmt;
+        if (Status s = stmt.Prepare(
+                db, "INSERT INTO day_media_coupon("
+                    "  day_media_id, automatic, item_family, item_id, item_name,"
+                    "  start_time_local, end_time_local, start_date_local,"
+                    "  end_date_local, days, months)"
+                    " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11);");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+
+        Status s = Status::Ok;
+        if ((s = stmt.BindInt(1, row_id)) != Status::Ok) return Translate(s);
+        if ((s = stmt.BindInt(2, c->automatic)) != Status::Ok) return Translate(s);
+        if ((s = stmt.BindInt(3, c->family)) != Status::Ok) return Translate(s);
+        if ((s = stmt.BindInt(4, c->item_id)) != Status::Ok) return Translate(s);
+        if ((s = stmt.BindText(5, TextOf(c->item_name))) != Status::Ok) return Translate(s);
+
+        if (const StoreError e = BindOptionalLocal(stmt, 6, c->start_time);
+            e != StoreError::Ok) return e;
+        if (const StoreError e = BindOptionalLocal(stmt, 7, c->end_time);
+            e != StoreError::Ok) return e;
+        if (const StoreError e = BindOptionalLocal(stmt, 8, c->start_date);
+            e != StoreError::Ok) return e;
+        if (const StoreError e = BindOptionalLocal(stmt, 9, c->end_date);
+            e != StoreError::Ok) return e;
+
+        if ((s = stmt.BindInt(10, c->days)) != Status::Ok) return Translate(s);
+        if ((s = stmt.BindInt(11, c->months)) != Status::Ok) return Translate(s);
+
+        if (const StoreError e = Report(db, stmt.Execute(), "insert coupon media");
+            e != StoreError::Ok)
+        {
+            return e;
+        }
+    }
+
+    return StoreError::Ok;
+}
+
 StoreError WriteDayContents(Database &db, int64_t day_id, TipDB &tips,
-                            ExpenseDB &expenses, ExceptionDB &exceptions)
+                            ExpenseDB &expenses, ExceptionDB &exceptions,
+                            const MediaSnapshot &media)
 {
     if (const StoreError e = WriteTips(db, day_id, tips); e != StoreError::Ok)
         return e;
     if (const StoreError e = WriteExpenses(db, day_id, expenses); e != StoreError::Ok)
         return e;
-    return WriteExceptions(db, day_id, exceptions);
+    if (const StoreError e = WriteExceptions(db, day_id, exceptions);
+        e != StoreError::Ok)
+    {
+        return e;
+    }
+    return WriteDayMedia(db, day_id, media);
 }
 
 } // namespace vt::store

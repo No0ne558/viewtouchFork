@@ -22,6 +22,7 @@
 #include "manager.hh"
 #include "system.hh"
 #include "store/store.hh"
+#include "store/day_contents.hh"
 #include "store/dual_store.hh"
 #include "vt_logger.hh"
 #include "data_file.hh"
@@ -632,7 +633,9 @@ int System::EndDay()
          * Asserted end to end rather than trusted: see the EndDay test that
          * builds a tip, an expense and an exception and reads back all three.
          */
-        const vt::store::DayContents day_contents{tip_db, expense_db, exception_db};
+        const vt::store::DayContents day_contents{
+            tip_db, expense_db, exception_db,
+            vt::store::MediaFromSettings(settings)};
         if (const vt::store::StoreError e =
                 data_store_->EndBusinessDay(settings, day_contents);
             e != vt::store::StoreError::Ok)

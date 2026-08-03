@@ -41,12 +41,33 @@ class Check;
 class Drawer;
 class System;
 
+class CompInfo;
+class CouponInfo;
+class CreditCardInfo;
+class DiscountInfo;
 class ExceptionDB;
 class ExpenseDB;
+class MealInfo;
 class Settings;
 class TipDB;
 
 namespace vt::store {
+
+/*
+ * The five media lists a payment's tender_id resolves against.
+ *
+ * List heads rather than copies. Both sources -- live Settings and a loaded
+ * Archive -- expose exactly these five accessors, so one type serves the
+ * closing path and the import path without either having to know which it is.
+ */
+struct MediaSnapshot
+{
+    DiscountInfo *discounts{nullptr};
+    CouponInfo *coupons{nullptr};
+    CreditCardInfo *credit_cards{nullptr};
+    CompInfo *comps{nullptr};
+    MealInfo *meals{nullptr};
+};
 
 /*
  * The rest of a closed day, handed to EndBusinessDay alongside the policy.
@@ -56,12 +77,18 @@ namespace vt::store {
  * closes the day. Passing them explicitly rather than letting a backend reach
  * for MasterSystem keeps the seam testable -- a test can close a day with the
  * contents it built rather than whatever the global happens to hold.
+ *
+ * `media` is here rather than derived from the `settings` argument because
+ * those accessors are non-const, and a backend handed a `const Settings &`
+ * would have to cast the constness away to reach them. The caller has the
+ * mutable object; it builds the snapshot.
  */
 struct DayContents
 {
     TipDB &tips;
     ExpenseDB &expenses;
     ExceptionDB &exceptions;
+    MediaSnapshot media;
 };
 
 /*

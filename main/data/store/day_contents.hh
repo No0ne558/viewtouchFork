@@ -25,8 +25,15 @@
 
 #include <cstdint>
 
+class Archive;
+class CompInfo;
+class CouponInfo;
+class CreditCardInfo;
+class DiscountInfo;
 class ExceptionDB;
 class ExpenseDB;
+class MealInfo;
+class Settings;
 class TipDB;
 
 namespace vt::sql { class Database; }
@@ -53,11 +60,27 @@ namespace vt::store {
 [[nodiscard]] StoreError WriteExceptions(vt::sql::Database &db, int64_t day_id,
                                          ExceptionDB &exceptions);
 
-// All three, for the callers that have all three. Stops on the first failure,
+// MediaSnapshot itself lives in store.hh, because DayContents carries one.
+[[nodiscard]] MediaSnapshot MediaFromSettings(Settings &settings);
+[[nodiscard]] MediaSnapshot MediaFromArchive(Archive &archive);
+
+/*
+ * Freeze the media definitions in force for this day.
+ *
+ * Without this, `payment.tender_id` means "whatever discount 4 is called
+ * today", not what it was called the night the payment was taken -- and
+ * Settings is mutable, so that changes. The legacy format froze the same lists
+ * into each archive from version 10 on, for the same reason.
+ */
+[[nodiscard]] StoreError WriteDayMedia(vt::sql::Database &db, int64_t day_id,
+                                       const MediaSnapshot &media);
+
+// All four, for the callers that have all four. Stops on the first failure,
 // which is safe because every caller runs inside a transaction.
 [[nodiscard]] StoreError WriteDayContents(vt::sql::Database &db, int64_t day_id,
                                           TipDB &tips, ExpenseDB &expenses,
-                                          ExceptionDB &exceptions);
+                                          ExceptionDB &exceptions,
+                                          const MediaSnapshot &media);
 
 } // namespace vt::store
 
