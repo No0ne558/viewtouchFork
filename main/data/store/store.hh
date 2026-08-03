@@ -41,6 +41,8 @@ class Check;
 class Drawer;
 class System;
 
+class Settings;
+
 namespace vt::store {
 
 /*
@@ -166,8 +168,15 @@ public:
      * repeated serial in the same day is an update. A database whose day never
      * closes therefore has day two overwrite day one -- reporting success the
      * whole way -- rather than rejecting anything.
+     *
+     * `settings` is the policy in force as the day closes, and it is a
+     * parameter rather than something the backend reaches for because this is
+     * the one moment those rates are still the closing day's own. Freezing them
+     * is what stops a rate change tomorrow restating today: SubCheck's totals
+     * are all derived, so without a frozen snapshot every historical figure
+     * moves whenever an operator edits a tax rate.
      */
-    [[nodiscard]] virtual StoreError EndBusinessDay() = 0;
+    [[nodiscard]] virtual StoreError EndBusinessDay(const Settings &settings) = 0;
 
     // Cheap readiness probe: is the backing store reachable and writable.
     [[nodiscard]] virtual StoreError HealthCheck() = 0;

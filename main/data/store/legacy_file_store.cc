@@ -215,7 +215,7 @@ public:
         return false;   // see LegacyTransaction
     }
 
-    [[nodiscard]] StoreError EndBusinessDay() override
+    [[nodiscard]] StoreError EndBusinessDay(const Settings &) override
     {
         // Nothing to do. There is no day container in the file layout: the
         // archive file that EndDay writes IS the day, and EndDay writes it

@@ -95,6 +95,11 @@ namespace vt::store {
 
 [[nodiscard]] std::string TextOf(const Str &value);
 
+// sqlite Status to the seam's StoreError. Was defined identically and
+// separately in three translation units; one copy means a new Status value has
+// one switch to be added to.
+[[nodiscard]] StoreError Translate(vt::sql::Status status) noexcept;
+
 // Log why a statement failed, then translate. A Constraint return alone says a
 // rule was broken but not which one, and the schema has foreign keys, partial
 // unique indexes, CHECK constraints and five triggers that all produce it.

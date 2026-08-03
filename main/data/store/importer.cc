@@ -8,6 +8,7 @@
 #include "archive.hh"
 #include "check.hh"
 #include "check_writer.hh"
+#include "day_policy.hh"
 #include "settings.hh"
 
 #include "sql/database.hh"
@@ -32,20 +33,6 @@ using vt::sql::Status;
 
 namespace {
 
-StoreError Translate(Status status) noexcept
-{
-    switch (status)
-    {
-    case Status::Ok:         return StoreError::Ok;
-    case Status::CannotOpen: return StoreError::Io;
-    case Status::Busy:       return StoreError::Busy;
-    case Status::Constraint: return StoreError::Constraint;
-    case Status::Corrupt:    return StoreError::Corrupt;
-    case Status::SqlError:   return StoreError::Io;
-    case Status::NotOpen:    return StoreError::Io;
-    }
-    return StoreError::Io;
-}
 
 std::optional<int64_t> LocalSeconds(const TimeInfo &time)
 {
@@ -164,57 +151,12 @@ StoreError InsertBusinessDay(Database &db, const Archive &archive,
 StoreError InsertDayPolicy(Database &db, int64_t day_id, const Archive &archive,
                            const Settings &settings)
 {
-    Statement stmt;
-    if (Status s = stmt.Prepare(
-            db,
-            "INSERT INTO day_policy("
-            "  business_day_id, tax_food, tax_alcohol, tax_room, tax_merchandise,"
-            "  tax_GST, tax_PST, tax_HST, tax_QST, tax_VAT, royalty_rate,"
-            "  advertise_fund, price_rounding, change_for_credit,"
-            "  change_for_roomcharge, change_for_checks, change_for_gift,"
-            "  discount_alcohol, tax_takeout_food, store_tz, snapshot_complete)"
-            " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,"
-            "         ?14, ?15, ?16, ?17, ?18, ?19, ?20, 0);");
-        s != Status::Ok)
-    {
-        return Translate(s);
-    }
-
-    // Rates bind as REAL, not text. A tax rate that round-trips through decimal
-    // moves in its third decimal place, and it multiplies every sale on the day.
-    Status s = Status::Ok;
-    if ((s = stmt.BindInt(1, day_id)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindDouble(2, archive.tax_food)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindDouble(3, archive.tax_alcohol)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindDouble(4, archive.tax_room)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindDouble(5, archive.tax_merchandise)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindDouble(6, archive.tax_GST)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindDouble(7, archive.tax_PST)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindDouble(8, archive.tax_HST)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindDouble(9, archive.tax_QST)) != Status::Ok) return Translate(s);
-    // Zero in every archive ever written: EndDay's open-coded policy copy
-    // omitted tax_VAT, which is why snapshot_complete is 0 for imported days.
-    if ((s = stmt.BindDouble(10, archive.tax_VAT)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindDouble(11, archive.royalty_rate)) != Status::Ok) return Translate(s);
-    // Same omission as tax_VAT.
-    if ((s = stmt.BindDouble(12, archive.advertise_fund)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(13, archive.price_rounding)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(14, archive.change_for_credit)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(15, archive.change_for_roomcharge)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(16, archive.change_for_checks)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(17, archive.change_for_gift)) != Status::Ok) return Translate(s);
-    if ((s = stmt.BindInt(18, archive.discount_alcohol)) != Status::Ok) return Translate(s);
-    // Archive has no field for this -- FigureTotals read it live from Settings,
-    // which is why toggling it restated food tax on every archived takeout
-    // check. The live value is the best available answer and is recorded as
-    // such: snapshot_complete = 0 says this day's policy is not authoritative.
-    if ((s = stmt.BindInt(19, settings.tax_takeout_food)) != Status::Ok) return Translate(s);
-    // The zone the _utc columns were resolved against, so a later reader can
-    // tell what the _local values meant rather than assuming the machine that
-    // reads them is configured like the one that wrote them.
-    if ((s = stmt.BindText(20, StoreTimeZoneName())) != Status::Ok) return Translate(s);
-
-    return Translate(stmt.Execute());
+    // One writer for day_policy, shared with the path a live day closes
+    // through. Policy copying used to be open-coded per call site, and the copy
+    // in System::EndDay omitted tax_VAT and advertise_fund -- silently zeroing
+    // VAT on every archived check. A single writer means a new policy field has
+    // one place to be added rather than three.
+    return WriteDayPolicy(db, day_id, PolicyFromArchive(archive, settings));
 }
 
 /*

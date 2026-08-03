@@ -261,11 +261,11 @@ bool DualRunStore::SupportsAtomicWrites() const noexcept
     return impl_->primary->SupportsAtomicWrites();
 }
 
-StoreError DualRunStore::EndBusinessDay()
+StoreError DualRunStore::EndBusinessDay(const Settings &settings)
 {
-    const StoreError result = impl_->primary->EndBusinessDay();
+    const StoreError result = impl_->primary->EndBusinessDay(settings);
 
-    if (const StoreError shadow_result = impl_->shadow->EndBusinessDay();
+    if (const StoreError shadow_result = impl_->shadow->EndBusinessDay(settings);
         shadow_result != StoreError::Ok)
     {
         // Logged loudly rather than counted quietly. A shadow whose day never

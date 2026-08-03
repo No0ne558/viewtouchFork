@@ -61,6 +61,7 @@ public:
 
     // Column accessors, 0-based, valid only after Step() returned true.
     [[nodiscard]] int64_t ColumnInt(int index) const;
+    [[nodiscard]] double ColumnDouble(int index) const;
     [[nodiscard]] std::string ColumnText(int index) const;
     [[nodiscard]] bool ColumnIsNull(int index) const;
     [[nodiscard]] std::optional<int64_t> ColumnOptionalInt(int index) const;

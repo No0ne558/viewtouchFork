@@ -31,6 +31,7 @@
 
 #include "check.hh"
 #include "check_writer.hh"
+#include "day_policy.hh"
 #include "drawer.hh"
 
 #include "sql/database.hh"
@@ -51,20 +52,6 @@ using vt::sql::Database;
 using vt::sql::Statement;
 using vt::sql::Status;
 
-StoreError Translate(Status status) noexcept
-{
-    switch (status)
-    {
-    case Status::Ok:         return StoreError::Ok;
-    case Status::CannotOpen: return StoreError::Io;
-    case Status::Busy:       return StoreError::Busy;
-    case Status::Constraint: return StoreError::Constraint;
-    case Status::Corrupt:    return StoreError::Corrupt;
-    case Status::SqlError:   return StoreError::Io;
-    case Status::NotOpen:    return StoreError::Io;
-    }
-    return StoreError::Io;
-}
 
 /*
  * A transaction over the real database.
@@ -567,8 +554,25 @@ public:
     // The whole point. Every write in a transaction lands or none does.
     [[nodiscard]] bool SupportsAtomicWrites() const noexcept override { return true; }
 
-    [[nodiscard]] StoreError EndBusinessDay() override
+    [[nodiscard]] StoreError EndBusinessDay(const Settings &settings) override
     {
+        // Freeze the policy first, while business_day_id_ still names the day
+        // that traded. Every money field on a SubCheck is derived and
+        // recomputed on read, so without this row a rate edited tomorrow
+        // restates every total on every day already closed -- which is what the
+        // Archive's frozen rates prevent for the file format, and what this
+        // table exists to prevent here.
+        //
+        // Ordered before the close and inside the caller's transaction so a
+        // day is never closed without one. WriteDayPolicy upserts, so a re-run
+        // of an interrupted EndDay replaces the row rather than failing.
+        if (const StoreError e =
+                WriteDayPolicy(db_, business_day_id_, PolicyFromSettings(settings));
+            e != StoreError::Ok)
+        {
+            return e;
+        }
+
         // Stamp the day closed and open the next. Everything already written
         // stays where it is -- it belongs to the day that just ended, which is
         // the whole reason the container exists.

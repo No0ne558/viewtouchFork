@@ -708,7 +708,7 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
 
     SECTION("ending the day rolls forward without touching history")
     {
-        REQUIRE(store->EndBusinessDay() == vt::store::StoreError::Ok);
+        REQUIRE(store->EndBusinessDay(settings) == vt::store::StoreError::Ok);
 
         // Four days now: three imported-and-closed, one just closed, one fresh.
         REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM business_day;") == 4);
@@ -717,6 +717,19 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
         // The imported days keep their provenance.
         REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM business_day "
                                 "WHERE legacy_filename IS NOT NULL;") == 2);
+
+        // And the two kinds of day are distinguishable by whether their policy
+        // is authoritative. The day that just closed here was snapshotted from
+        // live Settings at the moment it closed, so it is complete; the
+        // imported ones are reconstructions and say so. A site that imports
+        // history and then trades has both, and a report has to be able to
+        // tell them apart -- otherwise "the rate was zero" and "the rate was
+        // never recorded" look identical, which is the distinction the legacy
+        // format could not express at all.
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM day_policy "
+                                "WHERE snapshot_complete = 1;") == 1);
+        REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM day_policy "
+                                "WHERE snapshot_complete = 0;") == 2);
     }
 }
 

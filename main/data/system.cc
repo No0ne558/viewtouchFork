@@ -620,7 +620,7 @@ int System::EndDay()
      */
     if (data_store_ != nullptr)
     {
-        if (const vt::store::StoreError e = data_store_->EndBusinessDay();
+        if (const vt::store::StoreError e = data_store_->EndBusinessDay(settings);
             e != vt::store::StoreError::Ok)
         {
             // Not fatal to EndDay: the archive is already written and the day

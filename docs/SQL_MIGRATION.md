@@ -246,7 +246,8 @@ inside that hour: 01:15 to 01:45 would report ninety minutes, every autumn.
 ## What is migrated, and what is not
 
 `sqlite` mode moves **checks and drawers** — the two halves of end-of-day
-reconciliation. Everything else still writes files on every mode:
+reconciliation — and the **policy each day traded under**. Everything else still
+writes files on every mode:
 
 archives (the whole-day file rewrite), settings, employees, labor and work
 records, tips, expenses, inventory, customers, accounts, and the credit
@@ -256,6 +257,28 @@ So a site in `sqlite` mode is in a coherent but partial state: current checks
 and drawers live in the database, the archive of each closed day is still a
 file, and `EndDay` still performs its whole-day rewrite. Plan accordingly —
 this is a staged migration, not a finished one.
+
+### Why the day's policy is stored with the day
+
+Every money field on a subcheck is *derived* — `FigureTotals` recomputes it on
+read — so a total is only stable if the rates it is computed against are. That
+is what the archive's frozen rates do for the file format, and what `day_policy`
+does here: when a day closes, the rates in force at that moment are written
+alongside it. Editing a tax rate tomorrow cannot reach back and restate it.
+
+`snapshot_complete` separates the two kinds of row, and the distinction is real
+money rather than bookkeeping:
+
+| | `snapshot_complete` | What the rates are |
+|---|---|---|
+| A day this build closed | `1` | The rates in force as it closed |
+| An imported day | `0` | A reconstruction — see below |
+
+Imported days can never be complete. The legacy end-of-day omitted `tax_VAT` and
+`advertise_fund` from its own copy, so every archive ever written holds zero for
+both; and `tax_takeout_food` was never in the format at all, so today's value is
+the closest available answer. A site that imports history and then trades will
+have both kinds, and a report needs to tell them apart.
 
 ## Retention
 

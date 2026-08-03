@@ -141,6 +141,17 @@ int64_t Scalar(const std::string &db_path, const std::string &sql)
     return value;
 }
 
+double ScalarDouble(const std::string &db_path, const std::string &sql)
+{
+    vt::sql::Database db;
+    REQUIRE(db.Open(db_path) == vt::sql::Status::Ok);
+    vt::sql::Statement stmt;
+    REQUIRE(stmt.Prepare(db, sql) == vt::sql::Status::Ok);
+    vt::sql::Status status = vt::sql::Status::Ok;
+    REQUIRE(stmt.Step(status));
+    return stmt.ColumnDouble(0);
+}
+
 int FilesIn(const fs::path &dir)
 {
     int count = 0;
@@ -373,7 +384,7 @@ TEST_CASE("The business day rolls over, so a second day of trading works",
 
     SECTION("the same serial in a new day is fine")
     {
-        REQUIRE(store->EndBusinessDay() == StoreError::Ok);
+        REQUIRE(store->EndBusinessDay(MasterSystem->settings) == StoreError::Ok);
 
         // Exactly one open day still, and the previous one is closed rather
         // than deleted -- yesterday's takings do not go anywhere.
@@ -400,7 +411,7 @@ TEST_CASE("The business day rolls over, so a second day of trading works",
 
     SECTION("yesterday's rows stay attached to yesterday")
     {
-        REQUIRE(store->EndBusinessDay() == StoreError::Ok);
+        REQUIRE(store->EndBusinessDay(MasterSystem->settings) == StoreError::Ok);
         REQUIRE(save_drawer(9002) == StoreError::Ok);
 
         // One drawer in the closed day, one in the open one. Reports over a
@@ -424,7 +435,7 @@ TEST_CASE("Ending the day is a no-op on the legacy backend, not a failure",
     // every site that never enabled SQL.
     DrawerFixture fixture("vt_endday_legacy");
     auto store = MakeLegacyFileStore(MasterSystem.get());
-    REQUIRE(store->EndBusinessDay() == StoreError::Ok);
+    REQUIRE(store->EndBusinessDay(MasterSystem->settings) == StoreError::Ok);
 }
 
 TEST_CASE("The divergence report covers drawers, not just checks",
@@ -573,6 +584,97 @@ TEST_CASE("EndDay reports on the day that traded, not the one about to start",
     REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM business_day "
                                "WHERE closed_at_local IS NOT NULL;") == 1);
 
+    system->SetDataStore(nullptr);
+    system->data_path.Set(previous_data.c_str());
+    system->archive_path.Set(previous_archive.c_str());
+}
+
+TEST_CASE("A day closed in SQL records the policy it traded under",
+          "[endday][policy][sqlite]")
+{
+    /*
+     * The end-to-end test, written before the fix, because that is what the
+     * last four defects here had in common: a unit test that passed over an
+     * integration that did not work.
+     *
+     * `day_policy` exists so that changing a tax rate today cannot restate a
+     * closed day -- exactly what Archive's frozen rates do for the file format,
+     * and exactly what the tax_VAT bug broke when EndDay's copy omitted two
+     * fields. The importer writes a row per imported day. Nothing wrote one for
+     * a day the site actually traded and closed, so every day closed natively
+     * under `sqlite` had no frozen policy at all.
+     *
+     * This drives System::EndDay(), not the store method, for the same reason
+     * as the divergence-report test above it.
+     */
+    DrawerFixture fixture("vt_endday_policy");
+
+    System *system = MasterSystem.get();
+    const std::string previous_data = (system->data_path.Value() != nullptr)
+                                          ? system->data_path.Value() : "";
+    const std::string previous_archive = (system->archive_path.Value() != nullptr)
+                                             ? system->archive_path.Value() : "";
+    system->data_path.Set(fixture.dir.string().c_str());
+    system->archive_path.Set(fixture.dir.string().c_str());
+
+    // The rates in force while the day trades.
+    Settings &settings = system->settings;
+    const Flt previous_food = settings.tax_food;
+    const Flt previous_vat = settings.tax_VAT;
+    settings.tax_food = 0.0825;
+    settings.tax_VAT = 0.175;
+
+    StoreError error = StoreError::Io;
+    auto sqlite = MakeSqliteStore(fixture.db, error);
+    REQUIRE(error == StoreError::Ok);
+    system->SetDataStore(std::move(sqlite));
+
+    Drawer *drawer = BuildDrawer(8200, /*balanced=*/true);
+    REQUIRE(system->Add(drawer) == 0);
+    REQUIRE(drawer->Save() == 0);
+
+    REQUIRE(system->EndDay() == 0);
+
+    // A day closed, and it carries the rates it traded under.
+    REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM business_day "
+                               "WHERE closed_at_local IS NOT NULL;") == 1);
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT COUNT(*) FROM day_policy p"
+                   " JOIN business_day d ON d.id = p.business_day_id"
+                   " WHERE d.closed_at_local IS NOT NULL;") == 1);
+
+    // And they are the day's rates, not zero and not a default. tax_VAT
+    // specifically: that is the field EndDay's open-coded copy forgot, and
+    // Settings::FigureVAT treats 0 as a real rate rather than "unset", so a
+    // missing value is silently a whole day of untaxed sales.
+    REQUIRE(ScalarDouble(fixture.db,
+                         "SELECT tax_food FROM day_policy p"
+                         " JOIN business_day d ON d.id = p.business_day_id"
+                         " WHERE d.closed_at_local IS NOT NULL;")
+            == Catch::Approx(0.0825));
+    REQUIRE(ScalarDouble(fixture.db,
+                         "SELECT tax_VAT FROM day_policy p"
+                         " JOIN business_day d ON d.id = p.business_day_id"
+                         " WHERE d.closed_at_local IS NOT NULL;")
+            == Catch::Approx(0.175));
+
+    // Unlike an imported day, this one's policy IS authoritative: it was read
+    // from the live Settings at the moment the day closed, not reconstructed.
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT snapshot_complete FROM day_policy p"
+                   " JOIN business_day d ON d.id = p.business_day_id"
+                   " WHERE d.closed_at_local IS NOT NULL;") == 1);
+
+    // Changing a rate afterwards must not reach back into the closed day.
+    settings.tax_food = 0.15;
+    REQUIRE(ScalarDouble(fixture.db,
+                         "SELECT tax_food FROM day_policy p"
+                         " JOIN business_day d ON d.id = p.business_day_id"
+                         " WHERE d.closed_at_local IS NOT NULL;")
+            == Catch::Approx(0.0825));
+
+    settings.tax_food = previous_food;
+    settings.tax_VAT = previous_vat;
     system->SetDataStore(nullptr);
     system->data_path.Set(previous_data.c_str());
     system->archive_path.Set(previous_archive.c_str());

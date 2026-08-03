@@ -24,8 +24,6 @@ using vt::sql::Database;
 using vt::sql::Statement;
 using vt::sql::Status;
 
-namespace {
-
 StoreError Translate(Status status) noexcept
 {
     switch (status)
@@ -40,8 +38,6 @@ StoreError Translate(Status status) noexcept
     }
     return StoreError::Io;
 }
-
-} // namespace
 
 /*
  * Log why a statement failed, then translate.

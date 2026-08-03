@@ -145,6 +145,11 @@ int64_t Statement::ColumnInt(int index) const
     return (stmt_ != nullptr) ? sqlite3_column_int64(stmt_, index) : 0;
 }
 
+double Statement::ColumnDouble(int index) const
+{
+    return (stmt_ != nullptr) ? sqlite3_column_double(stmt_, index) : 0.0;
+}
+
 std::string Statement::ColumnText(int index) const
 {
     if (stmt_ == nullptr)

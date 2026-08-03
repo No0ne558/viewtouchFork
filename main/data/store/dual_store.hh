@@ -67,7 +67,7 @@ public:
     // shadow failure here is worth surfacing immediately: a shadow whose day
     // never closes silently overwrites its own records the next day, and the
     // divergence report would only show that after the damage.
-    [[nodiscard]] StoreError EndBusinessDay() override;
+    [[nodiscard]] StoreError EndBusinessDay(const Settings &settings) override;
 
     // Fails if either side is unhealthy. Unlike a save, there is nothing to
     // lose by surfacing a shadow problem here, and a shadow that cannot be read
