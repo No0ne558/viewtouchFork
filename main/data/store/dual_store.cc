@@ -283,6 +283,15 @@ StoreError DualRunStore::EndBusinessDay(const Settings &settings,
     return result;
 }
 
+StoreError DualRunStore::LoadPreviousDayTips(TipDB &out)
+{
+    // The primary, like every other read. In dual mode files are authoritative,
+    // so this returns Unsupported and the caller keeps reading the archive --
+    // which is the whole point of dual mode: the shadow is being exercised, not
+    // relied on.
+    return impl_->primary->LoadPreviousDayTips(out);
+}
+
 StoreError DualRunStore::HealthCheck()
 {
     if (const StoreError e = impl_->primary->HealthCheck(); e != StoreError::Ok)

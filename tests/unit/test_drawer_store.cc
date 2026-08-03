@@ -967,3 +967,120 @@ TEST_CASE("A closed day keeps the media its payments resolved against",
     system->data_path.Set(previous_data.c_str());
     system->archive_path.Set(previous_archive.c_str());
 }
+
+TEST_CASE("Yesterday's tips carry forward from SQL, not the archive file",
+          "[endday][tips][sqlite]")
+{
+    /*
+     * The last read keeping a fully migrated site tied to its archive files.
+     *
+     * A day's tips are derived from that day's checks and drawer payouts, with
+     * exactly one input from outside: the balance carried in from yesterday.
+     * TipDB::Update got that by opening the previous ARCHIVE FILE -- so a site
+     * whose money was entirely in the database still could not do without its
+     * archives, and would silently reset everyone's carried tips to zero if the
+     * files went away.
+     *
+     * The discriminator here is deleting the archives between the two days. If
+     * the carry-forward still went to the file it would find nothing and report
+     * zero; reading it from tip_entry is the only way the second day can know.
+     */
+    DrawerFixture fixture("vt_endday_tip_carry");
+
+    System *system = MasterSystem.get();
+    const std::string previous_data = (system->data_path.Value() != nullptr)
+                                          ? system->data_path.Value() : "";
+    const std::string previous_archive = (system->archive_path.Value() != nullptr)
+                                             ? system->archive_path.Value() : "";
+    system->data_path.Set(fixture.dir.string().c_str());
+    system->archive_path.Set(fixture.dir.string().c_str());
+
+    StoreError error = StoreError::Io;
+    auto sqlite = MakeSqliteStore(fixture.db, error);
+    REQUIRE(error == StoreError::Ok);
+    system->SetDataStore(std::move(sqlite));
+
+    // Day one: 1250 captured for user 9, none of it paid out, so it is still
+    // owed when the day closes.
+    system->tip_db.Purge();
+    {
+        Drawer *drawer = new Drawer;
+        drawer->serial_number = 8500;
+        drawer->host.Set("term1");
+        drawer->owner_id = 7;
+        drawer->start_time.Set();
+        drawer->pull_time.Set();
+        drawer->balance_time.Set();
+        REQUIRE(system->Add(drawer) == 0);
+        REQUIRE(drawer->Save() == 0);
+
+        Check *check = new Check;
+        check->serial_number = 9200;
+        check->user_owner = 9;
+        check->date.Set(12 * 3600, 2026);
+        check->time_open.Set(12 * 3600, 2026);
+        SubCheck *sub = check->NewSubCheck();
+        auto *tip = new Payment(TENDER_CAPTURED_TIP, 0, 0, 1250);
+        tip->value = 1250;
+        sub->Add(tip);
+        sub->status = CHECK_CLOSED;
+        sub->settle_time.Set(20 * 3600, 2026);
+        REQUIRE(system->Add(check) == 0);
+    }
+
+    REQUIRE(system->EndDay() == 0);
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT amount FROM tip_entry WHERE user_id = 9;") == 1250);
+
+    // Remove every archive file. In a migrated site these are what would be
+    // going away; here they are removed to prove the second close does not need
+    // them.
+    {
+        std::error_code ec;
+        for (const auto &entry : fs::directory_iterator(fixture.dir, ec))
+        {
+            if (entry.path().filename().string().rfind("archive", 0) == 0)
+                fs::remove(entry.path(), ec);
+        }
+    }
+    system->UnloadArchives();
+
+    // Day two: nothing new earned. Whatever the tip row says now came from
+    // yesterday.
+    {
+        Drawer *drawer = new Drawer;
+        drawer->serial_number = 8501;
+        drawer->host.Set("term1");
+        drawer->owner_id = 7;
+        drawer->start_time.Set();
+        drawer->pull_time.Set();
+        drawer->balance_time.Set();
+        REQUIRE(system->Add(drawer) == 0);
+        REQUIRE(drawer->Save() == 0);
+    }
+
+    REQUIRE(system->EndDay() == 0);
+
+    // Two closed days, and the second one carries yesterday's balance forward.
+    REQUIRE(Scalar(fixture.db, "SELECT COUNT(*) FROM business_day "
+                               "WHERE closed_at_local IS NOT NULL;") == 2);
+
+    const std::string latest =
+        " WHERE t.business_day_id = ("
+        "   SELECT id FROM business_day WHERE closed_at_local IS NOT NULL"
+        "    ORDER BY closed_at_local DESC, id DESC LIMIT 1)";
+
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT t.amount FROM tip_entry t" + latest
+                   + " AND t.user_id = 9;") == 1250);
+    // And it is recorded as carried rather than earned, which is the
+    // distinction the file format could not express at all.
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT t.previous_amount FROM tip_entry t" + latest
+                   + " AND t.user_id = 9;") == 1250);
+
+    system->tip_db.Purge();
+    system->SetDataStore(nullptr);
+    system->data_path.Set(previous_data.c_str());
+    system->archive_path.Set(previous_archive.c_str());
+}

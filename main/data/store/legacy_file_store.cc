@@ -226,6 +226,14 @@ public:
         return StoreError::Ok;
     }
 
+    [[nodiscard]] StoreError LoadPreviousDayTips(TipDB &) override
+    {
+        // No notion of a previous day here: the archive file IS the day, and
+        // TipDB::Update's existing path already opens it. Unsupported tells the
+        // caller to keep doing what it does rather than reporting a failure.
+        return StoreError::Unsupported;
+    }
+
     [[nodiscard]] StoreError HealthCheck() override
     {
         return (system_ != nullptr) ? StoreError::Ok : StoreError::Io;

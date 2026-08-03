@@ -229,6 +229,27 @@ public:
     [[nodiscard]] virtual StoreError HealthCheck() = 0;
 
     /*
+     * The tip balances the previous closed day ended with.
+     *
+     * The first read path on this seam, and it exists to remove a file
+     * dependency rather than to be general. TipDB::Update rebuilds every day's
+     * tips from scratch at end of day, and the balance carried in from
+     * yesterday is the one input it cannot compute -- so it opened the previous
+     * ARCHIVE FILE to get it. That read is why a site whose data is entirely in
+     * SQL still could not do without its archives.
+     *
+     * Only `amount` is meaningful in the result: TipDB::Calculate transfers
+     * that into today's entries. `paid` and `previous_amount` belong to
+     * yesterday and are not carried.
+     *
+     * Returns Unsupported on backends that have no notion of a previous day --
+     * the legacy one, where the archive file IS the day and the caller's
+     * existing path is already correct. A caller must treat Unsupported as
+     * "use your own fallback", not as an error.
+     */
+    [[nodiscard]] virtual StoreError LoadPreviousDayTips(TipDB &out) = 0;
+
+    /*
      * Everything this backend has persisted, in a backend-independent form.
      *
      * Read from the persisted form, never from memory -- see snapshot.hh. The

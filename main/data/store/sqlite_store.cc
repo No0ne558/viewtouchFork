@@ -31,6 +31,7 @@
 
 #include "check.hh"
 #include "check_writer.hh"
+#include "tips.hh"
 #include "day_contents.hh"
 #include "day_policy.hh"
 #include "drawer.hh"
@@ -620,6 +621,55 @@ public:
             return e;
 
         business_day_id_ = next;
+        return StoreError::Ok;
+    }
+
+    [[nodiscard]] StoreError LoadPreviousDayTips(TipDB &out) override
+    {
+        /*
+         * The most recently closed day's tip balances.
+         *
+         * "Most recently closed" rather than "the day before business_day_id_"
+         * because ids are assigned in import and trading order, and an import
+         * of history after a day has already traded would break an id-arithmetic
+         * assumption. Ordering by the close timestamp, with the id as the
+         * tiebreak, asks the question the caller actually means.
+         *
+         * Only entries with a non-zero balance are returned. TipDB::Calculate
+         * calls TransferTip for each, and TransferTip deletes an entry whose
+         * amount and paid both come to nothing -- so returning zeroes would
+         * build rows only to discard them.
+         */
+        out.Purge();
+
+        Statement stmt;
+        if (Status s = stmt.Prepare(
+                db_, "SELECT t.user_id, t.amount FROM tip_entry t"
+                     " WHERE t.business_day_id = ("
+                     "   SELECT id FROM business_day"
+                     "    WHERE closed_at_local IS NOT NULL"
+                     "    ORDER BY closed_at_local DESC, id DESC LIMIT 1)"
+                     "   AND t.amount <> 0;");
+            s != Status::Ok)
+        {
+            return Translate(s);
+        }
+
+        Status step = Status::Ok;
+        while (stmt.Step(step))
+        {
+            auto *entry = new TipEntry;
+            entry->user_id = static_cast<int>(stmt.ColumnInt(0));
+            entry->amount = static_cast<int>(stmt.ColumnInt(1));
+            if (out.Add(entry) != 0)
+            {
+                delete entry;
+                return StoreError::Io;
+            }
+        }
+        if (step != Status::Ok)
+            return Fail(db_, step, "read previous day tips");
+
         return StoreError::Ok;
     }
 

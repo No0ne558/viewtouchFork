@@ -28,6 +28,8 @@
 #include "settings.hh"
 #include "archive.hh"
 #include "safe_string_utils.hh"
+#include "store/store.hh"
+#include "vt_logger.hh"
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -407,6 +409,38 @@ int TipDB::Update(System *sys)
 {
     FnTrace("TipDB::Update()");
     Settings *s = &sys->settings;
+
+    /*
+     * Yesterday's balances, which is the one input this cannot compute.
+     * Everything else about a day's tips is derived from that day's checks and
+     * drawer payouts; only the carry-forward comes from outside.
+     *
+     * Ask the configured backend first. On `sqlite` that reads tip_entry and
+     * the archive file is not touched -- which is the point: it was the last
+     * read keeping a fully migrated site tied to its archives. Backends with no
+     * notion of a previous day return Unsupported, and the archive path below
+     * is then exactly what it always was.
+     */
+    if (vt::store::Store *store = sys->DataStore(); store != nullptr)
+    {
+        TipDB previous;
+        const vt::store::StoreError e = store->LoadPreviousDayTips(previous);
+        if (e == vt::store::StoreError::Ok)
+        {
+            Calculate(s, &previous, sys->CheckList(), sys->DrawerList());
+            return 0;
+        }
+        if (e != vt::store::StoreError::Unsupported)
+        {
+            // Fall through to the archive rather than losing the carry-forward.
+            // Silently starting everyone at zero would understate what the
+            // house owes its staff, which is worse than reading a file.
+            ::vt::Logger::error("could not read yesterday's tips from the store "
+                                "({}); falling back to the archive",
+                                vt::store::StoreErrorName(e));
+        }
+    }
+
     Archive *a = sys->ArchiveListEnd();
     if (a)
     {

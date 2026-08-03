@@ -281,13 +281,16 @@ and drawers live in the database, the archive of each closed day is still a
 file, and `EndDay` still performs its whole-day rewrite. Plan accordingly —
 this is a staged migration, not a finished one.
 
-One dependency is worth naming because it is not obvious from the table list.
-Tips are **derived**, not entered: `TipDB::Update` runs at the top of every end
-of day and rebuilds the whole list from that day's checks and drawer payouts.
-The carried-forward balance comes from the previous day, and that read still
-goes to the previous **archive file**. So tips are written to the database but
-not yet read from it, and removing the archive files would break the carry
-forward even though the tip rows themselves are all present.
+Tips are worth a note because they are **derived**, not entered: `TipDB::Update`
+runs at the top of every end of day and rebuilds the whole list from that day's
+checks and drawer payouts. Exactly one input comes from outside — the balance
+carried in from yesterday — and on `sqlite` that now reads `tip_entry` rather
+than opening the previous archive file. On `legacy` and `dual` it reads the
+archive, as it always has.
+
+That was the last read tying a fully migrated site to its archives for
+day-to-day operation. A test closes two days with the archive files deleted in
+between and checks the second still carries the first day's balance forward.
 
 ### Why the day's policy is stored with the day
 
