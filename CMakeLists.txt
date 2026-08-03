@@ -564,6 +564,7 @@ add_library(vtbusiness
     main/data/store/legacy_file_store.cc main/data/store/sqlite_store.cc
     main/data/store/check_writer.cc main/data/store/check_writer.hh
     main/data/store/day_policy.cc main/data/store/day_policy.hh
+    main/data/store/day_contents.cc main/data/store/day_contents.hh
     main/data/store/importer.cc     main/data/store/importer.hh
     main/data/store/snapshot.cc     main/data/store/snapshot.hh
     main/data/store/dual_store.cc   main/data/store/dual_store.hh

@@ -41,9 +41,28 @@ class Check;
 class Drawer;
 class System;
 
+class ExceptionDB;
+class ExpenseDB;
 class Settings;
+class TipDB;
 
 namespace vt::store {
+
+/*
+ * The rest of a closed day, handed to EndBusinessDay alongside the policy.
+ *
+ * References rather than copies: these are System's own live containers, and
+ * EndBusinessDay reads them once, synchronously, inside the transaction that
+ * closes the day. Passing them explicitly rather than letting a backend reach
+ * for MasterSystem keeps the seam testable -- a test can close a day with the
+ * contents it built rather than whatever the global happens to hold.
+ */
+struct DayContents
+{
+    TipDB &tips;
+    ExpenseDB &expenses;
+    ExceptionDB &exceptions;
+};
 
 /*
  * Named `Ok` rather than `None`, matching vt::sql::Status.
@@ -176,7 +195,8 @@ public:
      * are all derived, so without a frozen snapshot every historical figure
      * moves whenever an operator edits a tax rate.
      */
-    [[nodiscard]] virtual StoreError EndBusinessDay(const Settings &settings) = 0;
+    [[nodiscard]] virtual StoreError EndBusinessDay(const Settings &settings,
+                                                    const DayContents &contents) = 0;
 
     // Cheap readiness probe: is the backing store reachable and writable.
     [[nodiscard]] virtual StoreError HealthCheck() = 0;

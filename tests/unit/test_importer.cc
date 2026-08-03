@@ -18,8 +18,12 @@
 
 #include "main/business/check.hh"
 #include "main/business/sales.hh"
+#include "main/business/tips.hh"
 #include "main/data/archive.hh"
+#include "main/data/exception.hh"
+#include "main/data/expense.hh"
 #include "main/data/settings.hh"
+#include "main/data/system.hh"
 #include "sql/database.hh"
 #include "sql/sequence.hh"
 #include "sql/statement.hh"
@@ -708,7 +712,8 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
 
     SECTION("ending the day rolls forward without touching history")
     {
-        REQUIRE(store->EndBusinessDay(settings) == vt::store::StoreError::Ok);
+        REQUIRE(store->EndBusinessDay(settings, vt::store::DayContents{
+            MasterSystem->tip_db, MasterSystem->expense_db, MasterSystem->exception_db}) == vt::store::StoreError::Ok);
 
         // Four days now: three imported-and-closed, one just closed, one fresh.
         REQUIRE(Scalar(data.db, "SELECT COUNT(*) FROM business_day;") == 4);
@@ -783,4 +788,95 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     // its own policy and is not counted, which is what makes this a signal
     // rather than a blanket warning on every import.
     REQUIRE(result.stats.policy_not_in_archive == 1);
+}
+
+TEST_CASE_METHOD(vt_test::VtSystemFixture,
+                 "An imported archive brings its tips, expenses and exceptions",
+                 "[importer][contents]")
+{
+    // The other half of migrating a closed day. The live close path writes
+    // these three at EndDay; an archive already on disk carries its own, and
+    // they go through the same writers so an imported day and a traded one
+    // produce the same rows from the same code.
+    ArchiveDir dir("vt_import_contents");
+    Settings &settings = TestSettings();
+
+    const std::string file = dir.File("archive_001");
+    {
+        TimeInfo start;
+        start.Set();
+        Archive archive(start);
+        archive.filename.Set(file.c_str());
+        archive.id = 1;
+        archive.end_time.Set();
+        archive.CopyPolicyFrom(settings);
+
+        REQUIRE(archive.Add(MakeClosedCheck(100, 950)) == 0);
+
+        // Tips are derived at EndDay, but an archive holds the result, so here
+        // they are placed directly -- which is what LoadPacked will read back.
+        auto *tip = new TipEntry;
+        tip->user_id = 9;
+        tip->amount = 750;
+        tip->previous_amount = 200;   // written here, but not to the file
+        tip->paid = 500;
+        REQUIRE(archive.tip_db.Add(tip) == 0);
+
+        auto *expense = new Expense;
+        expense->eid = 3;
+        expense->account_id = 300;
+        expense->amount = 2200;
+        expense->tax = 175;
+        expense->entered = 2200;
+        expense->explanation.Set("linen service");
+        expense->exp_date.Set(11 * 3600, 2020);
+        REQUIRE(archive.expense_db.Add(expense) == 0);
+
+        auto *item = new ItemException;
+        item->user_id = 9;
+        item->check_serial = 100;
+        item->item_name.Set("Lobster");
+        item->item_cost = 4900;
+        item->reason = 3;
+        item->time.Set(19 * 3600, 2020);
+        REQUIRE(archive.exception_db.Add(item) == 0);
+
+        REQUIRE(archive.SavePacked() == 0);
+        archive.changed = 0;
+    }
+
+    const ImportResult result = ImportArchives(dir.path.string(), dir.db, settings);
+    REQUIRE(result.Ok());
+    REQUIRE(result.stats.archives_read == 1);
+
+    REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM tip_entry;") == 1);
+    REQUIRE(Scalar(dir.db, "SELECT amount FROM tip_entry;") == 750);
+    // Zero, and that is the format speaking rather than the importer. TipEntry
+    // ::Write emits user_id, amount and paid -- previous_amount is not in the
+    // record at all. It is reconstructed at each EndDay by TipDB::TransferTip
+    // reading the *previous* archive's amounts, so it exists only in memory and
+    // dies with the process. Same class of unrecoverable field as call_order.
+    //
+    // A day closed by this build does store it (see the EndDay contents test),
+    // so this is a column the legacy format could not express, populated going
+    // forward and necessarily empty for history.
+    REQUIRE(Scalar(dir.db, "SELECT previous_amount FROM tip_entry;") == 0);
+    REQUIRE(Scalar(dir.db, "SELECT paid FROM tip_entry;") == 500);
+
+    REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM expense;") == 1);
+    REQUIRE(Scalar(dir.db, "SELECT amount FROM expense;") == 2200);
+    REQUIRE(Scalar(dir.db, "SELECT tax FROM expense;") == 175);
+
+    REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM item_exception;") == 1);
+    REQUIRE(Scalar(dir.db, "SELECT item_cost FROM item_exception;") == 4900);
+    REQUIRE(Scalar(dir.db, "SELECT reason FROM item_exception;") == 3);
+
+    // Re-running an import must not double them. Archives already imported are
+    // skipped, and the writers replace rather than append, so both layers of
+    // that guarantee are exercised by simply running it again.
+    const ImportResult again = ImportArchives(dir.path.string(), dir.db, settings);
+    REQUIRE(again.Ok());
+    REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM tip_entry;") == 1);
+    REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM expense;") == 1);
+    REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM item_exception;") == 1);
 }

@@ -15,6 +15,9 @@
 #include "main/data/store/dual_store.hh"
 #include "main/data/store/store.hh"
 #include "main/data/system.hh"
+#include "main/business/tips.hh"
+#include "main/data/exception.hh"
+#include "main/data/expense.hh"
 #include "main/hardware/drawer.hh"
 #include "sql/database.hh"
 #include "sql/statement.hh"
@@ -139,6 +142,17 @@ int64_t Scalar(const std::string &db_path, const std::string &sql)
     int64_t value = -1;
     REQUIRE(db.QueryInt(sql, value) == vt::sql::Status::Ok);
     return value;
+}
+
+std::string Text(const std::string &db_path, const std::string &sql)
+{
+    vt::sql::Database db;
+    REQUIRE(db.Open(db_path) == vt::sql::Status::Ok);
+    vt::sql::Statement stmt;
+    REQUIRE(stmt.Prepare(db, sql) == vt::sql::Status::Ok);
+    vt::sql::Status status = vt::sql::Status::Ok;
+    REQUIRE(stmt.Step(status));
+    return stmt.ColumnText(0);
 }
 
 double ScalarDouble(const std::string &db_path, const std::string &sql)
@@ -384,7 +398,8 @@ TEST_CASE("The business day rolls over, so a second day of trading works",
 
     SECTION("the same serial in a new day is fine")
     {
-        REQUIRE(store->EndBusinessDay(MasterSystem->settings) == StoreError::Ok);
+        REQUIRE(store->EndBusinessDay(MasterSystem->settings, vt::store::DayContents{
+        MasterSystem->tip_db, MasterSystem->expense_db, MasterSystem->exception_db}) == StoreError::Ok);
 
         // Exactly one open day still, and the previous one is closed rather
         // than deleted -- yesterday's takings do not go anywhere.
@@ -411,7 +426,8 @@ TEST_CASE("The business day rolls over, so a second day of trading works",
 
     SECTION("yesterday's rows stay attached to yesterday")
     {
-        REQUIRE(store->EndBusinessDay(MasterSystem->settings) == StoreError::Ok);
+        REQUIRE(store->EndBusinessDay(MasterSystem->settings, vt::store::DayContents{
+        MasterSystem->tip_db, MasterSystem->expense_db, MasterSystem->exception_db}) == StoreError::Ok);
         REQUIRE(save_drawer(9002) == StoreError::Ok);
 
         // One drawer in the closed day, one in the open one. Reports over a
@@ -435,7 +451,8 @@ TEST_CASE("Ending the day is a no-op on the legacy backend, not a failure",
     // every site that never enabled SQL.
     DrawerFixture fixture("vt_endday_legacy");
     auto store = MakeLegacyFileStore(MasterSystem.get());
-    REQUIRE(store->EndBusinessDay(MasterSystem->settings) == StoreError::Ok);
+    REQUIRE(store->EndBusinessDay(MasterSystem->settings, vt::store::DayContents{
+        MasterSystem->tip_db, MasterSystem->expense_db, MasterSystem->exception_db}) == StoreError::Ok);
 }
 
 TEST_CASE("The divergence report covers drawers, not just checks",
@@ -675,6 +692,174 @@ TEST_CASE("A day closed in SQL records the policy it traded under",
 
     settings.tax_food = previous_food;
     settings.tax_VAT = previous_vat;
+    system->SetDataStore(nullptr);
+    system->data_path.Set(previous_data.c_str());
+    system->archive_path.Set(previous_archive.c_str());
+}
+
+TEST_CASE("A day closed in SQL keeps its tips, expenses and exceptions",
+          "[endday][contents][sqlite]")
+{
+    /*
+     * The rest of what an archive file holds. Until this, a site in `sqlite`
+     * mode had its checks and drawers in the database and the day's tips,
+     * expenses and audit exceptions only in the archive file.
+     *
+     * The reason this drives System::EndDay() rather than the store method is
+     * an ordering that is easy to break and silent when broken. EndDay moves
+     * exception_db and expense_db into the archive, and those moves happen
+     * *below* the EndBusinessDay call. Move the call after them and it writes
+     * three empty sets and reports success -- exactly the mistake the
+     * divergence report made by running at the end of EndDay. Only a test that
+     * populates all three and drives the real function can catch it.
+     */
+    DrawerFixture fixture("vt_endday_contents");
+
+    System *system = MasterSystem.get();
+    const std::string previous_data = (system->data_path.Value() != nullptr)
+                                          ? system->data_path.Value() : "";
+    const std::string previous_archive = (system->archive_path.Value() != nullptr)
+                                             ? system->archive_path.Value() : "";
+    system->data_path.Set(fixture.dir.string().c_str());
+    system->archive_path.Set(fixture.dir.string().c_str());
+
+    StoreError error = StoreError::Io;
+    auto sqlite = MakeSqliteStore(fixture.db, error);
+    REQUIRE(error == StoreError::Ok);
+    system->SetDataStore(std::move(sqlite));
+
+    // A balanced drawer, so AllDrawersPulled() lets the day end at all.
+    Drawer *drawer = BuildDrawer(8300, /*balanced=*/true);
+    REQUIRE(system->Add(drawer) == 0);
+    REQUIRE(drawer->Save() == 0);
+
+    // Tips are DERIVED, not stored. TipDB::Update runs at the top of EndDay and
+    // calls Calculate, which purges the list and rebuilds it from the day's
+    // checks and drawer payouts -- so a hand-placed TipEntry is destroyed
+    // before EndBusinessDay ever sees it. (Found by writing exactly that
+    // fixture and watching this test report zero rows.)
+    //
+    // So the day has to actually earn the tip: a captured-tip payment on a
+    // check credits the employee who gets the sale, and a TENDER_PAID_TIP
+    // drawer payment pays part of it back out.
+    system->tip_db.Purge();
+    Check *tipped = new Check;
+    tipped->serial_number = 9100;
+    // User 9 deliberately: BuildDrawer already pays 500 out to that user as a
+    // TENDER_PAID_TIP, and PayoutTip is a no-op unless there is a captured tip
+    // to pay from. Matching them exercises both halves of the derivation.
+    tipped->user_owner = 9;       // WhoGetsSale, with sale_credit at its default
+    tipped->date.Set(12 * 3600, 2026);
+    tipped->time_open.Set(12 * 3600, 2026);
+    {
+        SubCheck *sub = tipped->NewSubCheck();
+        auto *tip_payment = new Payment(TENDER_CAPTURED_TIP, 0, 0, 1250);
+        tip_payment->value = 1250;
+        sub->Add(tip_payment);
+        sub->status = CHECK_CLOSED;
+        sub->settle_time.Set(20 * 3600, 2026);
+    }
+    REQUIRE(system->Add(tipped) == 0);
+
+    // Money out of the till.
+    system->expense_db.Purge();
+    {
+        auto *expense = new Expense;
+        expense->eid = 7;
+        expense->account_id = 300;
+        expense->employee_id = 9;
+        expense->drawer_id = 8300;
+        expense->amount = 4500;
+        expense->tax = 350;
+        expense->entered = 4500;
+        expense->document.Set("INV-2291");
+        expense->explanation.Set("produce delivery");
+        expense->exp_date.Set(14 * 3600, 2026);
+        REQUIRE(system->expense_db.Add(expense) == 0);
+    }
+
+    // One of each exception kind -- three different events that share only a
+    // time, a user and a check serial, which is why they are three tables.
+    system->exception_db.Purge();
+    {
+        auto *item = new ItemException;
+        item->user_id = 9;
+        item->check_serial = 9001;
+        item->item_name.Set("Ribeye");
+        item->item_cost = 3200;
+        item->exception_type = 2;
+        item->reason = 5;
+        item->time.Set(15 * 3600, 2026);
+        REQUIRE(system->exception_db.Add(item) == 0);
+
+        auto *table = new TableException;
+        table->user_id = 9;
+        table->check_serial = 9002;
+        table->source_id = 3;
+        table->target_id = 8;
+        table->table.Set("patio 2");
+        table->time.Set(16 * 3600, 2026);
+        REQUIRE(system->exception_db.Add(table) == 0);
+
+        auto *rebuild = new RebuildException;
+        rebuild->user_id = 10;
+        rebuild->check_serial = 9003;
+        rebuild->time.Set(17 * 3600, 2026);
+        REQUIRE(system->exception_db.Add(rebuild) == 0);
+    }
+
+    REQUIRE(system->EndDay() == 0);
+
+    // Everything landed on the day that closed, not the fresh one.
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT COUNT(*) FROM tip_entry t"
+                   " JOIN business_day d ON d.id = t.business_day_id"
+                   " WHERE d.closed_at_local IS NOT NULL;") == 1);
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT COUNT(*) FROM expense e"
+                   " JOIN business_day d ON d.id = e.business_day_id"
+                   " WHERE d.closed_at_local IS NOT NULL;") == 1);
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT COUNT(*) FROM item_exception;") == 1);
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT COUNT(*) FROM table_exception;") == 1);
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT COUNT(*) FROM rebuild_exception;") == 1);
+
+    // And with their values, not just their shape. A count alone would pass
+    // against rows full of zeroes.
+    // 1250 captured on the check, 500 paid back out of the drawer.
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT amount FROM tip_entry WHERE user_id = 9;") == 750);
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT paid FROM tip_entry WHERE user_id = 9;") == 500);
+    // Nothing carried in: previous_amount comes from the PREVIOUS day, and
+    // there is not one here. See the note in day_contents.hh -- that carry
+    // forward still reads the previous archive file, so tips are written to
+    // SQL but not yet read from it.
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT previous_amount FROM tip_entry WHERE user_id = 9;") == 0);
+
+    REQUIRE(Scalar(fixture.db, "SELECT amount FROM expense;") == 4500);
+    REQUIRE(Scalar(fixture.db, "SELECT tax FROM expense;") == 350);
+    REQUIRE(Scalar(fixture.db, "SELECT entered FROM expense;") == 4500);
+    REQUIRE(Text(fixture.db, "SELECT explanation FROM expense;")
+            == "produce delivery");
+
+    REQUIRE(Text(fixture.db, "SELECT item_name FROM item_exception;") == "Ribeye");
+    REQUIRE(Scalar(fixture.db, "SELECT item_cost FROM item_exception;") == 3200);
+    REQUIRE(Scalar(fixture.db, "SELECT reason FROM item_exception;") == 5);
+    REQUIRE(Scalar(fixture.db, "SELECT target_id FROM table_exception;") == 8);
+    REQUIRE(Scalar(fixture.db, "SELECT check_serial FROM rebuild_exception;") == 9003);
+
+    // Timestamps carry both readings, same rule as everywhere else.
+    REQUIRE(Scalar(fixture.db,
+                   "SELECT COUNT(*) FROM item_exception "
+                   "WHERE time_local IS NOT NULL AND time_utc IS NOT NULL;") == 1);
+
+    system->tip_db.Purge();
+    system->expense_db.Purge();
+    system->exception_db.Purge();
     system->SetDataStore(nullptr);
     system->data_path.Set(previous_data.c_str());
     system->archive_path.Set(previous_archive.c_str());

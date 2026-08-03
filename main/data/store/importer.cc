@@ -8,6 +8,7 @@
 #include "archive.hh"
 #include "check.hh"
 #include "check_writer.hh"
+#include "day_contents.hh"
 #include "day_policy.hh"
 #include "settings.hh"
 
@@ -338,6 +339,16 @@ ImportResult ImportArchives(const std::string &archive_path,
                 step = InsertDayPolicy(db, day_id, archive, settings);
             if (step == StoreError::Ok)
                 step = ImportChecks(db, day_id, archive, result.stats);
+            if (step == StoreError::Ok)
+            {
+                // The rest of the day: tips, expenses and audit exceptions.
+                // The same writers the live close path uses, so an imported day
+                // and a traded one produce the same rows from the same code
+                // rather than from two transcriptions that can drift.
+                step = WriteDayContents(db, day_id, archive.tip_db,
+                                        archive.expense_db,
+                                        archive.exception_db);
+            }
 
             if (step != StoreError::Ok)
             {

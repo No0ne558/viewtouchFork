@@ -31,6 +31,7 @@
 
 #include "check.hh"
 #include "check_writer.hh"
+#include "day_contents.hh"
 #include "day_policy.hh"
 #include "drawer.hh"
 
@@ -554,7 +555,8 @@ public:
     // The whole point. Every write in a transaction lands or none does.
     [[nodiscard]] bool SupportsAtomicWrites() const noexcept override { return true; }
 
-    [[nodiscard]] StoreError EndBusinessDay(const Settings &settings) override
+    [[nodiscard]] StoreError EndBusinessDay(const Settings &settings,
+                                            const DayContents &contents) override
     {
         // Freeze the policy first, while business_day_id_ still names the day
         // that traded. Every money field on a SubCheck is derived and
@@ -568,6 +570,20 @@ public:
         // of an interrupted EndDay replaces the row rather than failing.
         if (const StoreError e =
                 WriteDayPolicy(db_, business_day_id_, PolicyFromSettings(settings));
+            e != StoreError::Ok)
+        {
+            return e;
+        }
+
+        // The rest of what an archive file holds: this day's tips, expenses and
+        // exceptions. Written here rather than incrementally because they are
+        // only meaningful as a set and the day is the set's boundary -- and
+        // because writing them in the transaction that closes the day means a
+        // day is complete or absent, never half.
+        if (const StoreError e = WriteDayContents(db_, business_day_id_,
+                                                  contents.tips,
+                                                  contents.expenses,
+                                                  contents.exceptions);
             e != StoreError::Ok)
         {
             return e;

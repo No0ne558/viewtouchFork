@@ -620,7 +620,21 @@ int System::EndDay()
      */
     if (data_store_ != nullptr)
     {
-        if (const vt::store::StoreError e = data_store_->EndBusinessDay(settings);
+        /*
+         * Ordering is load-bearing and easy to break. These three containers
+         * still hold the day that just traded ONLY because the moves into the
+         * archive happen below this point -- exception_db.MoveTo and
+         * expense_db.MoveTo are further down, and the tip copy is a copy. Move
+         * this call after them and it writes three empty sets while reporting
+         * success, which is the same mistake the divergence report made when it
+         * ran at the end of EndDay instead of the start.
+         *
+         * Asserted end to end rather than trusted: see the EndDay test that
+         * builds a tip, an expense and an exception and reads back all three.
+         */
+        const vt::store::DayContents day_contents{tip_db, expense_db, exception_db};
+        if (const vt::store::StoreError e =
+                data_store_->EndBusinessDay(settings, day_contents);
             e != vt::store::StoreError::Ok)
         {
             // Not fatal to EndDay: the archive is already written and the day

@@ -77,10 +77,15 @@ Re-running is safe: archives already imported are skipped, so a run interrupted
 partway can simply be repeated. One unreadable archive does not stop the rest —
 it is counted and named in the result.
 
-Two things imported data cannot recover, because the format never stored them:
+Three things imported data cannot recover, because the format never stored them:
 
 - **`call_order`.** Historical modifiers arrive with the constructor default.
   The original kitchen ordering is gone and cannot be reconstructed.
+- **`tip_entry.previous_amount`.** `TipEntry::Write` emits `user_id`, `amount`
+  and `paid` only. The carried-forward balance exists in memory, rebuilt at each
+  end of day by reading the *previous* archive's amounts, and dies with the
+  process. Imported days therefore carry zero. Days closed by this build store
+  it, so the column fills in going forward.
 - **Historical totals.** Every money field on a subcheck is *derived*; the
   format stored none of them, and loading a check recomputes them. So imported
   totals are what today's engine computes from the orders against that day's
@@ -246,17 +251,26 @@ inside that hour: 01:15 to 01:45 would report ninety minutes, every autumn.
 ## What is migrated, and what is not
 
 `sqlite` mode moves **checks and drawers** — the two halves of end-of-day
-reconciliation — and the **policy each day traded under**. Everything else still
-writes files on every mode:
+reconciliation — the **policy each day traded under**, and the rest of a closed
+day's contents: **tips, expenses, and the audit exceptions** (item voids and
+comps, table moves, check rebuilds). Everything else still writes files on every
+mode:
 
 archives (the whole-day file rewrite), settings, employees, labor and work
-records, tips, expenses, inventory, customers, accounts, and the credit
-databases.
+records, inventory, customers, accounts, and the credit databases.
 
 So a site in `sqlite` mode is in a coherent but partial state: current checks
 and drawers live in the database, the archive of each closed day is still a
 file, and `EndDay` still performs its whole-day rewrite. Plan accordingly —
 this is a staged migration, not a finished one.
+
+One dependency is worth naming because it is not obvious from the table list.
+Tips are **derived**, not entered: `TipDB::Update` runs at the top of every end
+of day and rebuilds the whole list from that day's checks and drawer payouts.
+The carried-forward balance comes from the previous day, and that read still
+goes to the previous **archive file**. So tips are written to the database but
+not yet read from it, and removing the archive files would break the carry
+forward even though the tip rows themselves are all present.
 
 ### Why the day's policy is stored with the day
 

@@ -84,6 +84,9 @@ public:
     int Write(OutputDataFile &outfile, int version);
     int Load(const char* path);
     int Save(const char* path);
+    // Read-only access to the private flag bits. Expense::Write reaches the
+    // member directly; anything outside the class needs this.
+    [[nodiscard]] int Flags() const { return flags; }
     int IsBlank();
     int Author(Terminal *term, genericChar* employee_name);
     int DrawerOwner(Terminal *term, genericChar* drawer_name, Archive *archive = nullptr);

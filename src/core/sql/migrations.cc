@@ -802,6 +802,158 @@ std::string_view SeedFor(int version)
 
 } // namespace
 
+
+/*
+ * Migration 0005 - the rest of a closed day: tips, expenses and exceptions.
+ *
+ * These three are what an archive file holds beyond its checks, drawers and
+ * frozen policy. They are money and audit trail respectively, and until now a
+ * site in `sqlite` mode kept them only in the archive file.
+ *
+ * Notes on shape, each of which is a place a straight transcription of the
+ * legacy records would lose something:
+ *
+ *   A tip entry is a running balance, not an event. TipEntry carries `amount`
+ *   owed, `previous_amount` carried in from the day before, and `paid` this
+ *   day. Keeping all three means a day answers "what did this employee take
+ *   home" without needing the previous day loaded -- which is exactly what
+ *   reading a chain of archive files was for.
+ *
+ *   An expense has two account references and they are not interchangeable.
+ *   `account_id` is what it was spent on, `tax_account_id` the tax portion's
+ *   account, and `dest_account_id` where the money went. The legacy record
+ *   writes all three as bare integers with no way to tell a real id from an
+ *   unset one, so they are nullable here and zero means nobody.
+ *
+ *   `entered` is the counted side, and it is the same distinction drawers
+ *   have: an expense with entered = 0 was recorded but never reconciled
+ *   against a drawer, which is different from one reconciled to zero.
+ *
+ *   Exceptions are three different events, not one table with a type column.
+ *   An item exception voids or comps a line; a table exception moves a check
+ *   between tables; a rebuild exception records a check being reconstructed.
+ *   They share only a timestamp, a user and a check serial. ExceptionDB reads
+ *   them as three separate counted lists for that reason, and splitting them
+ *   here keeps a report from having to know which columns are meaningful for
+ *   which type.
+ *
+ * Every timestamp keeps the local/utc pair and the same NULL-means-ambiguous
+ * rule as everywhere else -- see check_writer.hh.
+ */
+constexpr std::string_view kMigration0005 = R"SQL(
+
+CREATE TABLE tip_entry (
+    id               INTEGER PRIMARY KEY,
+    business_day_id  INTEGER NOT NULL REFERENCES business_day(id) ON DELETE CASCADE,
+
+    user_id          INTEGER NOT NULL,
+
+    -- Captured tips still owed to the employee at the end of this day.
+    amount           INTEGER NOT NULL DEFAULT 0,
+    -- Carried in from the previous day. Stored rather than derived so a day
+    -- stands alone; the legacy reports had to walk archives backwards for it.
+    previous_amount  INTEGER NOT NULL DEFAULT 0,
+    -- Paid out during this day.
+    paid             INTEGER NOT NULL DEFAULT 0,
+
+    -- One row per employee per day. A second entry for the same employee is
+    -- an update to the running balance, not a new fact.
+    UNIQUE(business_day_id, user_id)
+);
+
+CREATE TABLE expense (
+    id               INTEGER PRIMARY KEY,
+    business_day_id  INTEGER NOT NULL REFERENCES business_day(id) ON DELETE CASCADE,
+
+    -- Expense::eid, the id the legacy record carries. Not unique across days.
+    legacy_id        INTEGER NOT NULL DEFAULT 0,
+
+    account_id       INTEGER,        -- what it was spent on
+    tax_account_id   INTEGER,        -- account for the tax portion
+    dest_account_id  INTEGER,        -- where the money went
+    employee_id      INTEGER,
+    drawer_id        INTEGER,
+
+    amount           INTEGER NOT NULL DEFAULT 0,
+    tax              INTEGER NOT NULL DEFAULT 0,
+    -- Counted against a drawer, or 0 for never reconciled. Same distinction as
+    -- drawer_balance.entered: reconciled-to-zero is not the same as unreconciled.
+    entered          INTEGER NOT NULL DEFAULT 0,
+
+    flags            INTEGER NOT NULL DEFAULT 0,
+    document         TEXT NOT NULL DEFAULT '',
+    explanation      TEXT NOT NULL DEFAULT '',
+
+    exp_date_local   INTEGER,
+    exp_date_utc     INTEGER,
+
+    -- Order within the day, which the file format carried only as position.
+    sequence         INTEGER NOT NULL,
+    UNIQUE(business_day_id, sequence)
+);
+
+CREATE TABLE item_exception (
+    id               INTEGER PRIMARY KEY,
+    business_day_id  INTEGER NOT NULL REFERENCES business_day(id) ON DELETE CASCADE,
+
+    user_id          INTEGER,
+    check_serial     INTEGER NOT NULL DEFAULT 0,
+
+    item_name        TEXT NOT NULL DEFAULT '',
+    item_cost        INTEGER NOT NULL DEFAULT 0,
+    item_type        INTEGER NOT NULL DEFAULT 0,
+    item_family      INTEGER NOT NULL DEFAULT 0,
+
+    exception_type   INTEGER NOT NULL DEFAULT 0,
+    reason           INTEGER NOT NULL DEFAULT 0,
+
+    time_local       INTEGER,
+    time_utc         INTEGER,
+
+    sequence         INTEGER NOT NULL,
+    UNIQUE(business_day_id, sequence)
+);
+
+CREATE TABLE table_exception (
+    id               INTEGER PRIMARY KEY,
+    business_day_id  INTEGER NOT NULL REFERENCES business_day(id) ON DELETE CASCADE,
+
+    user_id          INTEGER,
+    check_serial     INTEGER NOT NULL DEFAULT 0,
+
+    source_id        INTEGER NOT NULL DEFAULT 0,
+    target_id        INTEGER NOT NULL DEFAULT 0,
+    table_name       TEXT NOT NULL DEFAULT '',
+
+    time_local       INTEGER,
+    time_utc         INTEGER,
+
+    sequence         INTEGER NOT NULL,
+    UNIQUE(business_day_id, sequence)
+);
+
+CREATE TABLE rebuild_exception (
+    id               INTEGER PRIMARY KEY,
+    business_day_id  INTEGER NOT NULL REFERENCES business_day(id) ON DELETE CASCADE,
+
+    user_id          INTEGER,
+    check_serial     INTEGER NOT NULL DEFAULT 0,
+
+    time_local       INTEGER,
+    time_utc         INTEGER,
+
+    sequence         INTEGER NOT NULL,
+    UNIQUE(business_day_id, sequence)
+);
+
+-- The report workload for all five is "everything for this day", which the
+-- business_day_id prefix of each UNIQUE already serves -- except tip_entry,
+-- whose reports are per employee across days.
+CREATE INDEX ix_tip_entry_user ON tip_entry(user_id);
+CREATE INDEX ix_expense_drawer ON expense(business_day_id, drawer_id);
+
+)SQL";
+
 const std::vector<Migration> &AllMigrations()
 {
     static const std::vector<Migration> migrations = {
@@ -813,6 +965,8 @@ const std::vector<Migration> &AllMigrations()
                   kMigration0003},
         Migration{4, "drawers: payments, balances and over/short",
                   kMigration0004},
+        Migration{5, "closed-day contents: tips, expenses and exceptions",
+                  kMigration0005},
     };
     return migrations;
 }
