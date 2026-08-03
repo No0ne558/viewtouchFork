@@ -635,7 +635,8 @@ int System::EndDay()
          */
         const vt::store::DayContents day_contents{
             tip_db, expense_db, exception_db,
-            vt::store::MediaFromSettings(settings)};
+            vt::store::MediaFromSettings(settings),
+            cc_void_db.get(), cc_refund_db.get(), cc_exception_db.get()};
         if (const vt::store::StoreError e =
                 data_store_->EndBusinessDay(settings, day_contents);
             e != vt::store::StoreError::Ok)

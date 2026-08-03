@@ -353,10 +353,29 @@ int Credit::Write(OutputDataFile &df, int version)
     if (credit_type == CREDIT_TYPE_UNKNOWN)
         SetCreditType();
 
-    if (IsPreauthed())
-        vt_safe_string::safe_copy(tmpnumber, STRLENGTH, number.Value());
-    else
-        vt_safe_string::safe_copy(tmpnumber, STRLENGTH, PAN(MasterSystem->settings.save_entire_cc_num));
+    /*
+     * The stored card number honours save_entire_cc_num on EVERY path.
+     *
+     * It used to make an exception: a preauthorised card wrote its full,
+     * unmasked number regardless of the setting. That silently overrode the
+     * operator's explicit choice -- a site that had ticked "save only the last
+     * four digits" still had complete card numbers sitting in plaintext check
+     * files for every open tab, which is precisely the data that setting exists
+     * to keep off the disk.
+     *
+     * Nothing is lost that the code did not already handle. Credit::RequireSwipe
+     * exists exactly for a masked number and says so: "the number must be
+     * re-entered, either manually or via swipe." And this only ever affects a
+     * reload -- the in-memory `number` is untouched, so a preauth opened and
+     * completed in one session behaves as before.
+     *
+     * What does change: with masking on (the default), completing a preauth
+     * that survived a restart asks for a re-swipe. A site that would rather
+     * keep unmasked numbers on disk for that convenience can still set
+     * save_entire_cc_num, which is now the only thing that puts them there.
+     */
+    vt_safe_string::safe_copy(tmpnumber, STRLENGTH,
+                              PAN(MasterSystem->settings.save_entire_cc_num));
     error += df.Write(tmpnumber);
     error += df.Write(expire);
     error += df.Write(name);

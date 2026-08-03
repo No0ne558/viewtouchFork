@@ -3,9 +3,11 @@
 #include "check_writer.hh"
 
 #include "archive.hh"
+#include "credit.hh"
 #include "exception.hh"
 #include "expense.hh"
 #include "settings.hh"
+#include "system.hh"
 #include "sql/database.hh"
 #include "sql/statement.hh"
 #include "tips.hh"
@@ -472,6 +474,96 @@ StoreError WriteDayMedia(Database &db, int64_t day_id, const MediaSnapshot &medi
             e != StoreError::Ok)
         {
             return e;
+        }
+    }
+
+    return StoreError::Ok;
+}
+
+StoreError WriteCreditTransactions(Database &db, int64_t day_id,
+                                   CreditDB *voids, CreditDB *refunds,
+                                   CreditDB *exceptions)
+{
+    if (const StoreError e = ClearDay(db, day_id, "credit_transaction");
+        e != StoreError::Ok)
+    {
+        return e;
+    }
+
+    Statement stmt;
+    if (Status s = stmt.Prepare(
+            db, "INSERT INTO credit_transaction("
+                "  business_day_id, db_kind, card_number, pan_is_masked,"
+                "  last_four, expire, card_holder, card_type, credit_type,"
+                "  processor, approval, auth_code, response_code, batch, item,"
+                "  ttid, amount, tip, full_amount, last_action, state,"
+                "  auth_state, trans_success, sequence)"
+                " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,"
+                "         ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22,"
+                "         ?23, ?24);");
+        s != Status::Ok)
+    {
+        return Translate(s);
+    }
+
+    // The one decision about what leaves memory, made once. Credit::Write asks
+    // the same question of the same setting; nothing here reaches past PAN().
+    const int store_full = (MasterSystem != nullptr)
+                               ? MasterSystem->settings.save_entire_cc_num : 0;
+
+    struct Source { CreditDB *db; int kind; };
+    const Source sources[] = {{voids, 1}, {refunds, 2}, {exceptions, 3}};
+
+    for (const Source &source : sources)
+    {
+        if (source.db == nullptr)
+            continue;
+
+        int64_t sequence = 0;
+        for (Credit *credit = source.db->CreditList(); credit != nullptr;
+             credit = credit->next)
+        {
+            if (credit->IsEmpty())
+                continue;   // matches CreditDB::Write, which skips them too
+
+            Status s = Status::Ok;
+            if ((s = stmt.BindInt(1, day_id)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(2, source.kind)) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindText(3, credit->PAN(store_full))) != Status::Ok)
+                return Translate(s);
+            if ((s = stmt.BindInt(4, store_full ? 0 : 1)) != Status::Ok)
+                return Translate(s);
+            if ((s = stmt.BindText(5, credit->LastFour())) != Status::Ok)
+                return Translate(s);
+            if ((s = stmt.BindText(6, credit->Expire())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindText(7, credit->CardName())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(8, credit->CardType())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(9, credit->CreditType())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(10, credit->Processor())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindText(11, credit->Approval())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindText(12, credit->Auth())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindText(13, credit->Code())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(14, credit->BatchId())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(15, credit->ItemId())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(16, credit->TTID())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(17, credit->Amount())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(18, credit->Tip())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(19, credit->FullAmount())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(20, credit->LastAction())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(21, credit->State())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(22, credit->AuthState())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(23, credit->TransSuccess())) != Status::Ok) return Translate(s);
+            if ((s = stmt.BindInt(24, sequence)) != Status::Ok) return Translate(s);
+            ++sequence;
+
+            if (const StoreError e =
+                    Report(db, stmt.Execute(), "insert credit transaction");
+                e != StoreError::Ok)
+            {
+                return e;
+            }
+            if (Status r = stmt.Reset(); r != Status::Ok)
+                return Translate(r);
         }
     }
 

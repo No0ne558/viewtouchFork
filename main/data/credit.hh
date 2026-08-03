@@ -379,6 +379,26 @@ public:
     int            SetState(int newstate = CCAUTH_FIND);
     int            SetStatus(int newstat) { return intcode = newstat; }
 
+    /*
+     * Read-only access for persistence.
+     *
+     * Deliberately does NOT include the card number: everything that reaches a
+     * store goes through PAN(save_entire_cc_num), so there is no accessor a
+     * writer could reach for by mistake. Credit::Write is the model -- one
+     * place decides what leaves memory.
+     */
+    [[nodiscard]] const char *Expire() const { return expire.Value(); }
+    [[nodiscard]] const char *CardName() const { return name.Value(); }
+    [[nodiscard]] int64_t     BatchId() const { return batch; }
+    [[nodiscard]] int64_t     ItemId() const { return item; }
+    [[nodiscard]] int64_t     TTID() const { return ttid; }
+    [[nodiscard]] int         LastAction() const { return last_action; }
+    [[nodiscard]] int         State() const { return state; }
+    [[nodiscard]] int         AuthState() const { return auth_state; }
+    [[nodiscard]] int         TransSuccess() const { return trans_success; }
+    [[nodiscard]] int         Processor() const { return processor; }
+    [[nodiscard]] int         DBType() const { return db_type; }
+
     int            Amount(int newamount = -1);
     int            Tip(int newtip = -1);
     int            PreauthAmt() { return preauth_amount; }

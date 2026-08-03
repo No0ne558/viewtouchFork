@@ -963,6 +963,96 @@ CREATE INDEX ix_work_entry_user ON work_entry(user_id, start_local);
 
 )SQL";
 
+/*
+ * Migration 0008 - the credit databases.
+ *
+ * Last on purpose, and gated on the cardholder-data hardening that landed
+ * first. The rule this schema exists to enforce is that there is no column
+ * anywhere that can hold a full card number unless the operator has explicitly
+ * asked for one, and that asking is visible in the row itself.
+ *
+ * A day's exceptions, refunds and voids -- CC_DBTYPE_EXCEPT / _REFUND / _VOID.
+ * The legacy archive holds three separate CreditDB blocks; one table with a
+ * `db_kind` discriminator keeps a reconciliation report from having to union
+ * three shapes that differ only in which list they came from.
+ *
+ * What is deliberately NOT stored:
+ *
+ *   Track data. t1_disc, t2_disc and t3_disc are raw magnetic-stripe
+ *   discretionary data -- the fields that overflowed and were fixed earlier in
+ *   this work. They are transient authorisation inputs, never needed after the
+ *   transaction, and storing them would be storing the stripe.
+ *
+ *   The CV and AVS response values. They are decision inputs, not records.
+ *
+ *   The swipe buffer itself, for the same reason as track data.
+ *
+ * `card_number` holds whatever Credit::PAN(save_entire_cc_num) returned, which
+ * is the masked form unless the operator turned the setting on -- the same
+ * single decision point Credit::Write uses, so the file and the database can
+ * never disagree about what left memory. `pan_is_masked` records which it was,
+ * so a later audit does not have to infer it from the bytes.
+ */
+constexpr std::string_view kMigration0008 = R"SQL(
+
+CREATE TABLE credit_db_kind (
+    id   INTEGER PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL
+);
+
+INSERT INTO credit_db_kind(id, code, name) VALUES
+    (1, 'VOID',      'Voids'),
+    (2, 'REFUND',    'Refunds'),
+    (3, 'EXCEPTION', 'Exceptions');
+
+CREATE TABLE credit_transaction (
+    id              INTEGER PRIMARY KEY,
+    business_day_id INTEGER NOT NULL REFERENCES business_day(id) ON DELETE CASCADE,
+    db_kind         INTEGER NOT NULL REFERENCES credit_db_kind(id),
+
+    -- Whatever Credit::PAN(save_entire_cc_num) returned. Masked unless the
+    -- operator explicitly configured otherwise; never the raw member.
+    card_number     TEXT NOT NULL DEFAULT '',
+    -- 1 when card_number is masked. Recorded rather than inferred so an audit
+    -- can answer "did this site ever store full numbers" with a query.
+    pan_is_masked   INTEGER NOT NULL DEFAULT 1
+                    CHECK(pan_is_masked IN (0,1)),
+    -- Always safe to keep, and what receipts and reconciliation actually use.
+    last_four       TEXT NOT NULL DEFAULT '',
+
+    expire          TEXT NOT NULL DEFAULT '',
+    card_holder     TEXT NOT NULL DEFAULT '',
+    card_type       INTEGER NOT NULL DEFAULT 0,   -- credit / debit / gift
+    credit_type     INTEGER NOT NULL DEFAULT 0,   -- Visa, MasterCard, ...
+    processor       INTEGER NOT NULL DEFAULT 0,
+
+    -- The identifiers a settlement is reconciled by.
+    approval        TEXT NOT NULL DEFAULT '',
+    auth_code       TEXT NOT NULL DEFAULT '',
+    response_code   TEXT NOT NULL DEFAULT '',
+    batch           INTEGER NOT NULL DEFAULT 0,
+    item            INTEGER NOT NULL DEFAULT 0,
+    ttid            INTEGER NOT NULL DEFAULT 0,
+
+    amount          INTEGER NOT NULL DEFAULT 0,
+    tip             INTEGER NOT NULL DEFAULT 0,
+    full_amount     INTEGER NOT NULL DEFAULT 0,
+
+    last_action     INTEGER NOT NULL DEFAULT 0,
+    state           INTEGER NOT NULL DEFAULT 0,
+    auth_state      INTEGER NOT NULL DEFAULT 0,
+    trans_success   INTEGER NOT NULL DEFAULT 0,
+
+    sequence        INTEGER NOT NULL,
+    UNIQUE(business_day_id, db_kind, sequence)
+);
+
+-- Reconciling a settlement batch is the query these exist for.
+CREATE INDEX ix_credit_transaction_batch ON credit_transaction(batch, item);
+
+)SQL";
+
 std::string_view SeedFor(int version)
 {
     switch (version)
@@ -1144,6 +1234,8 @@ const std::vector<Migration> &AllMigrations()
                   kMigration0006},
         Migration{7, "labor periods and work entries",
                   kMigration0007},
+        Migration{8, "credit databases: exceptions, refunds and voids",
+                  kMigration0008},
     };
     return migrations;
 }

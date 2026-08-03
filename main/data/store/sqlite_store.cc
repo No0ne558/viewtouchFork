@@ -737,6 +737,14 @@ public:
             return e;
         }
 
+        if (const StoreError e = WriteCreditTransactions(
+                db_, business_day_id_, contents.credit_voids,
+                contents.credit_refunds, contents.credit_exceptions);
+            e != StoreError::Ok)
+        {
+            return e;
+        }
+
         // Stamp the day closed and open the next. Everything already written
         // stays where it is -- it belongs to the day that just ended, which is
         // the whole reason the container exists.

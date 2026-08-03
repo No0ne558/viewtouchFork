@@ -350,6 +350,16 @@ ImportResult ImportArchives(const std::string &archive_path,
                                         archive.exception_db,
                                         MediaFromArchive(archive));
             }
+            if (step == StoreError::Ok)
+            {
+                // The day's credit exceptions, refunds and voids. Archive
+                // version 13 introduced them; older days have none, and the
+                // null pointers here are exactly that.
+                step = WriteCreditTransactions(db, day_id,
+                                               archive.cc_void_db,
+                                               archive.cc_refund_db,
+                                               archive.cc_exception_db);
+            }
 
             if (step != StoreError::Ok)
             {

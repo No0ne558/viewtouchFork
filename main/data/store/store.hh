@@ -42,6 +42,7 @@ class Drawer;
 class System;
 
 class CompInfo;
+class CreditDB;
 class CouponInfo;
 class CreditCardInfo;
 class DiscountInfo;
@@ -90,6 +91,12 @@ struct DayContents
     ExpenseDB &expenses;
     ExceptionDB &exceptions;
     MediaSnapshot media;
+
+    // The day's credit exceptions, refunds and voids. Pointers because System
+    // holds them as pointers and any of them may legitimately be absent.
+    CreditDB *credit_voids{nullptr};
+    CreditDB *credit_refunds{nullptr};
+    CreditDB *credit_exceptions{nullptr};
 };
 
 /*

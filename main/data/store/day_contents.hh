@@ -26,6 +26,7 @@
 #include <cstdint>
 
 class Archive;
+class CreditDB;
 class CompInfo;
 class CouponInfo;
 class CreditCardInfo;
@@ -74,6 +75,24 @@ namespace vt::store {
  */
 [[nodiscard]] StoreError WriteDayMedia(vt::sql::Database &db, int64_t day_id,
                                        const MediaSnapshot &media);
+
+/*
+ * A day's credit exceptions, refunds and voids.
+ *
+ * The card number written here is Credit::PAN(save_entire_cc_num) and nothing
+ * else -- the same single decision point Credit::Write uses, so the file and
+ * the database can never disagree about what left memory. Track data, the
+ * swipe buffer, CV and AVS are not stored at all: they are authorisation
+ * inputs, not records.
+ *
+ * Any of the three may be null, which is what an archive with no such
+ * transactions looks like.
+ */
+[[nodiscard]] StoreError WriteCreditTransactions(vt::sql::Database &db,
+                                                 int64_t day_id,
+                                                 CreditDB *voids,
+                                                 CreditDB *refunds,
+                                                 CreditDB *exceptions);
 
 // All four, for the callers that have all four. Stops on the first failure,
 // which is safe because every caller runs inside a transaction.

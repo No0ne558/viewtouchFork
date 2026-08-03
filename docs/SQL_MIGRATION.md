@@ -263,11 +263,39 @@ inside that hour: 01:15 to 01:45 would report ninety minutes, every autumn.
 reconciliation — the **policy each day traded under**, the rest of a closed
 day's contents (**tips, expenses, and the audit exceptions**: item voids and
 comps, table moves, check rebuilds), the **media snapshot** those payments
-resolve against, and **labor periods with their work entries** (payroll).
-Everything else still writes files on every mode:
+resolve against, **labor periods with their work entries** (payroll), and the
+**credit databases** (exceptions, refunds, voids). Everything else still writes
+files on every mode:
 
 archives (the whole-day file rewrite), settings, employees, inventory,
-customers, accounts, and the credit databases.
+customers, and accounts.
+
+### Cardholder data
+
+Read this before turning anything on, because it changed.
+
+`Credit::Write` used to make an exception for a preauthorised card: it wrote the
+**full, unmasked card number regardless of `save_entire_cc_num`**. A site that
+had explicitly asked to keep only the last four digits still had complete card
+numbers sitting in plaintext check files for every open tab.
+
+That exception is gone. The stored number is now
+`Credit::PAN(save_entire_cc_num)` on every path, in both the file format and the
+database — one decision point, so the two can never disagree about what left
+memory.
+
+**What this changes operationally:** with masking on (the default), completing a
+preauthorisation that survived a restart asks for a re-swipe.
+`Credit::RequireSwipe` already existed for exactly this and says so — "the number
+must be re-entered, either manually or via swipe". A preauth opened and completed
+within one session is unaffected, because only the *stored* copy is masked. A
+site that would rather keep unmasked numbers on disk for that convenience can set
+`save_entire_cc_num`, which is now the only thing that puts them there.
+
+The `credit_transaction` table stores no track data, no swipe buffer, and no
+CV or AVS values — those are authorisation inputs, not records. It records
+`pan_is_masked` per row, so "did this site ever store full numbers" is a query
+rather than a regex over files.
 
 ### Why the media definitions are stored per day
 
