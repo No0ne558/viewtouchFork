@@ -258,6 +258,13 @@ public:
         return StoreError::Ok;
     }
 
+    [[nodiscard]] StoreError HighestSerialNumber(int64_t &) override
+    {
+        // The archive scan IS this backend's answer, and it is the one startup
+        // already performed. Claiming a number here would just repeat it.
+        return StoreError::Unsupported;
+    }
+
     [[nodiscard]] StoreError LoadPreviousDayTips(TipDB &) override
     {
         // No notion of a previous day here: the archive file IS the day, and

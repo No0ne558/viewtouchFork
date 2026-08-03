@@ -253,6 +253,23 @@ public:
     [[nodiscard]] virtual StoreError EndBusinessDay(const Settings &settings,
                                                     const DayContents &contents) = 0;
 
+    /*
+     * The highest check or drawer serial this backend knows about.
+     *
+     * System::NewSerialNumber is an in-memory counter, and startup recovers it
+     * by walking archives backwards -- deserializing each whole day -- until one
+     * reports a nonzero last_serial_number. If the newest archives are empty or
+     * have been pruned the walk finds nothing and the counter restarts at zero,
+     * so the next check reuses a serial a previous day already used. That is
+     * the failure the `sequence` table was created to end.
+     *
+     * A backend that keeps an exact counter can simply say so, and startup
+     * corrects itself from the answer. Unsupported means "I have no better idea
+     * than the archive scan", which is true of the legacy backend by
+     * construction.
+     */
+    [[nodiscard]] virtual StoreError HighestSerialNumber(int64_t &out) = 0;
+
     // Cheap readiness probe: is the backing store reachable and writable.
     [[nodiscard]] virtual StoreError HealthCheck() = 0;
 

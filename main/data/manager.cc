@@ -1675,6 +1675,34 @@ int StartSystem(int my_use_net)
         }
 
         vt::Logger::info("Persistence backend: {}", store->Name());
+
+        /*
+         * Correct the serial counter from the backend, if it keeps a better one.
+         *
+         * ScanArchives recovered last_serial_number by walking archives
+         * backwards and deserializing each whole day until one reported a
+         * nonzero value. When the newest archives are empty or have been pruned
+         * that walk finds nothing and the counter restarts at zero -- and the
+         * next check silently reuses a serial an earlier day already used.
+         *
+         * A SQL backend keeps an exact counter, allocated inside the writing
+         * transaction, so it simply knows. Asking here rather than inside
+         * ScanArchives is not a compromise: the backend is not configured until
+         * this point, so this is the first moment there is anything to ask.
+         *
+         * The legacy backend answers Unsupported, and the archive scan stands.
+         */
+        int64_t highest = 0;
+        if (const vt::store::StoreError e = store->HighestSerialNumber(highest);
+            e == vt::store::StoreError::Ok && highest > sys->last_serial_number)
+        {
+            vt::Logger::info("Serial counter raised from {} to {} by the {} "
+                             "backend; the archive scan had missed {} serials",
+                             sys->last_serial_number, highest, store->Name(),
+                             highest - sys->last_serial_number);
+            sys->last_serial_number = static_cast<int>(highest);
+        }
+
         sys->SetDataStore(std::move(store));
     }
 

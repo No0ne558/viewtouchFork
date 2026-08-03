@@ -74,6 +74,7 @@ public:
     // Fails if either side is unhealthy. Unlike a save, there is nothing to
     // lose by surfacing a shadow problem here, and a shadow that cannot be read
     // makes the whole exercise pointless.
+    [[nodiscard]] StoreError HighestSerialNumber(int64_t &out) override;
     [[nodiscard]] StoreError LoadPreviousDayTips(TipDB &out) override;
     [[nodiscard]] StoreError HealthCheck() override;
 

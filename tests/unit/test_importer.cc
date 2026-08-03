@@ -911,3 +911,47 @@ TEST_CASE_METHOD(vt_test::VtSystemFixture,
     REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM item_exception;") == 1);
     REQUIRE(Scalar(dir.db, "SELECT COUNT(*) FROM day_media;") == 1);
 }
+
+TEST_CASE_METHOD(vt_test::VtSystemFixture,
+                 "The store knows a higher serial than the archive scan found",
+                 "[importer][serial]")
+{
+    /*
+     * The defect the `sequence` table was created to end, asserted rather than
+     * assumed.
+     *
+     * System::NewSerialNumber is an in-memory counter and startup recovers it
+     * by walking archives backwards until one reports a nonzero
+     * last_serial_number. An empty or pruned newest archive ends that walk with
+     * nothing, the counter restarts at zero, and the next check reuses a serial
+     * an earlier day already used -- silently, because a repeated serial within
+     * a day is an UPDATE rather than a rejection.
+     *
+     * A SQL backend allocates serials inside the writing transaction, so it can
+     * simply be asked. Startup does, right after configuring the backend, which
+     * is the first moment there is anything to ask.
+     */
+    ArchiveDir dir("vt_serial_recovery");
+    Settings &settings = TestSettings();
+
+    WriteArchive(dir.File("archive_001"), settings, 1,
+                 {MakeClosedCheck(4242, 950)});
+
+    const ImportResult result = ImportArchives(dir.path.string(), dir.db, settings);
+    REQUIRE(result.Ok());
+
+    vt::store::StoreError error = vt::store::StoreError::Io;
+    auto store = vt::store::MakeSqliteStore(dir.db, error);
+    REQUIRE(error == vt::store::StoreError::Ok);
+
+    int64_t highest = 0;
+    REQUIRE(store->HighestSerialNumber(highest) == vt::store::StoreError::Ok);
+    REQUIRE(highest >= 4242);
+
+    // The legacy backend has no better answer than the walk startup already
+    // performed, and says so rather than repeating it.
+    auto legacy = vt::store::MakeLegacyFileStore(MasterSystem.get());
+    int64_t ignored = 0;
+    REQUIRE(legacy->HighestSerialNumber(ignored)
+            == vt::store::StoreError::Unsupported);
+}

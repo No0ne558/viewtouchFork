@@ -332,6 +332,23 @@ StoreError DualRunStore::EndBusinessDay(const Settings &settings,
     return result;
 }
 
+StoreError DualRunStore::HighestSerialNumber(int64_t &out)
+{
+    // The SHADOW, unusually, and deliberately.
+    //
+    // Every other read here goes to the primary because files are
+    // authoritative in dual mode. This one is different: a serial is only
+    // useful if it is higher than everything already used on EITHER side, and
+    // the shadow is the side that keeps an exact count. Taking the lower of the
+    // two answers would hand out a serial the database has already issued.
+    if (const StoreError e = impl_->shadow->HighestSerialNumber(out);
+        e == StoreError::Ok)
+    {
+        return e;
+    }
+    return impl_->primary->HighestSerialNumber(out);
+}
+
 StoreError DualRunStore::LoadPreviousDayTips(TipDB &out)
 {
     // The primary, like every other read. In dual mode files are authoritative,

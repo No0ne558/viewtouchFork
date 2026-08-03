@@ -778,6 +778,28 @@ public:
         return StoreError::Ok;
     }
 
+    [[nodiscard]] StoreError HighestSerialNumber(int64_t &out) override
+    {
+        // Three sources, and the highest wins. The sequence is the exact
+        // counter, but the tables are checked too: an import raises the
+        // sequence past what it wrote, and a check written before a crash may
+        // have consumed a value the sequence recorded and the tables show.
+        out = 0;
+        for (const char *sql :
+             {"SELECT COALESCE(MAX(serial_number), 0) FROM pos_check;",
+              "SELECT COALESCE(MAX(serial_number), 0) FROM drawer;",
+              "SELECT COALESCE(next_value, 1) - 1 FROM sequence"
+              " WHERE name = 'pos_serial';"})
+        {
+            int64_t value = 0;
+            if (Status s = db_.QueryInt(sql, value); s != Status::Ok)
+                return Translate(s);
+            if (value > out)
+                out = value;
+        }
+        return StoreError::Ok;
+    }
+
     [[nodiscard]] StoreError LoadPreviousDayTips(TipDB &out) override
     {
         /*
