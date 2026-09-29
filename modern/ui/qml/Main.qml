@@ -88,7 +88,7 @@ ApplicationWindow {
                 Layout.fillHeight: true
                 Layout.margins: root.editing ? 12 : 0
                 controller: root.controller
-                editor: root.editor
+                editor: root.editing ? root.editor : null
                 focus: true
 
                 Keys.onPressed: event => {

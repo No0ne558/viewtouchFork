@@ -38,7 +38,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Coffee"
+          "item": "coffee"
         }
       ],
       "style": {
@@ -62,7 +62,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Tea"
+          "item": "tea"
         }
       ],
       "style": {
@@ -86,7 +86,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Soda"
+          "item": "soda"
         }
       ],
       "style": {
@@ -110,7 +110,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Juice"
+          "item": "juice"
         }
       ],
       "style": {
@@ -134,7 +134,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Water"
+          "item": "water"
         }
       ],
       "style": {
@@ -158,7 +158,55 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Lemonade"
+          "item": "lemonade"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
+      "id": "item-7",
+      "kind": "button",
+      "rect": {
+        "x": 870,
+        "y": 408,
+        "w": 200,
+        "h": 200
+      },
+      "shape": "circle",
+      "behavior": "blink",
+      "label": "Draft Beer",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "draft-beer"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
+      "id": "item-8",
+      "kind": "button",
+      "rect": {
+        "x": 1148,
+        "y": 408,
+        "w": 200,
+        "h": 200
+      },
+      "shape": "circle",
+      "behavior": "blink",
+      "label": "House Wine",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "house-wine"
         }
       ],
       "style": {

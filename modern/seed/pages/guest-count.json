@@ -61,6 +61,10 @@
       "label": "Cancel",
       "actions": [
         {
+          "type": "command",
+          "name": "releaseCheck"
+        },
+        {
           "type": "jump",
           "mode": "back"
         }
@@ -79,6 +83,10 @@
       "behavior": "blink",
       "label": "Start Order",
       "actions": [
+        {
+          "type": "command",
+          "name": "startCheck"
+        },
         {
           "type": "jump",
           "mode": "index"

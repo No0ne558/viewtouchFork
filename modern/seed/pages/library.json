@@ -260,6 +260,18 @@
       "behavior": "blink",
       "label": "Disabled",
       "enabled": false
+    },
+    {
+      "id": "lib-status",
+      "kind": "statusBar",
+      "rect": {
+        "x": 40,
+        "y": 780,
+        "w": 1840,
+        "h": 80
+      },
+      "shape": "rect",
+      "behavior": "none"
     }
   ]
 }

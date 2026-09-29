@@ -31,7 +31,40 @@ The full design and milestones are in [docs/PLAN.md](docs/PLAN.md).
 | M0 Scaffold | done |
 | M1 Layout engine: pages, templates, styles, navigation, starter pages | done |
 | M2 Page editor | done |
-| M3 Core POS flow (login → order → pay) | next |
+| M3 Core POS flow (login → order → pay) | done |
+| M4 Printing, drawers, reports, end of day, admin screens | next |
+
+## Running the POS
+
+Log in with a demo PIN: **1234** (manager), **1111** (server) or **2222** (cashier). Then:
+
+1. Touch a table on the floor plan and enter the number of guests. Quick Order and Takeout skip the table.
+2. Order from the menu pages. Burgers walk through Temperature and then Side. Tap No / Extra / Lite / Side before an item to qualify it. Touch a line in the check to select it.
+3. **Send** the order. **Void** removes an item that hasn't been sent; voiding a sent item needs a manager.
+4. **Pay**, then type an amount (or use the balance due) and choose a payment: Cash gives change, card payments are capped at the balance, and 10% Off and Comp are discounts. Then **Close Check**.
+
+**Behind the scenes**
+- Every change to a check is saved to SQLite at once, on a background thread, so an open check survives a crash or restart. Tax follows the legacy rule: each tax class is taxed on its total, rounding half away from zero.
+- Starter menu, staff and tax settings come from `seed/pos/`. `--reset-menu` reloads them without touching checks.
+- Pages can require a permission (the inspector's *Who may open it*). The Manager page needs `manager`. Editing pages needs `layout.edit`, which the manager has.
+
+**Widgets that work** (add them from *+ Panel* in the editor)
+
+| Widget | What it does |
+|---|---|
+| loginPad | PIN entry |
+| tableMap | Floor plan; tables are set in the zone's `props.tables` |
+| guestCount | Number of guests |
+| numPad | Number or amount entry (`props.mode: "amount"`) |
+| orderList | The current check |
+| paymentPanel | Payments and the balance |
+| checkList | Open checks |
+| keyboard | Kitchen notes |
+| clock | Time and date |
+| logoutPanel | Who is on shift |
+| statusBar | Latest message |
+
+splitCheck, drawerPanel, reportView and endOfDay are placeholders until M4.
 
 ## Editing pages
 
@@ -70,10 +103,10 @@ Press **F1**, or touch **Manager → Edit Pages**. Changes go into a draft. The 
 ## Layout
 
 ```
-core/     pure C++ domain (money, tax, checks, menu…) — no Qt
+core/     pure C++ domain: money, tax, menu, checks, employees — no Qt
 layout/   page / zone / action model, JSON, field schema
-app/      navigator, layout editor (undo), services  (M3+)
-storage/  SQLite: layout store (more repos in M3)
+app/      navigator, layout editor (undo), PosService session, JSON mapping
+storage/  SQLite: layout + POS stores, background AsyncWriter
 print/    ESC/POS printing                           (M4)
 ui/cpp/   QML-facing controllers (LayoutController, EditorController)
 ui/qml/   QML views and the editor (static QML module 'ViewTouch')
@@ -96,6 +129,7 @@ ctest --test-dir modern/build
 ./modern/build/vtmodern                   # pages saved in ~/.local/share/ViewTouch/ViewTouch/viewtouch.db
 ./modern/build/vtmodern --reset-layout    # back to the starter pages
 ./modern/build/vtmodern --db /tmp/t.db    # use another database
+./modern/build/vtmodern --login 1234      # start logged in (testing)
 ```
 
 Tests run headless (offscreen). They include UI tests that drag, resize and type in the real editor.

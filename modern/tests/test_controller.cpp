@@ -43,21 +43,16 @@ TEST_CASE("Meal period from time of day", "[controller]")
     CHECK(LayoutController::mealPeriodAt(QTime(19, 0)) == u"dinner"_s);
 }
 
-TEST_CASE("Seed flow: login to order with modifiers to settle", "[controller]")
+TEST_CASE("Seed navigation without a POS session", "[controller]")
 {
+    // Layout-only use (no PosService): commands are no-ops, jumps still work.
     LayoutController c = seedController();
     c.setMealPeriod(u"lunch"_s);
     QSignalSpy items(&c, &LayoutController::itemAdded);
-    QSignalSpy pages(&c, &LayoutController::pageChanged);
 
     CHECK(c.pageId() == u"login"_s);
-    CHECK_FALSE(c.canGoBack());
-
-    c.activate(u"start"_s);
-    CHECK(c.pageId() == u"tables"_s);
-    c.activate(u"t1"_s);
-    CHECK(c.pageId() == u"guest-count"_s);
-    c.activate(u"start"_s);                     // index jump -> current meal period
+    REQUIRE(c.showPage(u"guest-count"_s));
+    c.activate(u"start"_s);                     // startCheck (no-op), then index jump
     CHECK(c.pageId() == u"index-lunch"_s);
 
     // Inherited template zones are present and flagged; the lunch tab is lit.
@@ -79,8 +74,8 @@ TEST_CASE("Seed flow: login to order with modifiers to settle", "[controller]")
     CHECK(c.pageId() == u"items-burgers"_s);
 
     REQUIRE(items.size() == 2);
-    CHECK(items[0][0].toString() == u"Classic Burger"_s);
-    CHECK(items[1][0].toString() == u"Medium"_s);
+    CHECK(items[0][0].toString() == u"classic-burger"_s);
+    CHECK(items[1][0].toString() == u"medium"_s);
 
     // Hotkey on an inherited zone: "p" = Pay.
     CHECK(c.triggerHotkey(u"P"_s));
@@ -94,7 +89,6 @@ TEST_CASE("Seed flow: login to order with modifiers to settle", "[controller]")
     c.goHome();
     CHECK(c.pageId() == u"login"_s);
     CHECK_FALSE(c.canGoBack());
-    CHECK(pages.size() >= 10);
 }
 
 TEST_CASE("Resolved styles reach the model", "[controller]")

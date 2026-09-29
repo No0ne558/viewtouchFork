@@ -14,8 +14,11 @@ set(VTM_LEGACY_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 # ---------------------------------------------------------------------------
 # core: pure C++ domain library (no Qt). Always buildable.
 # ---------------------------------------------------------------------------
-add_library(vtm_core INTERFACE)
-target_include_directories(vtm_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+add_library(vtm_core STATIC
+    core/money.hh core/tax.hh core/menu.hh core/employee.hh core/check.hh core/settings.hh
+    core/core.cpp
+)
+target_include_directories(vtm_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # ---------------------------------------------------------------------------
 # Qt6 parts. Skipped (with a warning) when Qt6 dev files are missing so the
@@ -47,10 +50,23 @@ if(Qt6_FOUND)
     target_link_libraries(vtm_editor PUBLIC vtm_layout Qt6::Gui)
     set_target_properties(vtm_editor PROPERTIES AUTOMOC OFF)
 
-    # SQLite persistence
-    add_library(vtm_storage STATIC storage/layout_store.hh storage/layout_store.cpp)
-    target_link_libraries(vtm_storage PUBLIC vtm_layout Qt6::Sql)
-    set_target_properties(vtm_storage PROPERTIES AUTOMOC OFF)
+    # POS session service (QtCore): login, checks, payments over the core domain
+    add_library(vtm_pos STATIC
+        app/pos_json.hh app/pos_json.cpp
+        app/pos_service.hh app/pos_service.cpp
+    )
+    target_link_libraries(vtm_pos PUBLIC vtm_core Qt6::Core)
+    # PosService is exposed to QML via QML_FOREIGN (ui/cpp/posforeign.hh),
+    # which needs its type information.
+    qt_extract_metatypes(vtm_pos)
+
+    # SQLite persistence: layout, POS data, and the background writer
+    add_library(vtm_storage STATIC
+        storage/layout_store.hh storage/layout_store.cpp
+        storage/pos_store.hh storage/pos_store.cpp
+        storage/async_writer.hh storage/async_writer.cpp
+    )
+    target_link_libraries(vtm_storage PUBLIC vtm_layout vtm_pos Qt6::Sql)
 
     # UI: the ViewTouch QML module as a static library, so the app and the
     # UI tests load the very same QML, C++ types, and resources.
@@ -73,13 +89,26 @@ if(Qt6_FOUND)
             ui/qml/Inspector.qml
             ui/qml/FieldEditor.qml
             ui/qml/ActionListEditor.qml
+            ui/qml/WidgetKey.qml
+            ui/qml/WidgetLoginPad.qml
+            ui/qml/WidgetNumPad.qml
+            ui/qml/WidgetGuestCount.qml
+            ui/qml/WidgetOrderList.qml
+            ui/qml/WidgetPaymentPanel.qml
+            ui/qml/WidgetTableMap.qml
+            ui/qml/WidgetCheckList.qml
+            ui/qml/WidgetKeyboard.qml
+            ui/qml/WidgetClock.qml
+            ui/qml/WidgetLogoutPanel.qml
+            ui/qml/WidgetStatusBar.qml
         SOURCES
             ui/cpp/zonemodel.hh ui/cpp/zonemodel.cpp
             ui/cpp/layoutcontroller.hh ui/cpp/layoutcontroller.cpp
             ui/cpp/editorcontroller.hh ui/cpp/editorcontroller.cpp
+            ui/cpp/posforeign.hh
     )
     target_include_directories(vtm_ui PUBLIC ui/cpp)
-    target_link_libraries(vtm_ui PUBLIC vtm_layout vtm_editor vtm_storage Qt6::Gui Qt6::Quick Qt6::QuickControls2)
+    target_link_libraries(vtm_ui PUBLIC vtm_layout vtm_editor vtm_storage vtm_pos Qt6::Gui Qt6::Quick Qt6::QuickControls2)
 
     qt_add_executable(vtmodern main.cpp)
     target_link_libraries(vtmodern PRIVATE vtm_ui vtm_uiplugin)

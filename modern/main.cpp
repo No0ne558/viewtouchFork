@@ -1,8 +1,13 @@
+#include "app/pos_json.hh"
 #include "layoutcontroller.hh"
+#include "storage/async_writer.hh"
 #include "storage/layout_store.hh"
+#include "storage/pos_store.hh"
 
 #include <QCommandLineParser>
 #include <QDir>
+#include <QFile>
+#include <QJsonDocument>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
@@ -32,12 +37,15 @@ int main(int argc, char *argv[])
         u"Show pages from <dir> instead of the database. Saving in the editor still writes to the database."_s,
         u"dir"_s);
     const QCommandLineOption resetOpt(u"reset-layout"_s, u"Replace the saved pages with the built-in starter pages."_s);
+    const QCommandLineOption resetPosOpt(u"reset-menu"_s,
+        u"Replace the menu, employees and settings with the built-in starter data (checks are kept)."_s);
+    const QCommandLineOption loginOpt(u"login"_s, u"Log in with <pin> at startup (testing)."_s, u"pin"_s);
     const QCommandLineOption pageOpt(u"page"_s, u"Open page <id> at startup."_s, u"id"_s);
     const QCommandLineOption editOpt(u"edit"_s, u"Start in edit mode."_s);
     const QCommandLineOption selectOpt(u"select"_s, u"In edit mode, select these zones (comma separated)."_s, u"ids"_s);
     const QCommandLineOption sizeOpt(u"size"_s, u"Window size, e.g. 1280x720."_s, u"WxH"_s, u"1280x720"_s);
     const QCommandLineOption shotOpt(u"screenshot"_s, u"Render, save a PNG to <file>, and exit."_s, u"file"_s);
-    cli.addOptions({dbOpt, layoutOpt, resetOpt, pageOpt, editOpt, selectOpt, sizeOpt, shotOpt});
+    cli.addOptions({dbOpt, layoutOpt, resetOpt, resetPosOpt, loginOpt, pageOpt, editOpt, selectOpt, sizeOpt, shotOpt});
     cli.process(app);
 
     vt::storage::LayoutStore store(cli.value(dbOpt));
@@ -71,9 +79,58 @@ int main(int argc, char *argv[])
     for (const QString &issue : layout->validate())
         qWarning().noquote() << "layout issue:" << issue;
 
+    // --- POS data: same database; writes go through a background thread ---
+    vt::storage::PosStore posStore(cli.value(dbOpt));
+    QString posError;
+    const bool havePosStore = posStore.open(&posError);
+    if (!havePosStore)
+        qWarning().noquote() << "Sales will not be saved; cannot open database:" << posError;
+
+    auto readSeed = [](const QString &name) {
+        QFile f(u":/seed/pos/"_s + name);
+        return f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()) : QJsonDocument();
+    };
+    vt::app::PosData seedData;
+    seedData.settings = vt::app::settingsFromJson(readSeed(u"settings.json"_s).object());
+    seedData.menu = vt::app::menuFromJson(readSeed(u"menu.json"_s).array());
+    seedData.employees = vt::app::employeesFromJson(readSeed(u"employees.json"_s).array());
+
+    std::optional<vt::app::PosData> posData;
+    if (havePosStore) {
+        if (!posStore.hasMenu() || cli.isSet(resetPosOpt)) {
+            QString error;
+            if (!posStore.seed(seedData.settings, seedData.menu, seedData.employees, &error))
+                qWarning().noquote() << "Could not store starter menu:" << error;
+        }
+        QStringList posErrors;
+        posData = posStore.load(&posErrors);
+        for (const QString &e : std::as_const(posErrors))
+            qWarning().noquote() << "pos:" << e;
+    }
+    if (!posData)
+        posData = seedData;
+
+    std::unique_ptr<vt::storage::AsyncWriter> writer;
+    std::unique_ptr<vt::storage::SqlPosSink> sink;
+    if (havePosStore) {
+        writer = std::make_unique<vt::storage::AsyncWriter>(cli.value(dbOpt));
+        sink = std::make_unique<vt::storage::SqlPosSink>(*writer);
+    }
+    vt::app::PosService pos(std::move(*posData), sink.get());
+
     LayoutController controller(std::move(*layout));
     if (haveStore)
         controller.setStore(&store);
+    controller.setPos(&pos);
+    if (writer) {
+        QObject::connect(writer.get(), &vt::storage::AsyncWriter::writeFailed, &controller, [&pos](const QString &error) {
+            emit pos.notice(QCoreApplication::translate("main", "Could not save to the database (will retry): %1").arg(error));
+        });
+    }
+    if (cli.isSet(loginOpt) && !pos.loginWithPin(cli.value(loginOpt))) {
+        qCritical().noquote() << "That PIN is not recognized.";
+        return 1;
+    }
     if (cli.isSet(pageOpt) && !controller.showPage(cli.value(pageOpt))) {
         qCritical().noquote() << "No page with id" << cli.value(pageOpt);
         return 1;

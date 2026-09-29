@@ -38,7 +38,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Two Eggs"
+          "item": "two-eggs"
         }
       ],
       "style": {
@@ -62,7 +62,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Pancakes"
+          "item": "pancakes"
         }
       ],
       "style": {
@@ -86,7 +86,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "French Toast"
+          "item": "french-toast"
         }
       ],
       "style": {
@@ -110,7 +110,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Omelette"
+          "item": "omelette"
         }
       ],
       "style": {

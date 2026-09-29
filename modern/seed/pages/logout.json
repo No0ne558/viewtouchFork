@@ -87,8 +87,8 @@
       "label": "Log Out",
       "actions": [
         {
-          "type": "jump",
-          "mode": "home"
+          "type": "command",
+          "name": "logout"
         }
       ],
       "style": {

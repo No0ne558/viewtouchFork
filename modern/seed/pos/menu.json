@@ -1,0 +1,276 @@
+[
+  {
+    "id": "classic-burger",
+    "name": "Classic Burger",
+    "price": 11.5,
+    "family": "burgers",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "cheeseburger",
+    "name": "Cheeseburger",
+    "price": 12.25,
+    "family": "burgers",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "bacon-burger",
+    "name": "Bacon Burger",
+    "price": 13.5,
+    "family": "burgers",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "mushroom-swiss",
+    "name": "Mushroom Swiss",
+    "price": 13.25,
+    "family": "burgers",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "veggie-burger",
+    "name": "Veggie Burger",
+    "price": 12.0,
+    "family": "burgers",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "kids-burger",
+    "name": "Kids Burger",
+    "price": 7.5,
+    "family": "burgers",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "burger-of-the-day",
+    "name": "Burger of the Day",
+    "price": 14.0,
+    "family": "burgers",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "house-salad",
+    "name": "House Salad",
+    "price": 8.5,
+    "family": "salads",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "caesar",
+    "name": "Caesar",
+    "price": 9.75,
+    "family": "salads",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "cobb",
+    "name": "Cobb",
+    "price": 12.5,
+    "family": "salads",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "greek",
+    "name": "Greek",
+    "price": 10.25,
+    "family": "salads",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "coffee",
+    "name": "Coffee",
+    "price": 2.75,
+    "family": "drinks",
+    "taxClass": "food",
+    "printer": "bar"
+  },
+  {
+    "id": "tea",
+    "name": "Tea",
+    "price": 2.5,
+    "family": "drinks",
+    "taxClass": "food",
+    "printer": "bar"
+  },
+  {
+    "id": "soda",
+    "name": "Soda",
+    "price": 2.95,
+    "family": "drinks",
+    "taxClass": "food",
+    "printer": "bar"
+  },
+  {
+    "id": "juice",
+    "name": "Juice",
+    "price": 3.5,
+    "family": "drinks",
+    "taxClass": "food",
+    "printer": "bar"
+  },
+  {
+    "id": "water",
+    "name": "Water",
+    "price": 0.0,
+    "family": "drinks",
+    "taxClass": "food",
+    "printer": "bar"
+  },
+  {
+    "id": "lemonade",
+    "name": "Lemonade",
+    "price": 3.25,
+    "family": "drinks",
+    "taxClass": "food",
+    "printer": "bar"
+  },
+  {
+    "id": "draft-beer",
+    "name": "Draft Beer",
+    "price": 6.0,
+    "family": "drinks",
+    "taxClass": "alcohol",
+    "printer": "bar"
+  },
+  {
+    "id": "house-wine",
+    "name": "House Wine",
+    "price": 8.0,
+    "family": "drinks",
+    "taxClass": "alcohol",
+    "printer": "bar"
+  },
+  {
+    "id": "two-eggs",
+    "name": "Two Eggs",
+    "price": 8.95,
+    "family": "breakfast",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "pancakes",
+    "name": "Pancakes",
+    "price": 9.5,
+    "family": "breakfast",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "french-toast",
+    "name": "French Toast",
+    "price": 9.75,
+    "family": "breakfast",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "omelette",
+    "name": "Omelette",
+    "price": 11.25,
+    "family": "breakfast",
+    "taxClass": "food",
+    "printer": "kitchen"
+  },
+  {
+    "id": "rare",
+    "name": "Rare",
+    "price": 0.0,
+    "family": "temperature",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "modifier": true
+  },
+  {
+    "id": "medium-rare",
+    "name": "Medium Rare",
+    "price": 0.0,
+    "family": "temperature",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "modifier": true
+  },
+  {
+    "id": "medium",
+    "name": "Medium",
+    "price": 0.0,
+    "family": "temperature",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "modifier": true
+  },
+  {
+    "id": "medium-well",
+    "name": "Medium Well",
+    "price": 0.0,
+    "family": "temperature",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "modifier": true
+  },
+  {
+    "id": "well-done",
+    "name": "Well Done",
+    "price": 0.0,
+    "family": "temperature",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "modifier": true
+  },
+  {
+    "id": "fries",
+    "name": "Fries",
+    "price": 0.0,
+    "family": "sides",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "modifier": true
+  },
+  {
+    "id": "side-salad",
+    "name": "Side Salad",
+    "price": 0.0,
+    "family": "sides",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "modifier": true
+  },
+  {
+    "id": "onion-rings",
+    "name": "Onion Rings",
+    "price": 1.0,
+    "family": "sides",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "modifier": true
+  },
+  {
+    "id": "sweet-potato-fries",
+    "name": "Sweet Potato Fries",
+    "price": 1.5,
+    "family": "sides",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "modifier": true
+  },
+  {
+    "id": "no-side",
+    "name": "No Side",
+    "price": 0.0,
+    "family": "sides",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "modifier": true
+  }
+]

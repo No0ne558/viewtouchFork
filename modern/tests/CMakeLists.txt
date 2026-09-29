@@ -1,9 +1,10 @@
-set(VTM_TEST_SOURCES test_money.cpp)
+set(VTM_TEST_SOURCES test_money.cpp test_check.cpp)
 if(TARGET vtm_layout)
     list(APPEND VTM_TEST_SOURCES
         main.cpp   # QCoreApplication for Qt plugins
         test_layout.cpp test_navigator.cpp test_seed.cpp test_controller.cpp
         test_editor.cpp test_store.cpp test_edit_mode.cpp test_editor_ui.cpp
+        test_pos_service.cpp test_pos_store.cpp test_pos_flow.cpp
     )
 endif()
 

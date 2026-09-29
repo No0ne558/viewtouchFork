@@ -38,7 +38,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Rare"
+          "item": "rare"
         },
         {
           "type": "jump",
@@ -61,7 +61,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Medium Rare"
+          "item": "medium-rare"
         },
         {
           "type": "jump",
@@ -84,7 +84,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Medium"
+          "item": "medium"
         },
         {
           "type": "jump",
@@ -107,7 +107,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Medium Well"
+          "item": "medium-well"
         },
         {
           "type": "jump",
@@ -130,7 +130,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Well Done"
+          "item": "well-done"
         },
         {
           "type": "jump",

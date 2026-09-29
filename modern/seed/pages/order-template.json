@@ -19,8 +19,7 @@
         "h": 948
       },
       "shape": "rect",
-      "behavior": "none",
-      "label": "Current check"
+      "behavior": "none"
     },
     {
       "id": "flow-tables",
@@ -35,6 +34,10 @@
       "behavior": "blink",
       "label": "Tables",
       "actions": [
+        {
+          "type": "command",
+          "name": "releaseCheck"
+        },
         {
           "type": "jump",
           "mode": "replace",
@@ -52,15 +55,14 @@
         "h": 84
       },
       "shape": "rect",
-      "behavior": "select",
+      "behavior": "blink",
       "label": "No",
       "actions": [
         {
           "type": "qualifier",
           "qualifier": "no"
         }
-      ],
-      "group": "qualifier"
+      ]
     },
     {
       "id": "flow-extra",
@@ -72,15 +74,14 @@
         "h": 84
       },
       "shape": "rect",
-      "behavior": "select",
+      "behavior": "blink",
       "label": "Extra",
       "actions": [
         {
           "type": "qualifier",
           "qualifier": "extra"
         }
-      ],
-      "group": "qualifier"
+      ]
     },
     {
       "id": "flow-lite",
@@ -92,15 +93,14 @@
         "h": 84
       },
       "shape": "rect",
-      "behavior": "select",
+      "behavior": "blink",
       "label": "Lite",
       "actions": [
         {
           "type": "qualifier",
           "qualifier": "lite"
         }
-      ],
-      "group": "qualifier"
+      ]
     },
     {
       "id": "flow-side",
@@ -112,15 +112,14 @@
         "h": 84
       },
       "shape": "rect",
-      "behavior": "select",
+      "behavior": "blink",
       "label": "Side",
       "actions": [
         {
           "type": "qualifier",
           "qualifier": "side"
         }
-      ],
-      "group": "qualifier"
+      ]
     },
     {
       "id": "flow-void",
@@ -278,16 +277,41 @@
       "rect": {
         "x": 1540,
         "y": 16,
-        "w": 364,
+        "w": 200,
         "h": 72
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "\u2039 Categories",
+      "label": "\u2039 Menu",
       "actions": [
         {
           "type": "jump",
           "mode": "index"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fontSize": 26
+        }
+      }
+    },
+    {
+      "id": "tab-note",
+      "kind": "button",
+      "rect": {
+        "x": 1756,
+        "y": 16,
+        "w": 148,
+        "h": 72
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Note",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "note"
         }
       ],
       "style": {

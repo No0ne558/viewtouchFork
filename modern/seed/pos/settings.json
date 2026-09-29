@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "storeName": "ViewTouch Caf\u00e9",
+  "currencySymbol": "$",
+  "tax": {
+    "food": 8.25,
+    "alcohol": 10.0,
+    "merchandise": 8.25,
+    "room": 0,
+    "taxTakeoutFood": true
+  },
+  "tenders": [
+    {
+      "id": "cash",
+      "name": "Cash",
+      "kind": "cash"
+    },
+    {
+      "id": "credit",
+      "name": "Credit Card",
+      "kind": "card"
+    },
+    {
+      "id": "gift",
+      "name": "Gift Card",
+      "kind": "card"
+    },
+    {
+      "id": "discount",
+      "name": "10% Discount",
+      "kind": "discount",
+      "percent": 10
+    },
+    {
+      "id": "comp",
+      "name": "Comp",
+      "kind": "discount",
+      "percent": 100
+    }
+  ]
+}

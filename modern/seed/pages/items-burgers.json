@@ -38,7 +38,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Classic Burger",
+          "item": "classic-burger",
           "modifierSequence": [
             "mod-temperature",
             "mod-side"
@@ -66,7 +66,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Cheeseburger",
+          "item": "cheeseburger",
           "modifierSequence": [
             "mod-temperature",
             "mod-side"
@@ -94,7 +94,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Bacon Burger",
+          "item": "bacon-burger",
           "modifierSequence": [
             "mod-temperature",
             "mod-side"
@@ -122,7 +122,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Mushroom Swiss",
+          "item": "mushroom-swiss",
           "modifierSequence": [
             "mod-temperature",
             "mod-side"
@@ -150,7 +150,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Veggie Burger",
+          "item": "veggie-burger",
           "modifierSequence": [
             "mod-side"
           ]
@@ -177,7 +177,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Kids Burger"
+          "item": "kids-burger"
         }
       ],
       "style": {
@@ -201,7 +201,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Burger of the Day",
+          "item": "burger-of-the-day",
           "modifierSequence": [
             "mod-temperature",
             "mod-side"

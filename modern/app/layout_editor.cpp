@@ -136,7 +136,7 @@ QJsonObject fullZoneJson(const Zone &z)
 QJsonObject fullPageJson(const Page &p)
 {
     QJsonObject o = p.toJson();
-    for (const char16_t *key : {u"role", u"templateId", u"mealPeriod"}) {
+    for (const char16_t *key : {u"role", u"templateId", u"mealPeriod", u"permission"}) {
         if (!o.contains(QStringView(key)))
             o.insert(QStringView(key), u""_s);
     }

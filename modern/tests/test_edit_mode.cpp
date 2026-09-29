@@ -111,17 +111,17 @@ TEST_CASE("Selection survives undo only for zones that still exist", "[editmode]
     c.enterEditMode();
     EditorController *e = c.editor();
 
-    e->selectOnly({u"t1"_s, u"t2"_s});
+    e->selectOnly({u"quick"_s, u"takeout"_s});
     e->duplicateSelection();
     const QStringList copies = e->selection();
     REQUIRE(copies.size() == 2);
     e->undo();
     CHECK(e->selection().isEmpty());
 
-    e->selectInRect(150, 200, 700, 300, false);   // band over T1 and T2
-    CHECK(e->selection().contains(u"t1"_s));
-    CHECK(e->selection().contains(u"t2"_s));
-    CHECK_FALSE(e->selection().contains(u"quick"_s));
+    e->selectInRect(1460, 10, 460, 330, false);   // band over Quick Order and Takeout
+    CHECK(e->selection().contains(u"quick"_s));
+    CHECK(e->selection().contains(u"takeout"_s));
+    CHECK_FALSE(e->selection().contains(u"checks"_s));
 }
 
 TEST_CASE("Inspector field info: values, mixed, resolved", "[editmode]")
@@ -167,7 +167,7 @@ TEST_CASE("Action list round-trips through the inspector API", "[editmode]")
 
     QVariantList actions = e->actions();
     REQUIRE(actions.size() == 1);
-    CHECK(actions[0].toMap()[u"type"_s].toString() == u"jump"_s);
+    CHECK(actions[0].toMap()[u"type"_s].toString() == u"command"_s);
 
     actions.append(QVariantMap{{u"type"_s, u"command"_s}, {u"name"_s, u"clockIn"_s}});
     e->setActions(actions);

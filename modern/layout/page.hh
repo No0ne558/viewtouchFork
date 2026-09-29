@@ -26,6 +26,9 @@ struct Page {
     // page's own zones, like the legacy parent pages -94..-99.
     QString templateId;
     QString mealPeriod;
+    // Permission needed to open this page (e.g. "manager"); empty = anyone
+    // logged in. Replaces the legacy password-jump.
+    QString permission;
     QSize canvas{1920, 1080};
     int grid = 8;
     QJsonObject background;   // { fill, texture }; missing keys inherit

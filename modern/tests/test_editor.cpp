@@ -92,7 +92,7 @@ TEST_CASE("No-op edits do not create undo steps", "[editor]")
     LayoutEditor e(seed());
     const QRect r = rectOf(e, u"login"_s, u"start"_s);
     CHECK_FALSE(e.setZoneRects(u"login"_s, {{u"start"_s, r}}));
-    CHECK_FALSE(e.setZoneField(u"login"_s, {u"start"_s}, u"label"_s, u"Start Shift (demo)"_s));
+    CHECK_FALSE(e.setZoneField(u"login"_s, {u"start"_s}, u"label"_s, u"Log In"_s));
     CHECK(e.undoStack()->count() == 0);
 }
 
@@ -142,9 +142,9 @@ TEST_CASE("Field edits apply to every selected zone and can reset", "[editor]")
 TEST_CASE("Duplicate, delete, z-order", "[editor]")
 {
     LayoutEditor e(seed());
-    const QStringList copies = e.duplicateZones(u"tables"_s, {u"t1"_s, u"t2"_s});
-    REQUIRE(copies == QStringList{u"t1-2"_s, u"t2-2"_s});
-    CHECK(rectOf(e, u"tables"_s, u"t1-2"_s) == rectOf(e, u"tables"_s, u"t1"_s).translated(16, 16));
+    const QStringList copies = e.duplicateZones(u"tables"_s, {u"quick"_s, u"takeout"_s});
+    REQUIRE(copies == QStringList{u"quick-2"_s, u"takeout-2"_s});
+    CHECK(rectOf(e, u"tables"_s, u"quick-2"_s) == rectOf(e, u"tables"_s, u"quick"_s).translated(16, 16));
 
     REQUIRE(e.bringToFront(u"tables"_s, {u"table-map"_s}));
     CHECK(e.layout().page(u"tables"_s)->zones.last().id == u"table-map"_s);
@@ -152,16 +152,16 @@ TEST_CASE("Duplicate, delete, z-order", "[editor]")
     CHECK(e.layout().page(u"tables"_s)->zones.first().id == u"table-map"_s);
 
     REQUIRE(e.deleteZones(u"tables"_s, copies));
-    CHECK_FALSE(e.layout().page(u"tables"_s)->zone(u"t1-2"_s));
+    CHECK_FALSE(e.layout().page(u"tables"_s)->zone(u"quick-2"_s));
 }
 
 TEST_CASE("Align, distribute, match size", "[editor]")
 {
     LayoutEditor e(seed());
     const QString p = u"tables"_s;
-    const QStringList ids = {u"t1"_s, u"t2"_s, u"t3"_s};
-    e.setZoneRects(p, {{u"t1"_s, {100, 100, 200, 200}}, {u"t2"_s, {400, 180, 100, 100}},
-                       {u"t3"_s, {1000, 140, 200, 150}}});
+    const QStringList ids = {u"quick"_s, u"takeout"_s, u"checks"_s};
+    e.setZoneRects(p, {{u"quick"_s, {100, 100, 200, 200}}, {u"takeout"_s, {400, 180, 100, 100}},
+                       {u"checks"_s, {1000, 140, 200, 150}}});
 
     REQUIRE(e.align(p, ids, LayoutEditor::Align::Top));
     for (const QString &id : ids)
@@ -169,14 +169,14 @@ TEST_CASE("Align, distribute, match size", "[editor]")
 
     REQUIRE(e.distribute(p, ids, Qt::Horizontal));
     // span 100..1200 = 1100, widths 500 -> gaps of 300
-    CHECK(rectOf(e, p, u"t2"_s).left() == 600);
-    CHECK(rectOf(e, p, u"t3"_s).left() == 1000);
+    CHECK(rectOf(e, p, u"takeout"_s).left() == 600);
+    CHECK(rectOf(e, p, u"checks"_s).left() == 1000);
 
     REQUIRE(e.matchSize(p, ids, true, true));
     for (const QString &id : ids)
         CHECK(rectOf(e, p, id).size() == QSize(200, 200));
 
-    CHECK_FALSE(e.distribute(p, {u"t1"_s, u"t2"_s}, Qt::Vertical));   // needs 3
+    CHECK_FALSE(e.distribute(p, {u"quick"_s, u"takeout"_s}, Qt::Vertical));   // needs 3
 }
 
 TEST_CASE("Copy on one page, paste on another", "[editor]")

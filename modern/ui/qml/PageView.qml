@@ -46,6 +46,8 @@ Item {
         Repeater {
             model: view.controller.zones
             delegate: ZoneItem {
+                controller: view.controller
+                pos: view.controller.pos
                 selectedZoneId: view.selectedZoneId
                 editing: view.editing
                 editSelected: view.editing && editLayer.sel.includes(zoneId)

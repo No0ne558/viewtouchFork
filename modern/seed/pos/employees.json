@@ -1,0 +1,20 @@
+[
+  {
+    "id": "manager",
+    "name": "Morgan (Manager)",
+    "role": "manager",
+    "pin": "1234"
+  },
+  {
+    "id": "sam",
+    "name": "Sam",
+    "role": "server",
+    "pin": "1111"
+  },
+  {
+    "id": "casey",
+    "name": "Casey",
+    "role": "cashier",
+    "pin": "2222"
+  }
+]

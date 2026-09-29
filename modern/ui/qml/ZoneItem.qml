@@ -23,6 +23,10 @@ Item {
     required property var styleDisabled
     required property var props
 
+    // POS session and controller, for widgets.
+    property LayoutController controller
+    property PosService pos
+
     // Set by PageView for behavior "select" (one lit zone per page).
     property string selectedZoneId: ""
 
@@ -37,6 +41,11 @@ Item {
     signal selectRequested()
 
     readonly property bool isWidget: !["button", "label", "image", "comment"].includes(kind)
+    // Widgets with a working implementation (Widget<Kind>.qml); the rest
+    // show a placeholder until their milestone.
+    readonly property var builtWidgets: ["orderList", "loginPad", "tableMap", "guestCount", "numPad",
+        "paymentPanel", "checkList", "keyboard", "clock", "logoutPanel", "statusBar"]
+    readonly property bool hasWidget: isWidget && builtWidgets.includes(kind)
     readonly property bool interactive: zoneEnabled && behavior !== "passthrough"
                                         && (kind === "button" || kind === "image")
 
@@ -76,7 +85,7 @@ Item {
 
     Text {
         id: caption
-        visible: text !== ""
+        visible: text !== "" && !zone.hasWidget
         text: zone.isWidget ? zone.kind + (zone.label ? "\n" + zone.label : "") : zone.label
         anchors.fill: parent
         anchors.margins: (zone.st.frameWidth ?? 3) + 8
@@ -95,9 +104,26 @@ Item {
         styleColor: Qt.darker(color, 3)
     }
 
-    // Widgets are placeholders until their implementations land (M3).
+    Loader {
+        id: widget
+        anchors.fill: parent
+        active: zone.hasWidget
+        enabled: !zone.editing   // arranging a page must not ring up sales
+        onActiveChanged: load()
+        Component.onCompleted: load()
+        function load() {
+            if (active)
+                setSource("Widget" + zone.kind[0].toUpperCase() + zone.kind.slice(1) + ".qml", { zone: zone })
+        }
+        Connections {
+            target: zone
+            function onKindChanged() { widget.load() }
+        }
+    }
+
+    // Placeholder for widgets not built yet.
     Shape {
-        visible: zone.isWidget
+        visible: zone.isWidget && !zone.hasWidget
         anchors.fill: parent
         ShapePath {
             strokeColor: "#80ffffff"

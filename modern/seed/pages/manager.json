@@ -9,6 +9,7 @@
   },
   "grid": 8,
   "role": "manager",
+  "permission": "manager",
   "zones": [
     {
       "id": "title",

@@ -38,7 +38,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Fries"
+          "item": "fries"
         },
         {
           "type": "jump",
@@ -61,7 +61,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Side Salad"
+          "item": "side-salad"
         },
         {
           "type": "jump",
@@ -84,7 +84,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Onion Rings"
+          "item": "onion-rings"
         },
         {
           "type": "jump",
@@ -107,7 +107,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Sweet Potato Fries"
+          "item": "sweet-potato-fries"
         },
         {
           "type": "jump",
@@ -130,7 +130,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "No Side"
+          "item": "no-side"
         },
         {
           "type": "jump",

@@ -38,7 +38,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "House Salad"
+          "item": "house-salad"
         }
       ],
       "style": {
@@ -62,7 +62,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Caesar"
+          "item": "caesar"
         }
       ],
       "style": {
@@ -86,7 +86,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Cobb"
+          "item": "cobb"
         }
       ],
       "style": {
@@ -110,7 +110,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "Greek"
+          "item": "greek"
         }
       ],
       "style": {

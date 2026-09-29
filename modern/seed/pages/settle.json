@@ -9,6 +9,7 @@
   },
   "grid": 8,
   "role": "settle",
+  "permission": "check.settle",
   "zones": [
     {
       "id": "payment",
@@ -20,8 +21,7 @@
         "h": 1048
       },
       "shape": "rect",
-      "behavior": "none",
-      "label": "Check & payments"
+      "behavior": "none"
     },
     {
       "id": "pad",
@@ -33,7 +33,10 @@
         "h": 620
       },
       "shape": "rect",
-      "behavior": "none"
+      "behavior": "none",
+      "props": {
+        "mode": "amount"
+      }
     },
     {
       "id": "tender-cash",
@@ -118,7 +121,7 @@
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "Discount",
+      "label": "10% Off",
       "actions": [
         {
           "type": "tender",
@@ -199,6 +202,25 @@
       }
     },
     {
+      "id": "remove-payment",
+      "kind": "button",
+      "rect": {
+        "x": 932,
+        "y": 924,
+        "w": 520,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Undo Payment",
+      "actions": [
+        {
+          "type": "command",
+          "name": "removePayment"
+        }
+      ]
+    },
+    {
       "id": "done",
       "kind": "button",
       "rect": {
@@ -209,7 +231,7 @@
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "Done",
+      "label": "\u2039 Back to Order",
       "actions": [
         {
           "type": "jump",

@@ -130,8 +130,8 @@ QStringList pageKinds()
 
 QStringList pageRoles()
 {
-    return {u"login"_s, u"tables"_s, u"guestCount"_s, u"settle"_s, u"logout"_s, u"manager"_s,
-            u"bar"_s, u"kitchen"_s};
+    return {u"login"_s, u"tables"_s, u"guestCount"_s, u"checkList"_s, u"settle"_s, u"logout"_s,
+            u"manager"_s, u"bar"_s, u"kitchen"_s};
 }
 
 QJsonArray zoneFields(const QString &kind)
@@ -187,6 +187,11 @@ QJsonArray pageFields()
     out.append(with(field(u"templateId"_s, u"Template page"_s, u"page"_s, general), u"hint"_s,
                     u"Template zones show behind this page's zones"_s));
     out.append(with(field(u"mealPeriod"_s, u"Meal period"_s, u"enum"_s, general), u"options"_s, kMealPeriods));
+    out.append(with(with(field(u"permission"_s, u"Who may open it"_s, u"enum"_s, general), u"options"_s,
+                         options({{"", "Anyone logged in"}, {"check.settle", "Staff who take payments"},
+                                  {"order.void", "Staff who void items"}, {"manager", "Managers"},
+                                  {"layout.edit", "Page editors"}})),
+                    u"hint"_s, u"Others get a message instead of the page"_s));
     out.append(intField(u"grid"_s, u"Snap grid"_s, general, 1, 128));
     out.append(intField(u"canvas.w"_s, u"Canvas width"_s, general, 320, 7680));
     out.append(intField(u"canvas.h"_s, u"Canvas height"_s, general, 240, 4320));

@@ -1,0 +1,58 @@
+#pragma once
+
+#include <QHash>
+#include <QList>
+#include <QMutex>
+#include <QObject>
+#include <QString>
+#include <QThread>
+#include <QVariantMap>
+
+namespace vt::storage {
+
+// Writes rows to SQLite on a dedicated thread so the UI never waits on the
+// disk (the legacy freezes came from doing I/O on the event loop).
+//
+// upsert() only queues. Repeated writes of the same (table, key) before the
+// worker gets to them collapse into the newest, and each batch is one
+// transaction. A failed batch stays queued and is retried; writeFailed()
+// reports it on the caller's thread.
+class AsyncWriter : public QObject {
+    Q_OBJECT
+
+public:
+    explicit AsyncWriter(QString databasePath, QObject *parent = nullptr);
+    ~AsyncWriter() override;   // flushes, then stops the thread
+
+    // INSERT OR REPLACE INTO table (row keys...) VALUES (...). The table must
+    // already exist (created by the store's migrations).
+    void upsert(const QString &table, const QString &key, const QVariantMap &row);
+
+    // Block until everything queued so far has been attempted.
+    void flush();
+    int pending() const;
+
+signals:
+    void writeFailed(const QString &error);
+
+private:
+    struct Row {
+        QString table;
+        QString key;
+        QVariantMap values;
+    };
+    class Worker;
+
+    void drain();   // worker thread
+
+    QString path_;
+    QThread thread_;
+    Worker *worker_ = nullptr;
+    mutable QMutex mutex_;
+    QList<Row> queue_;               // guarded by mutex_
+    QHash<QString, qsizetype> index_; // table+key -> position in queue_
+    bool scheduled_ = false;
+    bool retryPending_ = false;
+};
+
+} // namespace vt::storage

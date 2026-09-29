@@ -62,7 +62,7 @@
         "frame": "flat",
         "shadow": 0,
         "radius": 12,
-        "textColor": "#8a94a6",
+        "textColor": "#e6e9ef",
         "fontSize": 28,
         "bold": false
       }
@@ -73,7 +73,7 @@
         "frame": "flat",
         "shadow": 0,
         "radius": 12,
-        "textColor": "#8a94a6",
+        "textColor": "#e6e9ef",
         "fontSize": 28,
         "bold": false
       }
@@ -84,7 +84,7 @@
         "frame": "flat",
         "shadow": 0,
         "radius": 12,
-        "textColor": "#8a94a6",
+        "textColor": "#e6e9ef",
         "fontSize": 28,
         "bold": false
       }
@@ -95,7 +95,7 @@
         "frame": "flat",
         "shadow": 0,
         "radius": 12,
-        "textColor": "#8a94a6",
+        "textColor": "#e6e9ef",
         "fontSize": 28,
         "bold": false
       }
@@ -106,7 +106,7 @@
         "frame": "flat",
         "shadow": 0,
         "radius": 12,
-        "textColor": "#8a94a6",
+        "textColor": "#e6e9ef",
         "fontSize": 28,
         "bold": false
       }
@@ -117,7 +117,7 @@
         "frame": "flat",
         "shadow": 0,
         "radius": 12,
-        "textColor": "#8a94a6",
+        "textColor": "#e6e9ef",
         "fontSize": 28,
         "bold": false
       }
@@ -128,7 +128,7 @@
         "frame": "flat",
         "shadow": 0,
         "radius": 12,
-        "textColor": "#8a94a6",
+        "textColor": "#e6e9ef",
         "fontSize": 28,
         "bold": false
       }
@@ -139,7 +139,40 @@
         "frame": "flat",
         "shadow": 0,
         "radius": 12,
-        "textColor": "#8a94a6",
+        "textColor": "#e6e9ef",
+        "fontSize": 28,
+        "bold": false
+      }
+    },
+    "checkList": {
+      "normal": {
+        "fill": "#232933",
+        "frame": "flat",
+        "shadow": 0,
+        "radius": 12,
+        "textColor": "#e6e9ef",
+        "fontSize": 28,
+        "bold": false
+      }
+    },
+    "keyboard": {
+      "normal": {
+        "fill": "#232933",
+        "frame": "flat",
+        "shadow": 0,
+        "radius": 12,
+        "textColor": "#e6e9ef",
+        "fontSize": 28,
+        "bold": false
+      }
+    },
+    "statusBar": {
+      "normal": {
+        "fill": "#232933",
+        "frame": "flat",
+        "shadow": 0,
+        "radius": 12,
+        "textColor": "#e6e9ef",
         "fontSize": 28,
         "bold": false
       }

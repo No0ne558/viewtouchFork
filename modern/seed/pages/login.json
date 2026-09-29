@@ -50,8 +50,26 @@
         "h": 600
       },
       "shape": "rect",
-      "behavior": "none",
-      "label": "Enter your PIN"
+      "behavior": "none"
+    },
+    {
+      "id": "clock-in",
+      "kind": "button",
+      "rect": {
+        "x": 300,
+        "y": 880,
+        "w": 344,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Clock In",
+      "actions": [
+        {
+          "type": "command",
+          "name": "clockIn"
+        }
+      ]
     },
     {
       "id": "start",
@@ -64,20 +82,50 @@
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "Start Shift (demo)",
+      "label": "Log In",
       "actions": [
         {
-          "type": "jump",
-          "mode": "push",
-          "role": "tables"
+          "type": "command",
+          "name": "login"
         }
       ],
-      "hotkey": "s",
       "style": {
         "normal": {
           "fill": "#1f8a4c"
         }
       }
+    },
+    {
+      "id": "clock-out",
+      "kind": "button",
+      "rect": {
+        "x": 1276,
+        "y": 880,
+        "w": 344,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Clock Out",
+      "actions": [
+        {
+          "type": "command",
+          "name": "clockOut"
+        }
+      ]
+    },
+    {
+      "id": "hint",
+      "kind": "comment",
+      "rect": {
+        "x": 1300,
+        "y": 260,
+        "w": 560,
+        "h": 200
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "Demo PINs: 1234 manager, 1111 server, 2222 cashier. Remove this note in the editor."
     }
   ]
 }
