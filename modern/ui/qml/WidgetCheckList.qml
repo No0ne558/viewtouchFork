@@ -6,15 +6,41 @@ Item {
     property ZoneItem zone
     readonly property PosService pos: zone ? zone.pos : null
     readonly property string face: zone.st.font ?? "DejaVu Sans"
+    // A table with several checks (after a split) shows only its checks.
+    readonly property string filter: pos ? pos.checkFilter : ""
+
+    Rectangle {
+        id: banner
+        visible: w.filter !== ""
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: 16
+        height: visible ? 64 : 0
+        radius: 10
+        color: "#2b62b0"
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.leftMargin: 20
+            text: qsTr("Checks at %1 — touch here to show all").arg(w.filter)
+            color: "white"
+            font.family: w.face
+            font.pixelSize: 26
+        }
+        TapHandler { onTapped: w.pos.checkFilter = "" }
+    }
 
     GridView {
         id: grid
         anchors.fill: parent
         anchors.margins: 16
+        anchors.topMargin: banner.visible ? 96 : 16
         clip: true
         cellWidth: Math.max(280, width / Math.max(1, Math.floor(width / 320)))
         cellHeight: 170
-        model: w.pos ? w.pos.openChecks : []
+        model: !w.pos ? [] : w.filter === "" ? w.pos.openChecks
+                                             : w.pos.openChecks.filter(c => c.label === w.filter)
 
         delegate: Item {
             id: card

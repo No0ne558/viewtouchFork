@@ -27,6 +27,9 @@ public:
     // INSERT OR REPLACE INTO table (row keys...) VALUES (...). The table must
     // already exist (created by the store's migrations).
     void upsert(const QString &table, const QString &key, const QVariantMap &row);
+    // DELETE FROM table WHERE keyColumn = key. Replaces a queued upsert of
+    // the same (table, key).
+    void remove(const QString &table, const QString &keyColumn, const QString &key);
 
     // Block until everything queued so far has been attempted.
     void flush();
@@ -40,7 +43,9 @@ private:
         QString table;
         QString key;
         QVariantMap values;
+        QString deleteColumn;   // set: this is a delete by that column
     };
+    void queue(Row row);
     class Worker;
 
     void drain();   // worker thread

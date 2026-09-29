@@ -14,6 +14,7 @@ ColumnLayout {
     property bool mixed: false
     property bool isSet: value !== undefined
     property var resolved
+    property bool readOnly: false
 
     signal commit(var newValue)
     signal reset()
@@ -73,6 +74,9 @@ ColumnLayout {
             case "font": return fontCombo
             case "page": return pageCombo
             case "pageList": return pageList
+            case "money": return numberField
+            case "percent": return numberField
+            case "pin": return pinField
             default: return textField
             }
         }
@@ -90,10 +94,11 @@ ColumnLayout {
     Component {
         id: textField
         TextField {
-            text: fe.mixed ? "" : (fe.isSet ? String(fe.value) : "")
+            text: fe.mixed || !fe.isSet || fe.value == null ? "" : String(fe.value)
             placeholderText: fe.mixed ? qsTr("(mixed)") : (fe.resolved !== undefined ? String(fe.resolved) : "")
             selectByMouse: true
-            onEditingFinished: if (text !== (fe.isSet ? String(fe.value) : "")) fe.commit(text)
+            readOnly: fe.readOnly
+            onEditingFinished: if (text !== (fe.isSet && fe.value != null ? String(fe.value) : "")) fe.commit(text)
         }
     }
 
@@ -171,11 +176,13 @@ ColumnLayout {
             }
             TextField {
                 Layout.fillWidth: true
-                text: fe.mixed ? "" : (fe.isSet ? fe.value : "")
+                // value and isSet update separately; never hand undefined to text.
+                readonly property string current: fe.mixed || !fe.isSet || fe.value == null ? "" : String(fe.value)
+                text: current
                 placeholderText: fe.mixed ? qsTr("(mixed)") : (fe.resolved ?? "#rrggbb")
                 selectByMouse: true
                 onEditingFinished: {
-                    if (text === (fe.isSet ? fe.value : "")) return
+                    if (text === current) return
                     if (text === "") fe.reset()
                     else fe.commit(text)
                 }
@@ -235,6 +242,38 @@ ColumnLayout {
             currentIndex: fe.mixed ? -1 : Math.max(0, opts.findIndex(o => o.value === (fe.value ?? "")))
             displayText: fe.mixed ? qsTr("(mixed)") : currentText
             onActivated: index => fe.commit(opts[index].value)
+        }
+    }
+
+    // Money (dollars.cents) and percent: decimal entry, committed as a number.
+    Component {
+        id: numberField
+        TextField {
+            id: numField
+            readonly property int decimals: fe.type === "money" ? 2 : 3
+            text: fe.mixed || fe.value === undefined ? "" : Number(fe.value).toFixed(decimals)
+            placeholderText: fe.mixed ? qsTr("(mixed)") : "0"
+            readOnly: fe.readOnly
+            selectByMouse: true
+            inputMethodHints: Qt.ImhFormattedNumbersOnly
+            validator: DoubleValidator { bottom: 0; decimals: numField.decimals; notation: DoubleValidator.StandardNotation }
+            onEditingFinished: {
+                const v = Number(text === "" ? 0 : text)
+                if (!isNaN(v) && v !== Number(fe.value)) fe.commit(v)
+            }
+        }
+    }
+
+    // Write-only PIN: shows dots, never the stored value.
+    Component {
+        id: pinField
+        TextField {
+            text: fe.value ?? ""
+            echoMode: TextInput.Password
+            placeholderText: fe.field.hint ?? ""
+            inputMethodHints: Qt.ImhDigitsOnly
+            validator: RegularExpressionValidator { regularExpression: /[0-9]{0,8}/ }
+            onEditingFinished: if (text !== (fe.value ?? "")) fe.commit(text)
         }
     }
 

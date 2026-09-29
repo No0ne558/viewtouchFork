@@ -28,15 +28,30 @@ PosService::PosService(PosData data, PosSink *sink, QObject *parent)
     , settings_(std::move(data.settings))
     , menu_(std::move(data.menu))
     , employees_(std::move(data.employees))
-    , punches_(std::move(data.openPunches))
+    , punches_(std::move(data.punches))
     , lastCheckId_(data.lastCheckId)
     , lastPunchId_(data.lastPunchId)
     , sink_(sink)
     , now_([] { return QDateTime::currentMSecsSinceEpoch(); })
+    , lastDayId_(data.lastDayId)
+    , closedToday_(std::move(data.closedToday))
+    , drawer_(std::move(data.drawer))
+    , lastDrawerId_(data.lastDrawerId)
+    , pastDays_(std::move(data.pastDays))
 {
     for (Check &c : data.openChecks) {
         lastCheckId_ = std::max(lastCheckId_, c.id);
         open_.emplace(c.id, std::move(c));
+    }
+    for (const Check &c : closedToday_)
+        lastCheckId_ = std::max(lastCheckId_, c.id);
+    if (drawer_)
+        lastDrawerId_ = std::max(lastDrawerId_, drawer_->id);
+    if (data.currentDay && data.currentDay->open()) {
+        day_ = *data.currentDay;
+        lastDayId_ = std::max(lastDayId_, day_.id);
+    } else {
+        startDay();
     }
 }
 
@@ -186,6 +201,7 @@ bool PosService::clockIn()
     if (sink_)
         sink_->savePunch(p);
     emit sessionChanged();
+    emit dayChanged();
     emit notice(tr("%1 clocked in at %2").arg(qs(e->name), timeOfDay(p.clockIn)));
     return true;
 }
@@ -204,8 +220,8 @@ bool PosService::clockOut()
     if (sink_)
         sink_->savePunch(*p);
     const double hours = double(p->clockOut - p->clockIn) / 3'600'000.0;
-    std::erase_if(punches_, [](const TimePunch &x) { return !x.open(); });
     emit sessionChanged();
+    emit dayChanged();
     emit notice(tr("%1 clocked out (%2 hours)").arg(qs(e->name), QLocale().toString(hours, 'f', 2)));
     return true;
 }
@@ -264,27 +280,47 @@ void PosService::clearEntry()
 
 QVariantMap PosService::tableStatus(const QString &label) const
 {
+    QVariantMap status{{u"open"_s, false}};
+    int count = 0;
+    Money total;
+    bool current = false;
     for (const auto &[id, c] : open_) {
-        if (c.type == CheckType::DineIn && qs(c.label) == label) {
-            return {
+        if (c.type != CheckType::DineIn || qs(c.label) != label)
+            continue;
+        if (count++ == 0) {
+            status = {
                 {u"open"_s, true}, {u"checkId"_s, qint64(id)}, {u"server"_s, qs(c.serverName)},
-                {u"guests"_s, c.guests}, {u"total"_s, format(c.totals(settings_.tax).total)},
-                {u"mine"_s, user_ && c.serverId == user_->id}, {u"current"_s, id == currentId_},
+                {u"guests"_s, c.guests}, {u"mine"_s, user_ && c.serverId == user_->id},
             };
         }
+        total += c.totals(settings_.tax).total;
+        current = current || id == currentId_;
     }
-    return {{u"open"_s, false}};
+    if (count > 0) {
+        status.insert(u"checks"_s, count);
+        status.insert(u"total"_s, format(total));
+        status.insert(u"current"_s, current);
+    }
+    return status;
 }
 
 PosService::TableResult PosService::selectTable(const QString &label)
 {
     if (!require(perm::Order, tr("Opening tables")))
         return TableResult::Failed;
-    for (auto &[id, c] : open_) {
-        if (c.type == CheckType::DineIn && qs(c.label) == label) {
-            openCheck(id);
-            return TableResult::OpenedExisting;
-        }
+    std::vector<std::int64_t> atTable;
+    for (const auto &[id, c] : open_) {
+        if (c.type == CheckType::DineIn && qs(c.label) == label)
+            atTable.push_back(id);
+    }
+    if (atTable.size() == 1) {
+        openCheck(atTable.front());
+        return TableResult::OpenedExisting;
+    }
+    if (atTable.size() > 1) {
+        releaseCheck();
+        setCheckFilter(label);
+        return TableResult::ChooseCheck;
     }
     releaseCheck();
     pendingTable_ = label;
@@ -340,6 +376,7 @@ bool PosService::openCheck(std::int64_t checkId)
     selectedLine_ = 0;
     selectedPayment_ = 0;
     pendingTable_.clear();
+    checkFilter_.clear();
     emit checkChanged();
     emit openChecksChanged();
     return true;
@@ -347,8 +384,9 @@ bool PosService::openCheck(std::int64_t checkId)
 
 void PosService::releaseCheck()
 {
-    if (currentId_ == 0 && pendingTable_.isEmpty())
+    if (currentId_ == 0 && pendingTable_.isEmpty() && checkFilter_.isEmpty())
         return;
+    checkFilter_.clear();
     currentId_ = 0;
     selectedLine_ = 0;
     selectedPayment_ = 0;
@@ -439,6 +477,8 @@ bool PosService::voidItem()
         if (!require(perm::Void, tr("Voiding sent items")))
             return false;
         c->voidLine(l->id);
+        if (printer_)
+            printer_->printKitchen(settings_, *c, {*l}, true);
         emit notice(tr("Voided %1").arg(name));
     }
     selectedLine_ = 0;
@@ -451,9 +491,16 @@ bool PosService::sendOrder()
     Check *c = current();
     if (!c)
         return fail(tr("No check is open."));
+    std::vector<OrderLine> fresh;
+    for (const OrderLine &l : c->lines) {
+        if (!l.sent)
+            fresh.push_back(l);
+    }
     const int n = c->sendAll(now());
     if (n == 0)
         return fail(tr("Nothing new to send."));
+    if (printer_)
+        printer_->printKitchen(settings_, *c, fresh, false);
     emit notice(n == 1 ? tr("Sent 1 item to the kitchen") : tr("Sent %1 items to the kitchen").arg(n));
     changed(*c);
     return true;
@@ -542,15 +589,31 @@ bool PosService::closeCheck()
     const Totals t = c->totals(settings_.tax);
     if (t.balance.cents() > 0)
         return fail(tr("%1 is still due.").arg(format(t.balance)));
-    if (c->lines.empty() && c->payments.empty()) {
-        // An empty check just goes away.
-    } else if (c->unsentCount() > 0) {
+    const bool cash = t.cashPaid.cents() > 0;
+    if (cash && !(drawer_ && drawer_->open()))
+        return fail(tr("Open the cash drawer first (Manager → Drawer)."));
+
+    if (c->unsentCount() > 0) {
+        std::vector<OrderLine> fresh;
+        for (const OrderLine &l : c->lines) {
+            if (!l.sent && !l.voided)
+                fresh.push_back(l);
+        }
         c->sendAll(now());
+        if (printer_ && !fresh.empty())
+            printer_->printKitchen(settings_, *c, fresh, false);
     }
     c->status = CheckStatus::Closed;
     c->closedAt = now();
+    c->businessDay = day_.id;
+    if (cash)
+        c->drawerSession = drawer_->id;
     if (sink_)
         sink_->saveCheck(*c);
+    if (cash && printer_)
+        printer_->openDrawer(settings_);
+    closedToday_.push_back(*c);
+    lastClosedId_ = c->id;
     const qint64 id = c->id;
     open_.erase(id);
     currentId_ = 0;
@@ -560,6 +623,9 @@ bool PosService::closeCheck()
     emit checkChanged();
     emit openChecksChanged();
     emit checkClosed(id);
+    emit dayChanged();
+    if (cash)
+        emit drawerChanged();
     return true;
 }
 

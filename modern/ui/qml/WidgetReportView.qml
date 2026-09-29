@@ -1,0 +1,164 @@
+import QtQuick
+import QtQuick.Layouts
+
+// Reports on screen: pick a report and a day (today is live; closed days
+// show what was saved at End of Day). props.report picks the first report.
+Item {
+    id: w
+    property ZoneItem zone
+    readonly property PosService pos: zone ? zone.pos : null
+    readonly property string face: zone.st.font ?? "DejaVu Sans"
+    readonly property color ink: zone.st.textColor ?? "white"
+    readonly property real unit: Math.max(12, Math.min(26, w.width * 0.022))
+
+    readonly property var reportIds: [
+        { id: "sales", label: qsTr("Sales") }, { id: "items", label: qsTr("Items") },
+        { id: "servers", label: qsTr("Servers") }, { id: "labor", label: qsTr("Labor") },
+        { id: "drawer", label: qsTr("Drawer") },
+    ]
+    property string reportId: zone && zone.props && zone.props.report ? zone.props.report : "sales"
+    property int dayIndex: 0
+    readonly property var days: pos ? pos.days : []
+    readonly property var day: days[Math.min(dayIndex, days.length - 1)] ?? { id: 0, label: "" }
+    readonly property var report: {
+        if (!pos) return ({ rows: [] })
+        void pos.day          // live: refresh when checks close
+        void pos.drawer
+        return pos.report(reportId, day.id)
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: w.unit * 0.6
+        spacing: w.unit * 0.5
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: w.unit * 2.6
+            Layout.fillHeight: false   // nested layouts fill by default
+            spacing: w.unit * 0.3
+            Repeater {
+                model: w.reportIds
+                delegate: WidgetKey {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    text: modelData.label
+                    fontScale: 0.36
+                    baseColor: w.reportId === modelData.id ? "#2f6fd6" : "#343c49"
+                    onClicked: w.reportId = modelData.id
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: w.unit * 2.4
+            Layout.fillHeight: false
+            spacing: w.unit * 0.3
+            WidgetKey {
+                Layout.preferredWidth: w.unit * 3
+                Layout.fillHeight: true
+                text: "◀"
+                baseColor: w.dayIndex < w.days.length - 1 ? "#343c49" : "#23282f"
+                onClicked: if (w.dayIndex < w.days.length - 1) w.dayIndex++
+            }
+            Text {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: w.day.label
+                color: w.ink
+                font.family: w.face
+                font.pixelSize: w.unit
+                elide: Text.ElideRight
+            }
+            WidgetKey {
+                Layout.preferredWidth: w.unit * 3
+                Layout.fillHeight: true
+                text: "▶"
+                baseColor: w.dayIndex > 0 ? "#343c49" : "#23282f"
+                onClicked: if (w.dayIndex > 0) w.dayIndex--
+            }
+            WidgetKey {
+                Layout.preferredWidth: w.unit * 6
+                Layout.fillHeight: true
+                text: qsTr("Print")
+                fontScale: 0.36
+                onClicked: w.pos.printReport(w.reportId, w.day.id)
+            }
+        }
+
+        Text {
+            text: w.report.title ?? ""
+            color: w.ink
+            font.family: w.face
+            font.pixelSize: w.unit * 1.4
+            font.bold: true
+        }
+
+        // Column headings (reports with more than one value column)
+        RowLayout {
+            visible: (w.report.columns ?? []).length > 2
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            Repeater {
+                model: w.report.columns ?? []
+                delegate: Text {
+                    required property string modelData
+                    required property int index
+                    Layout.fillWidth: index === 0
+                    Layout.preferredWidth: index === 0 ? -1 : w.unit * 7
+                    horizontalAlignment: index === 0 ? Text.AlignLeft : Text.AlignRight
+                    text: modelData
+                    color: "#8a94a6"
+                    font.family: w.face
+                    font.pixelSize: w.unit * 0.8
+                }
+            }
+        }
+
+        ListView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+            model: w.report.rows ?? []
+            delegate: Item {
+                id: row
+                required property var modelData
+                readonly property bool section: modelData.kind === "section"
+                readonly property bool total: modelData.kind === "total"
+                width: ListView.view.width
+                height: (section ? w.unit * 2.4 : w.unit * 1.6)
+
+                Rectangle {
+                    visible: row.total
+                    anchors.top: parent.top
+                    width: parent.width
+                    height: 1
+                    color: "#3a4250"
+                }
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.topMargin: row.section ? w.unit * 0.8 : 0
+                    Repeater {
+                        model: row.modelData.cells
+                        delegate: Text {
+                            required property string modelData
+                            required property int index
+                            Layout.fillWidth: index === 0
+                            Layout.preferredWidth: index === 0 ? -1 : w.unit * 7
+                            horizontalAlignment: index === 0 ? Text.AlignLeft : Text.AlignRight
+                            text: modelData
+                            color: row.modelData.kind === "note" ? "#8a94a6" : w.ink
+                            font.family: w.face
+                            font.pixelSize: row.section ? w.unit * 1.1 : w.unit
+                            font.bold: row.section || row.total
+                            font.italic: row.modelData.kind === "note"
+                            elide: index === 0 ? Text.ElideRight : Text.ElideNone
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

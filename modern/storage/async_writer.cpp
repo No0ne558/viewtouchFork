@@ -77,13 +77,23 @@ AsyncWriter::~AsyncWriter()
 
 void AsyncWriter::upsert(const QString &table, const QString &key, const QVariantMap &row)
 {
+    queue({table, key, row, QString()});
+}
+
+void AsyncWriter::remove(const QString &table, const QString &keyColumn, const QString &key)
+{
+    queue({table, key, {}, keyColumn});
+}
+
+void AsyncWriter::queue(Row row)
+{
     QMutexLocker lock(&mutex_);
-    const QString id = table + u'\x1f' + key;
+    const QString id = row.table + u'\x1f' + row.key;
     if (auto it = index_.find(id); it != index_.end()) {
-        queue_[*it].values = row;   // newest wins, keeps its place in line
+        queue_[*it] = std::move(row);   // newest wins, keeps its place in line
     } else {
         index_.insert(id, queue_.size());
-        queue_.append({table, key, row});
+        queue_.append(std::move(row));
     }
     if (!scheduled_) {
         scheduled_ = true;
@@ -120,6 +130,16 @@ void AsyncWriter::drain()
     if (ok) {
         QSqlQuery q(db);
         for (const Row &row : std::as_const(batch)) {
+            if (!row.deleteColumn.isEmpty()) {
+                q.prepare(u"DELETE FROM %1 WHERE %2 = ?"_s.arg(row.table, row.deleteColumn));
+                q.addBindValue(row.key);
+                if (!q.exec()) {
+                    error = u"%1: %2"_s.arg(row.table, q.lastError().text());
+                    ok = false;
+                    break;
+                }
+                continue;
+            }
             const QStringList cols = row.values.keys();
             QStringList marks;
             marks.fill(u"?"_s, cols.size());

@@ -86,8 +86,10 @@ struct Totals {
     std::map<TaxClass, Money> taxByClass;
     Money total;         // subtotal + tax
     Money paid;          // cash + card
+    Money cashPaid;      // cash tendered
     Money balance;       // total - paid (negative = change owed)
-    Money change;        // max(0, -balance)
+    Money change;        // max(0, -balance), always given in cash
+    Money cashNet() const { return cashPaid - change; }   // what stays in the drawer
 
     bool operator==(const Totals &) const = default;
 };
@@ -106,6 +108,8 @@ struct Check {
     std::vector<Payment> payments;
     std::int64_t nextLineId = 1;
     std::int64_t nextPaymentId = 1;
+    std::int64_t businessDay = 0;     // day the check was closed in
+    std::int64_t drawerSession = 0;   // drawer that took its cash
 
     OrderLine *line(std::int64_t lineId);
     const OrderLine *line(std::int64_t lineId) const;
@@ -122,6 +126,10 @@ struct Check {
     // Marks every unsent line sent; returns how many.
     int sendAll(std::int64_t now);
     int unsentCount() const;
+
+    // Split checks: remove a line (with its modifiers) / add one under a new id.
+    std::optional<OrderLine> takeLine(std::int64_t lineId);
+    OrderLine &adoptLine(OrderLine line);
 
     Payment &addPayment(const Tender &tender, Money amount);
     bool removePayment(std::int64_t paymentId);

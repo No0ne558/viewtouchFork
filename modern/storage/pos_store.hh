@@ -18,7 +18,7 @@ class AsyncWriter;
 // service go through AsyncWriter via SqlPosSink.
 class PosStore {
 public:
-    static constexpr int DbSchemaVersion = 1;
+    static constexpr int DbSchemaVersion = 2;
 
     explicit PosStore(QString databasePath);
     ~PosStore();
@@ -50,6 +50,12 @@ public:
     explicit SqlPosSink(AsyncWriter &writer) : writer_(writer) {}
     void saveCheck(const core::Check &check) override;
     void savePunch(const core::TimePunch &punch) override;
+    void saveDay(const core::BusinessDay &day, const QJsonObject &reports) override;
+    void saveDrawer(const core::DrawerSession &drawer) override;
+    void saveSettings(const core::PosSettings &settings) override;
+    void saveMenuItem(const core::MenuItem &item, int position) override;
+    void deleteMenuItem(const std::string &id) override;
+    void saveEmployee(const core::Employee &employee) override;
 
 private:
     AsyncWriter &writer_;

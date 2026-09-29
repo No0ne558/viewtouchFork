@@ -1,0 +1,279 @@
+#include "core/report.hh"
+
+#include <algorithm>
+#include <cmath>
+#include <map>
+#include <set>
+
+namespace vt::core {
+
+namespace {
+
+std::string count(std::int64_t n) { return std::to_string(n); }
+
+std::string hours(std::int64_t ms)
+{
+    const std::int64_t hundredths = (ms * 100 + 1'800'000) / 3'600'000;   // rounded
+    std::string frac = std::to_string(hundredths % 100);
+    if (frac.size() < 2)
+        frac.insert(0, "0");
+    return std::to_string(hundredths / 100) + "." + frac;
+}
+
+std::string capitalized(std::string s)
+{
+    if (!s.empty())
+        s[0] = char(std::toupper(static_cast<unsigned char>(s[0])));
+    return s;
+}
+
+} // namespace
+
+std::vector<std::string> Report::find(const std::string &label) const
+{
+    for (const ReportRow &r : rows) {
+        if (!r.cells.empty() && r.cells.front() == label && r.kind != ReportRow::Kind::Section)
+            return r.cells;
+    }
+    return {};
+}
+
+std::string ReportContext::money(Money m) const
+{
+    const std::string s = m.toString();
+    return s.front() == '-' ? "-" + settings.currencySymbol + s.substr(1) : settings.currencySymbol + s;
+}
+
+Money cashIntoDrawer(const Check &check, const TaxRates &rates)
+{
+    return check.totals(rates).cashNet();
+}
+
+Money expectedCash(const DrawerSession &drawer, const std::vector<Check> &closed, const TaxRates &rates)
+{
+    Money cash = drawer.startingCash;
+    for (const Check &c : closed) {
+        if (c.drawerSession == drawer.id)
+            cash += cashIntoDrawer(c, rates);
+    }
+    return cash;
+}
+
+Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx)
+{
+    const TaxRates &rates = ctx.settings.tax;
+    Report r;
+    r.id = "sales";
+    r.title = "Sales Summary";
+    r.subtitle = ctx.period;
+    r.columns = {"", "Amount"};
+
+    Money items, discounts, net, tax, total, change;
+    std::map<TaxClass, Money> taxByClass;
+    std::map<std::string, Money> byTender;           // tender name -> amount
+    std::vector<std::string> tenderOrder;
+    int guests = 0, voidCount = 0;
+    Money voidValue;
+
+    for (const Check &c : closed) {
+        const Totals t = c.totals(rates);
+        items += t.items;
+        discounts += t.discounts;
+        net += t.subtotal;
+        tax += t.tax;
+        total += t.total;
+        change += t.change;
+        guests += c.guests;
+        for (const auto &[cls, amount] : t.taxByClass)
+            taxByClass[cls] += amount;
+        for (const Payment &p : c.payments) {
+            if (p.kind == TenderKind::Discount)
+                continue;
+            if (!byTender.contains(p.tenderName))
+                tenderOrder.push_back(p.tenderName);
+            byTender[p.tenderName] += p.amount;
+        }
+        for (const OrderLine &l : c.lines) {
+            if (l.voided) {
+                OrderLine live = l;
+                live.voided = false;
+                voidValue += live.total();
+                ++voidCount;
+            }
+        }
+    }
+
+    r.section("Sales");
+    r.line({"Checks", count(std::int64_t(closed.size()))});
+    r.line({"Guests", count(guests)});
+    r.line({"Item sales", ctx.money(items)});
+    r.line({"Discounts & comps", ctx.money(-discounts)});
+    r.total({"Net sales", ctx.money(net)});
+    for (const auto &[cls, amount] : taxByClass)
+        r.line({capitalized(toString(cls)) + " tax", ctx.money(amount)});
+    r.total({"Total with tax", ctx.money(total)});
+
+    r.section("Payments");
+    for (const std::string &name : tenderOrder)
+        r.line({name, ctx.money(byTender[name])});
+    if (change.cents() > 0)
+        r.line({"Change given", ctx.money(-change)});
+    Money collected = -change;
+    for (const auto &[name, amount] : byTender)
+        collected += amount;
+    r.total({"Collected", ctx.money(collected)});
+
+    r.section("Averages");
+    const auto avg = [](Money m, std::int64_t n) { return n > 0 ? Money::fromCents(m.cents()).scaled(1, n) : Money(); };
+    r.line({"Per check", ctx.money(avg(net, std::int64_t(closed.size())))});
+    r.line({"Per guest", ctx.money(avg(net, guests))});
+    if (voidCount > 0) {
+        r.section("Voids");
+        r.line({"Voided items (" + count(voidCount) + ")", ctx.money(voidValue)});
+    }
+    return r;
+}
+
+Report itemSales(const std::vector<Check> &closed, const std::vector<MenuItem> &menu, const ReportContext &ctx)
+{
+    Report r;
+    r.id = "items";
+    r.title = "Item Sales";
+    r.subtitle = ctx.period;
+    r.columns = {"Item", "Qty", "Sales"};
+
+    std::map<std::string, std::string> familyOf;
+    for (const MenuItem &m : menu)
+        familyOf[m.id] = m.family.empty() ? "other" : m.family;
+
+    struct Tally { std::int64_t qty = 0; Money sales; };
+    std::map<std::string, std::map<std::string, Tally>> families;   // family -> item name -> tally
+    for (const Check &c : closed) {
+        for (const OrderLine &l : c.lines) {
+            if (l.voided || l.isComment())
+                continue;
+            const auto it = familyOf.find(l.itemId);
+            Tally &t = families[it == familyOf.end() ? "other" : it->second][l.name];
+            t.qty += l.quantity;
+            t.sales += l.total();
+        }
+    }
+
+    Money grand;
+    std::int64_t grandQty = 0;
+    for (const auto &[family, items] : families) {
+        r.section(capitalized(family));
+        Money sum;
+        std::int64_t qty = 0;
+        for (const auto &[name, t] : items) {
+            r.line({name, count(t.qty), ctx.money(t.sales)});
+            sum += t.sales;
+            qty += t.qty;
+        }
+        r.total({capitalized(family) + " total", count(qty), ctx.money(sum)});
+        grand += sum;
+        grandQty += qty;
+    }
+    if (families.empty())
+        r.note("No sales yet.");
+    else
+        r.total({"All items", count(grandQty), ctx.money(grand)});
+    return r;
+}
+
+Report serverSales(const std::vector<Check> &closed, const ReportContext &ctx)
+{
+    Report r;
+    r.id = "servers";
+    r.title = "Server Sales";
+    r.subtitle = ctx.period;
+    r.columns = {"Server", "Checks", "Guests", "Net sales"};
+
+    struct Tally { std::int64_t checks = 0, guests = 0; Money net; };
+    std::map<std::string, Tally> servers;
+    for (const Check &c : closed) {
+        Tally &t = servers[c.serverName.empty() ? "(unknown)" : c.serverName];
+        ++t.checks;
+        t.guests += c.guests;
+        t.net += c.totals(ctx.settings.tax).subtotal;
+    }
+    Tally all;
+    for (const auto &[name, t] : servers) {
+        r.line({name, count(t.checks), count(t.guests), ctx.money(t.net)});
+        all.checks += t.checks;
+        all.guests += t.guests;
+        all.net += t.net;
+    }
+    if (servers.empty())
+        r.note("No sales yet.");
+    else
+        r.total({"All servers", count(all.checks), count(all.guests), ctx.money(all.net)});
+    return r;
+}
+
+Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Employee> &employees,
+                   const ReportContext &ctx)
+{
+    Report r;
+    r.id = "labor";
+    r.title = "Labor";
+    r.subtitle = ctx.period;
+    r.columns = {"Employee", "In", "Out", "Hours"};
+
+    std::map<std::string, std::string> names;
+    for (const Employee &e : employees)
+        names[e.id] = e.name;
+
+    std::int64_t totalMs = 0;
+    std::vector<TimePunch> sorted = punches;
+    std::ranges::sort(sorted, {}, &TimePunch::clockIn);
+    for (const TimePunch &p : sorted) {
+        const std::int64_t end = p.open() ? ctx.now : p.clockOut;
+        const std::int64_t ms = std::max<std::int64_t>(0, end - p.clockIn);
+        totalMs += ms;
+        const auto it = names.find(p.employeeId);
+        r.line({it == names.end() ? p.employeeId : it->second, ctx.clock(p.clockIn),
+                p.open() ? "on clock" : ctx.clock(p.clockOut), hours(ms)});
+    }
+    if (sorted.empty())
+        r.note("Nobody has clocked in.");
+    else
+        r.total({"Total hours", "", "", hours(totalMs)});
+    return r;
+}
+
+Report drawerReport(const DrawerSession *drawer, const std::vector<Check> &closed, const ReportContext &ctx)
+{
+    Report r;
+    r.id = "drawer";
+    r.title = "Drawer";
+    r.subtitle = ctx.period;
+    r.columns = {"", "Amount"};
+    if (!drawer) {
+        r.note("No drawer has been opened.");
+        return r;
+    }
+    const TaxRates &rates = ctx.settings.tax;
+    Money cash;
+    std::int64_t checks = 0;
+    for (const Check &c : closed) {
+        if (c.drawerSession == drawer->id) {
+            cash += cashIntoDrawer(c, rates);
+            ++checks;
+        }
+    }
+    r.section(drawer->name);
+    r.line({"Opened by " + drawer->openedBy, ctx.clock(drawer->openedAt)});
+    r.line({"Starting cash", ctx.money(drawer->startingCash)});
+    r.line({"Cash sales (" + count(checks) + " checks)", ctx.money(cash)});
+    const Money expected = drawer->open() ? drawer->startingCash + cash : drawer->expected;
+    r.total({"Expected in drawer", ctx.money(expected)});
+    if (!drawer->open()) {
+        r.line({"Counted by " + drawer->closedBy, ctx.money(drawer->counted)});
+        const Money diff = drawer->overShort();
+        r.total({diff.cents() < 0 ? "Short" : diff.cents() > 0 ? "Over" : "Balanced", ctx.money(diff)});
+    }
+    return r;
+}
+
+} // namespace vt::core

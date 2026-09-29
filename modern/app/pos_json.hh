@@ -2,7 +2,9 @@
 
 #include "core/check.hh"
 #include "core/employee.hh"
+#include "core/day.hh"
 #include "core/menu.hh"
+#include "core/report.hh"
 #include "core/settings.hh"
 
 #include <QJsonArray>
@@ -37,6 +39,15 @@ std::vector<core::Employee> employeesFromJson(const QJsonArray &a);
 
 QJsonObject toJson(const core::TimePunch &p);
 core::TimePunch punchFromJson(const QJsonObject &o);
+
+QJsonObject toJson(const core::Report &r);
+core::Report reportFromJson(const QJsonObject &o);
+
+QJsonObject toJson(const core::DrawerSession &d);
+core::DrawerSession drawerFromJson(const QJsonObject &o);
+
+QJsonObject toJson(const core::PrinterConfig &p);
+core::PrinterConfig printerFromJson(const QJsonObject &o);
 
 QJsonObject toJson(const core::PosSettings &s);
 core::PosSettings settingsFromJson(const QJsonObject &o);

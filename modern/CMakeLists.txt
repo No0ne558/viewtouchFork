@@ -16,7 +16,8 @@ set(VTM_LEGACY_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 # ---------------------------------------------------------------------------
 add_library(vtm_core STATIC
     core/money.hh core/tax.hh core/menu.hh core/employee.hh core/check.hh core/settings.hh
-    core/core.cpp
+    core/day.hh core/report.hh
+    core/core.cpp core/report.cpp
 )
 target_include_directories(vtm_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -25,7 +26,7 @@ target_include_directories(vtm_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # core library and its tests can still be built.
 #   Fedora: sudo dnf install qt6-qtbase-devel qt6-qtdeclarative-devel
 # ---------------------------------------------------------------------------
-find_package(Qt6 6.8 QUIET COMPONENTS Core Gui Quick QuickControls2 Sql)
+find_package(Qt6 6.8 QUIET COMPONENTS Core Gui Quick QuickControls2 Sql Network)
 
 if(Qt6_FOUND)
     qt_standard_project_setup(REQUIRES 6.8)
@@ -54,11 +55,21 @@ if(Qt6_FOUND)
     add_library(vtm_pos STATIC
         app/pos_json.hh app/pos_json.cpp
         app/pos_service.hh app/pos_service.cpp
+        app/pos_day.cpp app/pos_admin.cpp
     )
     target_link_libraries(vtm_pos PUBLIC vtm_core Qt6::Core)
     # PosService is exposed to QML via QML_FOREIGN (ui/cpp/posforeign.hh),
     # which needs its type information.
     qt_extract_metatypes(vtm_pos)
+
+    # Printing: ticket formatting (plain C++) and the background spooler
+    add_library(vtm_print STATIC
+        print/document.hh print/document.cpp
+        print/tickets.hh print/tickets.cpp
+        print/spooler.hh print/spooler.cpp
+        print/ticket_printer.hh print/ticket_printer.cpp
+    )
+    target_link_libraries(vtm_print PUBLIC vtm_pos Qt6::Network)
 
     # SQLite persistence: layout, POS data, and the background writer
     add_library(vtm_storage STATIC
@@ -101,6 +112,11 @@ if(Qt6_FOUND)
             ui/qml/WidgetClock.qml
             ui/qml/WidgetLogoutPanel.qml
             ui/qml/WidgetStatusBar.qml
+            ui/qml/WidgetAdminPanel.qml
+            ui/qml/WidgetReportView.qml
+            ui/qml/WidgetDrawerPanel.qml
+            ui/qml/WidgetEndOfDay.qml
+            ui/qml/WidgetSplitCheck.qml
         SOURCES
             ui/cpp/zonemodel.hh ui/cpp/zonemodel.cpp
             ui/cpp/layoutcontroller.hh ui/cpp/layoutcontroller.cpp
@@ -108,7 +124,7 @@ if(Qt6_FOUND)
             ui/cpp/posforeign.hh
     )
     target_include_directories(vtm_ui PUBLIC ui/cpp)
-    target_link_libraries(vtm_ui PUBLIC vtm_layout vtm_editor vtm_storage vtm_pos Qt6::Gui Qt6::Quick Qt6::QuickControls2)
+    target_link_libraries(vtm_ui PUBLIC vtm_layout vtm_editor vtm_storage vtm_pos vtm_print Qt6::Gui Qt6::Quick Qt6::QuickControls2)
 
     qt_add_executable(vtmodern main.cpp)
     target_link_libraries(vtmodern PRIVATE vtm_ui vtm_uiplugin)

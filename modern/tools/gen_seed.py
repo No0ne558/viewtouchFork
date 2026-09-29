@@ -1,0 +1,390 @@
+#!/usr/bin/env python3
+"""Generate modern/seed (theme, starter pages, POS data). One-off helper; the JSON is the source of truth."""
+import json, os, re, sys
+
+OUT = sys.argv[1]
+SCHEMA = 1
+os.makedirs(os.path.join(OUT, "pages"), exist_ok=True)
+os.makedirs(os.path.join(OUT, "pos"), exist_ok=True)
+
+def write(path, obj, versioned=True):
+    if versioned and isinstance(obj, dict):
+        obj = {"schemaVersion": SCHEMA, **obj}
+    with open(os.path.join(OUT, path), "w") as f:
+        json.dump(obj, f, indent=2)
+        f.write("\n")
+
+def slug(s):
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+def rect(x, y, w, h):
+    return {"x": x, "y": y, "w": w, "h": h}
+
+def jump(page=None, role=None, mode="push"):
+    a = {"type": "jump", "mode": mode}
+    if page: a["page"] = page
+    if role: a["role"] = role
+    return a
+
+def command(name, **args):
+    a = {"type": "command", "name": name}
+    if args: a["args"] = args
+    return a
+
+def fill(color, **more):
+    return {"normal": {"fill": color, **more}}
+
+def zone(id, x, y, w, h, label="", kind="button", actions=(), **kw):
+    z = {"id": id, "kind": kind, "rect": rect(x, y, w, h), "shape": kw.pop("shape", "rect"),
+         "behavior": kw.pop("behavior", "blink" if kind in ("button", "image") else "none")}
+    if label: z["label"] = label
+    if actions: z["actions"] = list(actions)
+    z.update(kw)
+    return z
+
+def label(id, x, y, w, h, text, **kw):
+    return zone(id, x, y, w, h, text, kind="label", **kw)
+
+def page(id, name, kind, zones, **kw):
+    p = {"id": id, "name": name, "kind": kind, "canvas": {"w": 1920, "h": 1080}, "grid": 8}
+    p.update(kw)
+    p["zones"] = zones
+    write(f"pages/{id}.json", p)
+
+# ---------------------------------------------------------------- POS data
+MENU = []
+def menu(name, price, family, tax="food", modifier=False, printer="kitchen"):
+    item = {"id": slug(name), "name": name, "price": price, "family": family, "taxClass": tax,
+            "printer": printer}
+    if modifier:
+        item["modifier"] = True
+    MENU.append(item)
+    return item["id"]
+
+BURGERS = [("Classic Burger", 11.50), ("Cheeseburger", 12.25), ("Bacon Burger", 13.50),
+           ("Mushroom Swiss", 13.25), ("Veggie Burger", 12.00), ("Kids Burger", 7.50),
+           ("Burger of the Day", 14.00)]
+SALADS = [("House Salad", 8.50), ("Caesar", 9.75), ("Cobb", 12.50), ("Greek", 10.25)]
+DRINKS = [("Coffee", 2.75, "food"), ("Tea", 2.50, "food"), ("Soda", 2.95, "food"), ("Juice", 3.50, "food"),
+          ("Water", 0.00, "food"), ("Lemonade", 3.25, "food"), ("Draft Beer", 6.00, "alcohol"),
+          ("House Wine", 8.00, "alcohol")]
+BREAKFAST = [("Two Eggs", 8.95), ("Pancakes", 9.50), ("French Toast", 9.75), ("Omelette", 11.25)]
+TEMPS = ["Rare", "Medium Rare", "Medium", "Medium Well", "Well Done"]
+SIDES = [("Fries", 0.00), ("Side Salad", 0.00), ("Onion Rings", 1.00), ("Sweet Potato Fries", 1.50),
+         ("No Side", 0.00)]
+
+for n, p in BURGERS: menu(n, p, "burgers")
+for n, p in SALADS: menu(n, p, "salads")
+for n, p, t in DRINKS: menu(n, p, "drinks", tax=t, printer="bar")
+for n, p in BREAKFAST: menu(n, p, "breakfast")
+for n in TEMPS: menu(n, 0.00, "temperature", modifier=True)
+for n, p in SIDES: menu(n, p, "sides", modifier=True)
+write("pos/menu.json", MENU, versioned=False)
+
+write("pos/employees.json", [
+    {"id": "manager", "name": "Morgan (Manager)", "role": "manager", "pin": "1234"},
+    {"id": "sam", "name": "Sam", "role": "server", "pin": "1111"},
+    {"id": "casey", "name": "Casey", "role": "cashier", "pin": "2222"},
+], versioned=False)
+
+write("pos/settings.json", {
+    "storeName": "ViewTouch Café",
+    "currencySymbol": "$",
+    "tax": {"food": 8.25, "alcohol": 10.0, "merchandise": 8.25, "room": 0, "taxTakeoutFood": True},
+    "tenders": [
+        {"id": "cash", "name": "Cash", "kind": "cash"},
+        {"id": "credit", "name": "Credit Card", "kind": "card"},
+        {"id": "gift", "name": "Gift Card", "kind": "card"},
+        {"id": "discount", "name": "10% Discount", "kind": "discount", "percent": 10},
+        {"id": "comp", "name": "Comp", "kind": "discount", "percent": 100},
+    ],
+    # "file" printers write text under <app data>/printouts so tickets can be
+    # seen without hardware. Switch them to network/CUPS in Manager -> Printers.
+    "printers": [
+        {"id": "receipt", "name": "Receipt", "type": "file", "path": "receipt.txt", "width": 42,
+         "cutter": True, "drawerKick": True},
+        {"id": "kitchen", "name": "Kitchen", "type": "file", "path": "kitchen.txt", "width": 42,
+         "cutter": True, "drawerKick": False},
+        {"id": "bar", "name": "Bar", "type": "file", "path": "bar.txt", "width": 42,
+         "cutter": True, "drawerKick": False},
+    ],
+    "receiptHeader": "123 Main Street\nOpen daily 7am - 10pm",
+    "receiptFooter": "Thank you for visiting!\nPowered by ViewTouch",
+})
+
+# ---------------------------------------------------------------- theme
+WIDGETS = ["orderList", "loginPad", "tableMap", "guestCount", "numPad", "paymentPanel",
+           "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
+           "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck"]
+widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
+                           "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
+write("theme.json", {
+    "name": "ViewTouch Dark",
+    "background": {"fill": "#171a1f"},
+    "style": {
+        "normal": {"fill": "#2d3440", "textColor": "#f2f4f7", "font": "DejaVu Sans",
+                   "fontSize": 30, "bold": True, "frame": "raised", "frameWidth": 3,
+                   "radius": 14, "shadow": 5, "textStyle": "none"},
+        "selected": {"fill": "#2f6fd6", "frame": "inset", "shadow": 2},
+        "disabled": {"opacity": 0.35},
+    },
+    "kinds": {
+        "label": {"normal": {"fill": "transparent", "frame": "none", "shadow": 0,
+                             "fontSize": 44, "textColor": "#e6e9ef"},
+                  "selected": {"fill": "transparent", "frame": "none"}},
+        "comment": {"normal": {"fill": "#fff3b0", "textColor": "#3d3200", "frame": "flat",
+                               "shadow": 0, "fontSize": 20, "bold": False}},
+        "image": {"normal": {"fill": "#f5efe0", "textColor": "#2b2b2b"}},
+        **{w: widget_style for w in WIDGETS},
+    },
+})
+
+GREEN, RED, BLUE, AMBER, TEAL, PURPLE = "#1f8a4c", "#b83232", "#2b62b0", "#a86a12", "#1f6f73", "#6b46c1"
+
+# ---------------------------------------------------------------- order template
+flow = [
+    ("flow-tables", "Tables", [command("releaseCheck"), jump(role="tables", mode="replace")], {}),
+    ("flow-no", "No", [{"type": "qualifier", "qualifier": "no"}], {}),
+    ("flow-extra", "Extra", [{"type": "qualifier", "qualifier": "extra"}], {}),
+    ("flow-lite", "Lite", [{"type": "qualifier", "qualifier": "lite"}], {}),
+    ("flow-side", "Side", [{"type": "qualifier", "qualifier": "side"}], {}),
+    ("flow-void", "Void", [command("voidItem")], {"behavior": "double", "style": fill(RED)}),
+    ("flow-send", "Send", [command("sendOrder")], {"style": fill(GREEN), "hotkey": "s"}),
+    ("flow-pay", "Pay", [jump(role="settle")], {"style": fill(BLUE), "hotkey": "p"}),
+]
+tmpl = [zone("order-list", 16, 16, 560, 948, kind="orderList")]
+for i, (zid, text, acts, kw) in enumerate(flow):
+    tmpl.append(zone(zid, 16 + i * 237, 980, 229, 84, text, actions=acts, **kw))
+for i, (zid, text, target) in enumerate([("tab-breakfast", "Breakfast", "index-breakfast"),
+                                          ("tab-lunch", "Lunch", "index-lunch"),
+                                          ("tab-dinner", "Dinner", "index-dinner")]):
+    tmpl.append(zone(zid, 592 + i * 316, 16, 300, 72, text, actions=[jump(page=target, mode="replace")],
+                     style={"normal": {"fontSize": 26}}))
+tmpl.append(zone("tab-categories", 1540, 16, 200, 72, "‹ Menu", actions=[jump(mode="index")],
+                 style={"normal": {"fontSize": 26}}))
+tmpl.append(zone("tab-note", 1756, 16, 148, 72, "Note", actions=[jump(page="note")],
+                 style={"normal": {"fontSize": 26}}))
+page("order-template", "Order Template", "template", tmpl)
+
+# ---------------------------------------------------------------- index pages
+def index_page(id, name, period, cats):
+    zs = [label("title", 592, 104, 1312, 72, name)]
+    for i, (text, target, color) in enumerate(cats):
+        col, row = i % 3, i // 3
+        zs.append(zone(f"cat-{target}", 592 + col * 444, 192 + row * 260, 424, 240, text,
+                       actions=[jump(page=target, mode="replace")], style=fill(color)))
+    page(id, name, "index", zs, templateId="order-template", mealPeriod=period)
+
+index_page("index-breakfast", "Breakfast", "breakfast",
+           [("Plates", "items-breakfast", AMBER), ("Drinks", "items-drinks", TEAL)])
+index_page("index-lunch", "Lunch", "lunch",
+           [("Burgers", "items-burgers", AMBER), ("Salads", "items-salads", GREEN),
+            ("Drinks", "items-drinks", TEAL)])
+index_page("index-dinner", "Dinner", "dinner",
+           [("Burgers", "items-burgers", AMBER), ("Salads", "items-salads", GREEN),
+            ("Drinks", "items-drinks", TEAL)])
+
+# ---------------------------------------------------------------- item pages
+def add(name, seq=None):
+    a = {"type": "addItem", "item": slug(name)}
+    if seq: a["modifierSequence"] = seq
+    return a
+
+def item_page(id, name, items, color, shape="rounded", cols=4, cell=(316, 180), extra=()):
+    zs = [label("title", 592, 104, 1312, 72, name)]
+    w, h = cell
+    gap_x = (1312 - cols * w) // max(cols - 1, 1)
+    for i, (text, seq) in enumerate(items):
+        col, row = i % cols, i // cols
+        zs.append(zone(f"item-{i + 1}", 592 + col * (w + gap_x), 192 + row * (h + 16), w, h, text,
+                       actions=[add(text, seq)], shape=shape, style=fill(color)))
+    zs.extend(extra)
+    page(id, name, "items", zs, templateId="order-template")
+
+BURGER_MODS = ["mod-temperature", "mod-side"]
+item_page("items-burgers", "Burgers",
+          [(n, BURGER_MODS if n not in ("Veggie Burger", "Kids Burger", "Burger of the Day")
+            else (["mod-side"] if n == "Veggie Burger" else None))
+           for n, _ in BURGERS[:6]],
+          AMBER,
+          extra=[zone("burger-photo", 592, 596, 316, 260, "Burger of the Day", kind="image",
+                      imagePath="qrc:/images/burger.png",
+                      actions=[add("Burger of the Day", BURGER_MODS)]),
+                 zone("note", 1240, 596, 664, 120,
+                      "Burgers run Temperature, then Side, then return here.", kind="comment")])
+item_page("items-salads", "Salads", [(n, None) for n, _ in SALADS], GREEN, shape="hexagon")
+item_page("items-drinks", "Drinks", [(n, None) for n, _, _ in DRINKS], TEAL, shape="circle", cols=5,
+          cell=(200, 200))
+item_page("items-breakfast", "Breakfast Plates", [(n, None) for n, _ in BREAKFAST], AMBER, shape="octagon",
+          cell=(316, 220))
+
+# ---------------------------------------------------------------- modifier pages
+def modifier_page(id, name, question, options):
+    zs = [label("title", 592, 104, 1312, 72, question)]
+    for i, text in enumerate(options):
+        col, row = i % 3, i // 3
+        zs.append(zone(f"opt-{i + 1}", 592 + col * 444, 192 + row * 196, 424, 180, text,
+                       actions=[add(text), jump(mode="sequence")]))
+    zs.append(zone("skip", 1480, 800, 424, 120, "Skip ›", actions=[jump(mode="sequence")],
+                   style={"normal": {"fill": "#3a4250", "fontSize": 28}}))
+    page(id, name, "modifier", zs, templateId="order-template")
+
+modifier_page("mod-temperature", "Temperature", "How should it be cooked?", TEMPS)
+modifier_page("mod-side", "Side", "Choose a side", [n for n, _ in SIDES])
+
+# Free-text note for the kitchen
+page("note", "Note", "custom", [
+    label("title", 592, 104, 1312, 72, "Note for the kitchen"),
+    zone("keyboard", 592, 192, 1312, 560, kind="keyboard"),
+    zone("cancel", 592, 800, 420, 120, "Cancel", actions=[jump(mode="back")]),
+    zone("add-note", 1484, 800, 420, 120, "Add Note", actions=[command("addComment"), jump(mode="back")],
+         style=fill(GREEN)),
+], templateId="order-template")
+
+# ---------------------------------------------------------------- system pages
+page("login", "Login", "login", [
+    label("title", 460, 40, 1000, 110, "ViewTouch", style={"normal": {"fontSize": 72}}),
+    zone("clock", 660, 160, 600, 80, kind="clock"),
+    zone("login-pad", 660, 260, 600, 600, kind="loginPad"),
+    zone("clock-in", 300, 880, 344, 120, "Clock In", actions=[command("clockIn")]),
+    zone("start", 660, 880, 600, 120, "Log In", actions=[command("login")], style=fill(GREEN)),
+    zone("clock-out", 1276, 880, 344, 120, "Clock Out", actions=[command("clockOut")]),
+    zone("hint", 1300, 260, 560, 200,
+         "Demo PINs: 1234 manager, 1111 server, 2222 cashier. Remove this note in the editor.",
+         kind="comment"),
+], role="login")
+
+TABLES = [
+    {"label": "T1", "x": 80, "y": 80, "w": 200, "h": 200, "shape": "circle", "seats": 2},
+    {"label": "T2", "x": 360, "y": 80, "w": 200, "h": 200, "shape": "circle", "seats": 2},
+    {"label": "T3", "x": 640, "y": 80, "w": 320, "h": 200, "shape": "rect", "seats": 4},
+    {"label": "T4", "x": 1040, "y": 80, "w": 320, "h": 200, "shape": "rect", "seats": 4},
+    {"label": "T5", "x": 80, "y": 400, "w": 480, "h": 220, "shape": "rect", "seats": 6},
+    {"label": "T6", "x": 640, "y": 400, "w": 240, "h": 240, "shape": "octagon", "seats": 4},
+    {"label": "T7", "x": 960, "y": 400, "w": 240, "h": 240, "shape": "octagon", "seats": 4},
+    {"label": "Bar 1", "x": 80, "y": 760, "w": 240, "h": 160, "shape": "rounded", "seats": 1},
+    {"label": "Bar 2", "x": 360, "y": 760, "w": 240, "h": 160, "shape": "rounded", "seats": 1},
+    {"label": "Bar 3", "x": 640, "y": 760, "w": 240, "h": 160, "shape": "rounded", "seats": 1},
+]
+page("tables", "Tables", "tables", [
+    zone("table-map", 16, 16, 1440, 1048, "Dining room", kind="tableMap", props={"tables": TABLES}),
+    zone("quick", 1472, 16, 432, 150, "Quick Order", actions=[command("startQuick"), jump(mode="index")],
+         style=fill(GREEN)),
+    zone("takeout", 1472, 182, 432, 150, "Takeout", actions=[command("startTakeout"), jump(mode="index")]),
+    zone("checks", 1472, 348, 432, 150, "Open Checks", actions=[jump(role="checkList")]),
+    zone("status", 1472, 514, 432, 218, kind="logoutPanel"),
+    zone("manager", 1472, 748, 432, 150, "Manager", actions=[jump(role="manager")]),
+    zone("logout", 1472, 914, 432, 150, "Log Out", actions=[jump(role="logout")], style=fill(RED)),
+], role="tables", background={"texture": "woodfloor", "fill": "#3b2a1a"})
+
+page("check-list", "Open Checks", "custom", [
+    label("title", 16, 16, 1440, 80, "Open checks"),
+    zone("list", 16, 112, 1440, 952, kind="checkList"),
+    zone("back", 1472, 914, 432, 150, "‹ Back", actions=[jump(mode="back")]),
+], role="checkList")
+
+page("guest-count", "Guest Count", "guestCount", [
+    label("title", 560, 32, 800, 80, "How many guests?"),
+    zone("guests", 660, 128, 600, 160, kind="guestCount"),
+    zone("pad", 660, 304, 600, 560, kind="numPad"),
+    zone("cancel", 660, 888, 290, 120, "Cancel", actions=[command("releaseCheck"), jump(mode="back")]),
+    zone("start", 970, 888, 290, 120, "Start Order", actions=[command("startCheck"), jump(mode="index")],
+         style=fill(GREEN)),
+], role="guestCount")
+
+tenders = [("Cash", "cash", GREEN), ("Credit Card", "credit", BLUE), ("Gift Card", "gift", TEAL),
+           ("10% Off", "discount", AMBER), ("Comp", "comp", PURPLE)]
+settle = [zone("payment", 16, 16, 900, 1048, kind="paymentPanel"),
+          zone("pad", 932, 16, 520, 620, kind="numPad", props={"mode": "amount"})]
+for i, (text, tid, color) in enumerate(tenders):
+    settle.append(zone(f"tender-{tid}", 1468, 16 + i * 126, 436, 110, text,
+                       actions=[{"type": "tender", "tender": tid}], style=fill(color)))
+settle += [
+    zone("receipt", 932, 652, 520, 120, "Print Receipt", actions=[command("printReceipt")]),
+    zone("close", 932, 788, 520, 120, "Close Check", actions=[command("closeCheck")], style=fill(GREEN)),
+    zone("remove-payment", 932, 924, 520, 120, "Undo Payment", actions=[command("removePayment")]),
+    zone("split", 1468, 660, 436, 110, "Split Check", actions=[jump(page="split")]),
+    zone("drawer", 1468, 786, 436, 110, "Drawer…", actions=[jump(page="drawer")]),
+    zone("done", 1468, 944, 436, 120, "‹ Back to Order", actions=[jump(mode="back")]),
+]
+page("settle", "Settle", "settle", settle, role="settle", permission="check.settle")
+
+page("split", "Split Check", "custom", [
+    zone("split-check", 16, 16, 1888, 932, kind="splitCheck"),
+    zone("back", 16, 964, 432, 100, "‹ Back", actions=[jump(mode="back")]),
+], permission="order")
+
+page("logout", "Log Out", "logout", [
+    label("title", 560, 40, 800, 90, "End of shift"),
+    zone("panel", 560, 150, 800, 400, kind="logoutPanel"),
+    zone("clock-out", 560, 580, 390, 140, "Clock Out", actions=[command("clockOut")]),
+    zone("break", 970, 580, 390, 140, "Start Break", actions=[command("startBreak")]),
+    zone("logout", 560, 740, 390, 140, "Log Out", actions=[command("logout")], style=fill(RED)),
+    zone("cancel", 970, 740, 390, 140, "Cancel", actions=[jump(mode="back")]),
+], role="logout")
+
+admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"), ("Taxes", "taxes"),
+         ("Tenders", "tenders"), ("Printers", "printers"), ("Reports", "reports"), ("Drawers", "drawers"),
+         ("End of Day", "endOfDay")]
+mgr = [label("title", 160, 40, 1600, 100, "Manager")]
+for i, (text, panel) in enumerate(admin):
+    col, row = i % 4, i // 4
+    mgr.append(zone(f"admin-{panel}", 160 + col * 408, 180 + row * 220, 384, 196, text,
+                    actions=[command("openAdmin", panel=panel)]))
+mgr += [
+    zone("edit-pages", 1384, 620, 384, 196, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
+    zone("back", 160, 900, 384, 140, "‹ Back", actions=[jump(mode="back")]),
+]
+page("manager", "Manager", "manager", mgr, role="manager", permission="manager")
+
+# Manager screens (reached through openAdmin from the Manager page)
+for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees", "Employees", "employees"),
+                         ("admin-tenders", "Payment Types", "tenders"), ("admin-printers", "Printers", "printers"),
+                         ("admin-taxes", "Taxes", "taxes"), ("admin-store", "Store Settings", "store")]:
+    page(pid, name, "manager", [
+        label("title", 16, 16, 1888, 80, name),
+        zone("editor", 16, 112, 1888, 816, kind="adminPanel", props={"panel": panel}),
+        zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
+    ], permission="manager")
+
+page("reports", "Reports", "manager", [
+    zone("report", 16, 16, 1440, 1048, kind="reportView"),
+    zone("back", 1472, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
+], permission="manager")
+
+page("drawer", "Drawer", "manager", [
+    zone("drawer", 16, 16, 900, 1048, kind="drawerPanel"),
+    zone("pad", 932, 16, 520, 620, kind="numPad", props={"mode": "amount"}),
+    zone("back", 1472, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+], permission="check.settle")
+
+page("end-of-day", "End of Day", "manager", [
+    zone("eod", 460, 40, 1000, 880, kind="endOfDay"),
+    zone("drawer", 460, 944, 480, 120, "Drawer…", actions=[jump(page="drawer")]),
+    zone("back", 980, 944, 480, 120, "‹ Manager", actions=[jump(mode="back")]),
+], permission="manager")
+
+page("library", "Button Library", "library", [
+    label("title", 40, 24, 1840, 80, "Button Library — copy these onto any page"),
+    zone("lib-send", 40, 140, 300, 120, "Send", actions=[command("sendOrder")], style=fill(GREEN)),
+    zone("lib-void", 360, 140, 300, 120, "Void", actions=[command("voidItem")], behavior="double",
+         style=fill(RED)),
+    zone("lib-pay", 680, 140, 300, 120, "Pay", actions=[jump(role="settle")], style=fill(BLUE)),
+    zone("lib-toggle", 1000, 140, 300, 120, "Toggle", behavior="toggle"),
+    zone("lib-diamond", 40, 300, 240, 240, "Diamond", shape="diamond"),
+    zone("lib-hexagon", 320, 300, 300, 240, "Hexagon", shape="hexagon"),
+    zone("lib-octagon", 660, 300, 240, 240, "Octagon", shape="octagon"),
+    zone("lib-circle", 940, 300, 240, 240, "Circle", shape="circle"),
+    zone("lib-sand", 40, 580, 300, 140, "Sand", style={"normal": {"texture": "sand", "fill": "#ae9877",
+         "textColor": "#1b1b1b"}, "selected": {"texture": "litsand", "fill": "#d9c49a"}}),
+    zone("lib-marble", 360, 580, 300, 140, "Marble", style={"normal": {"texture": "greenmarble",
+         "fill": "#3a5a40"}}),
+    zone("lib-wood", 680, 580, 300, 140, "Wood", shape="rounded", style={"normal": {"texture": "darkwood",
+         "fill": "#5a3a22"}}),
+    zone("lib-parchment", 1000, 580, 300, 140, "Parchment", style={"normal": {"texture": "parchment",
+         "fill": "#d8c8a0", "textColor": "#2b2b2b", "textStyle": "embossed"}}),
+    zone("lib-disabled", 1320, 580, 300, 140, "Disabled", enabled=False),
+    zone("lib-status", 40, 780, 1840, 80, kind="statusBar"),
+], background={"texture": "graymarble", "fill": "#555a60"})
+
+print("seed written to", OUT)

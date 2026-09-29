@@ -103,6 +103,7 @@ TEST_CASE("Flow: login, table, order with modifiers, send, pay, close", "[flow]"
     s.c.activate(u"flow-send"_s);
     CHECK(s.pos.lines()[0].toMap()[u"sent"_s].toBool());
 
+    REQUIRE(s.pos.openDrawerSession());              // cash needs an open drawer
     s.c.activate(u"flow-pay"_s);
     CHECK(s.c.pageId() == u"settle"_s);
     // 12.50 + 8.25% (1.03125 -> 1.03) = 13.53; pay $20 cash.

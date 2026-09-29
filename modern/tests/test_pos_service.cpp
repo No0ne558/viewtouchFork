@@ -191,6 +191,7 @@ TEST_CASE("Payments: exact card, cash change, discount, undo, close", "[pos]")
     CHECK(t.pos.entry().isEmpty());
 
     QSignalSpy closed(&t.pos, &PosService::checkClosed);
+    REQUIRE(t.pos.openDrawerSession());            // cash needs an open drawer
     REQUIRE(t.pos.closeCheck());
     CHECK(closed.size() == 1);
     CHECK_FALSE(t.pos.hasCheck());

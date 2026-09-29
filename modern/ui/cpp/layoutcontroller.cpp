@@ -141,6 +141,11 @@ void LayoutController::selectTable(const QString &label)
         else if (pos_->startCheck(vt::core::CheckType::DineIn))
             navigate(Navigator::Mode::Index);
         break;
+    case PosService::TableResult::ChooseCheck:
+        // Several checks at the table: pick one from the (filtered) list.
+        if (const QString page = rolePage(u"checkList"_s); !page.isEmpty())
+            navigate(Navigator::Mode::Push, page);
+        break;
     case PosService::TableResult::Failed:
         break;
     }
@@ -408,7 +413,28 @@ bool LayoutController::runCommand(const QString &name, const QVariantMap &args)
     if (name == u"editMode")
         return requestEditMode();
 
+    // Manager screens are pages ("admin-menu", "reports"...). Kept as a
+    // command so buttons made before those pages existed still work.
+    if (name == u"openAdmin") {
+        static const QHash<QString, QString> pages = {
+            {u"menu"_s, u"admin-menu"_s}, {u"employees"_s, u"admin-employees"_s},
+            {u"tenders"_s, u"admin-tenders"_s}, {u"printers"_s, u"admin-printers"_s},
+            {u"taxes"_s, u"admin-taxes"_s}, {u"settings"_s, u"admin-store"_s},
+            {u"reports"_s, u"reports"_s}, {u"drawers"_s, u"drawer"_s}, {u"endOfDay"_s, u"end-of-day"_s},
+        };
+        const QString page = pages.value(args.value(u"panel"_s).toString());
+        if (!page.isEmpty() && activeLayout().page(page))
+            return navigate(Navigator::Mode::Push, page);
+        setStatus(tr("This screen is not in your pages yet (start with --reset-layout to get it)."));
+        return false;
+    }
+
     if (pos_) {
+        if (name == u"printReceipt") return pos_->printReceipt();
+        if (name == u"noSale" || name == u"openDrawer") return pos_->noSale();
+        if (name == u"openDrawerSession") return pos_->openDrawerSession();
+        if (name == u"countDrawer") return pos_->countDrawer();
+        if (name == u"endOfDay") return pos_->endOfDay();
         using vt::core::CheckType;
         if (name == u"login") return pos_->login();
         if (name == u"logout") { pos_->logout(); return true; }
@@ -425,7 +451,7 @@ bool LayoutController::runCommand(const QString &name, const QVariantMap &args)
         if (name == u"closeCheck") return pos_->closeCheck();
     }
 
-    // Not built yet (printing and drawers are M4, admin screens M4).
+    // Unknown here: let the host application handle it.
     emit commandRequested(name, args);
     setStatus(tr("'%1' is not available yet").arg(name));
     return true;

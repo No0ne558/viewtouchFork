@@ -44,7 +44,8 @@ Item {
     // Widgets with a working implementation (Widget<Kind>.qml); the rest
     // show a placeholder until their milestone.
     readonly property var builtWidgets: ["orderList", "loginPad", "tableMap", "guestCount", "numPad",
-        "paymentPanel", "checkList", "keyboard", "clock", "logoutPanel", "statusBar"]
+        "paymentPanel", "checkList", "keyboard", "clock", "logoutPanel", "statusBar",
+        "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck"]
     readonly property bool hasWidget: isWidget && builtWidgets.includes(kind)
     readonly property bool interactive: zoneEnabled && behavior !== "passthrough"
                                         && (kind === "button" || kind === "image")

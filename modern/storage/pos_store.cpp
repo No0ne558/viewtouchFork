@@ -11,6 +11,8 @@
 #include <QSqlQuery>
 #include <QUuid>
 
+#include <limits>
+
 using namespace Qt::StringLiterals;
 using namespace vt::core;
 using vt::app::qs;
@@ -102,6 +104,25 @@ bool PosStore::open(QString *error)
             return false;
         }
     }
+    if (version < 2) {
+        if (!db.transaction()) {
+            if (error)
+                *error = db.lastError().text();
+            return false;
+        }
+        const bool ok =
+            run(q, u"CREATE TABLE business_days (id INTEGER PRIMARY KEY, opened_at INTEGER NOT NULL, "
+                   "closed_at INTEGER NOT NULL DEFAULT 0, reports TEXT)"_s, error)
+            && run(q, u"CREATE TABLE drawer_sessions (id INTEGER PRIMARY KEY, opened_at INTEGER NOT NULL, "
+                      "closed_at INTEGER NOT NULL DEFAULT 0, json TEXT NOT NULL)"_s, error)
+            && run(q, u"ALTER TABLE checks ADD COLUMN business_day INTEGER NOT NULL DEFAULT 0"_s, error)
+            && run(q, u"CREATE INDEX checks_day ON checks (business_day)"_s, error)
+            && run(q, u"UPDATE meta SET value = '2' WHERE key = 'pos_schema_version'"_s, error);
+        if (!ok || !db.commit()) {
+            db.rollback();
+            return false;
+        }
+    }
     return true;
 }
 
@@ -182,11 +203,43 @@ std::optional<app::PosData> PosStore::load(QStringList *errors) const
     data.openChecks = checks(CheckStatus::Open);
     if (q.exec(u"SELECT COALESCE(MAX(id), 0) FROM checks"_s) && q.next())
         data.lastCheckId = q.value(0).toLongLong();
+
+    // Business day: the open one, its closed checks, and recent closed days.
+    if (q.exec(u"SELECT COALESCE(MAX(id), 0) FROM business_days"_s) && q.next())
+        data.lastDayId = q.value(0).toLongLong();
+    if (q.exec(u"SELECT id, opened_at FROM business_days WHERE closed_at = 0 ORDER BY id DESC LIMIT 1"_s) && q.next())
+        data.currentDay = BusinessDay{q.value(0).toLongLong(), q.value(1).toLongLong(), 0};
+    const std::int64_t dayStart = data.currentDay ? data.currentDay->openedAt : std::numeric_limits<std::int64_t>::max();
+    if (data.currentDay) {
+        q.prepare(u"SELECT json FROM checks WHERE status = 'closed' AND business_day = ? ORDER BY id"_s);
+        q.addBindValue(qint64(data.currentDay->id));
+        if (q.exec()) {
+            while (q.next()) {
+                if (auto c = app::checkFromJson(parse(q.value(0))))
+                    data.closedToday.push_back(std::move(*c));
+            }
+        }
+    }
+    if (q.exec(u"SELECT id, opened_at, closed_at, reports FROM business_days WHERE closed_at != 0 "
+               "ORDER BY id DESC LIMIT 60"_s)) {
+        while (q.next()) {
+            data.pastDays.push_back({BusinessDay{q.value(0).toLongLong(), q.value(1).toLongLong(), q.value(2).toLongLong()},
+                                     parse(q.value(3))});
+        }
+    }
+
     for (const TimePunch &p : punches()) {
         data.lastPunchId = std::max(data.lastPunchId, p.id);
-        if (p.open())
-            data.openPunches.push_back(p);
+        if (p.open() || p.clockIn >= dayStart)
+            data.punches.push_back(p);
     }
+
+    if (q.exec(u"SELECT COALESCE(MAX(id), 0) FROM drawer_sessions"_s) && q.next())
+        data.lastDrawerId = q.value(0).toLongLong();
+    q.prepare(u"SELECT json FROM drawer_sessions WHERE closed_at = 0 OR opened_at >= ? ORDER BY id DESC LIMIT 1"_s);
+    q.addBindValue(qint64(dayStart));
+    if (q.exec() && q.next())
+        data.drawer = app::drawerFromJson(parse(q.value(0)));
     return data;
 }
 
@@ -223,8 +276,47 @@ void SqlPosSink::saveCheck(const Check &c)
     writer_.upsert(u"checks"_s, QString::number(c.id), {
         {u"id"_s, qint64(c.id)}, {u"status"_s, qs(toString(c.status))}, {u"label"_s, qs(c.label)},
         {u"server_id"_s, qs(c.serverId)}, {u"opened_at"_s, qint64(c.openedAt)},
-        {u"closed_at"_s, qint64(c.closedAt)}, {u"json"_s, compact(app::toJson(c))},
+        {u"closed_at"_s, qint64(c.closedAt)}, {u"business_day"_s, qint64(c.businessDay)},
+        {u"json"_s, compact(app::toJson(c))},
     });
+}
+
+void SqlPosSink::saveDay(const BusinessDay &day, const QJsonObject &reports)
+{
+    writer_.upsert(u"business_days"_s, QString::number(day.id), {
+        {u"id"_s, qint64(day.id)}, {u"opened_at"_s, qint64(day.openedAt)}, {u"closed_at"_s, qint64(day.closedAt)},
+        {u"reports"_s, reports.isEmpty() ? QVariant() : QVariant(compact(reports))},
+    });
+}
+
+void SqlPosSink::saveDrawer(const DrawerSession &d)
+{
+    writer_.upsert(u"drawer_sessions"_s, QString::number(d.id), {
+        {u"id"_s, qint64(d.id)}, {u"opened_at"_s, qint64(d.openedAt)}, {u"closed_at"_s, qint64(d.closedAt)},
+        {u"json"_s, compact(app::toJson(d))},
+    });
+}
+
+void SqlPosSink::saveSettings(const PosSettings &s)
+{
+    writer_.upsert(u"settings"_s, u"pos"_s, {{u"key"_s, u"pos"_s}, {u"json"_s, compact(app::toJson(s))}});
+}
+
+void SqlPosSink::saveMenuItem(const MenuItem &item, int position)
+{
+    writer_.upsert(u"menu_items"_s, qs(item.id), {
+        {u"id"_s, qs(item.id)}, {u"position"_s, position}, {u"json"_s, compact(app::toJson(item))},
+    });
+}
+
+void SqlPosSink::deleteMenuItem(const std::string &id)
+{
+    writer_.remove(u"menu_items"_s, u"id"_s, qs(id));
+}
+
+void SqlPosSink::saveEmployee(const Employee &e)
+{
+    writer_.upsert(u"employees"_s, qs(e.id), {{u"id"_s, qs(e.id)}, {u"json"_s, compact(app::toJson(e))}});
 }
 
 void SqlPosSink::savePunch(const TimePunch &p)

@@ -245,6 +245,23 @@ int Check::unsentCount() const
     return int(std::ranges::count_if(lines, [](const OrderLine &l) { return !l.sent; }));
 }
 
+std::optional<OrderLine> Check::takeLine(std::int64_t lineId)
+{
+    auto it = std::ranges::find(lines, lineId, &OrderLine::id);
+    if (it == lines.end())
+        return std::nullopt;
+    OrderLine l = std::move(*it);
+    lines.erase(it);
+    return l;
+}
+
+OrderLine &Check::adoptLine(OrderLine line)
+{
+    line.id = nextLineId++;
+    lines.push_back(std::move(line));
+    return lines.back();
+}
+
 Payment &Check::addPayment(const Tender &tender, Money amount)
 {
     Payment p;
@@ -330,6 +347,8 @@ Totals Check::totals(const TaxRates &rates) const
     for (const Payment &p : payments) {
         if (p.kind != TenderKind::Discount)
             t.paid += p.amount;
+        if (p.kind == TenderKind::Cash)
+            t.cashPaid += p.amount;
     }
     t.balance = t.total - t.paid;
     t.change = t.balance.cents() < 0 ? -t.balance : Money();

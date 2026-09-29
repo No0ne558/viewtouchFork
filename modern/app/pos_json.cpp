@@ -67,6 +67,7 @@ QJsonObject toJson(const Check &c)
         {u"openedAt"_s, qint64(c.openedAt)}, {u"closedAt"_s, qint64(c.closedAt)},
         {u"lines"_s, lines}, {u"payments"_s, payments},
         {u"nextLineId"_s, qint64(c.nextLineId)}, {u"nextPaymentId"_s, qint64(c.nextPaymentId)},
+        {u"businessDay"_s, qint64(c.businessDay)}, {u"drawerSession"_s, qint64(c.drawerSession)},
     };
 }
 
@@ -119,6 +120,8 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     }
     c.nextLineId = std::max<std::int64_t>(i64(o.value(u"nextLineId")), 1);
     c.nextPaymentId = std::max<std::int64_t>(i64(o.value(u"nextPaymentId")), 1);
+    c.businessDay = i64(o.value(u"businessDay"));
+    c.drawerSession = i64(o.value(u"drawerSession"));
     return c;
 }
 
@@ -225,10 +228,127 @@ TimePunch punchFromJson(const QJsonObject &o)
             i64(o.value(u"clockOut"))};
 }
 
+// --- reports and drawers ---------------------------------------------------------------
+
+namespace {
+QString kindName(ReportRow::Kind k)
+{
+    switch (k) {
+    case ReportRow::Kind::Section: return u"section"_s;
+    case ReportRow::Kind::Total: return u"total"_s;
+    case ReportRow::Kind::Note: return u"note"_s;
+    case ReportRow::Kind::Line: break;
+    }
+    return u"line"_s;
+}
+
+ReportRow::Kind kindFromName(const QString &s)
+{
+    if (s == u"section") return ReportRow::Kind::Section;
+    if (s == u"total") return ReportRow::Kind::Total;
+    if (s == u"note") return ReportRow::Kind::Note;
+    return ReportRow::Kind::Line;
+}
+
+QJsonArray strings(const std::vector<std::string> &v)
+{
+    QJsonArray a;
+    for (const std::string &s : v)
+        a.append(qs(s));
+    return a;
+}
+
+std::vector<std::string> strings(const QJsonArray &a)
+{
+    std::vector<std::string> v;
+    for (const QJsonValue &x : a)
+        v.push_back(ss(x.toString()));
+    return v;
+}
+} // namespace
+
+QJsonObject toJson(const Report &r)
+{
+    QJsonArray rows;
+    for (const ReportRow &row : r.rows)
+        rows.append(QJsonObject{{u"kind"_s, kindName(row.kind)}, {u"cells"_s, strings(row.cells)}});
+    return {{u"id"_s, qs(r.id)}, {u"title"_s, qs(r.title)}, {u"subtitle"_s, qs(r.subtitle)},
+            {u"columns"_s, strings(r.columns)}, {u"rows"_s, rows}};
+}
+
+Report reportFromJson(const QJsonObject &o)
+{
+    Report r;
+    r.id = ss(o.value(u"id").toString());
+    r.title = ss(o.value(u"title").toString());
+    r.subtitle = ss(o.value(u"subtitle").toString());
+    r.columns = strings(o.value(u"columns").toArray());
+    for (const QJsonValue &v : o.value(u"rows").toArray()) {
+        const QJsonObject row = v.toObject();
+        r.rows.push_back({kindFromName(row.value(u"kind").toString()), strings(row.value(u"cells").toArray())});
+    }
+    return r;
+}
+
+QJsonObject toJson(const DrawerSession &d)
+{
+    return {{u"id"_s, qint64(d.id)}, {u"name"_s, qs(d.name)}, {u"openedAt"_s, qint64(d.openedAt)},
+            {u"openedBy"_s, qs(d.openedBy)}, {u"startingCash"_s, qint64(d.startingCash.cents())},
+            {u"closedAt"_s, qint64(d.closedAt)}, {u"closedBy"_s, qs(d.closedBy)},
+            {u"expected"_s, qint64(d.expected.cents())}, {u"counted"_s, qint64(d.counted.cents())}};
+}
+
+DrawerSession drawerFromJson(const QJsonObject &o)
+{
+    DrawerSession d;
+    d.id = i64(o.value(u"id"));
+    d.name = ss(o.value(u"name").toString(u"Drawer 1"_s));
+    d.openedAt = i64(o.value(u"openedAt"));
+    d.openedBy = ss(o.value(u"openedBy").toString());
+    d.startingCash = money(o.value(u"startingCash"));
+    d.closedAt = i64(o.value(u"closedAt"));
+    d.closedBy = ss(o.value(u"closedBy").toString());
+    d.expected = money(o.value(u"expected"));
+    d.counted = money(o.value(u"counted"));
+    return d;
+}
+
 // --- settings ---------------------------------------------------------------------------
+
+QJsonObject toJson(const PrinterConfig &p)
+{
+    QJsonObject o{{u"id"_s, qs(p.id)}, {u"name"_s, qs(p.name)}, {u"type"_s, qs(p.type)},
+                  {u"width"_s, p.width}, {u"cutter"_s, p.cutter}, {u"drawerKick"_s, p.drawerKick}};
+    if (!p.host.empty()) o.insert(u"host"_s, qs(p.host));
+    if (p.port != 9100) o.insert(u"port"_s, p.port);
+    if (!p.path.empty()) o.insert(u"path"_s, qs(p.path));
+    if (!p.format.empty()) o.insert(u"format"_s, qs(p.format));
+    return o;
+}
+
+PrinterConfig printerFromJson(const QJsonObject &o)
+{
+    PrinterConfig p;
+    p.id = ss(o.value(u"id").toString());
+    p.name = ss(o.value(u"name").toString());
+    if (p.name.empty())
+        p.name = p.id;
+    p.type = ss(o.value(u"type").toString(u"none"_s));
+    p.host = ss(o.value(u"host").toString());
+    p.port = o.value(u"port").toInt(9100);
+    p.path = ss(o.value(u"path").toString());
+    p.format = ss(o.value(u"format").toString());
+    p.width = std::clamp(o.value(u"width").toInt(42), 16, 80);
+    p.cutter = o.value(u"cutter").toBool(true);
+    p.drawerKick = o.value(u"drawerKick").toBool(false);
+    return p;
+}
 
 QJsonObject toJson(const PosSettings &s)
 {
+    QJsonArray printers;
+    for (const PrinterConfig &p : s.printers)
+        printers.append(toJson(p));
     QJsonArray tenders;
     for (const Tender &t : s.tenders) {
         QJsonObject o{{u"id"_s, qs(t.id)}, {u"name"_s, qs(t.name)}, {u"kind"_s, qs(toString(t.kind))}};
@@ -245,6 +365,9 @@ QJsonObject toJson(const PosSettings &s)
              {u"merchandise"_s, percentFromPpm(s.tax.merchandisePpm)}, {u"room"_s, percentFromPpm(s.tax.roomPpm)},
              {u"taxTakeoutFood"_s, s.tax.taxTakeoutFood}}},
         {u"tenders"_s, tenders},
+        {u"printers"_s, printers},
+        {u"receiptHeader"_s, qs(s.receiptHeader)},
+        {u"receiptFooter"_s, qs(s.receiptFooter)},
     };
 }
 
@@ -259,6 +382,10 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.tax.merchandisePpm = ppmFromPercent(tax.value(u"merchandise").toDouble());
     s.tax.roomPpm = ppmFromPercent(tax.value(u"room").toDouble());
     s.tax.taxTakeoutFood = tax.value(u"taxTakeoutFood").toBool(true);
+    for (const QJsonValue &v : o.value(u"printers").toArray())
+        s.printers.push_back(printerFromJson(v.toObject()));
+    s.receiptHeader = ss(o.value(u"receiptHeader").toString());
+    s.receiptFooter = ss(o.value(u"receiptFooter").toString());
     for (const QJsonValue &v : o.value(u"tenders").toArray()) {
         const QJsonObject t = v.toObject();
         Tender tender;

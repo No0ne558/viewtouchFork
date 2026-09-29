@@ -52,7 +52,8 @@ Item {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     visible: t.status.open
-                    text: (t.status.server ?? "") + "  ·  " + (t.status.total ?? "")
+                    text: ((t.status.checks ?? 1) > 1 ? qsTr("%1 checks").arg(t.status.checks) : (t.status.server ?? ""))
+                          + "  ·  " + (t.status.total ?? "")
                     color: "#e6e9ef"
                     font.family: w.face
                     font.pixelSize: Math.min(t.height * 0.13, 20)

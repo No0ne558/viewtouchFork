@@ -1,5 +1,7 @@
 #include "app/pos_json.hh"
 #include "layoutcontroller.hh"
+#include "print/spooler.hh"
+#include "print/ticket_printer.hh"
 #include "storage/async_writer.hh"
 #include "storage/layout_store.hh"
 #include "storage/pos_store.hh"
@@ -117,6 +119,17 @@ int main(int argc, char *argv[])
         sink = std::make_unique<vt::storage::SqlPosSink>(*writer);
     }
     vt::app::PosService pos(std::move(*posData), sink.get());
+
+    // Printing: a worker thread delivers tickets; "file" printers write under
+    // <app data>/printouts so tickets are visible without hardware.
+    vt::print::PrintSpooler spooler;
+    vt::print::TicketPrinter ticketPrinter(
+        spooler, QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)).filePath(u"printouts"_s));
+    pos.setPrinter(&ticketPrinter);
+    QObject::connect(&spooler, &vt::print::PrintSpooler::jobFailed, &pos,
+                     [&pos](const QString &printer, const QString &what, const QString &error) {
+        emit pos.notice(QCoreApplication::translate("main", "%1 did not print on %2: %3").arg(what, printer, error));
+    });
 
     LayoutController controller(std::move(*layout));
     if (haveStore)

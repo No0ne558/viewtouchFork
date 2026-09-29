@@ -108,7 +108,8 @@ QStringList widgetKinds()
 {
     return {u"orderList"_s, u"loginPad"_s, u"tableMap"_s, u"guestCount"_s, u"checkList"_s,
             u"paymentPanel"_s, u"numPad"_s, u"keyboard"_s, u"splitCheck"_s, u"drawerPanel"_s,
-            u"reportView"_s, u"endOfDay"_s, u"logoutPanel"_s, u"clock"_s, u"statusBar"_s};
+            u"reportView"_s, u"endOfDay"_s, u"logoutPanel"_s, u"clock"_s, u"statusBar"_s,
+            u"adminPanel"_s};
 }
 
 QStringList allKinds()
@@ -245,10 +246,14 @@ QJsonArray actionTypes()
         type(u"command"_s, u"Command"_s,
              {with(field(u"name"_s, u"Command"_s, u"enum"_s, g), u"options"_s,
                    options({{"sendOrder", "Send order"}, {"voidItem", "Void item"}, {"printReceipt", "Print receipt"},
-                            {"closeCheck", "Close check"}, {"openDrawer", "Open drawer"}, {"clockIn", "Clock in"},
-                            {"clockOut", "Clock out"}, {"startBreak", "Start break"}, {"startTakeout", "Start takeout"},
-                            {"openCheckList", "Check list"}, {"openAdmin", "Admin screen"}, {"editMode", "Edit pages"},
-                            {"logout", "Log out"}}))}),
+                            {"closeCheck", "Close check"}, {"removePayment", "Undo payment"},
+                            {"noSale", "Open drawer (no sale)"}, {"openDrawerSession", "Start drawer (bank)"},
+                            {"countDrawer", "Count drawer"}, {"endOfDay", "End of day"},
+                            {"login", "Log in"}, {"logout", "Log out"}, {"clockIn", "Clock in"},
+                            {"clockOut", "Clock out"}, {"startCheck", "Start table check"},
+                            {"startQuick", "Start quick check"}, {"startTakeout", "Start takeout"},
+                            {"releaseCheck", "Put check away"}, {"addComment", "Add note"},
+                            {"openAdmin", "Admin screen"}, {"editMode", "Edit pages"}}))}),
     };
 }
 

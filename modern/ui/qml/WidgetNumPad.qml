@@ -24,7 +24,8 @@ Item {
                 anchors.rightMargin: 16
                 horizontalAlignment: Text.AlignRight
                 verticalAlignment: Text.AlignVCenter
-                text: !w.pos ? "" : w.amount ? (w.pos.entry === "" ? qsTr("Balance due") : w.pos.entryAmount)
+                text: !w.pos ? "" : w.amount ? (w.pos.entry !== "" ? w.pos.entryAmount
+                                                : w.pos.hasCheck ? qsTr("Balance due") : w.pos.entryAmount)
                                               : (w.pos.entry === "" ? "0" : w.pos.entry)
                 color: w.pos && w.pos.entry === "" ? "#8a94a6" : "white"
                 font.family: w.zone.st.font ?? "DejaVu Sans"

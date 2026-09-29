@@ -221,6 +221,46 @@
       ]
     },
     {
+      "id": "split",
+      "kind": "button",
+      "rect": {
+        "x": 1468,
+        "y": 660,
+        "w": 436,
+        "h": 110
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Split Check",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "split"
+        }
+      ]
+    },
+    {
+      "id": "drawer",
+      "kind": "button",
+      "rect": {
+        "x": 1468,
+        "y": 786,
+        "w": 436,
+        "h": 110
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Drawer\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "drawer"
+        }
+      ]
+    },
+    {
       "id": "done",
       "kind": "button",
       "rect": {
