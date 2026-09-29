@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "id": "index-lunch",
+  "name": "Lunch",
+  "kind": "index",
+  "canvas": {
+    "w": 1920,
+    "h": 1080
+  },
+  "grid": 8,
+  "templateId": "order-template",
+  "mealPeriod": "lunch",
+  "zones": [
+    {
+      "id": "title",
+      "kind": "label",
+      "rect": {
+        "x": 592,
+        "y": 104,
+        "w": 1312,
+        "h": 72
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "Lunch"
+    },
+    {
+      "id": "cat-items-burgers",
+      "kind": "button",
+      "rect": {
+        "x": 592,
+        "y": 192,
+        "w": 424,
+        "h": 240
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Burgers",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "replace",
+          "page": "items-burgers"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#a86a12"
+        }
+      }
+    },
+    {
+      "id": "cat-items-salads",
+      "kind": "button",
+      "rect": {
+        "x": 1036,
+        "y": 192,
+        "w": 424,
+        "h": 240
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Salads",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "replace",
+          "page": "items-salads"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f8a4c"
+        }
+      }
+    },
+    {
+      "id": "cat-items-drinks",
+      "kind": "button",
+      "rect": {
+        "x": 1480,
+        "y": 192,
+        "w": 424,
+        "h": 240
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Drinks",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "replace",
+          "page": "items-drinks"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    }
+  ]
+}

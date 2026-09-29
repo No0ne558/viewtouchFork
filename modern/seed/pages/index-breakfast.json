@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "index-breakfast",
+  "name": "Breakfast",
+  "kind": "index",
+  "canvas": {
+    "w": 1920,
+    "h": 1080
+  },
+  "grid": 8,
+  "templateId": "order-template",
+  "mealPeriod": "breakfast",
+  "zones": [
+    {
+      "id": "title",
+      "kind": "label",
+      "rect": {
+        "x": 592,
+        "y": 104,
+        "w": 1312,
+        "h": 72
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "Breakfast"
+    },
+    {
+      "id": "cat-items-breakfast",
+      "kind": "button",
+      "rect": {
+        "x": 592,
+        "y": 192,
+        "w": 424,
+        "h": 240
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Plates",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "replace",
+          "page": "items-breakfast"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#a86a12"
+        }
+      }
+    },
+    {
+      "id": "cat-items-drinks",
+      "kind": "button",
+      "rect": {
+        "x": 1036,
+        "y": 192,
+        "w": 424,
+        "h": 240
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Drinks",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "replace",
+          "page": "items-drinks"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    }
+  ]
+}

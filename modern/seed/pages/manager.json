@@ -1,0 +1,268 @@
+{
+  "schemaVersion": 1,
+  "id": "manager",
+  "name": "Manager",
+  "kind": "manager",
+  "canvas": {
+    "w": 1920,
+    "h": 1080
+  },
+  "grid": 8,
+  "role": "manager",
+  "zones": [
+    {
+      "id": "title",
+      "kind": "label",
+      "rect": {
+        "x": 160,
+        "y": 40,
+        "w": 1600,
+        "h": 100
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "Manager"
+    },
+    {
+      "id": "admin-menu",
+      "kind": "button",
+      "rect": {
+        "x": 160,
+        "y": 180,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Menu",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "menu"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin-employees",
+      "kind": "button",
+      "rect": {
+        "x": 568,
+        "y": 180,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Employees",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "employees"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin-settings",
+      "kind": "button",
+      "rect": {
+        "x": 976,
+        "y": 180,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Settings",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "settings"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin-taxes",
+      "kind": "button",
+      "rect": {
+        "x": 1384,
+        "y": 180,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Taxes",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "taxes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin-tenders",
+      "kind": "button",
+      "rect": {
+        "x": 160,
+        "y": 400,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Tenders",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "tenders"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin-printers",
+      "kind": "button",
+      "rect": {
+        "x": 568,
+        "y": 400,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Printers",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "printers"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin-reports",
+      "kind": "button",
+      "rect": {
+        "x": 976,
+        "y": 400,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Reports",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "reports"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin-drawers",
+      "kind": "button",
+      "rect": {
+        "x": 1384,
+        "y": 400,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Drawers",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "drawers"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin-endOfDay",
+      "kind": "button",
+      "rect": {
+        "x": 160,
+        "y": 620,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "End of Day",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "endOfDay"
+          }
+        }
+      ]
+    },
+    {
+      "id": "edit-pages",
+      "kind": "button",
+      "rect": {
+        "x": 1384,
+        "y": 620,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Edit Pages",
+      "actions": [
+        {
+          "type": "command",
+          "name": "editMode"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#2b62b0"
+        }
+      }
+    },
+    {
+      "id": "back",
+      "kind": "button",
+      "rect": {
+        "x": 160,
+        "y": 900,
+        "w": 384,
+        "h": 140
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "\u2039 Back",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "back"
+        }
+      ]
+    }
+  ]
+}

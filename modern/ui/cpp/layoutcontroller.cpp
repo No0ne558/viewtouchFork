@@ -1,0 +1,235 @@
+#include "layoutcontroller.hh"
+
+#include <QJsonArray>
+#include <QLoggingCategory>
+
+using namespace Qt::StringLiterals;
+using vt::app::Navigator;
+using vt::layout::Action;
+using vt::layout::Layout;
+using vt::layout::ZoneState;
+
+Q_LOGGING_CATEGORY(lcLayout, "vt.layout")
+
+namespace {
+
+// Page id of the first push/replace jump, used to light index tabs.
+QString primaryJumpTarget(const Layout &layout, const vt::layout::Zone &zone)
+{
+    for (const Action &a : zone.actions) {
+        if (a.type() != u"jump")
+            continue;
+        const QString mode = a.data.value(u"mode").toString(u"push"_s);
+        if (mode == u"push" || mode == u"replace")
+            return layout.resolveTarget(a.data);
+    }
+    return {};
+}
+
+} // namespace
+
+LayoutController::LayoutController(Layout layout, QObject *parent)
+    : QObject(parent)
+    , layout_(std::move(layout))
+    , nav_(layout_)
+{
+    const vt::layout::Page *home = layout_.pageByRole(u"login"_s);
+    if (!home && !layout_.pages.isEmpty())
+        home = &layout_.pages.first();
+    nav_.setMealPeriod(mealPeriodAt(QTime::currentTime()));
+    nav_.reset(home ? home->id : QString());
+    refresh();
+}
+
+QString LayoutController::mealPeriodAt(QTime time)
+{
+    if (time < QTime(11, 0))
+        return u"breakfast"_s;
+    if (time < QTime(16, 0))
+        return u"lunch"_s;
+    return u"dinner"_s;
+}
+
+QString LayoutController::pageName() const
+{
+    const auto *p = currentPage();
+    return p ? p->name : QString();
+}
+
+QString LayoutController::pageKind() const
+{
+    const auto *p = currentPage();
+    return p ? p->kind : QString();
+}
+
+QSize LayoutController::canvasSize() const
+{
+    const auto *p = currentPage();
+    return p ? p->canvas : QSize(1920, 1080);
+}
+
+QVariantMap LayoutController::background() const
+{
+    return layout_.resolveBackground(nav_.current()).toVariantMap();
+}
+
+void LayoutController::activate(const QString &zoneId)
+{
+    for (const Layout::PlacedZone &pz : layout_.effectiveZones(nav_.current())) {
+        if (pz.zone->id != zoneId)
+            continue;
+        if (!pz.zone->enabled)
+            return;
+        // Actions run in order; a page change ends the chain because the
+        // remaining actions belonged to the page that is no longer shown.
+        const QString before = nav_.current();
+        for (const Action &a : pz.zone->actions) {
+            runAction(a);
+            if (nav_.current() != before)
+                break;
+        }
+        return;
+    }
+    qCWarning(lcLayout) << "activate: no zone" << zoneId << "on page" << nav_.current();
+}
+
+void LayoutController::goBack()
+{
+    navigate(Navigator::Mode::Back);
+}
+
+void LayoutController::goHome()
+{
+    navigate(Navigator::Mode::Home);
+}
+
+bool LayoutController::jumpTo(const QString &pageId)
+{
+    if (!layout_.page(pageId))
+        return false;
+    navigate(Navigator::Mode::Push, pageId);
+    return true;
+}
+
+bool LayoutController::triggerHotkey(const QString &key)
+{
+    if (key.isEmpty())
+        return false;
+    const auto zones = layout_.effectiveZones(nav_.current());
+    // Topmost zone wins, matching touch order.
+    for (auto it = zones.rbegin(); it != zones.rend(); ++it) {
+        if (it->zone->enabled && it->zone->hotkey.compare(key, Qt::CaseInsensitive) == 0) {
+            activate(it->zone->id);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool LayoutController::runAction(const Action &a)
+{
+    const QString type = a.type();
+
+    if (type == u"jump") {
+        const QString modeName = a.str(u"mode");
+        const auto mode = Navigator::parseMode(modeName);
+        if (!mode) {
+            setStatus(tr("Unknown jump mode '%1'").arg(modeName));
+            return false;
+        }
+        const QString target = layout_.resolveTarget(a.data);
+        if ((*mode == Navigator::Mode::Push || *mode == Navigator::Mode::Replace) && target.isEmpty()) {
+            setStatus(tr("This button's page does not exist"));
+            return false;
+        }
+        navigate(*mode, target);
+        return true;
+    }
+
+    if (type == u"addItem") {
+        const QString item = a.str(u"item");
+        emit itemAdded(item);
+        setStatus(tr("Added %1").arg(item));
+        QStringList sequence;
+        for (const QJsonValue &v : a.data.value(u"modifierSequence").toArray())
+            sequence.append(v.toString());
+        if (!sequence.isEmpty() && nav_.startSequence(sequence)) {
+            refresh();
+            emit pageChanged();
+        }
+        return true;
+    }
+
+    if (type == u"qualifier") {
+        setStatus(tr("Qualifier: %1").arg(a.str(u"qualifier")));
+        return true;
+    }
+
+    if (type == u"tender") {
+        setStatus(tr("Tender: %1 (payments arrive in M3)").arg(a.str(u"tender")));
+        return true;
+    }
+
+    if (type == u"command") {
+        const QString name = a.str(u"name");
+        emit commandRequested(name, a.data.value(u"args").toObject().toVariantMap());
+        setStatus(tr("'%1' is not available yet").arg(name));
+        return true;
+    }
+
+    setStatus(tr("Action '%1' is not supported yet").arg(type));
+    return false;
+}
+
+void LayoutController::navigate(Navigator::Mode mode, const QString &target)
+{
+    if (nav_.jump(mode, target)) {
+        refresh();
+        emit pageChanged();
+    }
+}
+
+void LayoutController::refresh()
+{
+    const QString pageId = nav_.current();
+    const auto *page = currentPage();
+    const bool onItemPage = page && (page->kind == u"items" || page->kind == u"modifier");
+
+    QList<ZoneModel::Row> rows;
+    for (const Layout::PlacedZone &pz : layout_.effectiveZones(pageId)) {
+        const vt::layout::Zone &z = *pz.zone;
+        const QString target = primaryJumpTarget(layout_, z);
+        const bool current = !target.isEmpty()
+            && (target == pageId || (onItemPage && target == nav_.lastIndex()));
+
+        rows.append({
+            {ZoneModel::ZoneIdRole, z.id},
+            {ZoneModel::KindRole, z.kind},
+            {ZoneModel::ZoneNameRole, z.name},
+            {ZoneModel::LabelRole, z.label},
+            {ZoneModel::ZoneXRole, z.rect.x()},
+            {ZoneModel::ZoneYRole, z.rect.y()},
+            {ZoneModel::ZoneWRole, z.rect.width()},
+            {ZoneModel::ZoneHRole, z.rect.height()},
+            {ZoneModel::ShapeRole, z.shape},
+            {ZoneModel::BehaviorRole, z.behavior},
+            {ZoneModel::ZoneEnabledRole, z.enabled},
+            {ZoneModel::InheritedRole, pz.inherited},
+            {ZoneModel::CurrentRole, current},
+            {ZoneModel::HotkeyRole, z.hotkey},
+            {ZoneModel::GroupRole, z.group},
+            {ZoneModel::ImagePathRole, z.imagePath},
+            {ZoneModel::StyleNormalRole, layout_.resolveStyle(z, pageId, ZoneState::Normal).toVariantMap()},
+            {ZoneModel::StyleSelectedRole, layout_.resolveStyle(z, pageId, ZoneState::Selected).toVariantMap()},
+            {ZoneModel::StyleDisabledRole, layout_.resolveStyle(z, pageId, ZoneState::Disabled).toVariantMap()},
+            {ZoneModel::PropsRole, z.props.toVariantMap()},
+        });
+    }
+    zones_.setRows(std::move(rows));
+}
+
+void LayoutController::setStatus(const QString &text)
+{
+    status_ = text;
+    emit statusChanged();
+}

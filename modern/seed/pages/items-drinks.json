@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "id": "items-drinks",
+  "name": "Drinks",
+  "kind": "items",
+  "canvas": {
+    "w": 1920,
+    "h": 1080
+  },
+  "grid": 8,
+  "templateId": "order-template",
+  "zones": [
+    {
+      "id": "title",
+      "kind": "label",
+      "rect": {
+        "x": 592,
+        "y": 104,
+        "w": 1312,
+        "h": 72
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "Drinks"
+    },
+    {
+      "id": "item-1",
+      "kind": "button",
+      "rect": {
+        "x": 592,
+        "y": 192,
+        "w": 200,
+        "h": 200
+      },
+      "shape": "circle",
+      "behavior": "blink",
+      "label": "Coffee",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "Coffee"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
+      "id": "item-2",
+      "kind": "button",
+      "rect": {
+        "x": 870,
+        "y": 192,
+        "w": 200,
+        "h": 200
+      },
+      "shape": "circle",
+      "behavior": "blink",
+      "label": "Tea",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "Tea"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
+      "id": "item-3",
+      "kind": "button",
+      "rect": {
+        "x": 1148,
+        "y": 192,
+        "w": 200,
+        "h": 200
+      },
+      "shape": "circle",
+      "behavior": "blink",
+      "label": "Soda",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "Soda"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
+      "id": "item-4",
+      "kind": "button",
+      "rect": {
+        "x": 1426,
+        "y": 192,
+        "w": 200,
+        "h": 200
+      },
+      "shape": "circle",
+      "behavior": "blink",
+      "label": "Juice",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "Juice"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
+      "id": "item-5",
+      "kind": "button",
+      "rect": {
+        "x": 1704,
+        "y": 192,
+        "w": 200,
+        "h": 200
+      },
+      "shape": "circle",
+      "behavior": "blink",
+      "label": "Water",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "Water"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
+      "id": "item-6",
+      "kind": "button",
+      "rect": {
+        "x": 592,
+        "y": 408,
+        "w": 200,
+        "h": 200
+      },
+      "shape": "circle",
+      "behavior": "blink",
+      "label": "Lemonade",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "Lemonade"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    }
+  ]
+}

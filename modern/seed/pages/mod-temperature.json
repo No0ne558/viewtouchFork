@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "id": "mod-temperature",
+  "name": "Temperature",
+  "kind": "modifier",
+  "canvas": {
+    "w": 1920,
+    "h": 1080
+  },
+  "grid": 8,
+  "templateId": "order-template",
+  "zones": [
+    {
+      "id": "title",
+      "kind": "label",
+      "rect": {
+        "x": 592,
+        "y": 104,
+        "w": 1312,
+        "h": 72
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "How should it be cooked?"
+    },
+    {
+      "id": "opt-1",
+      "kind": "button",
+      "rect": {
+        "x": 592,
+        "y": 192,
+        "w": 424,
+        "h": 180
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Rare",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "Rare"
+        },
+        {
+          "type": "jump",
+          "mode": "sequence"
+        }
+      ]
+    },
+    {
+      "id": "opt-2",
+      "kind": "button",
+      "rect": {
+        "x": 1036,
+        "y": 192,
+        "w": 424,
+        "h": 180
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Medium Rare",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "Medium Rare"
+        },
+        {
+          "type": "jump",
+          "mode": "sequence"
+        }
+      ]
+    },
+    {
+      "id": "opt-3",
+      "kind": "button",
+      "rect": {
+        "x": 1480,
+        "y": 192,
+        "w": 424,
+        "h": 180
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Medium",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "Medium"
+        },
+        {
+          "type": "jump",
+          "mode": "sequence"
+        }
+      ]
+    },
+    {
+      "id": "opt-4",
+      "kind": "button",
+      "rect": {
+        "x": 592,
+        "y": 388,
+        "w": 424,
+        "h": 180
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Medium Well",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "Medium Well"
+        },
+        {
+          "type": "jump",
+          "mode": "sequence"
+        }
+      ]
+    },
+    {
+      "id": "opt-5",
+      "kind": "button",
+      "rect": {
+        "x": 1036,
+        "y": 388,
+        "w": 424,
+        "h": 180
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Well Done",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "Well Done"
+        },
+        {
+          "type": "jump",
+          "mode": "sequence"
+        }
+      ]
+    },
+    {
+      "id": "skip",
+      "kind": "button",
+      "rect": {
+        "x": 1480,
+        "y": 800,
+        "w": 424,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Skip \u203a",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "sequence"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#3a4250",
+          "fontSize": 28
+        }
+      }
+    }
+  ]
+}

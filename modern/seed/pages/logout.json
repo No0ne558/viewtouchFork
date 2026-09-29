@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "id": "logout",
+  "name": "Log Out",
+  "kind": "logout",
+  "canvas": {
+    "w": 1920,
+    "h": 1080
+  },
+  "grid": 8,
+  "role": "logout",
+  "zones": [
+    {
+      "id": "title",
+      "kind": "label",
+      "rect": {
+        "x": 560,
+        "y": 40,
+        "w": 800,
+        "h": 90
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "End of shift"
+    },
+    {
+      "id": "panel",
+      "kind": "logoutPanel",
+      "rect": {
+        "x": 560,
+        "y": 150,
+        "w": 800,
+        "h": 400
+      },
+      "shape": "rect",
+      "behavior": "none"
+    },
+    {
+      "id": "clock-out",
+      "kind": "button",
+      "rect": {
+        "x": 560,
+        "y": 580,
+        "w": 390,
+        "h": 140
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Clock Out",
+      "actions": [
+        {
+          "type": "command",
+          "name": "clockOut"
+        }
+      ]
+    },
+    {
+      "id": "break",
+      "kind": "button",
+      "rect": {
+        "x": 970,
+        "y": 580,
+        "w": 390,
+        "h": 140
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Start Break",
+      "actions": [
+        {
+          "type": "command",
+          "name": "startBreak"
+        }
+      ]
+    },
+    {
+      "id": "logout",
+      "kind": "button",
+      "rect": {
+        "x": 560,
+        "y": 740,
+        "w": 390,
+        "h": 140
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Log Out",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "home"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#b83232"
+        }
+      }
+    },
+    {
+      "id": "cancel",
+      "kind": "button",
+      "rect": {
+        "x": 970,
+        "y": 740,
+        "w": 390,
+        "h": 140
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Cancel",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "back"
+        }
+      ]
+    }
+  ]
+}

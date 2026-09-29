@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "id": "login",
+  "name": "Login",
+  "kind": "login",
+  "canvas": {
+    "w": 1920,
+    "h": 1080
+  },
+  "grid": 8,
+  "role": "login",
+  "zones": [
+    {
+      "id": "title",
+      "kind": "label",
+      "rect": {
+        "x": 460,
+        "y": 40,
+        "w": 1000,
+        "h": 110
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "ViewTouch",
+      "style": {
+        "normal": {
+          "fontSize": 72
+        }
+      }
+    },
+    {
+      "id": "clock",
+      "kind": "clock",
+      "rect": {
+        "x": 660,
+        "y": 160,
+        "w": 600,
+        "h": 80
+      },
+      "shape": "rect",
+      "behavior": "none"
+    },
+    {
+      "id": "login-pad",
+      "kind": "loginPad",
+      "rect": {
+        "x": 660,
+        "y": 260,
+        "w": 600,
+        "h": 600
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "Enter your PIN"
+    },
+    {
+      "id": "start",
+      "kind": "button",
+      "rect": {
+        "x": 660,
+        "y": 880,
+        "w": 600,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Start Shift (demo)",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "role": "tables"
+        }
+      ],
+      "hotkey": "s",
+      "style": {
+        "normal": {
+          "fill": "#1f8a4c"
+        }
+      }
+    }
+  ]
+}

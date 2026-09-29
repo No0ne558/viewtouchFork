@@ -1,47 +1,66 @@
 import QtQuick
 import QtQuick.Window
 
-// M0 placeholder. M1 replaces this with PageView driven by the layout model:
-// every page is authored on a logical canvas and scaled uniformly to the screen.
 Window {
     id: root
+
+    required property LayoutController controller
+
     width: 1280
     height: 720
     visible: true
-    title: qsTr("ViewTouch")
-    color: "#1e1f24"
+    title: qsTr("ViewTouch — %1").arg(controller.pageName)
+    color: "black"
 
-    readonly property size canvas: Qt.size(1920, 1080)
-    readonly property real scaleFactor: Math.min(width / canvas.width, height / canvas.height)
+    PageView {
+        id: pageView
+        anchors.fill: parent
+        controller: root.controller
+        focus: true
 
-    Item {
-        id: page
-        width: root.canvas.width
-        height: root.canvas.height
-        scale: root.scaleFactor
-        transformOrigin: Item.TopLeft
-        x: (root.width - width * scale) / 2
-        y: (root.height - height * scale) / 2
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Escape) {
+                root.controller.goBack()
+                event.accepted = true
+            } else if (event.key === Qt.Key_Home) {
+                root.controller.goHome()
+                event.accepted = true
+            } else if (event.text !== "" && root.controller.triggerHotkey(event.text)) {
+                event.accepted = true
+            }
+        }
+    }
 
-        Rectangle {
-            anchors.fill: parent
-            color: "#2a2c33"
+    // Status toast for action feedback.
+    Rectangle {
+        id: toast
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 24
+        width: toastText.implicitWidth + 40
+        height: toastText.implicitHeight + 20
+        radius: height / 2
+        color: "#e0101418"
+        opacity: 0
+        visible: opacity > 0
+
+        Text {
+            id: toastText
+            anchors.centerIn: parent
+            color: "white"
+            font.pixelSize: 18
+            text: root.controller.statusText
         }
 
-        Rectangle {
-            x: 760; y: 440; width: 400; height: 200
-            radius: 16
-            color: tap.pressed ? "#3d7bd9" : "#2f6fd0"
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+        Timer { id: toastTimer; interval: 2000; onTriggered: toast.opacity = 0 }
 
-            Text {
-                anchors.centerIn: parent
-                text: qsTr("ViewTouch Modern")
-                color: "white"
-                font.pixelSize: 40
-                font.bold: true
+        Connections {
+            target: root.controller
+            function onStatusChanged() {
+                toast.opacity = 1
+                toastTimer.restart()
             }
-
-            TapHandler { id: tap }
         }
     }
 }

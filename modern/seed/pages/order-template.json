@@ -1,0 +1,300 @@
+{
+  "schemaVersion": 1,
+  "id": "order-template",
+  "name": "Order Template",
+  "kind": "template",
+  "canvas": {
+    "w": 1920,
+    "h": 1080
+  },
+  "grid": 8,
+  "zones": [
+    {
+      "id": "order-list",
+      "kind": "orderList",
+      "rect": {
+        "x": 16,
+        "y": 16,
+        "w": 560,
+        "h": 948
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "Current check"
+    },
+    {
+      "id": "flow-tables",
+      "kind": "button",
+      "rect": {
+        "x": 16,
+        "y": 980,
+        "w": 229,
+        "h": 84
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Tables",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "replace",
+          "role": "tables"
+        }
+      ]
+    },
+    {
+      "id": "flow-no",
+      "kind": "button",
+      "rect": {
+        "x": 253,
+        "y": 980,
+        "w": 229,
+        "h": 84
+      },
+      "shape": "rect",
+      "behavior": "select",
+      "label": "No",
+      "actions": [
+        {
+          "type": "qualifier",
+          "qualifier": "no"
+        }
+      ],
+      "group": "qualifier"
+    },
+    {
+      "id": "flow-extra",
+      "kind": "button",
+      "rect": {
+        "x": 490,
+        "y": 980,
+        "w": 229,
+        "h": 84
+      },
+      "shape": "rect",
+      "behavior": "select",
+      "label": "Extra",
+      "actions": [
+        {
+          "type": "qualifier",
+          "qualifier": "extra"
+        }
+      ],
+      "group": "qualifier"
+    },
+    {
+      "id": "flow-lite",
+      "kind": "button",
+      "rect": {
+        "x": 727,
+        "y": 980,
+        "w": 229,
+        "h": 84
+      },
+      "shape": "rect",
+      "behavior": "select",
+      "label": "Lite",
+      "actions": [
+        {
+          "type": "qualifier",
+          "qualifier": "lite"
+        }
+      ],
+      "group": "qualifier"
+    },
+    {
+      "id": "flow-side",
+      "kind": "button",
+      "rect": {
+        "x": 964,
+        "y": 980,
+        "w": 229,
+        "h": 84
+      },
+      "shape": "rect",
+      "behavior": "select",
+      "label": "Side",
+      "actions": [
+        {
+          "type": "qualifier",
+          "qualifier": "side"
+        }
+      ],
+      "group": "qualifier"
+    },
+    {
+      "id": "flow-void",
+      "kind": "button",
+      "rect": {
+        "x": 1201,
+        "y": 980,
+        "w": 229,
+        "h": 84
+      },
+      "shape": "rect",
+      "behavior": "double",
+      "label": "Void",
+      "actions": [
+        {
+          "type": "command",
+          "name": "voidItem"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#b83232"
+        }
+      }
+    },
+    {
+      "id": "flow-send",
+      "kind": "button",
+      "rect": {
+        "x": 1438,
+        "y": 980,
+        "w": 229,
+        "h": 84
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Send",
+      "actions": [
+        {
+          "type": "command",
+          "name": "sendOrder"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f8a4c"
+        }
+      },
+      "hotkey": "s"
+    },
+    {
+      "id": "flow-pay",
+      "kind": "button",
+      "rect": {
+        "x": 1675,
+        "y": 980,
+        "w": 229,
+        "h": 84
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Pay",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "role": "settle"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#2b62b0"
+        }
+      },
+      "hotkey": "p"
+    },
+    {
+      "id": "tab-breakfast",
+      "kind": "button",
+      "rect": {
+        "x": 592,
+        "y": 16,
+        "w": 300,
+        "h": 72
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Breakfast",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "replace",
+          "page": "index-breakfast"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fontSize": 26
+        }
+      }
+    },
+    {
+      "id": "tab-lunch",
+      "kind": "button",
+      "rect": {
+        "x": 908,
+        "y": 16,
+        "w": 300,
+        "h": 72
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Lunch",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "replace",
+          "page": "index-lunch"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fontSize": 26
+        }
+      }
+    },
+    {
+      "id": "tab-dinner",
+      "kind": "button",
+      "rect": {
+        "x": 1224,
+        "y": 16,
+        "w": 300,
+        "h": 72
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Dinner",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "replace",
+          "page": "index-dinner"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fontSize": 26
+        }
+      }
+    },
+    {
+      "id": "tab-categories",
+      "kind": "button",
+      "rect": {
+        "x": 1540,
+        "y": 16,
+        "w": 364,
+        "h": 72
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "\u2039 Categories",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "index"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fontSize": 26
+        }
+      }
+    }
+  ]
+}
