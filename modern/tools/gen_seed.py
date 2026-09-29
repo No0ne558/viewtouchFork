@@ -115,7 +115,7 @@ write("pos/settings.json", {
 # ---------------------------------------------------------------- theme
 WIDGETS = ["orderList", "loginPad", "tableMap", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
-           "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck"]
+           "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -270,12 +270,20 @@ page("tables", "Tables", "tables", [
     zone("table-map", 16, 16, 1440, 1048, "Dining room", kind="tableMap", props={"tables": TABLES}),
     zone("quick", 1472, 16, 432, 150, "Quick Order", actions=[command("startQuick"), jump(mode="index")],
          style=fill(GREEN)),
-    zone("takeout", 1472, 182, 432, 150, "Takeout", actions=[command("startTakeout"), jump(mode="index")]),
+    zone("takeout", 1472, 182, 208, 150, "Takeout", actions=[command("startTakeout"), jump(page="customer")]),
+    zone("delivery", 1696, 182, 208, 150, "Delivery", actions=[command("startDelivery"), jump(page="customer")]),
     zone("checks", 1472, 348, 432, 150, "Open Checks", actions=[jump(role="checkList")]),
     zone("status", 1472, 514, 432, 218, kind="logoutPanel"),
     zone("manager", 1472, 748, 432, 150, "Manager", actions=[jump(role="manager")]),
     zone("logout", 1472, 914, 432, 150, "Log Out", actions=[jump(role="logout")], style=fill(RED)),
 ], role="tables", background={"texture": "woodfloor", "fill": "#3b2a1a"})
+
+page("customer", "Customer", "custom", [
+    label("title", 16, 16, 1888, 80, "Who is the order for?"),
+    zone("customer", 16, 112, 1888, 800, kind="customerInfo"),
+    zone("cancel", 16, 944, 432, 120, "Cancel", actions=[command("releaseCheck"), jump(mode="back")]),
+    zone("menu", 1472, 944, 432, 120, "Continue to Menu ›", actions=[jump(mode="index")], style=fill(GREEN)),
+])
 
 page("check-list", "Open Checks", "custom", [
     label("title", 16, 16, 1440, 80, "Open checks"),
@@ -332,6 +340,8 @@ for i, (text, panel) in enumerate(admin):
     mgr.append(zone(f"admin-{panel}", 160 + col * 408, 180 + row * 220, 384, 196, text,
                     actions=[command("openAdmin", panel=panel)]))
 mgr += [
+    zone("kitchen-display", 568, 620, 384, 196, "Kitchen Display", actions=[jump(page="kitchen")]),
+    zone("bar-display", 976, 620, 384, 196, "Bar Display", actions=[jump(page="bar-display")]),
     zone("edit-pages", 1384, 620, 384, 196, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
     zone("back", 160, 900, 384, 140, "‹ Back", actions=[jump(mode="back")]),
 ]
@@ -357,6 +367,16 @@ page("drawer", "Drawer", "manager", [
     zone("pad", 932, 16, 520, 620, kind="numPad", props={"mode": "amount"}),
     zone("back", 1472, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
 ], permission="check.settle")
+
+# Kitchen and bar displays. "public": they run without anyone logged in;
+# start a kitchen screen with --connect <server> --page kitchen.
+KDS = {"normal": {"fill": "#101317", "frame": "flat", "shadow": 0, "radius": 0}}
+page("kitchen", "Kitchen Display", "kitchen", [
+    zone("tickets", 0, 0, 1920, 1080, kind="kitchenDisplay", props={"station": "kitchen"}, style=KDS),
+], role="kitchen", permission="public", background={"fill": "#101317"})
+page("bar-display", "Bar Display", "kitchen", [
+    zone("tickets", 0, 0, 1920, 1080, kind="kitchenDisplay", props={"station": "bar"}, style=KDS),
+], role="bar", permission="public", background={"fill": "#101317"})
 
 page("end-of-day", "End of Day", "manager", [
     zone("eod", 460, 40, 1000, 880, kind="endOfDay"),

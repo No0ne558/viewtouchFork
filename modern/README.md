@@ -33,7 +33,39 @@ The full design and milestones are in [docs/PLAN.md](docs/PLAN.md).
 | M2 Page editor | done |
 | M3 Core POS flow (login → order → pay) | done |
 | M4 Printing, drawers, reports, end of day, admin screens, split check | done |
-| M5 Several terminals on one server, kitchen display, takeout/delivery details | next |
+| M5 Several terminals on one server, kitchen display, takeout/delivery details | done |
+| Later | Card processor, WebSocket/browser terminals, per-terminal printers and drawers |
+
+## Several terminals
+
+One machine keeps the data; the others connect to it:
+
+```sh
+# The server. It is also a terminal unless --headless.
+./modern/build/vtmodern --serve                 # port 7719; --port to change
+./modern/build/vtmodern --serve --headless      # a back-office box with no screen
+
+# Every other terminal (no database of its own)
+./modern/build/vtmodern --connect 192.168.1.10 --terminal "Bar"
+./modern/build/vtmodern --connect 192.168.1.10 --terminal "Line" --page kitchen   # kitchen screen
+```
+
+- **Shared data.** Checks, tables, the menu, staff, the drawer and reports are the same on every terminal. Check numbers run in one sequence, and End of Day sees every terminal.
+- **Check locks.** A check that is open on one terminal can't be opened on another (the table shows "on Bar"). Closing it, putting it away, logging out or losing the connection releases it.
+- **Page edits reach every terminal.** Pages edited on any terminal are saved on the server and pushed to the others. Saving needs a manager on that terminal.
+- **Lost connection.** A terminal that loses the server shows *Reconnecting…*, keeps trying, and returns to the login page when the server is back.
+- **Responsiveness.** Terminals never wait on the network. Button actions continue when the server answers, and touches are ignored until then.
+- **Printing.** All printing happens at the server's printers, and the cash drawer is shared.
+- **Security.** The connection is plain TCP on your local network, with no encryption or terminal passwords. Keep it on a trusted network; PINs are still required for everything.
+
+## Kitchen display and takeout / delivery
+
+- **Kitchen and bar displays.** Manager → Kitchen Display / Bar Display, or start a terminal with `--page kitchen` or `--page bar-display`. These screens need no login.
+  - Each Send is one ticket, oldest first, turning amber after 5 minutes and red after 10.
+  - Touch a ticket when it's ready. Recall brings the last one back.
+  - Each station bumps only its own lines, so the bar clearing drinks leaves the kitchen's food on its screen.
+  - Paid-first counter orders stay on screen until they are bumped.
+- **Takeout / Delivery** (floor plan) asks for the customer: name, phone, address and a note. The details save as you type. They print on the receipt and kitchen tickets and show on the order, the kitchen card and the check list. A takeout or delivery that is put away with nothing ordered is discarded.
 
 ## Running the POS
 
@@ -76,6 +108,8 @@ Log in with a demo PIN: **1234** (manager), **1111** (server) or **2222** (cashi
 | clock | Time and date |
 | logoutPanel | Who is on shift |
 | statusBar | Latest message |
+| kitchenDisplay | Kitchen/bar tickets (`props.station`: kitchen, bar, or empty for all) |
+| customerInfo | Takeout/delivery customer details |
 
 Manager widgets:
 
@@ -126,7 +160,8 @@ Press **F1**, or touch **Manager → Edit Pages**. Changes go into a draft. The 
 ```
 core/     pure C++ domain: money, tax, menu, checks, employees — no Qt
 layout/   page / zone / action model, JSON, field schema
-app/      navigator, layout editor (undo), PosService session, JSON mapping
+app/      navigator, layout editor (undo), PosSession API, PosService + PosShared store, JSON mapping
+net/      terminal server, remote session, page sync (newline-delimited JSON over TCP)
 storage/  SQLite: layout + POS stores, background AsyncWriter
 print/    ticket formatting (text + ESC/POS) and the background PrintSpooler
 ui/cpp/   QML-facing controllers (LayoutController, EditorController)

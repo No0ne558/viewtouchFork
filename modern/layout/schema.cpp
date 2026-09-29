@@ -109,7 +109,7 @@ QStringList widgetKinds()
     return {u"orderList"_s, u"loginPad"_s, u"tableMap"_s, u"guestCount"_s, u"checkList"_s,
             u"paymentPanel"_s, u"numPad"_s, u"keyboard"_s, u"splitCheck"_s, u"drawerPanel"_s,
             u"reportView"_s, u"endOfDay"_s, u"logoutPanel"_s, u"clock"_s, u"statusBar"_s,
-            u"adminPanel"_s};
+            u"adminPanel"_s, u"kitchenDisplay"_s, u"customerInfo"_s};
 }
 
 QStringList allKinds()
@@ -189,7 +189,8 @@ QJsonArray pageFields()
                     u"Template zones show behind this page's zones"_s));
     out.append(with(field(u"mealPeriod"_s, u"Meal period"_s, u"enum"_s, general), u"options"_s, kMealPeriods));
     out.append(with(with(field(u"permission"_s, u"Who may open it"_s, u"enum"_s, general), u"options"_s,
-                         options({{"", "Anyone logged in"}, {"check.settle", "Staff who take payments"},
+                         options({{"", "Anyone logged in"}, {"public", "Anyone, even logged out (kitchen screens)"},
+                                  {"check.settle", "Staff who take payments"},
                                   {"order.void", "Staff who void items"}, {"manager", "Managers"},
                                   {"layout.edit", "Page editors"}})),
                     u"hint"_s, u"Others get a message instead of the page"_s));

@@ -105,6 +105,7 @@ std::string toString(CheckType t)
     case CheckType::DineIn: return "dineIn";
     case CheckType::Takeout: return "takeout";
     case CheckType::Quick: return "quick";
+    case CheckType::Delivery: return "delivery";
     }
     return "dineIn";
 }
@@ -113,17 +114,25 @@ CheckType checkTypeFromString(const std::string &s)
 {
     if (s == "takeout") return CheckType::Takeout;
     if (s == "quick") return CheckType::Quick;
+    if (s == "delivery") return CheckType::Delivery;
     return CheckType::DineIn;
 }
 
 std::string toString(CheckStatus s)
 {
-    return s == CheckStatus::Closed ? "closed" : "open";
+    switch (s) {
+    case CheckStatus::Open: return "open";
+    case CheckStatus::Closed: return "closed";
+    case CheckStatus::Discarded: return "discarded";
+    }
+    return "open";
 }
 
 CheckStatus checkStatusFromString(const std::string &s)
 {
-    return s == "closed" ? CheckStatus::Closed : CheckStatus::Open;
+    if (s == "closed") return CheckStatus::Closed;
+    if (s == "discarded") return CheckStatus::Discarded;
+    return CheckStatus::Open;
 }
 
 std::string toString(TenderKind k)
@@ -229,6 +238,12 @@ bool Check::voidLine(std::int64_t lineId)
 
 int Check::sendAll(std::int64_t now)
 {
+    // Each send is one kitchen ticket, told apart by its time: keep them
+    // distinct even for two sends within the same millisecond.
+    for (const OrderLine &l : lines) {
+        if (l.sent && l.sentAt >= now)
+            now = l.sentAt + 1;
+    }
     int count = 0;
     for (OrderLine &l : lines) {
         if (!l.sent) {

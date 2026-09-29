@@ -223,6 +223,46 @@
       ]
     },
     {
+      "id": "kitchen-display",
+      "kind": "button",
+      "rect": {
+        "x": 568,
+        "y": 620,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Kitchen Display",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "kitchen"
+        }
+      ]
+    },
+    {
+      "id": "bar-display",
+      "kind": "button",
+      "rect": {
+        "x": 976,
+        "y": 620,
+        "w": 384,
+        "h": 196
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Bar Display",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "bar-display"
+        }
+      ]
+    },
+    {
       "id": "edit-pages",
       "kind": "button",
       "rect": {

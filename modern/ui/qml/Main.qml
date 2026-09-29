@@ -182,6 +182,27 @@ ApplicationWindow {
         }
     }
 
+    // A terminal that lost its server says so until it is back.
+    Rectangle {
+        visible: !!root.controller.pos && !root.controller.pos.online
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.topMargin: 12
+        width: offlineText.implicitWidth + 40
+        height: offlineText.implicitHeight + 20
+        radius: height / 2
+        color: "#e0b83232"
+        z: 10
+        Text {
+            id: offlineText
+            anchors.centerIn: parent
+            color: "white"
+            font.pixelSize: 18
+            font.bold: true
+            text: qsTr("Reconnecting to the server…")
+        }
+    }
+
     Rectangle {
         id: toastBox
         anchors.horizontalCenter: parent.horizontalCenter

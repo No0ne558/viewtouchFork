@@ -243,7 +243,7 @@ TEST_CASE("Split check: move items, then choose between checks at the table", "[
 {
     Pos t;
     t.login("1111");
-    REQUIRE(t.pos.selectTable(u"T5"_s) == PosService::TableResult::NeedsGuestCount);
+    REQUIRE(t.pos.selectTable(u"T5"_s) == PosService::TableNeedsGuests);
     REQUIRE(t.pos.startCheck(core::CheckType::DineIn));
     t.pos.addItem(u"cobb"_s);
     t.pos.addItem(u"greek"_s);
@@ -261,7 +261,7 @@ TEST_CASE("Split check: move items, then choose between checks at the table", "[
 
     CHECK(t.pos.tableStatus(u"T5"_s)[u"checks"_s].toInt() == 2);
     t.pos.releaseCheck();
-    CHECK(t.pos.selectTable(u"T5"_s) == PosService::TableResult::ChooseCheck);
+    CHECK(t.pos.selectTable(u"T5"_s) == PosService::TableChooseCheck);
     CHECK(t.pos.checkFilter() == u"T5"_s);
     REQUIRE(t.pos.openCheck(second));
     CHECK(t.pos.checkFilter().isEmpty());

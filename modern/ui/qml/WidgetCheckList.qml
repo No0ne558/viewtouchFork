@@ -75,7 +75,9 @@ Item {
                 }
                 Text {
                     width: parent.width
-                    text: qsTr("%1 · %2 min").arg(card.modelData.server).arg(card.modelData.minutes)
+                    text: (card.modelData.customer ? card.modelData.customer + " · " : "")
+                          + qsTr("%1 · %2 min").arg(card.modelData.server).arg(card.modelData.minutes)
+                          + (card.modelData.busyOn ? " · " + qsTr("on %1").arg(card.modelData.busyOn) : "")
                     color: "#b8c0cc"
                     font.family: w.face
                     font.pixelSize: 20

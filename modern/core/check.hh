@@ -37,6 +37,8 @@ struct OrderLine {
     bool sent = false;           // sent to the kitchen; can no longer just be deleted
     bool voided = false;         // voided after sending (kept for the record)
     std::int64_t sentAt = 0;
+    bool made = false;           // bumped on the kitchen display (legacy ORDER_MADE)
+    std::int64_t madeAt = 0;
 
     bool isComment() const { return itemId.empty(); }
     std::string displayName() const { return qualifierPrefix(qualifier) + name; }
@@ -68,8 +70,20 @@ struct Payment {
     bool operator==(const Payment &) const = default;
 };
 
-enum class CheckType { DineIn, Takeout, Quick };
-enum class CheckStatus { Open, Closed };
+enum class CheckType { DineIn, Takeout, Quick, Delivery };
+
+// Who a takeout / delivery order is for.
+struct Customer {
+    std::string name;
+    std::string phone;
+    std::string address;
+    std::string note;
+
+    bool empty() const { return name.empty() && phone.empty() && address.empty() && note.empty(); }
+    bool operator==(const Customer &) const = default;
+};
+// Discarded: put away with nothing on it (kept for the serial numbers).
+enum class CheckStatus { Open, Closed, Discarded };
 
 std::string toString(CheckType t);
 CheckType checkTypeFromString(const std::string &s);
@@ -110,6 +124,7 @@ struct Check {
     std::int64_t nextPaymentId = 1;
     std::int64_t businessDay = 0;     // day the check was closed in
     std::int64_t drawerSession = 0;   // drawer that took its cash
+    Customer customer;
 
     OrderLine *line(std::int64_t lineId);
     const OrderLine *line(std::int64_t lineId) const;
@@ -123,7 +138,8 @@ struct Check {
     // Unsent lines are removed; sent lines must be voided instead.
     bool removeLine(std::int64_t lineId);
     bool voidLine(std::int64_t lineId);
-    // Marks every unsent line sent; returns how many.
+    // Marks every unsent line sent (one ticket: a sentAt later than any
+    // earlier send on this check); returns how many.
     int sendAll(std::int64_t now);
     int unsentCount() const;
 

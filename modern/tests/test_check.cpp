@@ -199,3 +199,14 @@ TEST_CASE("Roles grant permissions", "[employee]")
     nobody.role = "unknown";
     CHECK_FALSE(nobody.can(perm::Order));
 }
+
+TEST_CASE("Each send gets its own time, even within one millisecond", "[check]")
+{
+    Check c;
+    c.addItem(item("Soup", 500));
+    c.sendAll(1000);
+    c.addItem(item("Bread", 200));
+    c.sendAll(1000);
+    CHECK(c.lines[0].sentAt == 1000);
+    CHECK(c.lines[1].sentAt == 1001);
+}

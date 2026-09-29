@@ -89,7 +89,7 @@ TEST_CASE("Table flow: new table asks for guests, then reopens", "[pos]")
 {
     Pos t;
     t.login("1111");
-    CHECK(t.pos.selectTable(u"T4"_s) == PosService::TableResult::NeedsGuestCount);
+    CHECK(t.pos.selectTable(u"T4"_s) == PosService::TableNeedsGuests);
     CHECK(t.pos.pendingTable() == u"T4"_s);
     t.pos.entryKey(u"3"_s);
     CHECK(t.pos.entryGuests() == 3);
@@ -104,7 +104,7 @@ TEST_CASE("Table flow: new table asks for guests, then reopens", "[pos]")
     const qint64 id = t.pos.checkInfo().value(u"id"_s).toLongLong();
     t.pos.releaseCheck();
     CHECK_FALSE(t.pos.hasCheck());
-    CHECK(t.pos.selectTable(u"T4"_s) == PosService::TableResult::OpenedExisting);
+    CHECK(t.pos.selectTable(u"T4"_s) == PosService::TableOpened);
     CHECK(t.pos.checkInfo().value(u"id"_s).toLongLong() == id);
 }
 
@@ -242,7 +242,7 @@ TEST_CASE("Open checks survive a restart", "[pos]")
     PosService second(data, nullptr);
     CHECK(second.openChecks().size() == 1);
     REQUIRE(second.loginWithPin(u"1111"_s));
-    CHECK(second.selectTable(u"T1"_s) == PosService::TableResult::OpenedExisting);
+    CHECK(second.selectTable(u"T1"_s) == PosService::TableOpened);
     CHECK(second.lines().size() == 1);
 
     // New checks continue the serial numbers.

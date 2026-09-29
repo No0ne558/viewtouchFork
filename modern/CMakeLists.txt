@@ -54,6 +54,7 @@ if(Qt6_FOUND)
     # POS session service (QtCore): login, checks, payments over the core domain
     add_library(vtm_pos STATIC
         app/pos_json.hh app/pos_json.cpp
+        app/pos_session.hh app/pos_session.cpp
         app/pos_service.hh app/pos_service.cpp
         app/pos_day.cpp app/pos_admin.cpp
     )
@@ -78,6 +79,15 @@ if(Qt6_FOUND)
         storage/async_writer.hh storage/async_writer.cpp
     )
     target_link_libraries(vtm_storage PUBLIC vtm_layout vtm_pos Qt6::Sql)
+
+    # Several terminals on one store: server, remote session, page sync
+    add_library(vtm_net STATIC
+        net/protocol.hh net/protocol.cpp
+        net/layout_hub.hh net/layout_hub.cpp
+        net/pos_server.hh net/pos_server.cpp
+        net/remote_session.hh net/remote_session.cpp
+    )
+    target_link_libraries(vtm_net PUBLIC vtm_pos vtm_layout vtm_storage Qt6::Network)
 
     # UI: the ViewTouch QML module as a static library, so the app and the
     # UI tests load the very same QML, C++ types, and resources.
@@ -117,6 +127,8 @@ if(Qt6_FOUND)
             ui/qml/WidgetDrawerPanel.qml
             ui/qml/WidgetEndOfDay.qml
             ui/qml/WidgetSplitCheck.qml
+            ui/qml/WidgetKitchenDisplay.qml
+            ui/qml/WidgetCustomerInfo.qml
         SOURCES
             ui/cpp/zonemodel.hh ui/cpp/zonemodel.cpp
             ui/cpp/layoutcontroller.hh ui/cpp/layoutcontroller.cpp
@@ -124,7 +136,7 @@ if(Qt6_FOUND)
             ui/cpp/posforeign.hh
     )
     target_include_directories(vtm_ui PUBLIC ui/cpp)
-    target_link_libraries(vtm_ui PUBLIC vtm_layout vtm_editor vtm_storage vtm_pos vtm_print Qt6::Gui Qt6::Quick Qt6::QuickControls2)
+    target_link_libraries(vtm_ui PUBLIC vtm_layout vtm_editor vtm_storage vtm_pos vtm_print vtm_net Qt6::Gui Qt6::Quick Qt6::QuickControls2)
 
     qt_add_executable(vtmodern main.cpp)
     target_link_libraries(vtmodern PRIVATE vtm_ui vtm_uiplugin)

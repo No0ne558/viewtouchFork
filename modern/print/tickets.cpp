@@ -50,6 +50,12 @@ Document receipt(const Check &check, const TicketContext &ctx)
     d.columns("Check #" + std::to_string(check.id), check.label, true);
     d.columns("Server: " + check.serverName, "Guests: " + std::to_string(check.guests));
     d.text(ctx.dateTime(check.closedAt ? check.closedAt : ctx.now));
+    if (!check.customer.empty()) {
+        if (!check.customer.name.empty())
+            d.columns(check.customer.name, check.customer.phone);
+        if (!check.customer.address.empty())
+            d.text(check.customer.address);
+    }
     d.rule();
 
     for (const OrderLine &l : check.lines) {
@@ -105,6 +111,10 @@ Document kitchenTicket(const Check &check, const std::vector<OrderLine> &lines, 
     d.columns("#" + std::to_string(check.id) + "  " + check.serverName, ctx.time(ctx.now));
     if (check.type != CheckType::DineIn)
         d.text(upper(toString(check.type)), Document::Align::Left, true);
+    if (!check.customer.name.empty())
+        d.text(check.customer.name + (check.customer.phone.empty() ? "" : "  " + check.customer.phone));
+    if (!check.customer.note.empty())
+        d.text("NOTE: " + check.customer.note, Document::Align::Left, true);
     d.rule();
     for (const OrderLine &l : lines) {
         if (l.isComment()) {

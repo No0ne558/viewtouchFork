@@ -50,6 +50,16 @@ Item {
             Layout.fillWidth: true
             elide: Text.ElideRight
         }
+        Text {
+            readonly property var customer: w.check.customer ?? ({})
+            visible: w.pos && w.pos.hasCheck && !!(customer.name || customer.phone)
+            text: (customer.name ?? "") + (customer.phone ? "  ·  " + customer.phone : "")
+            color: "#7ec8ff"
+            font.family: w.face
+            font.pixelSize: w.unit * 0.75
+            Layout.fillWidth: true
+            elide: Text.ElideRight
+        }
         Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: "#3a4250"; visible: w.pos && w.pos.hasCheck }
 
         ListView {

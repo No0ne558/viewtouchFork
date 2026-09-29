@@ -117,3 +117,92 @@ TEST_CASE("Admin screen: touching a record opens its form", "[ui][pages]")
     if (const QByteArray dir = qgetenv("VTM_SHOTS"); !dir.isEmpty())
         window->grabWindow().save(QString::fromLocal8Bit(dir) + u"/5-admin-menu.png"_s);
 }
+
+TEST_CASE("Kitchen display shows sent orders; touching one bumps it", "[ui][pages]")
+{
+    auto layout = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    REQUIRE(layout);
+    test::RecordingSink sink;
+    app::PosService pos(test::seedPosData(), &sink);
+    LayoutController c(std::move(*layout));
+    c.setPos(&pos);
+
+    // Two orders: a takeout for a named customer, then a table.
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.setCustomer({{u"name"_s, u"Ana Ruiz"_s}, {u"phone"_s, u"555-0100"_s}, {u"note"_s, u"Extra napkins"_s}});
+    pos.addItem(u"classic-burger"_s);
+    pos.addItem(u"medium-rare"_s);
+    pos.addItem(u"fries"_s);
+    REQUIRE(pos.sendOrder());
+    pos.releaseCheck();
+    pos.selectTable(u"T4"_s);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    pos.addItem(u"cobb"_s);
+    pos.addItem(u"pancakes"_s);
+    REQUIRE(pos.sendOrder());
+    pos.logout();                                   // kitchen screens run logged out
+
+    REQUIRE(c.showPage(u"kitchen"_s));
+    QQmlApplicationEngine engine;
+    engine.setInitialProperties({{u"controller"_s, QVariant::fromValue(&c)},
+                                 {u"width"_s, 1600}, {u"height"_s, 900}});
+    engine.loadFromModule("ViewTouch", "Main");
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0));
+    REQUIRE(window);
+    REQUIRE(QTest::qWaitForWindowExposed(window));
+    QTest::qWait(50);
+    const QByteArray shots = qgetenv("VTM_SHOTS");
+    if (!shots.isEmpty())
+        window->grabWindow().save(QString::fromLocal8Bit(shots) + u"/6-kitchen.png"_s);
+
+    REQUIRE(pos.kitchenTickets().size() == 2);
+    auto *surface = window->findChild<QQuickItem *>(u"pageSurface"_s);
+    REQUIRE(surface);
+    // First card (oldest: the takeout) sits at the top left.
+    QTest::mouseClick(window, Qt::LeftButton, {}, surface->mapToScene(QPointF(180, 200)).toPoint());
+    QTest::qWait(30);
+    REQUIRE(pos.kitchenTickets().size() == 1);
+    CHECK(pos.kitchenTickets()[0].toMap()[u"label"_s].toString() == u"T4"_s);
+
+    // The customer page for the takeout.
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    REQUIRE(pos.openCheck(1));
+    REQUIRE(c.showPage(u"customer"_s));
+    QTest::qWait(50);
+    if (!shots.isEmpty())
+        window->grabWindow().save(QString::fromLocal8Bit(shots) + u"/7-customer.png"_s);
+}
+
+TEST_CASE("Customer details typed then Continue are kept", "[ui][pages]")
+{
+    auto layout = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    REQUIRE(layout);
+    app::PosService pos(test::seedPosData(), nullptr);
+    LayoutController c(std::move(*layout));
+    c.setMealPeriod(u"lunch"_s);
+    c.setPos(&pos);
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+
+    QQmlApplicationEngine engine;
+    engine.setInitialProperties({{u"controller"_s, QVariant::fromValue(&c)},
+                                 {u"width"_s, 1600}, {u"height"_s, 900}});
+    engine.loadFromModule("ViewTouch", "Main");
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0));
+    REQUIRE(window);
+    REQUIRE(QTest::qWaitForWindowExposed(window));
+
+    c.activate(u"delivery"_s);                     // start a delivery -> customer page
+    REQUIRE(c.pageId() == u"customer"_s);
+    QTest::qWait(50);
+    auto *surface = window->findChild<QQuickItem *>(u"pageSurface"_s);
+    REQUIRE(surface);
+    // Name field: first entry in the form (widget at 16,112, drawn at 1.6x).
+    QTest::mouseClick(window, Qt::LeftButton, {}, surface->mapToScene(QPointF(400, 112 + 70 * 1.6)).toPoint());
+    for (char ch : std::string("Lee"))
+        QTest::keyClick(window, ch);
+    c.activate(u"menu"_s);                          // Continue at once, no Save button
+    QTest::qWait(50);
+    CHECK(c.pageId() == u"index-lunch"_s);
+    CHECK(pos.checkInfo()[u"customer"_s].toMap()[u"name"_s].toString() == u"Lee"_s);
+}

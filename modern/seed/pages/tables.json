@@ -155,7 +155,7 @@
       "rect": {
         "x": 1472,
         "y": 182,
-        "w": 432,
+        "w": 208,
         "h": 150
       },
       "shape": "rect",
@@ -168,7 +168,32 @@
         },
         {
           "type": "jump",
-          "mode": "index"
+          "mode": "push",
+          "page": "customer"
+        }
+      ]
+    },
+    {
+      "id": "delivery",
+      "kind": "button",
+      "rect": {
+        "x": 1696,
+        "y": 182,
+        "w": 208,
+        "h": 150
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Delivery",
+      "actions": [
+        {
+          "type": "command",
+          "name": "startDelivery"
+        },
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "customer"
         }
       ]
     },

@@ -23,77 +23,163 @@ QString timeOfDay(std::int64_t ms)
 
 } // namespace
 
-PosService::PosService(PosData data, PosSink *sink, QObject *parent)
+PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
     : QObject(parent)
-    , settings_(std::move(data.settings))
-    , menu_(std::move(data.menu))
-    , employees_(std::move(data.employees))
-    , punches_(std::move(data.punches))
-    , lastCheckId_(data.lastCheckId)
-    , lastPunchId_(data.lastPunchId)
-    , sink_(sink)
+    , settings(std::move(data.settings))
+    , menu(std::move(data.menu))
+    , employees(std::move(data.employees))
+    , punches(std::move(data.punches))
+    , lastCheckId(data.lastCheckId)
+    , lastPunchId(data.lastPunchId)
+    , sink(sink)
+    , lastDayId(data.lastDayId)
+    , closedToday(std::move(data.closedToday))
+    , drawer(std::move(data.drawer))
+    , lastDrawerId(data.lastDrawerId)
+    , pastDays(std::move(data.pastDays))
     , now_([] { return QDateTime::currentMSecsSinceEpoch(); })
-    , lastDayId_(data.lastDayId)
-    , closedToday_(std::move(data.closedToday))
-    , drawer_(std::move(data.drawer))
-    , lastDrawerId_(data.lastDrawerId)
-    , pastDays_(std::move(data.pastDays))
 {
     for (Check &c : data.openChecks) {
-        lastCheckId_ = std::max(lastCheckId_, c.id);
-        open_.emplace(c.id, std::move(c));
+        lastCheckId = std::max(lastCheckId, c.id);
+        open.emplace(c.id, std::move(c));
     }
-    for (const Check &c : closedToday_)
-        lastCheckId_ = std::max(lastCheckId_, c.id);
-    if (drawer_)
-        lastDrawerId_ = std::max(lastDrawerId_, drawer_->id);
+    for (const Check &c : closedToday)
+        lastCheckId = std::max(lastCheckId, c.id);
+    if (drawer)
+        lastDrawerId = std::max(lastDrawerId, drawer->id);
     if (data.currentDay && data.currentDay->open()) {
-        day_ = *data.currentDay;
-        lastDayId_ = std::max(lastDayId_, day_.id);
+        day = *data.currentDay;
+        lastDayId = std::max(lastDayId, day.id);
     } else {
         startDay();
     }
+}
+
+const Employee *PosShared::employee(const std::string &id) const
+{
+    if (id.empty())
+        return nullptr;
+    for (const Employee &e : employees) {
+        if (e.id == id)
+            return &e;
+    }
+    return nullptr;
+}
+
+PosService::PosService(PosData data, PosSink *sink, QObject *parent)
+    : PosSession(parent)
+    , owned_(std::make_unique<PosShared>(std::move(data), sink))
+    , terminal_(tr("Terminal"))
+{
+    s_ = owned_.get();
+    connectShared();
+}
+
+PosService::PosService(PosShared *shared, QString terminalName, QObject *parent)
+    : PosSession(parent)
+    , s_(shared)
+    , terminal_(std::move(terminalName))
+{
+    connectShared();
+}
+
+PosService::~PosService()
+{
+    // A terminal going away (or disconnecting) lets go of its check.
+    std::erase_if(s_->lockedBy, [this](const auto &kv) { return kv.second == this; });
+    disconnect(s_, nullptr, this, nullptr);
+}
+
+void PosService::connectShared()
+{
+    // Changes made by any terminal refresh every terminal's view.
+    connect(s_, &PosShared::checksChanged, this, [this] {
+        emit openChecksChanged();
+        emit checkChanged();
+        emit kitchenChanged();
+        emit dayChanged();
+    });
+    connect(s_, &PosShared::dayChanged, this, &PosSession::dayChanged);
+    connect(s_, &PosShared::drawerChanged, this, &PosSession::drawerChanged);
+    connect(s_, &PosShared::adminChanged, this, [this] {
+        emit adminChanged();
+        emit checkChanged();         // tax changes re-total
+        emit openChecksChanged();
+    });
+    connect(s_, &PosShared::staffChanged, this, [this] {
+        if (!userId_.empty() && !user()) {   // deactivated or removed elsewhere
+            userId_.clear();
+            emit loggedInChanged(false);
+        }
+        emit sessionChanged();
+    });
+}
+
+const Employee *PosService::user() const
+{
+    const Employee *e = s_->employee(userId_);
+    return e && e->active ? e : nullptr;
+}
+
+bool PosService::lockCheck(std::int64_t checkId)
+{
+    auto it = s_->lockedBy.find(checkId);
+    if (it != s_->lockedBy.end() && it->second != this)
+        return false;
+    s_->lockedBy[checkId] = this;
+    return true;
+}
+
+void PosService::unlockCheck(std::int64_t checkId)
+{
+    auto it = s_->lockedBy.find(checkId);
+    if (it != s_->lockedBy.end() && it->second == this)
+        s_->lockedBy.erase(it);
+}
+
+QString PosService::lockHolder(std::int64_t checkId) const
+{
+    auto it = s_->lockedBy.find(checkId);
+    if (it == s_->lockedBy.end() || it->second == this)
+        return {};
+    const auto *other = qobject_cast<const PosService *>(it->second);
+    return other ? other->terminalName() : tr("another terminal");
 }
 
 // --- helpers ---------------------------------------------------------------------
 
 const Check *PosService::currentCheck() const
 {
-    auto it = open_.find(currentId_);
-    return it == open_.end() ? nullptr : &it->second;
+    auto it = s_->open.find(currentId_);
+    return it == s_->open.end() ? nullptr : &it->second;
 }
 
 Check *PosService::current()
 {
-    auto it = open_.find(currentId_);
-    return it == open_.end() ? nullptr : &it->second;
+    auto it = s_->open.find(currentId_);
+    return it == s_->open.end() ? nullptr : &it->second;
 }
 
 const MenuItem *PosService::findItem(const QString &idOrName) const
 {
     const std::string key = ss(idOrName);
-    for (const MenuItem &m : menu_) {
+    for (const MenuItem &m : s_->menu) {
         if (m.id == key)
             return &m;
     }
-    for (const MenuItem &m : menu_) {
+    for (const MenuItem &m : s_->menu) {
         if (QString::compare(qs(m.name), idOrName, Qt::CaseInsensitive) == 0)
             return &m;
     }
     return nullptr;
 }
 
-bool PosService::can(const QString &permission) const
-{
-    return user_ && user_->can(ss(permission));
-}
-
 bool PosService::require(const char *permission, const QString &action)
 {
-    if (!user_)
+    if (!user())
         return fail(tr("Log in first."));
-    if (!user_->can(permission))
-        return fail(tr("%1 is not allowed for %2.").arg(action, qs(user_->name)));
+    if (!user()->can(permission))
+        return fail(tr("%1 is not allowed for %2.").arg(action, qs(user()->name)));
     return true;
 }
 
@@ -106,16 +192,16 @@ bool PosService::fail(const QString &message)
 QString PosService::format(Money amount) const
 {
     const QString s = qs(amount.toString());
-    return s.startsWith(u'-') ? u"-"_s + qs(settings_.currencySymbol) + s.mid(1)
-                              : qs(settings_.currencySymbol) + s;
+    return s.startsWith(u'-') ? u"-"_s + qs(s_->settings.currencySymbol) + s.mid(1)
+                              : qs(s_->settings.currencySymbol) + s;
 }
 
 void PosService::changed(Check &check)
 {
-    if (sink_)
-        sink_->saveCheck(check);
+    if (s_->sink)
+        s_->sink->saveCheck(check);
     emit checkChanged();
-    emit openChecksChanged();
+    emit s_->checksChanged();
 }
 
 // --- session ---------------------------------------------------------------------
@@ -137,7 +223,7 @@ const Employee *PosService::employeeByPin(const QString &pin) const
 {
     if (pin.isEmpty())
         return nullptr;
-    for (const Employee &e : employees_) {
+    for (const Employee &e : s_->employees) {
         if (e.active && e.pinHash == hashPin(pin, e.pinSalt))
             return &e;
     }
@@ -157,7 +243,7 @@ bool PosService::loginWithPin(const QString &pin)
     const Employee *e = employeeByPin(pin);
     if (!e)
         return fail(tr("That PIN is not recognized."));
-    user_ = e;
+    userId_ = e->id;
     emit sessionChanged();
     emit loggedInChanged(true);
     emit notice(tr("Welcome, %1").arg(qs(e->name)));
@@ -166,10 +252,10 @@ bool PosService::loginWithPin(const QString &pin)
 
 void PosService::logout()
 {
-    if (!user_)
+    if (!user())
         return;
     releaseCheck();
-    user_ = nullptr;
+    userId_.clear();
     pin_.clear();
     clearEntry();
     qualifier_ = Qualifier::None;
@@ -180,7 +266,7 @@ void PosService::logout()
 
 TimePunch *PosService::openPunch(const std::string &employeeId)
 {
-    for (TimePunch &p : punches_) {
+    for (TimePunch &p : s_->punches) {
         if (p.employeeId == employeeId && p.open())
             return &p;
     }
@@ -189,26 +275,26 @@ TimePunch *PosService::openPunch(const std::string &employeeId)
 
 bool PosService::clockIn()
 {
-    const Employee *e = user_ ? user_ : employeeByPin(pin_);
+    const Employee *e = user() ? user() : employeeByPin(pin_);
     pin_.clear();
     emit entryChanged();
     if (!e)
         return fail(tr("Enter your PIN, then Clock In."));
     if (openPunch(e->id))
         return fail(tr("%1 is already clocked in.").arg(qs(e->name)));
-    TimePunch p{++lastPunchId_, e->id, now(), 0};
-    punches_.push_back(p);
-    if (sink_)
-        sink_->savePunch(p);
+    TimePunch p{++s_->lastPunchId, e->id, now(), 0};
+    s_->punches.push_back(p);
+    if (s_->sink)
+        s_->sink->savePunch(p);
     emit sessionChanged();
-    emit dayChanged();
+    emit s_->dayChanged();
     emit notice(tr("%1 clocked in at %2").arg(qs(e->name), timeOfDay(p.clockIn)));
     return true;
 }
 
 bool PosService::clockOut()
 {
-    const Employee *e = user_ ? user_ : employeeByPin(pin_);
+    const Employee *e = user() ? user() : employeeByPin(pin_);
     pin_.clear();
     emit entryChanged();
     if (!e)
@@ -217,11 +303,11 @@ bool PosService::clockOut()
     if (!p)
         return fail(tr("%1 is not clocked in.").arg(qs(e->name)));
     p->clockOut = now();
-    if (sink_)
-        sink_->savePunch(*p);
+    if (s_->sink)
+        s_->sink->savePunch(*p);
     const double hours = double(p->clockOut - p->clockIn) / 3'600'000.0;
     emit sessionChanged();
-    emit dayChanged();
+    emit s_->dayChanged();
     emit notice(tr("%1 clocked out (%2 hours)").arg(qs(e->name), QLocale().toString(hours, 'f', 2)));
     return true;
 }
@@ -278,56 +364,28 @@ void PosService::clearEntry()
 
 // --- checks ------------------------------------------------------------------------
 
-QVariantMap PosService::tableStatus(const QString &label) const
-{
-    QVariantMap status{{u"open"_s, false}};
-    int count = 0;
-    Money total;
-    bool current = false;
-    for (const auto &[id, c] : open_) {
-        if (c.type != CheckType::DineIn || qs(c.label) != label)
-            continue;
-        if (count++ == 0) {
-            status = {
-                {u"open"_s, true}, {u"checkId"_s, qint64(id)}, {u"server"_s, qs(c.serverName)},
-                {u"guests"_s, c.guests}, {u"mine"_s, user_ && c.serverId == user_->id},
-            };
-        }
-        total += c.totals(settings_.tax).total;
-        current = current || id == currentId_;
-    }
-    if (count > 0) {
-        status.insert(u"checks"_s, count);
-        status.insert(u"total"_s, format(total));
-        status.insert(u"current"_s, current);
-    }
-    return status;
-}
-
-PosService::TableResult PosService::selectTable(const QString &label)
+PosSession::TableResult PosService::selectTable(const QString &label)
 {
     if (!require(perm::Order, tr("Opening tables")))
-        return TableResult::Failed;
+        return TableFailed;
     std::vector<std::int64_t> atTable;
-    for (const auto &[id, c] : open_) {
+    for (const auto &[id, c] : s_->open) {
         if (c.type == CheckType::DineIn && qs(c.label) == label)
             atTable.push_back(id);
     }
-    if (atTable.size() == 1) {
-        openCheck(atTable.front());
-        return TableResult::OpenedExisting;
-    }
+    if (atTable.size() == 1)
+        return openCheck(atTable.front()) ? TableOpened : TableFailed;
     if (atTable.size() > 1) {
         releaseCheck();
         setCheckFilter(label);
-        return TableResult::ChooseCheck;
+        return TableChooseCheck;
     }
     releaseCheck();
     pendingTable_ = label;
     entry_.clear();
     emit entryChanged();
     emit checkChanged();
-    return TableResult::NeedsGuestCount;
+    return TableNeedsGuests;
 }
 
 bool PosService::startCheck(CheckType type)
@@ -338,10 +396,10 @@ bool PosService::startCheck(CheckType type)
         return fail(tr("Choose a table first."));
 
     Check c;
-    c.id = ++lastCheckId_;
+    c.id = ++s_->lastCheckId;
     c.type = type;
-    c.serverId = user_->id;
-    c.serverName = user_->name;
+    c.serverId = user()->id;
+    c.serverName = user()->name;
     c.openedAt = now();
     switch (type) {
     case CheckType::DineIn:
@@ -354,31 +412,42 @@ bool PosService::startCheck(CheckType type)
     case CheckType::Quick:
         c.label = ss(tr("Quick %1").arg(c.id));
         break;
+    case CheckType::Delivery:
+        c.label = ss(tr("Delivery %1").arg(c.id));
+        break;
     }
     pendingTable_.clear();
     entry_.clear();
     emit entryChanged();
 
     const auto id = c.id;
-    open_.emplace(id, std::move(c));
+    s_->open.emplace(id, std::move(c));
+    if (currentId_ != 0)
+        unlockCheck(currentId_);
+    lockCheck(id);
     currentId_ = id;
     selectedLine_ = 0;
     selectedPayment_ = 0;
-    changed(open_.at(id));
+    changed(s_->open.at(id));
     return true;
 }
 
 bool PosService::openCheck(std::int64_t checkId)
 {
-    if (!open_.contains(checkId))
+    if (!s_->open.contains(checkId))
         return fail(tr("That check is no longer open."));
+    if (const QString holder = lockHolder(checkId); !holder.isEmpty())
+        return fail(tr("%1 is open on %2.").arg(qs(s_->open.at(checkId).label), holder));
+    if (currentId_ != 0 && currentId_ != checkId)
+        unlockCheck(currentId_);
+    lockCheck(checkId);
     currentId_ = checkId;
     selectedLine_ = 0;
     selectedPayment_ = 0;
     pendingTable_.clear();
     checkFilter_.clear();
     emit checkChanged();
-    emit openChecksChanged();
+    emit s_->checksChanged();
     return true;
 }
 
@@ -387,6 +456,17 @@ void PosService::releaseCheck()
     if (currentId_ == 0 && pendingTable_.isEmpty() && checkFilter_.isEmpty())
         return;
     checkFilter_.clear();
+    // An empty takeout / delivery / quick check that is put away was never
+    // really started: discard it instead of leaving it open. (An empty table
+    // check stays: the guests may be seated before they order.)
+    if (Check *c = current(); c && c->type != CheckType::DineIn && c->lines.empty() && c->payments.empty()) {
+        c->status = CheckStatus::Discarded;
+        c->closedAt = now();
+        if (s_->sink)
+            s_->sink->saveCheck(*c);
+        s_->open.erase(c->id);
+    }
+    unlockCheck(currentId_);
     currentId_ = 0;
     selectedLine_ = 0;
     selectedPayment_ = 0;
@@ -394,7 +474,7 @@ void PosService::releaseCheck()
     qualifier_ = Qualifier::None;
     emit qualifierChanged();
     emit checkChanged();
-    emit openChecksChanged();
+    emit s_->checksChanged();
 }
 
 bool PosService::addItem(const QString &idOrName)
@@ -477,8 +557,8 @@ bool PosService::voidItem()
         if (!require(perm::Void, tr("Voiding sent items")))
             return false;
         c->voidLine(l->id);
-        if (printer_)
-            printer_->printKitchen(settings_, *c, {*l}, true);
+        if (s_->printer)
+            s_->printer->printKitchen(s_->settings, *c, {*l}, true);
         emit notice(tr("Voided %1").arg(name));
     }
     selectedLine_ = 0;
@@ -499,8 +579,8 @@ bool PosService::sendOrder()
     const int n = c->sendAll(now());
     if (n == 0)
         return fail(tr("Nothing new to send."));
-    if (printer_)
-        printer_->printKitchen(settings_, *c, fresh, false);
+    if (s_->printer)
+        s_->printer->printKitchen(s_->settings, *c, fresh, false);
     emit notice(n == 1 ? tr("Sent 1 item to the kitchen") : tr("Sent %1 items to the kitchen").arg(n));
     changed(*c);
     return true;
@@ -530,11 +610,11 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
     Check *c = current();
     if (!c)
         return fail(tr("No check is open."));
-    const Tender *t = settings_.tender(ss(tenderId));
+    const Tender *t = s_->settings.tender(ss(tenderId));
     if (!t)
         return fail(tr("Payment type '%1' is not set up.").arg(tenderId));
 
-    const Totals before = c->totals(settings_.tax);
+    const Totals before = c->totals(s_->settings.tax);
     Money amount;
     if (t->kind != TenderKind::Discount) {
         if (before.balance.cents() <= 0)
@@ -554,7 +634,7 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
     c->addPayment(*t, amount);
     entry_.clear();
     emit entryChanged();
-    const Totals after = c->totals(settings_.tax);
+    const Totals after = c->totals(s_->settings.tax);
     if (after.change.cents() > 0)
         emit notice(tr("Change due: %1").arg(format(after.change)));
     else
@@ -586,11 +666,11 @@ bool PosService::closeCheck()
     Check *c = current();
     if (!c)
         return fail(tr("No check is open."));
-    const Totals t = c->totals(settings_.tax);
+    const Totals t = c->totals(s_->settings.tax);
     if (t.balance.cents() > 0)
         return fail(tr("%1 is still due.").arg(format(t.balance)));
     const bool cash = t.cashPaid.cents() > 0;
-    if (cash && !(drawer_ && drawer_->open()))
+    if (cash && !(s_->drawer && s_->drawer->open()))
         return fail(tr("Open the cash drawer first (Manager → Drawer)."));
 
     if (c->unsentCount() > 0) {
@@ -600,52 +680,53 @@ bool PosService::closeCheck()
                 fresh.push_back(l);
         }
         c->sendAll(now());
-        if (printer_ && !fresh.empty())
-            printer_->printKitchen(settings_, *c, fresh, false);
+        if (s_->printer && !fresh.empty())
+            s_->printer->printKitchen(s_->settings, *c, fresh, false);
     }
     c->status = CheckStatus::Closed;
     c->closedAt = now();
-    c->businessDay = day_.id;
+    c->businessDay = s_->day.id;
     if (cash)
-        c->drawerSession = drawer_->id;
-    if (sink_)
-        sink_->saveCheck(*c);
-    if (cash && printer_)
-        printer_->openDrawer(settings_);
-    closedToday_.push_back(*c);
+        c->drawerSession = s_->drawer->id;
+    if (s_->sink)
+        s_->sink->saveCheck(*c);
+    if (cash && s_->printer)
+        s_->printer->openDrawer(s_->settings);
+    s_->closedToday.push_back(*c);
     lastClosedId_ = c->id;
     const qint64 id = c->id;
-    open_.erase(id);
+    unlockCheck(id);
+    s_->open.erase(id);
     currentId_ = 0;
     selectedLine_ = 0;
     selectedPayment_ = 0;
     emit notice(t.change.cents() > 0 ? tr("Check closed. Change: %1").arg(format(t.change)) : tr("Check closed"));
     emit checkChanged();
-    emit openChecksChanged();
+    emit s_->checksChanged();
     emit checkClosed(id);
-    emit dayChanged();
+    emit s_->dayChanged();
     if (cash)
-        emit drawerChanged();
+        emit s_->drawerChanged();
     return true;
 }
 
 // --- QML-facing state ------------------------------------------------------------------
 
-QString PosService::userName() const { return user_ ? qs(user_->name) : QString(); }
-QString PosService::userRole() const { return user_ ? qs(user_->role) : QString(); }
-QString PosService::storeName() const { return qs(settings_.storeName); }
+QString PosService::userName() const { return user() ? qs(user()->name) : QString(); }
+QString PosService::userRole() const { return user() ? qs(user()->role) : QString(); }
+QString PosService::storeName() const { return qs(s_->settings.storeName); }
 
 bool PosService::clockedIn() const
 {
-    return user_ && std::ranges::any_of(punches_, [&](const TimePunch &p) { return p.employeeId == user_->id && p.open(); });
+    return user() && std::ranges::any_of(s_->punches, [&](const TimePunch &p) { return p.employeeId == user()->id && p.open(); });
 }
 
 QString PosService::clockedInSince() const
 {
-    if (!user_)
+    if (!user())
         return {};
-    for (const TimePunch &p : punches_) {
-        if (p.employeeId == user_->id && p.open())
+    for (const TimePunch &p : s_->punches) {
+        if (p.employeeId == user()->id && p.open())
             return timeOfDay(p.clockIn);
     }
     return {};
@@ -675,6 +756,8 @@ QVariantMap PosService::checkInfo() const
         {u"id"_s, qint64(c->id)}, {u"label"_s, qs(c->label)}, {u"guests"_s, c->guests},
         {u"server"_s, qs(c->serverName)}, {u"type"_s, qs(toString(c->type))},
         {u"opened"_s, timeOfDay(c->openedAt)},
+        {u"customer"_s, QVariantMap{{u"name"_s, qs(c->customer.name)}, {u"phone"_s, qs(c->customer.phone)},
+                                    {u"address"_s, qs(c->customer.address)}, {u"note"_s, qs(c->customer.note)}}},
     };
 }
 
@@ -705,7 +788,7 @@ QVariantMap PosService::totals() const
     const Check *c = currentCheck();
     if (!c)
         return {};
-    const Totals t = c->totals(settings_.tax);
+    const Totals t = c->totals(s_->settings.tax);
     QVariantList taxLines;
     for (const auto &[cls, amount] : t.taxByClass) {
         QString name = qs(toString(cls));
@@ -729,7 +812,7 @@ QVariantList PosService::payments() const
     const Check *c = currentCheck();
     if (!c)
         return out;
-    const Money items = c->totals(settings_.tax).items;
+    const Money items = c->totals(s_->settings.tax).items;
     for (const Payment &p : c->payments) {
         const QString amount = p.kind == TenderKind::Discount
             ? u"%1 (%2%)"_s.arg(format(-items.percent(p.percentBp))).arg(double(p.percentBp) / 100.0)
@@ -744,15 +827,230 @@ QVariantList PosService::openChecks() const
 {
     QVariantList out;
     const std::int64_t t = now();
-    for (const auto &[id, c] : open_) {
+    for (const auto &[id, c] : s_->open) {
+        const Money total = c.totals(s_->settings.tax).total;
         out.append(QVariantMap{
             {u"id"_s, qint64(id)}, {u"label"_s, qs(c.label)}, {u"server"_s, qs(c.serverName)},
-            {u"guests"_s, c.guests}, {u"total"_s, format(c.totals(settings_.tax).total)},
+            {u"guests"_s, c.guests}, {u"total"_s, format(total)}, {u"totalCents"_s, qint64(total.cents())},
             {u"minutes"_s, qint64((t - c.openedAt) / 60000)}, {u"type"_s, qs(toString(c.type))},
-            {u"mine"_s, user_ && c.serverId == user_->id}, {u"current"_s, id == currentId_},
+            {u"mine"_s, user() && c.serverId == user()->id}, {u"current"_s, id == currentId_},
+            {u"lineCount"_s, int(c.lines.size())}, {u"busyOn"_s, lockHolder(id)},
+            {u"customer"_s, qs(c.customer.name)},
         });
     }
     return out;
+}
+
+QStringList PosService::permissions() const
+{
+    QStringList out;
+    if (const Employee *e = user()) {
+        for (const std::string &p : permissionsForRole(e->role))
+            out << qs(p);
+    }
+    return out;
+}
+
+QString PosService::currencySymbol() const
+{
+    return qs(s_->settings.currencySymbol);
+}
+
+// --- customers ---------------------------------------------------------------------------
+
+bool PosService::setCustomer(const QVariantMap &customer)
+{
+    if (!require(perm::Order, tr("Changing customer details")))
+        return false;
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    c->customer = {ss(customer.value(u"name"_s).toString().trimmed()), ss(customer.value(u"phone"_s).toString().trimmed()),
+                   ss(customer.value(u"address"_s).toString().trimmed()), ss(customer.value(u"note"_s).toString().trimmed())};
+    emit notice(tr("Customer saved"));
+    changed(*c);
+    return true;
+}
+
+// --- kitchen display -----------------------------------------------------------------------
+
+QVariantList PosService::kitchenTickets() const
+{
+    // A ticket is everything sent in one go from one check that the kitchen
+    // has not bumped yet. Closed checks count too (pay-first counters).
+    struct Ticket { const Check *check; std::int64_t sentAt; std::vector<const OrderLine *> lines; };
+    std::vector<Ticket> tickets;
+    auto collect = [&](const Check &c) {
+        std::map<std::int64_t, std::vector<const OrderLine *>> bySend;
+        for (const OrderLine &l : c.lines) {
+            if (l.sent && !l.made && !l.voided)
+                bySend[l.sentAt].push_back(&l);
+        }
+        for (auto &[sentAt, lines] : bySend)
+            tickets.push_back({&c, sentAt, std::move(lines)});
+    };
+    for (const auto &[id, c] : s_->open)
+        collect(c);
+    for (const Check &c : s_->closedToday)
+        collect(c);
+    std::ranges::sort(tickets, {}, &Ticket::sentAt);
+
+    QVariantList out;
+    for (const Ticket &t : tickets) {
+        QVariantList lines;
+        for (const OrderLine *l : t.lines) {
+            QStringList mods;
+            for (const Modifier &m : l->modifiers)
+                mods << qs(m.displayName());
+            lines.append(QVariantMap{{u"name"_s, qs(l->displayName())}, {u"quantity"_s, l->quantity},
+                                     {u"modifiers"_s, mods}, {u"comment"_s, l->isComment()},
+                                     {u"printer"_s, qs(l->printer.empty() ? std::string("kitchen") : l->printer)}});
+        }
+        out.append(QVariantMap{
+            {u"checkId"_s, qint64(t.check->id)}, {u"sentAt"_s, qint64(t.sentAt)},
+            {u"label"_s, qs(t.check->label)}, {u"server"_s, qs(t.check->serverName)},
+            {u"type"_s, qs(toString(t.check->type))}, {u"customer"_s, qs(t.check->customer.name)},
+            {u"note"_s, qs(t.check->customer.note)}, {u"lines"_s, lines},
+        });
+    }
+    return out;
+}
+
+namespace {
+// The check with this id, open or closed today.
+Check *findAnyCheck(PosShared *s, std::int64_t id)
+{
+    if (auto it = s->open.find(id); it != s->open.end())
+        return &it->second;
+    for (Check &c : s->closedToday) {
+        if (c.id == id)
+            return &c;
+    }
+    return nullptr;
+}
+} // namespace
+
+namespace {
+bool atStation(const OrderLine &l, const std::string &station)
+{
+    return station.empty() || (l.printer.empty() ? std::string("kitchen") : l.printer) == station;
+}
+} // namespace
+
+bool PosService::bumpTicket(qint64 checkId, qint64 sentAt, const QString &station)
+{
+    Check *c = findAnyCheck(s_, checkId);
+    if (!c)
+        return fail(tr("That ticket is gone."));
+    const std::string where = ss(station);
+    int n = 0;
+    for (OrderLine &l : c->lines) {
+        if (l.sent && !l.made && !l.voided && l.sentAt == sentAt && atStation(l, where)) {
+            l.made = true;
+            l.madeAt = now();
+            ++n;
+        }
+    }
+    if (n == 0)
+        return fail(tr("That ticket was already bumped."));
+    s_->bumped.push_back({checkId, sentAt, where});
+    if (s_->sink)
+        s_->sink->saveCheck(*c);
+    emit s_->checksChanged();
+    return true;
+}
+
+bool PosService::recallTicket()
+{
+    while (!s_->bumped.empty()) {
+        const PosShared::Bump b = s_->bumped.back();
+        s_->bumped.pop_back();
+        Check *c = findAnyCheck(s_, b.checkId);
+        if (!c)
+            continue;
+        for (OrderLine &l : c->lines) {
+            if (l.sentAt == b.sentAt && l.made && atStation(l, b.station)) {
+                l.made = false;
+                l.madeAt = 0;
+            }
+        }
+        if (s_->sink)
+            s_->sink->saveCheck(*c);
+        emit s_->checksChanged();
+        emit notice(tr("Recalled %1").arg(qs(c->label)));
+        return true;
+    }
+    return fail(tr("Nothing to recall."));
+}
+
+// --- invoke: operations by name (widgets, remote terminals) ----------------------------------
+
+void PosService::invoke(const QString &method, const QVariantList &args, Reply reply)
+{
+    using Fn = std::function<QVariant(PosService &, const QVariantList &)>;
+    static const QHash<QString, Fn> table = {
+        {u"pinKey"_s, [](PosService &p, const QVariantList &a) { p.pinKey(a.value(0).toString()); return QVariant(true); }},
+        {u"entryKey"_s, [](PosService &p, const QVariantList &a) { p.entryKey(a.value(0).toString()); return QVariant(true); }},
+        {u"adjustGuests"_s, [](PosService &p, const QVariantList &a) { p.adjustGuests(a.value(0).toInt()); return QVariant(true); }},
+        {u"textKey"_s, [](PosService &p, const QVariantList &a) { p.textKey(a.value(0).toString()); return QVariant(true); }},
+        {u"clearEntry"_s, [](PosService &p, const QVariantList &) { p.clearEntry(); return QVariant(true); }},
+        {u"login"_s, [](PosService &p, const QVariantList &) { return QVariant(p.login()); }},
+        {u"loginWithPin"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.loginWithPin(a.value(0).toString())); }},
+        {u"logout"_s, [](PosService &p, const QVariantList &) { p.logout(); return QVariant(true); }},
+        {u"clockIn"_s, [](PosService &p, const QVariantList &) { return QVariant(p.clockIn()); }},
+        {u"clockOut"_s, [](PosService &p, const QVariantList &) { return QVariant(p.clockOut()); }},
+        {u"selectTable"_s, [](PosService &p, const QVariantList &a) { return QVariant(int(p.selectTable(a.value(0).toString()))); }},
+        {u"startCheck"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.startCheck(checkTypeFromString(ss(a.value(0).toString())))); }},
+        {u"openCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.openCheck(a.value(0).toLongLong())); }},
+        {u"releaseCheck"_s, [](PosService &p, const QVariantList &) { p.releaseCheck(); return QVariant(true); }},
+        {u"addItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addItem(a.value(0).toString())); }},
+        {u"setQualifier"_s, [](PosService &p, const QVariantList &a) { p.setQualifier(a.value(0).toString()); return QVariant(true); }},
+        {u"selectLine"_s, [](PosService &p, const QVariantList &a) { p.selectLine(a.value(0).toLongLong()); return QVariant(true); }},
+        {u"selectPayment"_s, [](PosService &p, const QVariantList &a) { p.selectPayment(a.value(0).toLongLong()); return QVariant(true); }},
+        {u"setCheckFilter"_s, [](PosService &p, const QVariantList &a) { p.setCheckFilter(a.value(0).toString()); return QVariant(true); }},
+        {u"voidItem"_s, [](PosService &p, const QVariantList &) { return QVariant(p.voidItem()); }},
+        {u"sendOrder"_s, [](PosService &p, const QVariantList &) { return QVariant(p.sendOrder()); }},
+        {u"addComment"_s, [](PosService &p, const QVariantList &) { return QVariant(p.addComment()); }},
+        {u"tender"_s, [](PosService &p, const QVariantList &a) {
+             const QVariant amount = a.value(1);
+             return QVariant(p.tender(a.value(0).toString(), amount.isValid() && !amount.isNull()
+                                          ? std::optional<std::int64_t>(amount.toLongLong()) : std::nullopt)); }},
+        {u"removePayment"_s, [](PosService &p, const QVariantList &) { return QVariant(p.removePayment()); }},
+        {u"closeCheck"_s, [](PosService &p, const QVariantList &) { return QVariant(p.closeCheck()); }},
+        {u"printReceipt"_s, [](PosService &p, const QVariantList &) { return QVariant(p.printReceipt()); }},
+        {u"noSale"_s, [](PosService &p, const QVariantList &) { return QVariant(p.noSale()); }},
+        {u"setCustomer"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setCustomer(a.value(0).toMap())); }},
+        {u"splitLine"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.splitLine(a.value(0).toLongLong())); }},
+        {u"bumpTicket"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.bumpTicket(a.value(0).toLongLong(), a.value(1).toLongLong(), a.value(2).toString())); }},
+        {u"recallTicket"_s, [](PosService &p, const QVariantList &) { return QVariant(p.recallTicket()); }},
+        {u"openDrawerSession"_s, [](PosService &p, const QVariantList &) { return QVariant(p.openDrawerSession()); }},
+        {u"countDrawer"_s, [](PosService &p, const QVariantList &) { return QVariant(p.countDrawer()); }},
+        {u"endOfDay"_s, [](PosService &p, const QVariantList &) { return QVariant(p.endOfDay()); }},
+        {u"printReport"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.printReport(a.value(0).toString(), a.value(1).toLongLong())); }},
+        {u"adminSave"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.adminSave(a.value(0).toString(), a.value(1).toInt(), a.value(2).toMap())); }},
+        {u"adminDelete"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.adminDelete(a.value(0).toString(), a.value(1).toInt())); }},
+        // Queries (remote terminals fetch these).
+        {u"report"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.report(a.value(0).toString(), a.value(1).toLongLong())); }},
+        {u"adminFields"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.adminFields(a.value(0).toString())); }},
+        {u"adminRecords"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.adminRecords(a.value(0).toString())); }},
+        {u"adminNewRecord"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.adminNewRecord(a.value(0).toString())); }},
+    };
+    const auto it = table.constFind(method);
+    if (it == table.cend()) {
+        emit notice(tr("Unknown operation '%1'").arg(method));
+        if (reply)
+            reply(QVariant(false));
+        return;
+    }
+    const QVariant result = (*it)(*this, args);
+    if (reply)
+        reply(result);
 }
 
 } // namespace vt::app

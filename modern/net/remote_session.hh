@@ -1,0 +1,114 @@
+#pragma once
+
+#include "app/pos_session.hh"
+#include "layout/layout.hh"
+
+#include <QHash>
+#include <QJsonObject>
+#include <QTcpSocket>
+#include <QTimer>
+
+#include <memory>
+
+namespace vt::net {
+
+class LineChannel;
+
+// A terminal whose POS session lives on a server. Mirrors the session state
+// the server sends, forwards operations, and reconnects on its own when the
+// connection drops (the server then starts a fresh, logged-out session).
+class RemoteSession : public app::PosSession {
+    Q_OBJECT
+
+public:
+    explicit RemoteSession(QString terminalName, QObject *parent = nullptr);
+    ~RemoteSession() override;
+
+    void connectTo(const QString &host, quint16 port);
+    bool isConnected() const { return welcomed_; }
+    // Wait (processing events) until the server has welcomed us.
+    bool waitForWelcome(int msec);
+
+    // Pages from the server (on connect and after other terminals save).
+    const layout::Layout &layout() const { return layout_; }
+    // Send edited pages to the server. The answer comes as layoutSaved.
+    void saveLayout(const layout::Layout &layout);
+
+    void invoke(const QString &method, const QVariantList &args = {}, Reply reply = {}) override;
+
+    QString terminalName() const override { return terminal_; }
+    bool online() const override { return welcomed_; }
+    bool loggedIn() const override { return v(u"loggedIn").toBool(); }
+    QString userName() const override { return v(u"userName").toString(); }
+    QString userRole() const override { return v(u"userRole").toString(); }
+    QStringList permissions() const override { return v(u"permissions").toStringList(); }
+    bool clockedIn() const override { return v(u"clockedIn").toBool(); }
+    QString clockedInSince() const override { return v(u"clockedInSince").toString(); }
+    QString storeName() const override { return v(u"storeName").toString(); }
+    QString currencySymbol() const override { return v(u"currencySymbol").toString(); }
+    int pinLength() const override { return v(u"pinLength").toInt(); }
+    QString entry() const override { return v(u"entry").toString(); }
+    QString entryAmount() const override { return v(u"entryAmount").toString(); }
+    int entryGuests() const override { return v(u"entryGuests").toInt(); }
+    QString textEntry() const override { return v(u"textEntry").toString(); }
+    QString pendingQualifier() const override { return v(u"pendingQualifier").toString(); }
+    QString pendingTable() const override { return v(u"pendingTable").toString(); }
+    bool hasCheck() const override { return v(u"hasCheck").toBool(); }
+    QVariantMap checkInfo() const override { return v(u"check").toMap(); }
+    QVariantList lines() const override { return v(u"lines").toList(); }
+    QVariantMap totals() const override { return v(u"totals").toMap(); }
+    QVariantList payments() const override { return v(u"payments").toList(); }
+    qint64 selectedLine() const override { return v(u"selectedLine").toLongLong(); }
+    qint64 selectedPayment() const override { return v(u"selectedPayment").toLongLong(); }
+    QVariantList openChecks() const override { return v(u"openChecks").toList(); }
+    QString checkFilter() const override { return v(u"checkFilter").toString(); }
+    QVariantList kitchenTickets() const override { return v(u"kitchenTickets").toList(); }
+    QVariantMap drawerInfo() const override { return v(u"drawer").toMap(); }
+    QVariantMap dayInfo() const override { return v(u"day").toMap(); }
+    QVariantList days() const override { return v(u"days").toList(); }
+    int adminRevision() const override { return v(u"adminRevision").toInt(); }
+    int queryRevision() const override { return queryRevision_; }
+
+    // Answered from a cache; fetched from the server when missing or stale.
+    QVariantMap report(const QString &id, qint64 dayId = 0) override;
+    QVariantList adminFields(const QString &panel) override;
+    QVariantList adminRecords(const QString &panel) override;
+    QVariantMap adminNewRecord(const QString &panel) override;
+
+signals:
+    void layoutReceived(const vt::layout::Layout &layout);
+    void layoutSaved(bool ok, const QString &error);
+
+private:
+    QVariant v(QStringView key) const { return state_.value(key.toString()); }
+    void onConnected();
+    void onReadyRead();
+    void onDisconnected();
+    void handle(const QJsonObject &m);
+    void applyState(const QJsonObject &set, bool replaceAll);
+    void send(const QJsonObject &m);
+    // Cached query: returns what is known now and asks the server if needed.
+    QVariant query(const QString &key, const QString &method, const QVariantList &args);
+
+    QString terminal_;
+    QString host_;
+    quint16 port_ = 0;
+    QTcpSocket socket_;
+    std::unique_ptr<LineChannel> channel_;
+    QTimer reconnect_;
+    bool welcomed_ = false;
+    qint64 nextId_ = 1;
+    QHash<qint64, Reply> replies_;
+    QVariantMap state_;
+    layout::Layout layout_;
+
+    struct Cached {
+        QVariant value;
+        bool stale = true;
+        bool inFlight = false;
+    };
+    QHash<QString, Cached> cache_;
+    int queryRevision_ = 0;
+};
+
+} // namespace vt::net

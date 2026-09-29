@@ -6,6 +6,7 @@
 #include "core/menu.hh"
 #include "core/report.hh"
 #include "core/settings.hh"
+#include "app/pos_session.hh"
 
 #include <QJsonObject>
 
@@ -16,6 +17,7 @@
 
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -72,75 +74,99 @@ struct PosData {
     std::vector<PastDay> pastDays;                // newest first
 };
 
-// The POS session for one terminal: who is logged in, the check being worked
-// on, the keypad entry, and every order/payment operation. Pages call it
-// through zone actions and widgets; it never touches the UI or the database
-// directly. Results are reported with `notice` (for the status toast).
-class PosService : public QObject {
+// State shared by every terminal of one store: open checks, today's closed
+// checks, menu, staff, settings, the drawer and business day, and which
+// terminal holds which check. Sessions change it and it tells all of them.
+class PosShared : public QObject {
     Q_OBJECT
 
-    Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY sessionChanged)
-    Q_PROPERTY(QString userName READ userName NOTIFY sessionChanged)
-    Q_PROPERTY(QString userRole READ userRole NOTIFY sessionChanged)
-    Q_PROPERTY(bool clockedIn READ clockedIn NOTIFY sessionChanged)
-    Q_PROPERTY(QString clockedInSince READ clockedInSince NOTIFY sessionChanged)
-    Q_PROPERTY(QString storeName READ storeName CONSTANT)
-
-    Q_PROPERTY(int pinLength READ pinLength NOTIFY entryChanged)
-    Q_PROPERTY(QString entry READ entry NOTIFY entryChanged)
-    Q_PROPERTY(QString entryAmount READ entryAmount NOTIFY entryChanged)
-    Q_PROPERTY(int entryGuests READ entryGuests NOTIFY entryChanged)
-    Q_PROPERTY(QString textEntry READ textEntry NOTIFY entryChanged)
-    Q_PROPERTY(QString pendingQualifier READ pendingQualifier NOTIFY qualifierChanged)
-    Q_PROPERTY(QString pendingTable READ pendingTable NOTIFY checkChanged)
-
-    Q_PROPERTY(bool hasCheck READ hasCheck NOTIFY checkChanged)
-    Q_PROPERTY(QVariantMap check READ checkInfo NOTIFY checkChanged)
-    Q_PROPERTY(QVariantList lines READ lines NOTIFY checkChanged)
-    Q_PROPERTY(QVariantMap totals READ totals NOTIFY checkChanged)
-    Q_PROPERTY(QVariantList payments READ payments NOTIFY checkChanged)
-    Q_PROPERTY(qint64 selectedLine READ selectedLine WRITE selectLine NOTIFY checkChanged)
-    Q_PROPERTY(qint64 selectedPayment READ selectedPayment WRITE selectPayment NOTIFY checkChanged)
-    Q_PROPERTY(QVariantList openChecks READ openChecks NOTIFY openChecksChanged)
-    Q_PROPERTY(QString checkFilter READ checkFilter WRITE setCheckFilter NOTIFY openChecksChanged)
-    Q_PROPERTY(QVariantMap drawer READ drawerInfo NOTIFY drawerChanged)
-    Q_PROPERTY(QVariantMap day READ dayInfo NOTIFY dayChanged)
-    Q_PROPERTY(QVariantList days READ days NOTIFY dayChanged)
-    Q_PROPERTY(int adminRevision READ adminRevision NOTIFY adminChanged)
-
 public:
-    enum class TableResult { Failed, OpenedExisting, NeedsGuestCount, ChooseCheck };
+    PosShared(PosData data, PosSink *sink, QObject *parent = nullptr);
 
-    PosService(PosData data, PosSink *sink, QObject *parent = nullptr);
-
-    void setPrinter(PosPrinter *printer) { printer_ = printer; }
-
-    // Test hook: replace the wall clock (epoch ms).
+    std::int64_t now() const { return now_(); }
     void setClock(std::function<std::int64_t()> now) { now_ = std::move(now); }
 
-    const core::PosSettings &settings() const { return settings_; }
+    const core::Employee *employee(const std::string &id) const;
+
+    core::PosSettings settings;
+    std::vector<core::MenuItem> menu;
+    std::vector<core::Employee> employees;
+    std::map<std::int64_t, core::Check> open;
+    std::vector<core::TimePunch> punches;   // today's, plus any still open
+    std::int64_t lastCheckId = 0;
+    std::int64_t lastPunchId = 0;
+    PosSink *sink = nullptr;
+    PosPrinter *printer = nullptr;
+
+    core::BusinessDay day;
+    std::int64_t lastDayId = 0;
+    std::vector<core::Check> closedToday;
+    std::optional<core::DrawerSession> drawer;
+    std::int64_t lastDrawerId = 0;
+    std::vector<PastDay> pastDays;
+    int adminRevision = 0;
+
+    // Check locks: a check open on one terminal cannot be opened on another.
+    std::map<std::int64_t, const QObject *> lockedBy;
+    // Bumped kitchen tickets, newest last, for Recall.
+    struct Bump { std::int64_t checkId; std::int64_t sentAt; std::string station; };
+    std::vector<Bump> bumped;
+
+    void startDay();
+
+signals:
+    void checksChanged();    // any check: open, closed, made
+    void dayChanged();
+    void drawerChanged();
+    void adminChanged();     // menu, settings, tenders, printers, taxes
+    void staffChanged();
+
+private:
+    std::function<std::int64_t()> now_;
+};
+
+// One terminal's POS session: who is logged in, the check being worked on,
+// the keypad entry, and every order/payment operation, over the shared
+// store. Pages reach it through zone actions and widgets (PosSession API);
+// C++ callers and tests may use the typed methods directly.
+class PosService : public PosSession {
+    Q_OBJECT
+
+public:
+    // Single-terminal convenience: owns its own shared state.
+    PosService(PosData data, PosSink *sink, QObject *parent = nullptr);
+    // One of several terminals on a shared store.
+    PosService(PosShared *shared, QString terminalName, QObject *parent = nullptr);
+    ~PosService() override;
+
+    PosShared *shared() const { return s_; }
+    void setPrinter(PosPrinter *printer) { s_->printer = printer; }
+    // Test hook: replace the wall clock (epoch ms) for the shared store.
+    void setClock(std::function<std::int64_t()> now) { s_->setClock(std::move(now)); }
+
+    void invoke(const QString &method, const QVariantList &args = {}, Reply reply = {}) override;
+
+    const core::PosSettings &settings() const { return s_->settings; }
     const core::Check *currentCheck() const;
-    const core::Employee *user() const { return user_; }
+    const core::Employee *user() const;
     const core::MenuItem *findItem(const QString &idOrName) const;
-    Q_INVOKABLE bool can(const QString &permission) const;
     QString format(Money amount) const;
 
     // --- session -----------------------------------------------------------
-    Q_INVOKABLE void pinKey(const QString &key);   // "0".."9", "clear", "back"
-    bool login();                                  // with the PIN entered
+    void pinKey(const QString &key);   // "0".."9", "clear", "back"
+    bool login();                      // with the PIN entered
     bool loginWithPin(const QString &pin);
     void logout();
-    bool clockIn();                                // logged-in user, else PIN entered
+    bool clockIn();                    // logged-in user, else PIN entered
     bool clockOut();
 
     // --- keypads -------------------------------------------------------------
-    Q_INVOKABLE void entryKey(const QString &key);   // digits, "00", "clear", "back"
-    Q_INVOKABLE void adjustGuests(int delta);
-    Q_INVOKABLE void textKey(const QString &key);    // characters, "space", "back", "clear"
+    void entryKey(const QString &key);   // digits, "00", "clear", "back"
+    void adjustGuests(int delta);
+    void textKey(const QString &key);    // characters, "space", "back", "clear"
     void clearEntry();
 
     // --- checks ---------------------------------------------------------------
-    Q_INVOKABLE QVariantMap tableStatus(const QString &label) const;
     TableResult selectTable(const QString &label);
     bool startCheck(core::CheckType type);   // dine-in uses the pending table + guest entry
     bool openCheck(std::int64_t checkId);
@@ -148,8 +174,8 @@ public:
 
     bool addItem(const QString &idOrName);
     void setQualifier(const QString &qualifier);   // same one again clears it
-    void selectLine(qint64 lineId);
-    void selectPayment(qint64 paymentId);
+    void selectLine(qint64 lineId) override;
+    void selectPayment(qint64 paymentId) override;
     bool voidItem();
     bool sendOrder();
     bool addComment();
@@ -158,90 +184,89 @@ public:
     bool removePayment();
     bool closeCheck();
     // The current check, else the last one closed on this terminal.
-    Q_INVOKABLE bool printReceipt();
-    Q_INVOKABLE bool noSale();   // open the cash drawer without a sale
+    bool printReceipt();
+    bool noSale();   // open the cash drawer without a sale
+    bool setCustomer(const QVariantMap &customer);
 
     // --- split check -------------------------------------------------------------
-    // Other open checks at the same table, plus {id: 0, label: "New check"}.
-    Q_INVOKABLE QVariantList splitTargets() const;
     // Move the selected line to another check (0 = a new one at the table).
-    Q_INVOKABLE bool splitLine(qint64 targetCheckId);
-    QString checkFilter() const { return checkFilter_; }
-    void setCheckFilter(const QString &label);
+    bool splitLine(qint64 targetCheckId);
+    QString checkFilter() const override { return checkFilter_; }
+    void setCheckFilter(const QString &label) override;
+
+    // --- kitchen display -----------------------------------------------------------
+    // Mark the lines sent at `sentAt` on the check as made; with a station,
+    // only the lines printed there (a bar screen leaves kitchen lines alone).
+    bool bumpTicket(qint64 checkId, qint64 sentAt, const QString &station = {});
+    bool recallTicket();   // undo the latest bump
 
     // --- drawer and business day ---------------------------------------------------
-    Q_INVOKABLE bool openDrawerSession();   // starting cash from the keypad entry
-    Q_INVOKABLE bool countDrawer();         // counted cash from the keypad entry
-    Q_INVOKABLE bool endOfDay();
-    QVariantMap drawerInfo() const;
-    QVariantMap dayInfo() const;
-    QVariantList days() const;
-    const core::BusinessDay &currentDay() const { return day_; }
-    const std::vector<core::Check> &closedToday() const { return closedToday_; }
+    bool openDrawerSession();   // starting cash from the keypad entry
+    bool countDrawer();         // counted cash from the keypad entry
+    bool endOfDay();
+    const core::BusinessDay &currentDay() const { return s_->day; }
+    const std::vector<core::Check> &closedToday() const { return s_->closedToday; }
 
     // --- reports -------------------------------------------------------------------
     // id: sales | items | servers | labor | drawer. dayId 0 = today (live).
-    Q_INVOKABLE QVariantMap report(const QString &id, qint64 dayId = 0) const;
-    Q_INVOKABLE bool printReport(const QString &id, qint64 dayId = 0);
+    QVariantMap report(const QString &id, qint64 dayId = 0) override;
+    bool printReport(const QString &id, qint64 dayId = 0);
     core::Report buildReport(const QString &id) const;
 
     // --- admin (manager) -------------------------------------------------------------
     // panel: menu | employees | tenders | printers | taxes | store
-    Q_INVOKABLE QVariantList adminFields(const QString &panel) const;
-    Q_INVOKABLE QVariantList adminRecords(const QString &panel) const;
-    Q_INVOKABLE QVariantMap adminNewRecord(const QString &panel) const;
+    QVariantList adminFields(const QString &panel) override;
+    QVariantList adminRecords(const QString &panel) override;
+    QVariantMap adminNewRecord(const QString &panel) override;
     // index -1 adds a record. Returns false (with a notice) when invalid.
-    Q_INVOKABLE bool adminSave(const QString &panel, int index, const QVariantMap &record);
-    Q_INVOKABLE bool adminDelete(const QString &panel, int index);
-    int adminRevision() const { return adminRevision_; }
-    const std::vector<core::MenuItem> &menu() const { return menu_; }
-    const std::vector<core::Employee> &employees() const { return employees_; }
+    bool adminSave(const QString &panel, int index, const QVariantMap &record);
+    bool adminDelete(const QString &panel, int index);
+    const std::vector<core::MenuItem> &menu() const { return s_->menu; }
+    const std::vector<core::Employee> &employees() const { return s_->employees; }
 
-    // --- QML-facing state -------------------------------------------------------
-    bool loggedIn() const { return user_ != nullptr; }
-    QString userName() const;
-    QString userRole() const;
-    bool clockedIn() const;
-    QString clockedInSince() const;
-    QString storeName() const;
-    int pinLength() const { return int(pin_.size()); }
-    QString entry() const { return entry_; }
-    QString entryAmount() const;
-    int entryGuests() const;
-    QString textEntry() const { return text_; }
-    QString pendingQualifier() const;
-    QString pendingTable() const { return pendingTable_; }
-    bool hasCheck() const { return currentCheck() != nullptr; }
-    QVariantMap checkInfo() const;
-    QVariantList lines() const;
-    QVariantMap totals() const;
-    QVariantList payments() const;
-    qint64 selectedLine() const { return selectedLine_; }
-    qint64 selectedPayment() const { return selectedPayment_; }
-    QVariantList openChecks() const;
-
-signals:
-    void sessionChanged();
-    void entryChanged();
-    void qualifierChanged();
-    void checkChanged();
-    void openChecksChanged();
-    void notice(const QString &message);
-    void loggedInChanged(bool loggedIn);
-    void checkClosed(qint64 checkId);
-    void drawerChanged();
-    void dayChanged();
-    void adminChanged();
+    // --- PosSession state ------------------------------------------------------------
+    QString terminalName() const override { return terminal_; }
+    bool loggedIn() const override { return user() != nullptr; }
+    QString userName() const override;
+    QString userRole() const override;
+    QStringList permissions() const override;
+    bool clockedIn() const override;
+    QString clockedInSince() const override;
+    QString storeName() const override;
+    QString currencySymbol() const override;
+    int pinLength() const override { return int(pin_.size()); }
+    QString entry() const override { return entry_; }
+    QString entryAmount() const override;
+    int entryGuests() const override;
+    QString textEntry() const override { return text_; }
+    QString pendingQualifier() const override;
+    QString pendingTable() const override { return pendingTable_; }
+    bool hasCheck() const override { return currentCheck() != nullptr; }
+    QVariantMap checkInfo() const override;
+    QVariantList lines() const override;
+    QVariantMap totals() const override;
+    QVariantList payments() const override;
+    qint64 selectedLine() const override { return selectedLine_; }
+    qint64 selectedPayment() const override { return selectedPayment_; }
+    QVariantList openChecks() const override;
+    QVariantList kitchenTickets() const override;
+    QVariantMap drawerInfo() const override;
+    QVariantMap dayInfo() const override;
+    QVariantList days() const override;
+    int adminRevision() const override { return s_->adminRevision; }
 
 private:
+    void connectShared();
     core::Check *current();
     bool require(const char *permission, const QString &action);
     bool fail(const QString &message);
     void changed(core::Check &check);   // persist + notify
     const core::Employee *employeeByPin(const QString &pin) const;
     core::TimePunch *openPunch(const std::string &employeeId);
-    std::int64_t now() const { return now_(); }
-    void startDay();
+    std::int64_t now() const { return s_->now(); }
+    bool lockCheck(std::int64_t checkId);   // false: open on another terminal
+    void unlockCheck(std::int64_t checkId);
+    QString lockHolder(std::int64_t checkId) const;
     core::ReportContext reportContext(const QString &period) const;
     QString dayLabel(const core::BusinessDay &day) const;
     bool saveMenuRecord(int index, const QVariantMap &record);
@@ -250,32 +275,17 @@ private:
     bool savePrinterRecord(int index, const QVariantMap &record);
     void settingsChanged();
 
-    core::PosSettings settings_;
-    std::vector<core::MenuItem> menu_;
-    std::vector<core::Employee> employees_;
-    std::map<std::int64_t, core::Check> open_;
-    std::vector<core::TimePunch> punches_;   // today's, plus any still open
-    std::int64_t lastCheckId_ = 0;
-    std::int64_t lastPunchId_ = 0;
-    PosSink *sink_;
-    PosPrinter *printer_ = nullptr;
-    std::function<std::int64_t()> now_;
+    PosShared *s_;
+    std::unique_ptr<PosShared> owned_;
+    QString terminal_;
 
-    core::BusinessDay day_;
-    std::int64_t lastDayId_ = 0;
-    std::vector<core::Check> closedToday_;
-    std::optional<core::DrawerSession> drawer_;
-    std::int64_t lastDrawerId_ = 0;
-    std::vector<PastDay> pastDays_;
-    std::int64_t lastClosedId_ = 0;
-    QString checkFilter_;
-    int adminRevision_ = 0;
-
-    const core::Employee *user_ = nullptr;
+    std::string userId_;
     std::int64_t currentId_ = 0;
     qint64 selectedLine_ = 0;
     qint64 selectedPayment_ = 0;
     core::Qualifier qualifier_ = core::Qualifier::None;
+    std::int64_t lastClosedId_ = 0;
+    QString checkFilter_;
     QString pin_;
     QString entry_;
     QString text_;

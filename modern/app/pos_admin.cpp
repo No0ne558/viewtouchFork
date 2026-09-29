@@ -69,14 +69,14 @@ double number(const QVariantMap &r, const char16_t *key)
 
 } // namespace
 
-QVariantList PosService::adminFields(const QString &panel) const
+QVariantList PosService::adminFields(const QString &panel)
 {
     const QVariantMap readonlyId = with(field(u"id"_s, tr("ID"), u"string"_s,
                                               tr("How buttons refer to it. Fixed once saved.")),
                                         u"readonlyExisting"_s, true);
     if (panel == u"menu") {
         QVariantList printers = options({{"", "(no ticket)"}});
-        for (const PrinterConfig &p : settings_.printers)
+        for (const PrinterConfig &p : s_->settings.printers)
             printers.append(QVariantMap{{u"value"_s, qs(p.id)}, {u"text"_s, qs(p.name)}});
         return {
             field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
@@ -145,7 +145,7 @@ QVariantList PosService::adminFields(const QString &panel) const
     return {};
 }
 
-QVariantList PosService::adminRecords(const QString &panel) const
+QVariantList PosService::adminRecords(const QString &panel)
 {
     QVariantList out;
     auto add = [&](QVariantMap r, const QString &title, const QString &detail) {
@@ -154,25 +154,25 @@ QVariantList PosService::adminRecords(const QString &panel) const
         out.append(r);
     };
     if (panel == u"menu") {
-        for (const MenuItem &m : menu_)
+        for (const MenuItem &m : s_->menu)
             add(toJson(m).toVariantMap(), qs(m.name),
                 format(m.price) + (m.isModifier ? tr(" · modifier") : QString())
                     + (m.available ? QString() : tr(" · SOLD OUT")));
     } else if (panel == u"employees") {
-        for (const Employee &e : employees_) {
+        for (const Employee &e : s_->employees) {
             QVariantMap r{{u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
                           {u"active"_s, e.active}, {u"pin"_s, QString()}};
             add(r, qs(e.name), qs(e.role) + (e.active ? QString() : tr(" · inactive")));
         }
     } else if (panel == u"tenders") {
-        for (const Tender &t : settings_.tenders) {
+        for (const Tender &t : s_->settings.tenders) {
             QVariantMap r{{u"id"_s, qs(t.id)}, {u"name"_s, qs(t.name)}, {u"kind"_s, qs(toString(t.kind))},
                           {u"percent"_s, double(t.percentBp) / 100.0}};
             add(r, qs(t.name), t.kind == TenderKind::Discount ? u"%1%"_s.arg(double(t.percentBp) / 100.0)
                                                                 : qs(toString(t.kind)));
         }
     } else if (panel == u"printers") {
-        for (const PrinterConfig &p : settings_.printers) {
+        for (const PrinterConfig &p : s_->settings.printers) {
             QVariantMap r = toJson(p).toVariantMap();
             for (const char16_t *k : {u"host", u"path", u"format"}) {
                 if (!r.contains(QString::fromUtf16(k)))
@@ -182,20 +182,20 @@ QVariantList PosService::adminRecords(const QString &panel) const
             add(r, qs(p.name), qs(p.type) + (p.host.empty() ? QString() : u" · "_s + qs(p.host)));
         }
     } else if (panel == u"taxes") {
-        const TaxRates &t = settings_.tax;
+        const TaxRates &t = s_->settings.tax;
         add({{u"food"_s, percentFromPpm(t.foodPpm)}, {u"alcohol"_s, percentFromPpm(t.alcoholPpm)},
              {u"merchandise"_s, percentFromPpm(t.merchandisePpm)}, {u"room"_s, percentFromPpm(t.roomPpm)},
              {u"taxTakeoutFood"_s, t.taxTakeoutFood}},
             tr("Tax rates"), QString());
     } else if (panel == u"store") {
-        add({{u"storeName"_s, qs(settings_.storeName)}, {u"currencySymbol"_s, qs(settings_.currencySymbol)},
-             {u"receiptHeader"_s, qs(settings_.receiptHeader)}, {u"receiptFooter"_s, qs(settings_.receiptFooter)}},
+        add({{u"storeName"_s, qs(s_->settings.storeName)}, {u"currencySymbol"_s, qs(s_->settings.currencySymbol)},
+             {u"receiptHeader"_s, qs(s_->settings.receiptHeader)}, {u"receiptFooter"_s, qs(s_->settings.receiptFooter)}},
             tr("Store"), QString());
     }
     return out;
 }
 
-QVariantMap PosService::adminNewRecord(const QString &panel) const
+QVariantMap PosService::adminNewRecord(const QString &panel)
 {
     if (panel == u"menu")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"price"_s, 0.0}, {u"family"_s, QString()},
@@ -232,27 +232,27 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             if (r < 0 || r > 100)
                 return fail(tr("Tax rates must be between 0 and 100%."));
         }
-        settings_.tax.foodPpm = ppmFromPercent(rates[0]);
-        settings_.tax.alcoholPpm = ppmFromPercent(rates[1]);
-        settings_.tax.merchandisePpm = ppmFromPercent(rates[2]);
-        settings_.tax.roomPpm = ppmFromPercent(rates[3]);
-        settings_.tax.taxTakeoutFood = record.value(u"taxTakeoutFood"_s).toBool();
+        s_->settings.tax.foodPpm = ppmFromPercent(rates[0]);
+        s_->settings.tax.alcoholPpm = ppmFromPercent(rates[1]);
+        s_->settings.tax.merchandisePpm = ppmFromPercent(rates[2]);
+        s_->settings.tax.roomPpm = ppmFromPercent(rates[3]);
+        s_->settings.tax.taxTakeoutFood = record.value(u"taxTakeoutFood"_s).toBool();
         settingsChanged();
         ok = true;
     } else if (panel == u"store") {
         const QString name = record.value(u"storeName"_s).toString().trimmed();
         if (name.isEmpty())
             return fail(tr("The store needs a name."));
-        settings_.storeName = ss(name);
-        settings_.currencySymbol = ss(record.value(u"currencySymbol"_s).toString());
-        settings_.receiptHeader = ss(record.value(u"receiptHeader"_s).toString());
-        settings_.receiptFooter = ss(record.value(u"receiptFooter"_s).toString());
+        s_->settings.storeName = ss(name);
+        s_->settings.currencySymbol = ss(record.value(u"currencySymbol"_s).toString());
+        s_->settings.receiptHeader = ss(record.value(u"receiptHeader"_s).toString());
+        s_->settings.receiptFooter = ss(record.value(u"receiptFooter"_s).toString());
         settingsChanged();
         ok = true;
     }
     if (ok) {
-        ++adminRevision_;
-        emit adminChanged();
+        ++s_->adminRevision;
+        emit s_->adminChanged();
         emit notice(tr("Saved"));
     }
     return ok;
@@ -260,7 +260,7 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
 
 bool PosService::saveMenuRecord(int index, const QVariantMap &record)
 {
-    if (index >= int(menu_.size()))
+    if (index >= int(s_->menu.size()))
         return false;
     const QString name = record.value(u"name"_s).toString().trimmed();
     if (name.isEmpty())
@@ -270,22 +270,22 @@ bool PosService::saveMenuRecord(int index, const QVariantMap &record)
     MenuItem item = menuItemFromJson(QJsonObject::fromVariantMap(record));
     item.name = ss(name);
     if (index >= 0) {
-        item.id = menu_[index].id;
-        menu_[index] = item;
+        item.id = s_->menu[index].id;
+        s_->menu[index] = item;
     } else {
         const QString wanted = record.value(u"id"_s).toString().trimmed();
-        item.id = ss(uniqueId(wanted.isEmpty() ? name : wanted, menu_, [](const MenuItem &m) { return m.id; }, -1));
-        menu_.push_back(item);
-        index = int(menu_.size()) - 1;
+        item.id = ss(uniqueId(wanted.isEmpty() ? name : wanted, s_->menu, [](const MenuItem &m) { return m.id; }, -1));
+        s_->menu.push_back(item);
+        index = int(s_->menu.size()) - 1;
     }
-    if (sink_)
-        sink_->saveMenuItem(menu_[index], index);
+    if (s_->sink)
+        s_->sink->saveMenuItem(s_->menu[index], index);
     return true;
 }
 
 bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
 {
-    if (index >= int(employees_.size()))
+    if (index >= int(s_->employees.size()))
         return false;
     const QString name = record.value(u"name"_s).toString().trimmed();
     const QString pin = record.value(u"pin"_s).toString();
@@ -301,50 +301,41 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     if (!pin.isEmpty() && !digits.match(pin).hasMatch())
         return fail(tr("PINs are 4 to 8 digits."));
     if (!pin.isEmpty()) {
-        for (int i = 0; i < int(employees_.size()); ++i) {
-            if (i != index && employees_[i].pinHash == hashPin(pin, employees_[i].pinSalt))
+        for (int i = 0; i < int(s_->employees.size()); ++i) {
+            if (i != index && s_->employees[i].pinHash == hashPin(pin, s_->employees[i].pinSalt))
                 return fail(tr("Someone else already uses that PIN."));
         }
     }
-    const bool isSelf = index >= 0 && user_ && &employees_[index] == user_;
+    const bool isSelf = index >= 0 && user() && s_->employees[index].id == user()->id;
     if (isSelf && (!active || !permissionsForRole(ss(role)).contains(perm::Manager)))
         return fail(tr("You cannot lock yourself out. Ask another manager."));
 
-    // user_ points into employees_, which may reallocate when growing:
-    // remember who is logged in and point at them again afterwards.
-    const std::string userId = user_ ? user_->id : std::string();
-    Employee e = index >= 0 ? employees_[index] : Employee{};
+    Employee e = index >= 0 ? s_->employees[index] : Employee{};
     e.name = ss(name);
     e.role = ss(role);
     e.active = active;
     if (index < 0)
         e.id = ss(uniqueId(record.value(u"id"_s).toString().trimmed().isEmpty() ? name : record.value(u"id"_s).toString(),
-                           employees_, [](const Employee &x) { return x.id; }, -1));
+                           s_->employees, [](const Employee &x) { return x.id; }, -1));
     if (!pin.isEmpty()) {
         e.pinSalt = newSalt();
         e.pinHash = hashPin(pin, e.pinSalt);
     }
     if (index >= 0) {
-        employees_[index] = e;
+        s_->employees[index] = e;
     } else {
-        employees_.push_back(e);
-        index = int(employees_.size()) - 1;
+        s_->employees.push_back(e);
+        index = int(s_->employees.size()) - 1;
     }
-    if (!userId.empty()) {
-        for (const Employee &x : employees_) {
-            if (x.id == userId)
-                user_ = &x;
-        }
-    }
-    if (sink_)
-        sink_->saveEmployee(employees_[index]);
-    emit sessionChanged();
+    if (s_->sink)
+        s_->sink->saveEmployee(s_->employees[index]);
+    emit s_->staffChanged();
     return true;
 }
 
 bool PosService::saveTenderRecord(int index, const QVariantMap &record)
 {
-    if (index >= int(settings_.tenders.size()))
+    if (index >= int(s_->settings.tenders.size()))
         return false;
     const QString name = record.value(u"name"_s).toString().trimmed();
     if (name.isEmpty())
@@ -358,12 +349,12 @@ bool PosService::saveTenderRecord(int index, const QVariantMap &record)
     t.kind = kind;
     t.percentBp = kind == TenderKind::Discount ? std::llround(percent * 100.0) : 0;
     if (index >= 0) {
-        t.id = settings_.tenders[index].id;
-        settings_.tenders[index] = t;
+        t.id = s_->settings.tenders[index].id;
+        s_->settings.tenders[index] = t;
     } else {
         const QString wanted = record.value(u"id"_s).toString().trimmed();
-        t.id = ss(uniqueId(wanted.isEmpty() ? name : wanted, settings_.tenders, [](const Tender &x) { return x.id; }, -1));
-        settings_.tenders.push_back(t);
+        t.id = ss(uniqueId(wanted.isEmpty() ? name : wanted, s_->settings.tenders, [](const Tender &x) { return x.id; }, -1));
+        s_->settings.tenders.push_back(t);
     }
     settingsChanged();
     return true;
@@ -371,7 +362,7 @@ bool PosService::saveTenderRecord(int index, const QVariantMap &record)
 
 bool PosService::savePrinterRecord(int index, const QVariantMap &record)
 {
-    if (index >= int(settings_.printers.size()))
+    if (index >= int(s_->settings.printers.size()))
         return false;
     PrinterConfig p = printerFromJson(QJsonObject::fromVariantMap(record));
     if (p.name.empty() || record.value(u"name"_s).toString().trimmed().isEmpty())
@@ -383,13 +374,13 @@ bool PosService::savePrinterRecord(int index, const QVariantMap &record)
     if (p.type == "file" && p.path.empty())
         return fail(tr("Choose a file to print into."));
     if (index >= 0) {
-        p.id = settings_.printers[index].id;
-        settings_.printers[index] = p;
+        p.id = s_->settings.printers[index].id;
+        s_->settings.printers[index] = p;
     } else {
         const QString wanted = record.value(u"id"_s).toString().trimmed();
-        p.id = ss(uniqueId(wanted.isEmpty() ? qs(p.name) : wanted, settings_.printers,
+        p.id = ss(uniqueId(wanted.isEmpty() ? qs(p.name) : wanted, s_->settings.printers,
                            [](const PrinterConfig &x) { return x.id; }, -1));
-        settings_.printers.push_back(p);
+        s_->settings.printers.push_back(p);
     }
     settingsChanged();
     return true;
@@ -399,43 +390,44 @@ bool PosService::adminDelete(const QString &panel, int index)
 {
     if (!require(perm::Manager, tr("Changing settings")))
         return false;
-    if (panel == u"menu" && index >= 0 && index < int(menu_.size())) {
-        const std::string id = menu_[index].id;
-        menu_.erase(menu_.begin() + index);
-        if (sink_) {
-            sink_->deleteMenuItem(id);
-            for (int i = index; i < int(menu_.size()); ++i)
-                sink_->saveMenuItem(menu_[i], i);   // positions shifted
+    if (panel == u"menu" && index >= 0 && index < int(s_->menu.size())) {
+        const std::string id = s_->menu[index].id;
+        s_->menu.erase(s_->menu.begin() + index);
+        if (s_->sink) {
+            s_->sink->deleteMenuItem(id);
+            for (int i = index; i < int(s_->menu.size()); ++i)
+                s_->sink->saveMenuItem(s_->menu[i], i);   // positions shifted
         }
-    } else if (panel == u"employees" && index >= 0 && index < int(employees_.size())) {
+    } else if (panel == u"employees" && index >= 0 && index < int(s_->employees.size())) {
         // Staff are deactivated, not erased: their sales and hours keep a name.
-        if (user_ && &employees_[index] == user_)
+        if (user() && s_->employees[index].id == user()->id)
             return fail(tr("You cannot remove yourself."));
-        employees_[index].active = false;
-        if (sink_)
-            sink_->saveEmployee(employees_[index]);
-    } else if (panel == u"tenders" && index >= 0 && index < int(settings_.tenders.size())) {
-        settings_.tenders.erase(settings_.tenders.begin() + index);
+        s_->employees[index].active = false;
+        if (s_->sink)
+            s_->sink->saveEmployee(s_->employees[index]);
+        emit s_->staffChanged();
+    } else if (panel == u"tenders" && index >= 0 && index < int(s_->settings.tenders.size())) {
+        s_->settings.tenders.erase(s_->settings.tenders.begin() + index);
         settingsChanged();
-    } else if (panel == u"printers" && index >= 0 && index < int(settings_.printers.size())) {
-        settings_.printers.erase(settings_.printers.begin() + index);
+    } else if (panel == u"printers" && index >= 0 && index < int(s_->settings.printers.size())) {
+        s_->settings.printers.erase(s_->settings.printers.begin() + index);
         settingsChanged();
     } else {
         return fail(tr("That cannot be removed."));
     }
-    ++adminRevision_;
-    emit adminChanged();
+    ++s_->adminRevision;
+    emit s_->adminChanged();
     emit notice(panel == u"employees" ? tr("Deactivated") : tr("Removed"));
     return true;
 }
 
 void PosService::settingsChanged()
 {
-    if (sink_)
-        sink_->saveSettings(settings_);
+    if (s_->sink)
+        s_->sink->saveSettings(s_->settings);
     // Tax changes re-total open checks.
     emit checkChanged();
-    emit openChecksChanged();
+    emit s_->checksChanged();
 }
 
 } // namespace vt::app

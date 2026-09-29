@@ -24,6 +24,7 @@ Item {
         if (!pos) return ({ rows: [] })
         void pos.day          // live: refresh when checks close
         void pos.drawer
+        void pos.queryRevision   // remote terminals: the server's answer arrived
         return pos.report(reportId, day.id)
     }
 

@@ -15,11 +15,13 @@ Item {
     readonly property var fields: {
         if (!pos) return []
         void pos.adminRevision
+        void pos.queryRevision
         return pos.adminFields(panel)
     }
     readonly property var records: {
         if (!pos) return []
         void pos.adminRevision
+        void pos.queryRevision
         return pos.adminRecords(panel)
     }
 
@@ -35,11 +37,27 @@ Item {
         dirty = false
         armDelete = false
     }
+    // Saves may be answered by a server: react when the data changes.
+    property string pending: ""   // "save-new" | "save" | "delete" while waiting
     function save() {
-        const creating = index === -1
-        if (!pos.adminSave(panel, index, draft))
-            return
-        choose(creating ? records.length - 1 : index)
+        pending = index === -1 ? "save-new" : "save"
+        pos.adminSave(panel, index, draft)
+    }
+    function remove() {
+        pending = "delete"
+        pos.adminDelete(panel, index)
+    }
+    Connections {
+        target: w.pos
+        function onAdminChanged() {
+            const what = w.pending
+            w.pending = ""
+            if (what === "save-new") w.choose(w.records.length - 1)
+            else if (what === "save") w.choose(w.index)
+            else if (what === "delete") w.panel === "employees" ? w.choose(w.index) : (w.index = -2)
+        }
+        // A refused save only shows a notice; stop waiting.
+        function onNotice() { if (w.pending !== "") Qt.callLater(() => w.pending = "") }
     }
 
     Component.onCompleted: if (single) choose(0)
@@ -192,8 +210,7 @@ Item {
                                 w.armDelete = true
                                 return
                             }
-                            if (w.pos.adminDelete(w.panel, w.index))
-                                w.index = w.panel === "employees" ? w.index : -2
+                            w.remove()
                             w.armDelete = false
                         }
                     }

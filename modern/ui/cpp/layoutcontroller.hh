@@ -1,7 +1,7 @@
 #pragma once
 
 #include "app/navigator.hh"
-#include "app/pos_service.hh"
+#include "app/pos_session.hh"
 #include "editorcontroller.hh"
 #include "layout/layout.hh"
 #include "zonemodel.hh"
@@ -13,12 +13,18 @@
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
+#include <functional>
+
 namespace vt::storage { class LayoutStore; }
 
-// Drives the page UI: owns the saved layout and the navigator, publishes the
-// current page to QML, and runs zone actions when touched. In edit mode it
-// shows the editor's draft instead and ignores touches (the editor overlay
-// handles them); the saved layout only changes on saveEdits().
+// Drives the page UI: owns the running layout and the navigator, publishes
+// the current page to QML, and runs zone actions when touched. In edit mode
+// it shows the editor's draft instead and ignores touches (the editor overlay
+// handles them); the running layout only changes on saveEdits().
+//
+// Zone actions run in order through the POS session. A remote session
+// answers later, so each action continues in its reply; a failed step, a
+// page change, or entering edit mode ends the chain.
 class LayoutController : public QObject {
     Q_OBJECT
     QML_ELEMENT
@@ -35,19 +41,31 @@ class LayoutController : public QObject {
     Q_PROPERTY(QString statusText READ statusText NOTIFY statusChanged)
     Q_PROPERTY(bool editing READ editing NOTIFY editingChanged)
     Q_PROPERTY(EditorController *editor READ editor NOTIFY editorChanged)
-    Q_PROPERTY(vt::app::PosService *pos READ pos NOTIFY posChanged)
+    Q_PROPERTY(vt::app::PosSession *pos READ pos NOTIFY posChanged)
+    Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
+    // Persists a layout; false (with a message) when it could not.
+    using Saver = std::function<bool(const vt::layout::Layout &, QString *error)>;
+
     explicit LayoutController(vt::layout::Layout layout, QObject *parent = nullptr);
     ~LayoutController() override;
 
-    // Where saveEdits() persists. Not owned; may be null (tests, --layout).
-    void setStore(vt::storage::LayoutStore *store) { store_ = store; }
+    // Where saveEdits() goes. setStore() saves to a local database; a remote
+    // terminal sends the layout to its server instead. Neither: edits apply
+    // in memory only (tests, --layout).
+    void setStore(vt::storage::LayoutStore *store);
+    void setSaver(Saver saver) { saver_ = std::move(saver); }
+
+    // Pages were changed elsewhere (another terminal saved): run them now.
+    // While editing, the draft is kept; the new pages show when leaving
+    // without saving.
+    void replaceLayout(vt::layout::Layout layout);
 
     // The POS session that zone actions and widgets operate on. Not owned.
     // Without one, POS actions only show a status message (layout-only use).
-    void setPos(vt::app::PosService *pos);
-    vt::app::PosService *pos() const { return pos_; }
+    void setPos(vt::app::PosSession *pos);
+    vt::app::PosSession *pos() const { return pos_; }
 
     QString pageId() const { return nav_.current(); }
     QString pageName() const;
@@ -60,13 +78,13 @@ public:
     QString statusText() const { return status_; }
     bool editing() const { return editing_; }
     EditorController *editor() const { return editor_; }
+    bool busy() const { return pending_ > 0; }
 
-    // The saved layout (what runs), and what is on screen (draft while editing).
+    // The running layout, and what is on screen (draft while editing).
     const vt::layout::Layout &layout() const { return layout_; }
     const vt::layout::Layout &activeLayout() const;
 
-    // Meal period for index jumps. Defaults from the clock; store hours
-    // become a setting in M4.
+    // Meal period for index jumps. Defaults from the clock.
     void setMealPeriod(const QString &period) { nav_.setMealPeriod(period); }
     static QString mealPeriodAt(QTime time);
 
@@ -98,12 +116,18 @@ signals:
     void editingChanged();
     void editorChanged();
     void posChanged();
+    void busyChanged();
     void itemAdded(const QString &item);
     void commandRequested(const QString &name, const QVariantMap &args);
 
 private:
-    bool runAction(const vt::layout::Action &action);
-    bool runCommand(const QString &name, const QVariantMap &args);
+    using Done = std::function<void(bool ok)>;
+
+    void runChain(QList<vt::layout::Action> actions, int index, QString startPage);
+    void runAction(const vt::layout::Action &action, Done done);
+    void runCommand(const QString &name, const QVariantMap &args, Done done);
+    // invoke() on the session, counted as pending until answered.
+    void call(const QString &method, const QVariantList &args, std::function<void(const QVariant &)> then);
     bool navigate(vt::app::Navigator::Mode mode, const QString &target = {});
     bool mayOpen(const QString &pageId);
     QString rolePage(const QString &role) const;
@@ -122,6 +146,7 @@ private:
     // so QML panels unload before the editor they bind to goes away.
     QPointer<EditorController> editor_;
     bool editing_ = false;
-    vt::storage::LayoutStore *store_ = nullptr;
-    vt::app::PosService *pos_ = nullptr;
+    Saver saver_;
+    vt::app::PosSession *pos_ = nullptr;
+    int pending_ = 0;
 };

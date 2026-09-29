@@ -3,12 +3,14 @@
 #include "core/employee.hh"
 #include "storage/layout_store.hh"
 
+#include <QPointer>
+
 #include <QJsonArray>
 #include <QLoggingCategory>
 
 using namespace Qt::StringLiterals;
 using vt::app::Navigator;
-using vt::app::PosService;
+using vt::app::PosSession;
 using vt::layout::Action;
 using vt::layout::Layout;
 using vt::layout::ZoneState;
@@ -73,7 +75,29 @@ QString LayoutController::mealPeriodAt(QTime time)
     return u"dinner"_s;
 }
 
-void LayoutController::setPos(PosService *pos)
+void LayoutController::setStore(vt::storage::LayoutStore *store)
+{
+    if (!store) {
+        saver_ = {};
+        return;
+    }
+    saver_ = [store](const Layout &layout, QString *error) { return store->save(layout, error); };
+}
+
+void LayoutController::replaceLayout(Layout layout)
+{
+    layout_ = std::move(layout);
+    if (editing_) {
+        setStatus(tr("Pages were changed on another terminal. Saving your edits will replace them."));
+        return;
+    }
+    nav_.setHome(homePageOf(layout_));
+    ensureCurrentPageExists();
+    refresh();
+    emit pageChanged();
+}
+
+void LayoutController::setPos(PosSession *pos)
 {
     if (pos_ == pos)
         return;
@@ -81,13 +105,31 @@ void LayoutController::setPos(PosService *pos)
         disconnect(pos_, nullptr, this, nullptr);
     pos_ = pos;
     if (pos_) {
-        connect(pos_, &PosService::notice, this, &LayoutController::setStatus);
-        connect(pos_, &PosService::loggedInChanged, this, &LayoutController::onLoggedInChanged);
-        connect(pos_, &PosService::checkClosed, this, [this] { navigate(Navigator::Mode::Home); });
-        connect(pos_, &PosService::qualifierChanged, this, &LayoutController::refresh);
+        connect(pos_, &PosSession::notice, this, &LayoutController::setStatus);
+        connect(pos_, &PosSession::loggedInChanged, this, &LayoutController::onLoggedInChanged);
+        connect(pos_, &PosSession::checkClosed, this, [this] { navigate(Navigator::Mode::Home); });
+        connect(pos_, &PosSession::qualifierChanged, this, &LayoutController::refresh);
     }
     emit posChanged();
     refresh();
+}
+
+void LayoutController::call(const QString &method, const QVariantList &args,
+                            std::function<void(const QVariant &)> then)
+{
+    ++pending_;
+    if (pending_ == 1)
+        emit busyChanged();
+    // QPointer: a remote reply may arrive after this controller is gone.
+    QPointer<LayoutController> self(this);
+    pos_->invoke(method, args, [self, then = std::move(then)](const QVariant &result) {
+        if (!self)
+            return;
+        if (--self->pending_ == 0)
+            emit self->busyChanged();
+        if (then)
+            then(result);
+    });
 }
 
 QString LayoutController::rolePage(const QString &role) const
@@ -116,6 +158,8 @@ bool LayoutController::mayOpen(const QString &pageId)
     const vt::layout::Page *p = activeLayout().page(pageId);
     if (!p)
         return false;
+    if (p->permission == u"public")
+        return true;   // e.g. kitchen displays that nobody logs in to
     if (!pos_->loggedIn() && p->role != u"login") {
         setStatus(tr("Log in first."));
         return false;
@@ -129,38 +173,48 @@ bool LayoutController::mayOpen(const QString &pageId)
 
 void LayoutController::selectTable(const QString &label)
 {
-    if (!pos_ || editing())
+    if (!pos_ || editing() || busy())
         return;
-    switch (pos_->selectTable(label)) {
-    case PosService::TableResult::OpenedExisting:
-        navigate(Navigator::Mode::Index);
-        break;
-    case PosService::TableResult::NeedsGuestCount:
-        if (const QString page = rolePage(u"guestCount"_s); !page.isEmpty())
-            navigate(Navigator::Mode::Push, page);
-        else if (pos_->startCheck(vt::core::CheckType::DineIn))
+    call(u"selectTable"_s, {label}, [this](const QVariant &result) {
+        switch (result.toInt()) {
+        case PosSession::TableOpened:
             navigate(Navigator::Mode::Index);
-        break;
-    case PosService::TableResult::ChooseCheck:
-        // Several checks at the table: pick one from the (filtered) list.
-        if (const QString page = rolePage(u"checkList"_s); !page.isEmpty())
-            navigate(Navigator::Mode::Push, page);
-        break;
-    case PosService::TableResult::Failed:
-        break;
-    }
+            break;
+        case PosSession::TableNeedsGuests:
+            if (const QString page = rolePage(u"guestCount"_s); !page.isEmpty()) {
+                navigate(Navigator::Mode::Push, page);
+            } else {
+                call(u"startCheck"_s, {u"dineIn"_s}, [this](const QVariant &ok) {
+                    if (ok.toBool())
+                        navigate(Navigator::Mode::Index);
+                });
+            }
+            break;
+        case PosSession::TableChooseCheck:
+            // Several checks at the table: pick one from the (filtered) list.
+            if (const QString page = rolePage(u"checkList"_s); !page.isEmpty())
+                navigate(Navigator::Mode::Push, page);
+            break;
+        default:
+            break;
+        }
+    });
 }
 
 void LayoutController::openCheck(qint64 checkId)
 {
-    if (pos_ && !editing() && pos_->openCheck(checkId))
-        navigate(Navigator::Mode::Index);
+    if (!pos_ || editing() || busy())
+        return;
+    call(u"openCheck"_s, {checkId}, [this](const QVariant &ok) {
+        if (ok.toBool())
+            navigate(Navigator::Mode::Index);
+    });
 }
 
 void LayoutController::login()
 {
     if (pos_ && !editing())
-        pos_->login();   // navigation follows loggedInChanged
+        call(u"login"_s, {}, {});   // navigation follows loggedInChanged
 }
 
 bool LayoutController::requestEditMode()
@@ -212,21 +266,30 @@ void LayoutController::activate(const QString &zoneId)
 {
     if (editing())
         return;   // the editor overlay owns touches
+    if (busy())
+        return;   // still waiting for the server on the previous touch
     for (const Layout::PlacedZone &pz : layout_.effectiveZones(nav_.current())) {
         if (pz.zone->id != zoneId)
             continue;
         if (!pz.zone->enabled)
             return;
-        // Actions run in order; a page change ends the chain because the
-        // remaining actions belonged to the page that is no longer shown.
-        const QString before = nav_.current();
-        for (const Action &a : pz.zone->actions) {
-            if (!runAction(a) || nav_.current() != before || editing())
-                break;
-        }
+        runChain(pz.zone->actions, 0, nav_.current());
         return;
     }
     qCWarning(lcLayout) << "activate: no zone" << zoneId << "on page" << nav_.current();
+}
+
+void LayoutController::runChain(QList<Action> actions, int index, QString startPage)
+{
+    if (index >= actions.size())
+        return;
+    const Action action = actions.at(index);
+    runAction(action, [this, actions = std::move(actions), index, startPage = std::move(startPage)](bool ok) {
+        // A page change ends the chain: the rest belonged to the page left.
+        if (!ok || nav_.current() != startPage || editing())
+            return;
+        runChain(actions, index + 1, startPage);
+    });
 }
 
 void LayoutController::goBack()
@@ -291,16 +354,16 @@ bool LayoutController::saveEdits()
     if (!editing_ || !editor_)
         return false;
     const Layout draft = editor_->layout();
-    if (store_) {
+    if (saver_) {
         QString error;
-        if (!store_->save(draft, &error)) {
+        if (!saver_(draft, &error)) {
             setStatus(tr("Could not save: %1").arg(error));
             return false;
         }
     }
     layout_ = draft;
     editor_->editor().markClean();
-    setStatus(store_ ? tr("Saved") : tr("Applied (not saved to disk)"));
+    setStatus(saver_ ? tr("Saved") : tr("Applied (not saved to disk)"));
     return true;
 }
 
@@ -345,7 +408,7 @@ void LayoutController::ensureCurrentPageExists()
 
 // --- actions ---------------------------------------------------------------------
 
-bool LayoutController::runAction(const Action &a)
+void LayoutController::runAction(const Action &a, Done done)
 {
     const QString type = a.type();
 
@@ -354,64 +417,67 @@ bool LayoutController::runAction(const Action &a)
         const auto mode = Navigator::parseMode(modeName);
         if (!mode) {
             setStatus(tr("Unknown jump mode '%1'").arg(modeName));
-            return false;
+            return done(false);
         }
         const QString target = layout_.resolveTarget(a.data);
         if ((*mode == Navigator::Mode::Push || *mode == Navigator::Mode::Replace) && target.isEmpty()) {
             setStatus(tr("This button's page does not exist"));
-            return false;
+            return done(false);
         }
-        return navigate(*mode, target);
+        return done(navigate(*mode, target));
     }
 
     if (type == u"addItem") {
         const QString item = a.str(u"item");
-        if (pos_) {
-            if (!pos_->addItem(item))
-                return false;
-        } else {
-            setStatus(tr("Added %1").arg(item));
-        }
-        emit itemAdded(item);
         QStringList sequence;
         for (const QJsonValue &v : a.data.value(u"modifierSequence").toArray())
             sequence.append(v.toString());
-        if (!sequence.isEmpty() && nav_.startSequence(sequence)) {
-            refresh();
-            emit pageChanged();
+        auto added = [this, item, sequence, done](bool ok) {
+            if (!ok)
+                return done(false);
+            emit itemAdded(item);
+            if (!sequence.isEmpty() && nav_.startSequence(sequence)) {
+                refresh();
+                emit pageChanged();
+            }
+            done(true);
+        };
+        if (!pos_) {
+            setStatus(tr("Added %1").arg(item));
+            return added(true);
         }
-        return true;
+        return call(u"addItem"_s, {item}, [added](const QVariant &ok) { added(ok.toBool()); });
     }
 
     if (type == u"qualifier") {
-        if (pos_)
-            pos_->setQualifier(a.str(u"qualifier"));
-        else
+        if (!pos_) {
             setStatus(tr("Qualifier: %1").arg(a.str(u"qualifier")));
-        return true;
+            return done(true);
+        }
+        return call(u"setQualifier"_s, {a.str(u"qualifier")}, [done](const QVariant &) { done(true); });
     }
 
     if (type == u"tender") {
         if (!pos_) {
             setStatus(tr("Tender: %1").arg(a.str(u"tender")));
-            return true;
+            return done(true);
         }
         const QJsonValue amount = a.data.value(u"amount");
-        return pos_->tender(a.str(u"tender"),
-                            amount.isDouble() ? std::optional<std::int64_t>(amount.toInteger()) : std::nullopt);
+        return call(u"tender"_s, {a.str(u"tender"), amount.isDouble() ? QVariant(amount.toInteger()) : QVariant()},
+                    [done](const QVariant &ok) { done(ok.toBool()); });
     }
 
     if (type == u"command")
-        return runCommand(a.str(u"name"), a.data.value(u"args").toObject().toVariantMap());
+        return runCommand(a.str(u"name"), a.data.value(u"args").toObject().toVariantMap(), std::move(done));
 
     setStatus(tr("Action '%1' is not supported yet").arg(type));
-    return false;
+    done(false);
 }
 
-bool LayoutController::runCommand(const QString &name, const QVariantMap &args)
+void LayoutController::runCommand(const QString &name, const QVariantMap &args, Done done)
 {
     if (name == u"editMode")
-        return requestEditMode();
+        return done(requestEditMode());
 
     // Manager screens are pages ("admin-menu", "reports"...). Kept as a
     // command so buttons made before those pages existed still work.
@@ -424,37 +490,35 @@ bool LayoutController::runCommand(const QString &name, const QVariantMap &args)
         };
         const QString page = pages.value(args.value(u"panel"_s).toString());
         if (!page.isEmpty() && activeLayout().page(page))
-            return navigate(Navigator::Mode::Push, page);
+            return done(navigate(Navigator::Mode::Push, page));
         setStatus(tr("This screen is not in your pages yet (start with --reset-layout to get it)."));
-        return false;
+        return done(false);
     }
 
+    // Commands that are POS operations: name -> (operation, arguments).
+    static const QHash<QString, std::pair<QString, QVariantList>> operations = {
+        {u"login"_s, {u"login"_s, {}}}, {u"logout"_s, {u"logout"_s, {}}},
+        {u"clockIn"_s, {u"clockIn"_s, {}}}, {u"clockOut"_s, {u"clockOut"_s, {}}},
+        {u"startCheck"_s, {u"startCheck"_s, {u"dineIn"_s}}}, {u"startQuick"_s, {u"startCheck"_s, {u"quick"_s}}},
+        {u"startTakeout"_s, {u"startCheck"_s, {u"takeout"_s}}},
+        {u"startDelivery"_s, {u"startCheck"_s, {u"delivery"_s}}},
+        {u"releaseCheck"_s, {u"releaseCheck"_s, {}}}, {u"sendOrder"_s, {u"sendOrder"_s, {}}},
+        {u"voidItem"_s, {u"voidItem"_s, {}}}, {u"addComment"_s, {u"addComment"_s, {}}},
+        {u"removePayment"_s, {u"removePayment"_s, {}}}, {u"closeCheck"_s, {u"closeCheck"_s, {}}},
+        {u"printReceipt"_s, {u"printReceipt"_s, {}}}, {u"noSale"_s, {u"noSale"_s, {}}},
+        {u"openDrawer"_s, {u"noSale"_s, {}}}, {u"openDrawerSession"_s, {u"openDrawerSession"_s, {}}},
+        {u"countDrawer"_s, {u"countDrawer"_s, {}}}, {u"endOfDay"_s, {u"endOfDay"_s, {}}},
+        {u"recallTicket"_s, {u"recallTicket"_s, {}}},
+    };
     if (pos_) {
-        if (name == u"printReceipt") return pos_->printReceipt();
-        if (name == u"noSale" || name == u"openDrawer") return pos_->noSale();
-        if (name == u"openDrawerSession") return pos_->openDrawerSession();
-        if (name == u"countDrawer") return pos_->countDrawer();
-        if (name == u"endOfDay") return pos_->endOfDay();
-        using vt::core::CheckType;
-        if (name == u"login") return pos_->login();
-        if (name == u"logout") { pos_->logout(); return true; }
-        if (name == u"clockIn") return pos_->clockIn();
-        if (name == u"clockOut") return pos_->clockOut();
-        if (name == u"startCheck") return pos_->startCheck(CheckType::DineIn);
-        if (name == u"startQuick") return pos_->startCheck(CheckType::Quick);
-        if (name == u"startTakeout") return pos_->startCheck(CheckType::Takeout);
-        if (name == u"releaseCheck") { pos_->releaseCheck(); return true; }
-        if (name == u"sendOrder") return pos_->sendOrder();
-        if (name == u"voidItem") return pos_->voidItem();
-        if (name == u"addComment") return pos_->addComment();
-        if (name == u"removePayment") return pos_->removePayment();
-        if (name == u"closeCheck") return pos_->closeCheck();
+        if (const auto it = operations.constFind(name); it != operations.cend())
+            return call(it->first, it->second, [done](const QVariant &ok) { done(ok.toBool()); });
     }
 
     // Unknown here: let the host application handle it.
     emit commandRequested(name, args);
     setStatus(tr("'%1' is not available yet").arg(name));
-    return true;
+    done(true);
 }
 
 bool LayoutController::navigate(Navigator::Mode mode, const QString &target)
