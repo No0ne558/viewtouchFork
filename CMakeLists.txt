@@ -659,3 +659,9 @@ endif()
 install(CODE "file(MAKE_DIRECTORY \${CMAKE_INSTALL_PREFIX}/viewtouch/imgs)")
 install(CODE "execute_process(COMMAND chmod 1777 \${CMAKE_INSTALL_PREFIX}/viewtouch/imgs)")
 
+# Modern Qt6/QML rewrite (see modern/README.md); off so the legacy build is untouched
+option(VT_BUILD_MODERN "Build the modern Qt6/QML ViewTouch in modern/" OFF)
+if(VT_BUILD_MODERN)
+    add_subdirectory(modern)
+endif()
+
