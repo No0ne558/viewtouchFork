@@ -1,19 +1,20 @@
 set(VTM_TEST_SOURCES test_money.cpp)
 if(TARGET vtm_layout)
     list(APPEND VTM_TEST_SOURCES
+        main.cpp   # QCoreApplication for Qt plugins
         test_layout.cpp test_navigator.cpp test_seed.cpp test_controller.cpp
-        # controller is compiled in directly; the app gets it via the QML module
-        ../ui/cpp/zonemodel.hh ../ui/cpp/zonemodel.cpp
-        ../ui/cpp/layoutcontroller.hh ../ui/cpp/layoutcontroller.cpp
+        test_editor.cpp test_store.cpp test_edit_mode.cpp test_editor_ui.cpp
     )
 endif()
 
 add_executable(vtm_tests ${VTM_TEST_SOURCES})
-target_link_libraries(vtm_tests PRIVATE vtm_core Catch2::Catch2WithMain)
-if(TARGET vtm_layout)
+target_link_libraries(vtm_tests PRIVATE vtm_core)
+if(NOT TARGET vtm_layout)
+    target_link_libraries(vtm_tests PRIVATE Catch2::Catch2WithMain)
+else()
+    target_link_libraries(vtm_tests PRIVATE Catch2::Catch2)
     find_package(Qt6 REQUIRED COMPONENTS Qml Test)
-    target_include_directories(vtm_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../ui/cpp)
-    target_link_libraries(vtm_tests PRIVATE vtm_layout Qt6::Qml Qt6::Test)
+    target_link_libraries(vtm_tests PRIVATE vtm_ui vtm_uiplugin Qt6::Test)
     target_compile_definitions(vtm_tests PRIVATE VTM_SEED_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../seed")
 endif()
 

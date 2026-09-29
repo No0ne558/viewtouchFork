@@ -42,17 +42,6 @@ std::optional<QJsonObject> readJsonObject(const QString &path, QStringList *erro
     return doc.object();
 }
 
-bool schemaSupported(const QJsonObject &o, const QString &what, QStringList *errors)
-{
-    const int v = o.value(u"schemaVersion").toInt(Layout::SchemaVersion);
-    if (v > Layout::SchemaVersion) {
-        addError(errors, u"%1: schemaVersion %2 is newer than supported (%3)"_s
-                             .arg(what).arg(v).arg(Layout::SchemaVersion));
-        return false;
-    }
-    return true;
-}
-
 bool writeJsonObject(const QString &path, const QJsonObject &o, QStringList *errors)
 {
     QSaveFile f(path);
@@ -70,6 +59,17 @@ bool writeJsonObject(const QString &path, const QJsonObject &o, QStringList *err
 
 } // namespace
 
+bool Layout::checkSchema(const QJsonObject &o, const QString &what, QStringList *errors)
+{
+    const int v = o.value(u"schemaVersion").toInt(SchemaVersion);
+    if (v > SchemaVersion) {
+        addError(errors, u"%1: schemaVersion %2 is newer than supported (%3)"_s
+                             .arg(what).arg(v).arg(SchemaVersion));
+        return false;
+    }
+    return true;
+}
+
 const Page *Layout::page(const QString &id) const
 {
     if (id.isEmpty())
@@ -83,7 +83,15 @@ const Page *Layout::page(const QString &id) const
 
 Page *Layout::page(const QString &id)
 {
-    return const_cast<Page *>(std::as_const(*this).page(id));
+    // Must iterate non-const so the list detaches: returning a pointer into
+    // data still shared with another Layout copy would edit both copies.
+    if (id.isEmpty())
+        return nullptr;
+    for (Page &p : pages) {
+        if (p.id == id)
+            return &p;
+    }
+    return nullptr;
 }
 
 const Page *Layout::pageByRole(const QString &role) const
@@ -240,7 +248,7 @@ QStringList Layout::validate() const
 
 std::optional<Layout> Layout::fromJson(const QJsonObject &o, QStringList *errors)
 {
-    if (!schemaSupported(o, u"layout"_s, errors))
+    if (!Layout::checkSchema(o, u"layout"_s, errors))
         return std::nullopt;
     Layout l;
     l.theme = Theme::fromJson(o.value(u"theme").toObject());
@@ -263,7 +271,7 @@ std::optional<Layout> Layout::loadDirectory(const QString &dir, QStringList *err
     Layout l;
 
     const auto themeJson = readJsonObject(root.filePath(u"theme.json"_s), errors);
-    if (!themeJson || !schemaSupported(*themeJson, u"theme.json"_s, errors))
+    if (!themeJson || !Layout::checkSchema(*themeJson, u"theme.json"_s, errors))
         return std::nullopt;
     l.theme = Theme::fromJson(*themeJson);
 
@@ -272,7 +280,7 @@ std::optional<Layout> Layout::loadDirectory(const QString &dir, QStringList *err
     for (const QString &file : files) {
         const QString path = pagesDir.filePath(file);
         const auto obj = readJsonObject(path, errors);
-        if (!obj || !schemaSupported(*obj, path, errors))
+        if (!obj || !Layout::checkSchema(*obj, path, errors))
             continue;
         l.pages.append(Page::fromJson(*obj));
     }

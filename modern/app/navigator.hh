@@ -26,6 +26,10 @@ public:
 
     explicit Navigator(const layout::Layout &layout);
 
+    // Point at another layout (the editor's draft while editing). The stack
+    // is kept; callers re-validate the current page.
+    void setLayout(const layout::Layout &layout) { layout_ = &layout; }
+
     static std::optional<Mode> parseMode(const QString &mode);
 
     QString current() const { return current_; }
@@ -38,6 +42,9 @@ public:
     QString mealPeriod() const { return mealPeriod_; }
     int depth() const { return int(stack_.size()); }
     bool canGoBack() const { return !stack_.isEmpty(); }
+
+    // Change the home page without moving (e.g. the login page was renamed).
+    void setHome(const QString &homePageId) { home_ = homePageId; }
 
     // Set the home page and go there with an empty stack.
     void reset(const QString &homePageId);
@@ -53,7 +60,7 @@ private:
     void enter(const QString &pageId);
     void push(const QString &pageId);
 
-    const layout::Layout &layout_;
+    const layout::Layout *layout_;
     QString current_;
     QString home_;
     QString lastIndex_;

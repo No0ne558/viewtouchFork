@@ -1,0 +1,69 @@
+#include <catch2/catch_test_macros.hpp>
+
+#include "storage/layout_store.hh"
+#include "qt_catch.hh"
+
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QTemporaryDir>
+
+using namespace Qt::StringLiterals;
+using vt::storage::LayoutStore;
+using vt::layout::Layout;
+
+TEST_CASE("LayoutStore saves and loads the whole layout", "[store]")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const QString dbPath = dir.filePath(u"vt.db"_s);
+    auto seed = Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    REQUIRE(seed);
+
+    {
+        LayoutStore store(dbPath);
+        QString error;
+        REQUIRE(store.open(&error));
+        CHECK_FALSE(store.hasLayout());
+        CHECK_FALSE(store.load());
+        REQUIRE(store.save(*seed, &error));
+        CHECK(store.hasLayout());
+    }
+
+    // Reopen (runs migrations again, idempotently) and read back.
+    LayoutStore store(dbPath);
+    REQUIRE(store.open());
+    QStringList errors;
+    const auto loaded = store.load(&errors);
+    REQUIRE(loaded);
+    CHECK(errors.isEmpty());
+    CHECK(*loaded == *seed);   // page order is preserved
+
+    // Saving a smaller layout removes pages that are gone.
+    Layout smaller = *seed;
+    smaller.pages.removeIf([](const vt::layout::Page &p) { return p.id == u"library"; });
+    REQUIRE(store.save(smaller));
+    CHECK(*store.load() == smaller);
+}
+
+TEST_CASE("LayoutStore refuses a database from a newer version", "[store]")
+{
+    QTemporaryDir dir;
+    const QString dbPath = dir.filePath(u"vt.db"_s);
+    {
+        LayoutStore store(dbPath);
+        REQUIRE(store.open());
+    }
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(u"QSQLITE"_s, u"poke"_s);
+        db.setDatabaseName(dbPath);
+        REQUIRE(db.open());
+        QSqlQuery(db).exec(u"UPDATE meta SET value = '99' WHERE key = 'schema_version'"_s);
+        db.close();
+    }
+    QSqlDatabase::removeDatabase(u"poke"_s);
+
+    LayoutStore store(dbPath);
+    QString error;
+    CHECK_FALSE(store.open(&error));
+    CHECK(error.contains(u"newer"_s));
+}

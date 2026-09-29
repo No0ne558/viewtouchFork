@@ -26,6 +26,13 @@ Item {
     // Set by PageView for behavior "select" (one lit zone per page).
     property string selectedZoneId: ""
 
+    // Edit mode: live drag/resize feedback from EditLayer.
+    property bool editing: false
+    property bool editSelected: false
+    property real dragDX: 0
+    property real dragDY: 0
+    property var previewRect: null
+
     signal activated()
     signal selectRequested()
 
@@ -39,15 +46,16 @@ Item {
 
     readonly property bool lit: current || toggled || armed || flashing
                                 || (behavior === "select" && selectedZoneId === zoneId)
-                                || (tap.pressed && behavior !== "none")
+                                || (tap.pressed && behavior !== "none" && !editing)
     readonly property var st: !zoneEnabled ? styleDisabled : lit ? styleSelected : styleNormal
 
-    x: zoneX
-    y: zoneY
-    width: zoneW
-    height: zoneH
-    visible: kind !== "comment"   // comments show only in edit mode (M2)
-    opacity: st.opacity ?? 1
+    x: previewRect ? previewRect.x : zoneX + (editSelected ? dragDX : 0)
+    y: previewRect ? previewRect.y : zoneY + (editSelected ? dragDY : 0)
+    width: previewRect ? previewRect.w : zoneW
+    height: previewRect ? previewRect.h : zoneH
+    visible: kind !== "comment" || editing   // notes are for the editor only
+    // Template zones are dimmed while editing: they belong to another page.
+    opacity: (st.opacity ?? 1) * (editing && inherited ? 0.45 : 1)
 
     ZoneShape {
         anchors.fill: parent
@@ -115,7 +123,7 @@ Item {
 
     TapHandler {
         id: tap
-        enabled: zone.interactive
+        enabled: zone.interactive && !zone.editing
         onTapped: {
             switch (zone.behavior) {
             case "toggle":

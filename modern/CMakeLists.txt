@@ -22,7 +22,7 @@ target_include_directories(vtm_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 # core library and its tests can still be built.
 #   Fedora: sudo dnf install qt6-qtbase-devel qt6-qtdeclarative-devel
 # ---------------------------------------------------------------------------
-find_package(Qt6 6.8 QUIET COMPONENTS Core Gui Quick Sql)
+find_package(Qt6 6.8 QUIET COMPONENTS Core Gui Quick QuickControls2 Sql)
 
 if(Qt6_FOUND)
     qt_standard_project_setup(REQUIRES 6.8)
@@ -34,33 +34,60 @@ if(Qt6_FOUND)
         layout/zone.hh layout/zone.cpp
         layout/page.hh layout/page.cpp
         layout/layout.hh layout/layout.cpp
+        layout/json_path.hh layout/json_path.cpp
+        layout/schema.hh layout/schema.cpp
         app/navigator.hh app/navigator.cpp
     )
     target_include_directories(vtm_layout PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(vtm_layout PUBLIC vtm_core Qt6::Core)
     set_target_properties(vtm_layout PROPERTIES AUTOMOC OFF)
 
-    qt_add_executable(vtmodern main.cpp)
+    # page editor: draft layout + undo stack (QUndoStack lives in QtGui)
+    add_library(vtm_editor STATIC app/layout_editor.hh app/layout_editor.cpp)
+    target_link_libraries(vtm_editor PUBLIC vtm_layout Qt6::Gui)
+    set_target_properties(vtm_editor PROPERTIES AUTOMOC OFF)
 
-    qt_add_qml_module(vtmodern
+    # SQLite persistence
+    add_library(vtm_storage STATIC storage/layout_store.hh storage/layout_store.cpp)
+    target_link_libraries(vtm_storage PUBLIC vtm_layout Qt6::Sql)
+    set_target_properties(vtm_storage PROPERTIES AUTOMOC OFF)
+
+    # UI: the ViewTouch QML module as a static library, so the app and the
+    # UI tests load the very same QML, C++ types, and resources.
+    qt_add_library(vtm_ui STATIC)
+    set_source_files_properties(ui/qml/EditorStyle.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
+    qt_add_qml_module(vtm_ui
         URI ViewTouch
         VERSION 1.0
+        OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ViewTouch
         QML_FILES
             ui/qml/Main.qml
             ui/qml/PageView.qml
             ui/qml/ZoneItem.qml
             ui/qml/ZoneShape.qml
+            ui/qml/EditorStyle.qml
+            ui/qml/EditLayer.qml
+            ui/qml/EditorToolbar.qml
+            ui/qml/PagePanel.qml
+            ui/qml/Inspector.qml
+            ui/qml/FieldEditor.qml
+            ui/qml/ActionListEditor.qml
         SOURCES
             ui/cpp/zonemodel.hh ui/cpp/zonemodel.cpp
             ui/cpp/layoutcontroller.hh ui/cpp/layoutcontroller.cpp
+            ui/cpp/editorcontroller.hh ui/cpp/editorcontroller.cpp
     )
-    target_include_directories(vtmodern PRIVATE ui/cpp)
-    target_link_libraries(vtmodern PRIVATE vtm_layout Qt6::Gui Qt6::Quick Qt6::Sql)
+    target_include_directories(vtm_ui PUBLIC ui/cpp)
+    target_link_libraries(vtm_ui PUBLIC vtm_layout vtm_editor vtm_storage Qt6::Gui Qt6::Quick Qt6::QuickControls2)
+
+    qt_add_executable(vtmodern main.cpp)
+    target_link_libraries(vtmodern PRIVATE vtm_ui vtm_uiplugin)
 
     # Starter layout shipped with the app (qrc:/seed)
     file(GLOB_RECURSE VTM_SEED_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
          CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/seed/*.json)
-    qt_add_resources(vtmodern "seed" PREFIX "/" FILES ${VTM_SEED_FILES})
+    qt_add_resources(vtm_ui "seed" PREFIX "/" FILES ${VTM_SEED_FILES})
 
     # Legacy ViewTouch textures under short names (qrc:/textures/<name>.xpm)
     set(VTM_TEXTURES
@@ -80,14 +107,14 @@ if(Qt6_FOUND)
         set_source_files_properties(${path} PROPERTIES QT_RESOURCE_ALIAS ${alias}.xpm)
         list(APPEND VTM_TEXTURE_FILES ${path})
     endforeach()
-    qt_add_resources(vtmodern "textures" PREFIX "/textures" FILES ${VTM_TEXTURE_FILES})
+    qt_add_resources(vtm_ui "textures" PREFIX "/textures" FILES ${VTM_TEXTURE_FILES})
 
     set(VTM_BURGER ${VTM_LEGACY_ROOT}/assets/default_images/burger.png)
     set_source_files_properties(${VTM_BURGER} PROPERTIES QT_RESOURCE_ALIAS burger.png)
-    qt_add_resources(vtmodern "images" PREFIX "/images" FILES ${VTM_BURGER})
+    qt_add_resources(vtm_ui "images" PREFIX "/images" FILES ${VTM_BURGER})
 else()
     message(WARNING
-        "Qt6 (Core Gui Quick Sql >= 6.8) development files not found: "
+        "Qt6 (Core Gui Quick QuickControls2 Sql >= 6.8) development files not found: "
         "building core library and tests only. "
         "Install qt6-qtbase-devel and qt6-qtdeclarative-devel to build vtmodern.")
 endif()

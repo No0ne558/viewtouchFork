@@ -6,6 +6,9 @@ Item {
     id: view
 
     required property LayoutController controller
+    // Set while editing; enables the edit overlay.
+    property EditorController editor: null
+    readonly property bool editing: editor !== null
     property string selectedZoneId: ""
 
     readonly property size canvas: controller.canvasSize
@@ -19,6 +22,7 @@ Item {
 
     Item {
         id: surface
+        objectName: "pageSurface"   // tests map canvas coordinates through this
         width: view.canvas.width
         height: view.canvas.height
         scale: view.scaleFactor
@@ -43,9 +47,34 @@ Item {
             model: view.controller.zones
             delegate: ZoneItem {
                 selectedZoneId: view.selectedZoneId
+                editing: view.editing
+                editSelected: view.editing && editLayer.sel.includes(zoneId)
+                dragDX: editLayer.dragDX
+                dragDY: editLayer.dragDY
+                previewRect: editLayer.resizeId === zoneId ? editLayer.previewRect : null
                 onSelectRequested: view.selectedZoneId = zoneId
                 onActivated: view.controller.activate(zoneId)
             }
         }
+
+        EditLayer {
+            id: editLayer
+            anchors.fill: parent
+            active: view.editing
+            editor: view.editor
+            controller: view.controller
+            scaleFactor: view.scaleFactor
+        }
+    }
+
+    // Canvas boundary while editing.
+    Rectangle {
+        visible: view.editing
+        x: surface.x - 1
+        y: surface.y - 1
+        width: surface.width * surface.scale + 2
+        height: surface.height * surface.scale + 2
+        color: "transparent"
+        border.color: EditorStyle.border
     }
 }

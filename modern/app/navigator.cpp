@@ -5,7 +5,7 @@ using namespace Qt::StringLiterals;
 namespace vt::app {
 
 Navigator::Navigator(const layout::Layout &layout)
-    : layout_(layout)
+    : layout_(&layout)
 {
 }
 
@@ -34,18 +34,21 @@ bool Navigator::jump(Mode mode, const QString &target)
 
     switch (mode) {
     case Mode::Push:
-        if (!layout_.page(target))
+        if (!layout_->page(target))
             return false;
         push(current_);
         enter(target);
         break;
     case Mode::Replace:
-        if (!layout_.page(target))
+        if (!layout_->page(target))
             return false;
         enter(target);
         break;
     case Mode::Back:
     case Mode::Sequence:
+        // Skip pages deleted or renamed (in the editor) since they were pushed.
+        while (!stack_.isEmpty() && !layout_->page(stack_.last()))
+            stack_.removeLast();
         if (stack_.isEmpty())
             enter(home_);
         else
@@ -58,7 +61,7 @@ bool Navigator::jump(Mode mode, const QString &target)
     case Mode::Index: {
         QString idx = lastIndex_;
         if (idx.isEmpty()) {
-            for (const layout::Page &p : layout_.pages) {
+            for (const layout::Page &p : layout_->pages) {
                 if (p.kind == u"index" && !mealPeriod_.isEmpty() && p.mealPeriod == mealPeriod_) {
                     idx = p.id;
                     break;
@@ -66,7 +69,7 @@ bool Navigator::jump(Mode mode, const QString &target)
             }
         }
         if (idx.isEmpty()) {
-            if (const layout::Page *p = layout_.firstPageOfKind(u"index"_s))
+            if (const layout::Page *p = layout_->firstPageOfKind(u"index"_s))
                 idx = p->id;
         }
         if (idx.isEmpty())
@@ -82,7 +85,7 @@ bool Navigator::startSequence(const QStringList &pages)
 {
     QStringList valid;
     for (const QString &p : pages) {
-        if (layout_.page(p))
+        if (layout_->page(p))
             valid.append(p);
     }
     if (valid.isEmpty())
@@ -98,7 +101,7 @@ bool Navigator::startSequence(const QStringList &pages)
 void Navigator::enter(const QString &pageId)
 {
     current_ = pageId;
-    if (const layout::Page *p = layout_.page(pageId); p && p->kind == u"index")
+    if (const layout::Page *p = layout_->page(pageId); p && p->kind == u"index")
         lastIndex_ = pageId;
 }
 

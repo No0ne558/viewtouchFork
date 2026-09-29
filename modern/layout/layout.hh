@@ -53,6 +53,9 @@ public:
     // required roles, zones off the canvas. Empty means the layout is sound.
     QStringList validate() const;
 
+    // False (with an error) when `o` carries a schemaVersion newer than ours.
+    static bool checkSchema(const QJsonObject &o, const QString &what, QStringList *errors = nullptr);
+
     static std::optional<Layout> fromJson(const QJsonObject &o, QStringList *errors = nullptr);
     QJsonObject toJson() const;
 

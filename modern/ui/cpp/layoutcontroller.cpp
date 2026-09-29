@@ -1,5 +1,7 @@
 #include "layoutcontroller.hh"
 
+#include "storage/layout_store.hh"
+
 #include <QJsonArray>
 #include <QLoggingCategory>
 
@@ -26,6 +28,13 @@ QString primaryJumpTarget(const Layout &layout, const vt::layout::Zone &zone)
     return {};
 }
 
+QString homePageOf(const Layout &layout)
+{
+    if (const vt::layout::Page *p = layout.pageByRole(u"login"_s))
+        return p->id;
+    return layout.pages.isEmpty() ? QString() : layout.pages.first().id;
+}
+
 } // namespace
 
 LayoutController::LayoutController(Layout layout, QObject *parent)
@@ -33,12 +42,14 @@ LayoutController::LayoutController(Layout layout, QObject *parent)
     , layout_(std::move(layout))
     , nav_(layout_)
 {
-    const vt::layout::Page *home = layout_.pageByRole(u"login"_s);
-    if (!home && !layout_.pages.isEmpty())
-        home = &layout_.pages.first();
     nav_.setMealPeriod(mealPeriodAt(QTime::currentTime()));
-    nav_.reset(home ? home->id : QString());
+    nav_.reset(homePageOf(layout_));
     refresh();
+}
+
+LayoutController::~LayoutController()
+{
+    delete editor_.data();
 }
 
 QString LayoutController::mealPeriodAt(QTime time)
@@ -48,6 +59,11 @@ QString LayoutController::mealPeriodAt(QTime time)
     if (time < QTime(16, 0))
         return u"lunch"_s;
     return u"dinner"_s;
+}
+
+const Layout &LayoutController::activeLayout() const
+{
+    return editor_ ? editor_->layout() : layout_;
 }
 
 QString LayoutController::pageName() const
@@ -68,13 +84,21 @@ QSize LayoutController::canvasSize() const
     return p ? p->canvas : QSize(1920, 1080);
 }
 
+int LayoutController::pageGrid() const
+{
+    const auto *p = currentPage();
+    return p ? std::max(1, p->grid) : 8;
+}
+
 QVariantMap LayoutController::background() const
 {
-    return layout_.resolveBackground(nav_.current()).toVariantMap();
+    return activeLayout().resolveBackground(nav_.current()).toVariantMap();
 }
 
 void LayoutController::activate(const QString &zoneId)
 {
+    if (editing())
+        return;   // the editor overlay owns touches
     for (const Layout::PlacedZone &pz : layout_.effectiveZones(nav_.current())) {
         if (pz.zone->id != zoneId)
             continue;
@@ -85,7 +109,7 @@ void LayoutController::activate(const QString &zoneId)
         const QString before = nav_.current();
         for (const Action &a : pz.zone->actions) {
             runAction(a);
-            if (nav_.current() != before)
+            if (nav_.current() != before || editing())
                 break;
         }
         return;
@@ -105,15 +129,23 @@ void LayoutController::goHome()
 
 bool LayoutController::jumpTo(const QString &pageId)
 {
-    if (!layout_.page(pageId))
+    if (!activeLayout().page(pageId))
         return false;
     navigate(Navigator::Mode::Push, pageId);
     return true;
 }
 
+bool LayoutController::showPage(const QString &pageId)
+{
+    if (!activeLayout().page(pageId))
+        return false;
+    navigate(Navigator::Mode::Replace, pageId);
+    return true;
+}
+
 bool LayoutController::triggerHotkey(const QString &key)
 {
-    if (key.isEmpty())
+    if (key.isEmpty() || editing())
         return false;
     const auto zones = layout_.effectiveZones(nav_.current());
     // Topmost zone wins, matching touch order.
@@ -125,6 +157,78 @@ bool LayoutController::triggerHotkey(const QString &key)
     }
     return false;
 }
+
+// --- edit mode -------------------------------------------------------------------
+
+void LayoutController::enterEditMode()
+{
+    if (editor_)
+        return;
+    editor_ = new EditorController(layout_, this);
+    connect(editor_, &EditorController::layoutChanged, this, &LayoutController::onDraftChanged);
+    connect(editor_, &EditorController::showPageRequested, this, &LayoutController::showPage);
+    nav_.setLayout(editor_->layout());
+    editor_->setPageId(nav_.current());
+    emit editingChanged();
+    refresh();
+    emit pageChanged();
+}
+
+bool LayoutController::saveEdits()
+{
+    if (!editor_)
+        return false;
+    const Layout draft = editor_->layout();
+    if (store_) {
+        QString error;
+        if (!store_->save(draft, &error)) {
+            setStatus(tr("Could not save: %1").arg(error));
+            return false;
+        }
+    }
+    layout_ = draft;
+    editor_->editor().markClean();
+    setStatus(store_ ? tr("Saved") : tr("Applied (not saved to disk)"));
+    return true;
+}
+
+bool LayoutController::leaveEditMode(bool save)
+{
+    if (!editor_)
+        return true;
+    if (save && editor_->dirty() && !saveEdits())
+        return false;
+
+    nav_.setLayout(layout_);
+    EditorController *old = editor_;
+    editor_ = nullptr;
+    emit editingChanged();   // QML drops its references before the object goes
+    old->deleteLater();
+
+    nav_.setHome(homePageOf(layout_));
+    ensureCurrentPageExists();
+    refresh();
+    emit pageChanged();
+    return true;
+}
+
+void LayoutController::onDraftChanged()
+{
+    nav_.setHome(homePageOf(activeLayout()));
+    ensureCurrentPageExists();
+    refresh();
+    emit pageChanged();
+}
+
+void LayoutController::ensureCurrentPageExists()
+{
+    if (!activeLayout().page(nav_.current()))
+        nav_.jump(Navigator::Mode::Back);   // skips vanished pages, falls back home
+    if (editor_)
+        editor_->setPageId(nav_.current());
+}
+
+// --- actions ---------------------------------------------------------------------
 
 bool LayoutController::runAction(const Action &a)
 {
@@ -172,6 +276,10 @@ bool LayoutController::runAction(const Action &a)
 
     if (type == u"command") {
         const QString name = a.str(u"name");
+        if (name == u"editMode") {
+            enterEditMode();
+            return true;
+        }
         emit commandRequested(name, a.data.value(u"args").toObject().toVariantMap());
         setStatus(tr("'%1' is not available yet").arg(name));
         return true;
@@ -184,6 +292,8 @@ bool LayoutController::runAction(const Action &a)
 void LayoutController::navigate(Navigator::Mode mode, const QString &target)
 {
     if (nav_.jump(mode, target)) {
+        if (editor_)
+            editor_->setPageId(nav_.current());
         refresh();
         emit pageChanged();
     }
@@ -191,15 +301,16 @@ void LayoutController::navigate(Navigator::Mode mode, const QString &target)
 
 void LayoutController::refresh()
 {
+    const Layout &l = activeLayout();
     const QString pageId = nav_.current();
     const auto *page = currentPage();
     const bool onItemPage = page && (page->kind == u"items" || page->kind == u"modifier");
 
     QList<ZoneModel::Row> rows;
-    for (const Layout::PlacedZone &pz : layout_.effectiveZones(pageId)) {
+    for (const Layout::PlacedZone &pz : l.effectiveZones(pageId)) {
         const vt::layout::Zone &z = *pz.zone;
-        const QString target = primaryJumpTarget(layout_, z);
-        const bool current = !target.isEmpty()
+        const QString target = primaryJumpTarget(l, z);
+        const bool current = !editing() && !target.isEmpty()
             && (target == pageId || (onItemPage && target == nav_.lastIndex()));
 
         rows.append({
@@ -219,9 +330,9 @@ void LayoutController::refresh()
             {ZoneModel::HotkeyRole, z.hotkey},
             {ZoneModel::GroupRole, z.group},
             {ZoneModel::ImagePathRole, z.imagePath},
-            {ZoneModel::StyleNormalRole, layout_.resolveStyle(z, pageId, ZoneState::Normal).toVariantMap()},
-            {ZoneModel::StyleSelectedRole, layout_.resolveStyle(z, pageId, ZoneState::Selected).toVariantMap()},
-            {ZoneModel::StyleDisabledRole, layout_.resolveStyle(z, pageId, ZoneState::Disabled).toVariantMap()},
+            {ZoneModel::StyleNormalRole, l.resolveStyle(z, pageId, ZoneState::Normal).toVariantMap()},
+            {ZoneModel::StyleSelectedRole, l.resolveStyle(z, pageId, ZoneState::Selected).toVariantMap()},
+            {ZoneModel::StyleDisabledRole, l.resolveStyle(z, pageId, ZoneState::Disabled).toVariantMap()},
             {ZoneModel::PropsRole, z.props.toVariantMap()},
         });
     }
