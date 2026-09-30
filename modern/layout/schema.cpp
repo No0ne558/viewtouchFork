@@ -106,7 +106,7 @@ QStringList basicKinds()
 
 QStringList widgetKinds()
 {
-    return {u"orderList"_s, u"loginPad"_s, u"tableMap"_s, u"guestCount"_s, u"checkList"_s,
+    return {u"table"_s, u"orderList"_s, u"loginPad"_s, u"tableMap"_s, u"guestCount"_s, u"checkList"_s,
             u"paymentPanel"_s, u"numPad"_s, u"keyboard"_s, u"splitCheck"_s, u"drawerPanel"_s,
             u"reportView"_s, u"endOfDay"_s, u"logoutPanel"_s, u"clock"_s, u"statusBar"_s,
             u"adminPanel"_s, u"kitchenDisplay"_s, u"customerInfo"_s};
@@ -141,8 +141,15 @@ QJsonArray zoneFields(const QString &kind)
     const QString general = u"General"_s;
     QJsonArray out;
 
-    out.append(with(field(u"label"_s, kind == u"comment" ? u"Note"_s : u"Text"_s, u"text"_s, general),
-                    u"hint"_s, isWidgetKind(kind) ? u"Optional caption"_s : QString()));
+    if (kind == u"table") {
+        out.append(with(field(u"label"_s, u"Table name"_s, u"string"_s, general), u"hint"_s,
+                        u"Shown on the table, checks and kitchen tickets. Each table needs its own name."_s));
+        out.append(with(intField(u"props.seats"_s, u"Seats"_s, general, 0, 99), u"hint"_s,
+                        u"Shown while the table is free. 0 hides it."_s));
+    } else {
+        out.append(with(field(u"label"_s, kind == u"comment" ? u"Note"_s : u"Text"_s, u"text"_s, general),
+                        u"hint"_s, isWidgetKind(kind) ? u"Optional caption"_s : QString()));
+    }
     out.append(with(field(u"name"_s, u"Name"_s, u"string"_s, general), u"hint"_s, u"For your reference only"_s));
     if (touchable) {
         out.append(with(field(u"shape"_s, u"Shape"_s, u"enum"_s, general), u"options"_s, kShapes));

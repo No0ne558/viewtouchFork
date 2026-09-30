@@ -271,8 +271,15 @@ TABLES = [
     {"label": "Bar 2", "x": 360, "y": 760, "w": 240, "h": 160, "shape": "rounded", "seats": 1},
     {"label": "Bar 3", "x": 640, "y": 760, "w": 240, "h": 160, "shape": "rounded", "seats": 1},
 ]
+# Each table is its own zone: move, resize, reshape or restyle it in the
+# editor, or add more with + Panel -> table.
+def table_zone(t):
+    tid = "table-" + t["label"].lower().replace(" ", "-")
+    return zone(tid, 16 + t["x"], 16 + t["y"], t["w"], t["h"], t["label"], kind="table",
+                shape=t["shape"], props={"seats": t["seats"]})
+
 page("tables", "Tables", "tables", [
-    zone("table-map", 16, 16, 1440, 1048, "Dining room", kind="tableMap", props={"tables": TABLES}),
+    *[table_zone(t) for t in TABLES],
     zone("quick", 1472, 16, 432, 150, "Quick Order", actions=[command("startQuick"), jump(mode="index")],
          style=fill(GREEN)),
     zone("takeout", 1472, 182, 208, 150, "Takeout", actions=[command("startTakeout"), jump(page="customer")]),

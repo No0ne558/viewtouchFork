@@ -103,6 +103,7 @@ QSize defaultZoneSize(const QString &kind)
 {
     if (kind == u"label") return {480, 80};
     if (kind == u"image") return {240, 240};
+    if (kind == u"table") return {200, 200};
     if (kind == u"comment") return {360, 120};
     if (layout::schema::isWidgetKind(kind)) return {480, 360};
     return {240, 120};
@@ -237,7 +238,11 @@ QString LayoutEditor::addZone(const QString &pageId, const QString &kind, QRect 
     Zone z;
     z.id = uniqueZoneId(*page, kind);
     z.kind = kind;
-    z.label = defaultZoneLabel(kind);
+    z.label = kind == u"table" ? layout_.nextTableLabel() : defaultZoneLabel(kind);
+    if (kind == u"table") {
+        z.shape = u"rounded"_s;
+        z.props.insert(u"seats"_s, 4);
+    }
     z.behavior = (kind == u"button" || kind == u"image") ? u"blink"_s : u"none"_s;
     z.rect = clampToCanvas(rect, page->canvas);
 
@@ -263,6 +268,8 @@ QStringList LayoutEditor::duplicateZones(const QString &pageId, const QStringLis
         for (Zone copy : sources) {
             copy.id = uniqueZoneId(*page, copy.id);
             copy.rect = clampToCanvas(copy.rect.translated(step, step), page->canvas);
+            if (copy.kind == u"table")   // T7 -> T8: two zones can't be one table
+                copy.label = l.nextTableLabel(copy.label);
             created.append(copy.id);
             page->zones.append(copy);
         }
@@ -494,6 +501,8 @@ QStringList LayoutEditor::paste(const QString &pageId)
                 z.rect.translate(step, step);
             z.rect = clampToCanvas(z.rect, page->canvas);
             z.id = uniqueZoneId(*page, z.id);
+            if (z.kind == u"table" && l.tableLabels().contains(z.label.trimmed(), Qt::CaseInsensitive))
+                z.label = l.nextTableLabel(z.label);
             created.append(z.id);
             page->zones.append(z);
         }

@@ -1,6 +1,8 @@
 # ViewTouch on this machine's screen, full screen at boot (kiosk). Runs in
 # the cage Wayland kiosk on tty1, as the viewtouch user. Settings:
-# /etc/viewtouch/kiosk.conf. Enable with
+# /etc/viewtouch/kiosk.conf. cage -s keeps Ctrl+Alt+F<n> working, so a
+# technician can reach a text console (it still asks for a password).
+# Enable with
 #   sudo vtmodern-setup store              # this screen keeps the data
 #   sudo vtmodern-setup terminal <server>  # this screen joins a server
 [Unit]
@@ -32,7 +34,7 @@ UtmpMode=user
 Environment=XDG_SESSION_TYPE=wayland
 Environment=QT_QPA_PLATFORM=wayland
 Environment=QT_WAYLAND_DISABLE_WINDOWDECORATION=1
-ExecStart=/usr/bin/cage -d -- /usr/bin/vtmodern --kiosk --data-dir ${STATE_DIRECTORY} --config /etc/viewtouch/kiosk.conf
+ExecStart=/usr/bin/cage -d -s -- /usr/bin/vtmodern --kiosk --data-dir ${STATE_DIRECTORY} --config /etc/viewtouch/kiosk.conf
 Restart=always
 RestartSec=2
 TimeoutStopSec=30

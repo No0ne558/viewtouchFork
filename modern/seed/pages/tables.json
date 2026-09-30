@@ -15,110 +15,163 @@
   },
   "zones": [
     {
-      "id": "table-map",
-      "kind": "tableMap",
+      "id": "table-t1",
+      "kind": "table",
       "rect": {
-        "x": 16,
-        "y": 16,
-        "w": 1440,
-        "h": 1048
+        "x": 96,
+        "y": 96,
+        "w": 200,
+        "h": 200
+      },
+      "shape": "circle",
+      "behavior": "none",
+      "label": "T1",
+      "props": {
+        "seats": 2
+      }
+    },
+    {
+      "id": "table-t2",
+      "kind": "table",
+      "rect": {
+        "x": 376,
+        "y": 96,
+        "w": 200,
+        "h": 200
+      },
+      "shape": "circle",
+      "behavior": "none",
+      "label": "T2",
+      "props": {
+        "seats": 2
+      }
+    },
+    {
+      "id": "table-t3",
+      "kind": "table",
+      "rect": {
+        "x": 656,
+        "y": 96,
+        "w": 320,
+        "h": 200
       },
       "shape": "rect",
       "behavior": "none",
-      "label": "Dining room",
+      "label": "T3",
       "props": {
-        "tables": [
-          {
-            "label": "T1",
-            "x": 80,
-            "y": 80,
-            "w": 200,
-            "h": 200,
-            "shape": "circle",
-            "seats": 2
-          },
-          {
-            "label": "T2",
-            "x": 360,
-            "y": 80,
-            "w": 200,
-            "h": 200,
-            "shape": "circle",
-            "seats": 2
-          },
-          {
-            "label": "T3",
-            "x": 640,
-            "y": 80,
-            "w": 320,
-            "h": 200,
-            "shape": "rect",
-            "seats": 4
-          },
-          {
-            "label": "T4",
-            "x": 1040,
-            "y": 80,
-            "w": 320,
-            "h": 200,
-            "shape": "rect",
-            "seats": 4
-          },
-          {
-            "label": "T5",
-            "x": 80,
-            "y": 400,
-            "w": 480,
-            "h": 220,
-            "shape": "rect",
-            "seats": 6
-          },
-          {
-            "label": "T6",
-            "x": 640,
-            "y": 400,
-            "w": 240,
-            "h": 240,
-            "shape": "octagon",
-            "seats": 4
-          },
-          {
-            "label": "T7",
-            "x": 960,
-            "y": 400,
-            "w": 240,
-            "h": 240,
-            "shape": "octagon",
-            "seats": 4
-          },
-          {
-            "label": "Bar 1",
-            "x": 80,
-            "y": 760,
-            "w": 240,
-            "h": 160,
-            "shape": "rounded",
-            "seats": 1
-          },
-          {
-            "label": "Bar 2",
-            "x": 360,
-            "y": 760,
-            "w": 240,
-            "h": 160,
-            "shape": "rounded",
-            "seats": 1
-          },
-          {
-            "label": "Bar 3",
-            "x": 640,
-            "y": 760,
-            "w": 240,
-            "h": 160,
-            "shape": "rounded",
-            "seats": 1
-          }
-        ]
+        "seats": 4
+      }
+    },
+    {
+      "id": "table-t4",
+      "kind": "table",
+      "rect": {
+        "x": 1056,
+        "y": 96,
+        "w": 320,
+        "h": 200
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "T4",
+      "props": {
+        "seats": 4
+      }
+    },
+    {
+      "id": "table-t5",
+      "kind": "table",
+      "rect": {
+        "x": 96,
+        "y": 416,
+        "w": 480,
+        "h": 220
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "T5",
+      "props": {
+        "seats": 6
+      }
+    },
+    {
+      "id": "table-t6",
+      "kind": "table",
+      "rect": {
+        "x": 656,
+        "y": 416,
+        "w": 240,
+        "h": 240
+      },
+      "shape": "octagon",
+      "behavior": "none",
+      "label": "T6",
+      "props": {
+        "seats": 4
+      }
+    },
+    {
+      "id": "table-t7",
+      "kind": "table",
+      "rect": {
+        "x": 976,
+        "y": 416,
+        "w": 240,
+        "h": 240
+      },
+      "shape": "octagon",
+      "behavior": "none",
+      "label": "T7",
+      "props": {
+        "seats": 4
+      }
+    },
+    {
+      "id": "table-bar-1",
+      "kind": "table",
+      "rect": {
+        "x": 96,
+        "y": 776,
+        "w": 240,
+        "h": 160
+      },
+      "shape": "rounded",
+      "behavior": "none",
+      "label": "Bar 1",
+      "props": {
+        "seats": 1
+      }
+    },
+    {
+      "id": "table-bar-2",
+      "kind": "table",
+      "rect": {
+        "x": 376,
+        "y": 776,
+        "w": 240,
+        "h": 160
+      },
+      "shape": "rounded",
+      "behavior": "none",
+      "label": "Bar 2",
+      "props": {
+        "seats": 1
+      }
+    },
+    {
+      "id": "table-bar-3",
+      "kind": "table",
+      "rect": {
+        "x": 656,
+        "y": 776,
+        "w": 240,
+        "h": 160
+      },
+      "shape": "rounded",
+      "behavior": "none",
+      "label": "Bar 3",
+      "props": {
+        "seats": 1
       }
     },
     {

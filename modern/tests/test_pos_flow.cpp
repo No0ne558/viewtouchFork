@@ -263,7 +263,7 @@ TEST_CASE("UI flow: keypad login, table map, guest pad, menu, pay", "[flow][ui]"
     REQUIRE(s.pos.loggedIn());
     CHECK(s.c.pageId() == u"tables"_s);
 
-    // T3 sits at (640, 80, 320x200) inside the map at (16, 16).
+    // Table zone T3 at (656, 96, 320x200).
     s.tapCanvas(16 + 640 + 160, 16 + 80 + 100);
     CHECK(s.c.pageId() == u"guest-count"_s);
     s.tapKey(u"3"_s);

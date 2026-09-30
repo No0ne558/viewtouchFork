@@ -53,6 +53,12 @@ public:
     // required roles, zones off the canvas. Empty means the layout is sound.
     QStringList validate() const;
 
+    // Every table name in the layout: table zones and floor-plan tables.
+    QStringList tableLabels() const;
+    // A table name not used yet, following `like`: "T7" -> "T8" (the next
+    // free number after the highest with that prefix), "Patio" -> "Patio 2".
+    QString nextTableLabel(const QString &like = QStringLiteral("T1")) const;
+
     // False (with an error) when `o` carries a schemaVersion newer than ours.
     static bool checkSchema(const QJsonObject &o, const QString &what, QStringList *errors = nullptr);
 

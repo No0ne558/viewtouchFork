@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QSet>
 
@@ -179,6 +180,43 @@ QJsonObject Layout::resolveBackground(const QString &pageId) const
     return bg;
 }
 
+QStringList Layout::tableLabels() const
+{
+    QStringList out;
+    for (const Page &p : pages) {
+        for (const Zone &z : p.zones) {
+            if (z.kind == u"table" && !z.label.trimmed().isEmpty())
+                out.append(z.label.trimmed());
+            else if (z.kind == u"tableMap") {
+                for (const QJsonValue &t : z.props.value(u"tables").toArray())
+                    out.append(t.toObject().value(u"label").toString().trimmed());
+            }
+        }
+    }
+    return out;
+}
+
+QString Layout::nextTableLabel(const QString &like) const
+{
+    static const QRegularExpression numbered(u"^(.*?)(\\d+)$"_s);
+    const QStringList taken = tableLabels();
+    const QRegularExpressionMatch m = numbered.match(like.trimmed());
+    const QString prefix = m.hasMatch() ? m.captured(1) : like.trimmed() + u' ';
+    int highest = m.hasMatch() ? 0 : 1;   // "Patio" counts as "Patio 1"
+    for (const QString &t : taken) {
+        if (t.startsWith(prefix, Qt::CaseInsensitive)) {
+            bool ok = false;
+            const int n = t.mid(prefix.size()).toInt(&ok);
+            if (ok)
+                highest = std::max(highest, n);
+        }
+    }
+    QString label = prefix + QString::number(highest + 1);
+    for (int n = highest + 2; taken.contains(label, Qt::CaseInsensitive); ++n)
+        label = prefix + QString::number(n);
+    return label;
+}
+
 QStringList Layout::validate() const
 {
     QStringList issues;
@@ -187,6 +225,15 @@ QStringList Layout::validate() const
     for (const QString &role : kRequiredRoles) {
         if (!pageByRole(role))
             issues << u"no page has required role '%1'"_s.arg(role);
+    }
+
+    QSet<QString> tables;
+    for (const QString &t : tableLabels()) {
+        if (t.isEmpty())
+            issues << u"a table has no name"_s;
+        else if (tables.contains(t.toLower()))
+            issues << u"table '%1' is on the floor more than once"_s.arg(t);
+        tables.insert(t.toLower());
     }
 
     QSet<QString> roles;

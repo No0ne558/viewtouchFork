@@ -112,6 +112,7 @@ if(Qt6_FOUND)
             ui/qml/FieldEditor.qml
             ui/qml/ActionListEditor.qml
             ui/qml/WidgetKey.qml
+            ui/qml/WidgetTable.qml
             ui/qml/WidgetLoginPad.qml
             ui/qml/WidgetNumPad.qml
             ui/qml/WidgetGuestCount.qml

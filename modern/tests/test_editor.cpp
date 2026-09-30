@@ -146,10 +146,10 @@ TEST_CASE("Duplicate, delete, z-order", "[editor]")
     REQUIRE(copies == QStringList{u"quick-2"_s, u"takeout-2"_s});
     CHECK(rectOf(e, u"tables"_s, u"quick-2"_s) == rectOf(e, u"tables"_s, u"quick"_s).translated(16, 16));
 
-    REQUIRE(e.bringToFront(u"tables"_s, {u"table-map"_s}));
-    CHECK(e.layout().page(u"tables"_s)->zones.last().id == u"table-map"_s);
-    REQUIRE(e.sendToBack(u"tables"_s, {u"table-map"_s}));
-    CHECK(e.layout().page(u"tables"_s)->zones.first().id == u"table-map"_s);
+    REQUIRE(e.bringToFront(u"tables"_s, {u"table-t1"_s}));
+    CHECK(e.layout().page(u"tables"_s)->zones.last().id == u"table-t1"_s);
+    REQUIRE(e.sendToBack(u"tables"_s, {u"table-t1"_s}));
+    CHECK(e.layout().page(u"tables"_s)->zones.first().id == u"table-t1"_s);
 
     REQUIRE(e.deleteZones(u"tables"_s, copies));
     CHECK_FALSE(e.layout().page(u"tables"_s)->zone(u"quick-2"_s));
@@ -286,4 +286,38 @@ TEST_CASE("slugify", "[editor]")
     CHECK(LayoutEditor::slugify(u"Happy Hour!"_s) == u"happy-hour"_s);
     CHECK(LayoutEditor::slugify(u"  Café Menü  "_s) == u"cafe-menu"_s);
     CHECK(LayoutEditor::slugify(u"---"_s).isEmpty());
+}
+
+TEST_CASE("Tables are zones: added, duplicated and pasted with free names", "[editor][tables]")
+{
+    LayoutEditor e(seed());
+    const Layout &l = e.layout();
+    CHECK(l.tableLabels().contains(u"T7"_s));
+    CHECK(l.nextTableLabel(u"T3"_s) == u"T8"_s);        // after the highest T
+    CHECK(l.nextTableLabel(u"Bar 1"_s) == u"Bar 4"_s);
+    CHECK(l.nextTableLabel(u"Patio"_s) == u"Patio 2"_s);
+    CHECK(l.validate().filter(u"table"_s).isEmpty());
+
+    const QString added = e.addZone(u"tables"_s, u"table"_s);
+    REQUIRE_FALSE(added.isEmpty());
+    const Zone *z = e.layout().page(u"tables"_s)->zone(added);
+    CHECK(z->label == u"T8"_s);
+    CHECK(z->props.value(u"seats"_s).toInt() == 4);
+
+    const QStringList copies = e.duplicateZones(u"tables"_s, {added, u"table-bar-3"_s});
+    REQUIRE(copies.size() == 2);
+    CHECK(e.layout().page(u"tables"_s)->zone(copies[0])->label == u"T9"_s);
+    CHECK(e.layout().page(u"tables"_s)->zone(copies[1])->label == u"Bar 4"_s);
+
+    e.copyZones(u"tables"_s, {u"table-t1"_s});
+    const QStringList pasted = e.paste(u"tables"_s);
+    REQUIRE(pasted.size() == 1);
+    CHECK(e.layout().page(u"tables"_s)->zone(pasted[0])->label == u"T10"_s);
+
+    // Seats are edited like any field; renaming onto a taken name is reported.
+    REQUIRE(e.setZoneField(u"tables"_s, {added}, u"props.seats"_s, 6));
+    CHECK(e.layout().page(u"tables"_s)->zone(added)->props.value(u"seats"_s).toInt() == 6);
+    REQUIRE(e.setZoneField(u"tables"_s, {added}, u"label"_s, u"T1"_s));
+    CHECK(e.layout().validate().contains(u"table 'T1' is on the floor more than once"_s));
+    CHECK(schema::isWidgetKind(u"table"_s));
 }
