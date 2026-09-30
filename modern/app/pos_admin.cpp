@@ -5,7 +5,11 @@
 #include "app/pos_json.hh"
 #include "app/pos_service.hh"
 
+#include <QDateTime>
+#include <QLocale>
+#include <QRandomGenerator>
 #include <QRegularExpression>
+#include <QTimer>
 
 #include <algorithm>
 
@@ -259,7 +263,8 @@ QVariantList PosService::adminRecords(const QString &panel)
             const PrinterConfig *p = s_->settings.printer(t.receiptPrinter);
             add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}, {u"drawer"_s, qs(t.drawer)}},
                 qs(t.name), (p ? qs(p->name) : tr("Receipt (default)"))
-                                + (s_->settings.hasDrawer(t.name) ? QString() : tr(" · no drawer")));
+                                + (s_->settings.hasDrawer(t.name) ? QString() : tr(" · no drawer"))
+                                + (t.key.empty() ? QString() : tr(" · paired device")));
         }
     }
     return out;
@@ -313,7 +318,11 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         const QString drawer = record.value(u"drawer"_s).toString();
         if (!QStringList{QString(), u"yes"_s, u"no"_s}.contains(drawer))
             return fail(tr("Choose whether the terminal has a cash drawer."));
-        const TerminalConfig t{ss(name), ss(record.value(u"receiptPrinter"_s).toString()), ss(drawer)};
+        // Editing keeps a paired device's id and key.
+        TerminalConfig t = index >= 0 && index < int(list.size()) ? list[index] : TerminalConfig{};
+        t.name = ss(name);
+        t.receiptPrinter = ss(record.value(u"receiptPrinter"_s).toString());
+        t.drawer = ss(drawer);
         if (index >= 0 && index < int(list.size()))
             list[index] = t;
         else
@@ -568,6 +577,76 @@ bool PosService::adminDelete(const QString &panel, int index)
     emit s_->adminChanged();
     emit notice(panel == u"employees" ? tr("Deactivated") : tr("Removed"));
     return true;
+}
+
+void PosShared::saveSettings()
+{
+    if (sink)
+        sink->saveSettings(settings);
+    ++adminRevision;
+    emit adminChanged();
+}
+
+// --- pairing devices -------------------------------------------------------------
+
+namespace {
+// Crockford base32: no I, L, O or U to mix up. 10 characters = 50 bits,
+// stretched by the key derivation on both sides (see net/pairing).
+QString newPairingCode()
+{
+    static const char alphabet[] = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+    QString code;
+    for (int i = 0; i < 10; ++i) {
+        if (i == 5)
+            code += u'-';
+        code += QChar::fromLatin1(alphabet[QRandomGenerator::system()->bounded(32)]);
+    }
+    return code;
+}
+} // namespace
+
+QString PosShared::startPairing()
+{
+    pairing = Pairing{newPairingCode(), now() + 10 * 60 * 1000};
+    ++adminRevision;
+    emit adminChanged();
+    // Take the code off the manager screens when it runs out.
+    QTimer::singleShot(10 * 60 * 1000 + 500, this, [this, code = pairing->code] {
+        if (pairing && pairing->code == code && !activePairing()) {
+            pairing.reset();
+            ++adminRevision;
+            emit adminChanged();
+        }
+    });
+    return pairing->code;
+}
+
+bool PosService::startPairing()
+{
+    if (!require(perm::Manager, tr("Pairing a device")))
+        return false;
+    s_->startPairing();
+    emit notice(tr("Type %1 on the new device. The code works once, for 10 minutes.").arg(s_->pairing->code));
+    return true;
+}
+
+bool PosService::stopPairing()
+{
+    if (!require(perm::Manager, tr("Pairing a device")))
+        return false;
+    s_->pairing.reset();
+    ++s_->adminRevision;
+    emit s_->adminChanged();
+    return true;
+}
+
+QVariantMap PosService::pairingInfo() const
+{
+    const PosShared::Pairing *p = s_->activePairing();
+    if (!p || !can(QString::fromLatin1(perm::Manager)))
+        return {{u"active"_s, false}};
+    const QString until = QLocale().toString(QDateTime::fromMSecsSinceEpoch(p->expires).time(), QLocale::ShortFormat);
+    return {{u"active"_s, true}, {u"code"_s, p->code}, {u"until"_s, until}};
 }
 
 void PosService::settingsChanged()

@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QJsonArray>
+#include <QSslPreSharedKeyAuthenticator>
 #include <QLoggingCategory>
 
 using namespace Qt::StringLiterals;
@@ -26,7 +27,7 @@ Group groupOf(const QString &key)
         {u"loggedIn"_s, Group::Session}, {u"userName"_s, Group::Session}, {u"userRole"_s, Group::Session},
         {u"permissions"_s, Group::Session}, {u"clockedIn"_s, Group::Session}, {u"clockedInSince"_s, Group::Session},
         {u"storeName"_s, Group::Admin}, {u"currencySymbol"_s, Group::Admin}, {u"adminRevision"_s, Group::Admin},
-        {u"mealPeriods"_s, Group::Admin},
+        {u"mealPeriods"_s, Group::Admin}, {u"pairing"_s, Group::Admin},
         {u"pinLength"_s, Group::Entry}, {u"entry"_s, Group::Entry}, {u"entryAmount"_s, Group::Entry},
         {u"entryGuests"_s, Group::Entry}, {u"textEntry"_s, Group::Entry},
         {u"pendingQualifier"_s, Group::Qualifier},
@@ -47,18 +48,55 @@ RemoteSession::RemoteSession(QString terminalName, QObject *parent)
     , terminal_(std::move(terminalName))
     , channel_(std::make_unique<LineChannel>(&socket_))
 {
-    connect(&socket_, &QTcpSocket::connected, this, &RemoteSession::onConnected);
-    connect(&socket_, &QTcpSocket::readyRead, this, &RemoteSession::onReadyRead);
-    connect(&socket_, &QTcpSocket::disconnected, this, &RemoteSession::onDisconnected);
-    connect(&socket_, &QTcpSocket::errorOccurred, this, [this](QAbstractSocket::SocketError) {
+    socket_.setSslConfiguration(tlsConfiguration());
+    connect(&socket_, &QSslSocket::preSharedKeyAuthenticationRequired, this, [this](QSslPreSharedKeyAuthenticator *a) {
+        a->setIdentity(deviceIdentity(credentials_.terminalId));
+        a->setPreSharedKey(credentials_.key);
+    });
+    connect(&socket_, &QSslSocket::encrypted, this, &RemoteSession::onConnected);
+    connect(&socket_, &QSslSocket::readyRead, this, &RemoteSession::onReadyRead);
+    connect(&socket_, &QSslSocket::disconnected, this, &RemoteSession::onDisconnected);
+    connect(&socket_, &QSslSocket::errorOccurred, this, [this](QAbstractSocket::SocketError e) {
+        // A refused key shows as a failed handshake. Twice in a row counts
+        // (once could be a server restarting mid-handshake).
+        const bool refused = e == QAbstractSocket::SslHandshakeFailedError
+                             || (e == QAbstractSocket::RemoteHostClosedError && !encrypted_ && !welcomed_);
+        if (refused && !welcomed_ && ++refusals_ >= 2) {
+            qCWarning(lcRemote) << "the server refused this device's key";
+            rejected_ = true;
+            reconnect_.stop();
+            emit notice(tr("This terminal is not paired with the server. Pair it again."));
+            emit rejected();
+            return;
+        }
+        // Can't reach the server: every third try, look for it on the
+        // network in case its address changed.
+        if (!welcomed_ && ++failures_ % 3 == 0 && !credentials_.serverId.isEmpty())
+            finder_.search(discoveryPort_);
         if (!welcomed_ && !reconnect_.isActive())
             reconnect_.start();
+    });
+    connect(&finder_, &ServerFinder::found, this, [this](const FoundServer &s) {
+        // The server answers once per network it hears on: act on the first
+        // answer, and not while that attempt is still under way.
+        if (welcomed_ || s.id != credentials_.serverId || (s.host == host_ && s.port == port_)
+            || socket_.state() != QAbstractSocket::UnconnectedState)
+            return;
+        qCInfo(lcRemote).noquote() << "the server moved to" << s.host;
+        host_ = credentials_.host = s.host;
+        port_ = credentials_.port = s.port;
+        emit credentialsChanged(credentials_);
+        reconnect_.stop();
+        encrypted_ = false;
+        socket_.connectToHostEncrypted(host_, port_);
     });
     reconnect_.setSingleShot(true);
     reconnect_.setInterval(kReconnectMs);
     connect(&reconnect_, &QTimer::timeout, this, [this] {
-        if (socket_.state() == QAbstractSocket::UnconnectedState)
-            socket_.connectToHost(host_, port_);
+        if (socket_.state() == QAbstractSocket::UnconnectedState && !rejected_) {
+            encrypted_ = false;
+            socket_.connectToHostEncrypted(host_, port_);
+        }
     });
 }
 
@@ -68,11 +106,20 @@ RemoteSession::~RemoteSession()
     socket_.abort();
 }
 
+void RemoteSession::setCredentials(const Credentials &credentials)
+{
+    credentials_ = credentials;
+    if (!credentials.terminalName.isEmpty())
+        terminal_ = credentials.terminalName;
+}
+
 void RemoteSession::connectTo(const QString &host, quint16 port)
 {
     host_ = host;
     port_ = port;
-    socket_.connectToHost(host_, port_);
+    rejected_ = false;
+    encrypted_ = false;
+    socket_.connectToHostEncrypted(host_, port_);
 }
 
 bool RemoteSession::waitForWelcome(int msec)
@@ -84,6 +131,7 @@ bool RemoteSession::waitForWelcome(int msec)
     timeout.setSingleShot(true);
     connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
     connect(this, &PosSession::onlineChanged, &loop, &QEventLoop::quit);
+    connect(this, &RemoteSession::rejected, &loop, &QEventLoop::quit);
     timeout.start(msec);
     loop.exec();
     return welcomed_;
@@ -91,6 +139,7 @@ bool RemoteSession::waitForWelcome(int msec)
 
 void RemoteSession::onConnected()
 {
+    encrypted_ = true;
     send({{u"t"_s, u"hello"_s}, {u"terminal"_s, terminal_}, {u"protocol"_s, ProtocolVersion}});
 }
 
@@ -118,7 +167,9 @@ void RemoteSession::onDisconnected()
         emit onlineChanged();
         emit notice(tr("Lost the connection to the server. Reconnecting…"));
     }
-    reconnect_.start();
+    encrypted_ = false;
+    if (!rejected_)
+        reconnect_.start();
 }
 
 void RemoteSession::send(const QJsonObject &m)
@@ -137,6 +188,8 @@ void RemoteSession::handle(const QJsonObject &m)
         applyState(m.value(u"state").toObject(), true);
         cache_.clear();
         welcomed_ = true;
+        refusals_ = 0;
+        failures_ = 0;
         emit onlineChanged();
     } else if (type == u"state") {
         applyState(m.value(u"set").toObject(), false);

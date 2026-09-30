@@ -2,10 +2,12 @@
 
 #include "app/pos_session.hh"
 #include "layout/layout.hh"
+#include "net/discovery.hh"
+#include "net/pairing.hh"
 
 #include <QHash>
 #include <QJsonObject>
-#include <QTcpSocket>
+#include <QSslSocket>
 #include <QTimer>
 
 #include <memory>
@@ -17,6 +19,8 @@ class LineChannel;
 // A terminal whose POS session lives on a server. Mirrors the session state
 // the server sends, forwards operations, and reconnects on its own when the
 // connection drops (the server then starts a fresh, logged-out session).
+// It connects as a paired device (setCredentials); a server that refuses
+// the key (the device was unpaired) ends the retrying with `rejected`.
 class RemoteSession : public app::PosSession {
     Q_OBJECT
 
@@ -24,8 +28,13 @@ public:
     explicit RemoteSession(QString terminalName, QObject *parent = nullptr);
     ~RemoteSession() override;
 
+    void setCredentials(const Credentials &credentials);
+    const Credentials &credentials() const { return credentials_; }
     void connectTo(const QString &host, quint16 port);
     bool isConnected() const { return welcomed_; }
+    bool isRejected() const { return rejected_; }
+    // Where to look for a server that moved (tests use their own port).
+    void setDiscoveryPort(quint16 port) { discoveryPort_ = port; }
     // Wait (processing events) until the server has welcomed us.
     bool waitForWelcome(int msec);
 
@@ -36,7 +45,12 @@ public:
 
     void invoke(const QString &method, const QVariantList &args = {}, Reply reply = {}) override;
 
-    QString terminalName() const override { return terminal_; }
+    // The name the server knows this device by (it was paired under it).
+    QString terminalName() const override
+    {
+        const QString server = v(u"terminalName").toString();
+        return server.isEmpty() ? terminal_ : server;
+    }
     bool online() const override { return welcomed_; }
     bool loggedIn() const override { return v(u"loggedIn").toBool(); }
     QString userName() const override { return v(u"userName").toString(); }
@@ -69,6 +83,7 @@ public:
     int adminRevision() const override { return v(u"adminRevision").toInt(); }
     QString tipsOwed() const override { return v(u"tipsOwed").toString(); }
     QVariantList mealPeriods() const override { return v(u"mealPeriods").toList(); }
+    QVariantMap pairingInfo() const override { return v(u"pairing").toMap(); }
     int queryRevision() const override { return queryRevision_; }
 
     // Answered from a cache; fetched from the server when missing or stale.
@@ -80,6 +95,11 @@ public:
 signals:
     void layoutReceived(const vt::layout::Layout &layout);
     void layoutSaved(bool ok, const QString &error);
+    // The server does not accept this device's key (unpaired, or another store).
+    void rejected();
+    // The server was found at a new address (its id answered from there);
+    // save the credentials so the next start goes straight there.
+    void credentialsChanged(const vt::net::Credentials &credentials);
 
 private:
     QVariant v(QStringView key) const { return state_.value(key.toString()); }
@@ -95,7 +115,14 @@ private:
     QString terminal_;
     QString host_;
     quint16 port_ = 0;
-    QTcpSocket socket_;
+    QSslSocket socket_;
+    Credentials credentials_;
+    bool rejected_ = false;
+    int refusals_ = 0;
+    int failures_ = 0;       // connection attempts in a row that got nowhere
+    ServerFinder finder_;    // to find the server again after an address change
+    quint16 discoveryPort_ = DiscoveryPort;
+    bool encrypted_ = false;
     std::unique_ptr<LineChannel> channel_;
     QTimer reconnect_;
     bool welcomed_ = false;

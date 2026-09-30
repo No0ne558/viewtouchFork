@@ -122,6 +122,19 @@ public:
     struct Bump { std::int64_t checkId; std::int64_t sentAt; std::string station; };
     std::vector<Bump> bumped;
 
+    // A device pairing a manager has started: the code the device must
+    // type, until it is used or expires. One at a time.
+    struct Pairing { QString code; std::int64_t expires = 0; };
+    std::optional<Pairing> pairing;
+    const Pairing *activePairing() const
+    {
+        return pairing && pairing->expires > now() ? &*pairing : nullptr;
+    }
+    // Save the settings and tell every terminal (paired devices changed...).
+    void saveSettings();
+    // Open a pairing (replacing any open one) and return its code.
+    QString startPairing();
+
     void startDay();
 
 signals:
@@ -282,6 +295,12 @@ public:
     int adminRevision() const override { return s_->adminRevision; }
     QString tipsOwed() const override;
     QVariantList mealPeriods() const override;
+    QVariantMap pairingInfo() const override;
+
+    // --- pairing devices (manager) -------------------------------------------------
+    // Start a pairing: a 10-character code, good for 10 minutes and one device.
+    bool startPairing();
+    bool stopPairing();
 
 private:
     std::string receiptPrinter() const { return s_->settings.receiptPrinterFor(terminal_.toStdString()); }

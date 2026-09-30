@@ -401,7 +401,8 @@ QJsonObject toJson(const PosSettings &s)
     QJsonArray terminals;
     for (const TerminalConfig &t : s.terminals)
         terminals.append(QJsonObject{{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)},
-                                     {u"drawer"_s, qs(t.drawer)}});
+                                     {u"drawer"_s, qs(t.drawer)}, {u"id"_s, qs(t.id)}, {u"key"_s, qs(t.key)},
+                                     {u"pairedAt"_s, qint64(t.pairedAt)}});
     QJsonArray printers;
     for (const PrinterConfig &p : s.printers)
         printers.append(toJson(p));
@@ -432,6 +433,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"mealPeriods"_s, mealPeriods},
         {u"cashMode"_s, qs(toString(s.cashMode))},
         {u"terminalsHaveDrawer"_s, s.terminalsHaveDrawer},
+        {u"serverId"_s, qs(s.serverId)},
         {u"checkoutNeedsClosedChecks"_s, s.checkoutNeedsClosedChecks},
     };
 }
@@ -457,10 +459,12 @@ PosSettings settingsFromJson(const QJsonObject &o)
     for (const QJsonValue &v : o.value(u"terminals").toArray()) {
         const QJsonObject t = v.toObject();
         s.terminals.push_back({ss(t.value(u"name").toString()), ss(t.value(u"receiptPrinter").toString()),
-                               ss(t.value(u"drawer").toString())});
+                               ss(t.value(u"drawer").toString()), ss(t.value(u"id").toString()),
+                               ss(t.value(u"key").toString()), i64(t.value(u"pairedAt"))});
     }
     s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));
     s.terminalsHaveDrawer = o.value(u"terminalsHaveDrawer").toBool(true);
+    s.serverId = ss(o.value(u"serverId").toString());
     s.checkoutNeedsClosedChecks = o.value(u"checkoutNeedsClosedChecks").toBool(true);
     if (o.contains(u"mealPeriods")) {   // older settings keep the defaults
         s.mealPeriods.clear();

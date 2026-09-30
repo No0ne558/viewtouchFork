@@ -84,6 +84,8 @@ if(Qt6_FOUND)
     # Several terminals on one store: server, remote session, page sync
     add_library(vtm_net STATIC
         net/protocol.hh net/protocol.cpp
+        net/pairing.hh net/pairing.cpp
+        net/discovery.hh net/discovery.cpp
         net/layout_hub.hh net/layout_hub.cpp
         net/pos_server.hh net/pos_server.cpp
         net/remote_session.hh net/remote_session.cpp
@@ -101,6 +103,7 @@ if(Qt6_FOUND)
         OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ViewTouch
         QML_FILES
             ui/qml/Main.qml
+            ui/qml/JoinWindow.qml
             ui/qml/PageView.qml
             ui/qml/ZoneItem.qml
             ui/qml/ZoneShape.qml
@@ -134,6 +137,7 @@ if(Qt6_FOUND)
             ui/cpp/zonemodel.hh ui/cpp/zonemodel.cpp
             ui/cpp/layoutcontroller.hh ui/cpp/layoutcontroller.cpp
             ui/cpp/editorcontroller.hh ui/cpp/editorcontroller.cpp
+            ui/cpp/joincontroller.hh ui/cpp/joincontroller.cpp
             ui/cpp/posforeign.hh
     )
     target_include_directories(vtm_ui PUBLIC ui/cpp)

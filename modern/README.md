@@ -53,12 +53,13 @@ Installing starts nothing. Pick this machine's part in the store:
 |---|---|
 | `sudo vtmodern-setup store` | Has a screen and keeps the data; other terminals may join |
 | `sudo vtmodern-setup server` | Keeps the data with no screen (back office, closet box) |
-| `sudo vtmodern-setup terminal <server> [name]` | Has a screen and joins the server |
+| `sudo vtmodern-setup terminal [server] [name]` | Has a screen and joins a store: shows the Join screen to pair it (the store is found on the network unless given) |
+| `sudo vtmodern-setup pair` | On the server: prints a code to pair a terminal with |
 | `sudo vtmodern-setup off` | Stops starting ViewTouch at boot |
 | `vtmodern-setup status` | Shows what is set up and the newest backup |
 
 - **Screens start full screen at boot** (`vtmodern-kiosk.service`) in the `cage` kiosk on the first console, with no desktop and no mouse pointer. Turn off any desktop login (`sudo systemctl disable gdm`) on a dedicated POS screen. On a desktop, *ViewTouch* is also in the applications menu.
-- **The server** (`vtmodern.service`) runs sandboxed as the `viewtouch` account and restarts if it stops. Open port 7719/tcp in the firewall for the terminals.
+- **The server** (`vtmodern.service`) runs sandboxed as the `viewtouch` account and restarts if it stops. Open port 7719 (TCP and UDP) in the firewall for the terminals.
 - **Settings** live in `/etc/viewtouch/kiosk.conf` and `/etc/viewtouch/server.conf`: any `vtmodern --help` option, written `option = value`. Restart the service after a change.
 - **Data** lives in `/var/lib/viewtouch` and is kept when the package is removed. Only one ViewTouch can use a database at a time; a second one is refused and told to `--connect` instead.
 - **Logs:** `journalctl -u vtmodern` or `journalctl -u vtmodern-kiosk`.
@@ -92,10 +93,18 @@ One machine keeps the data; the others connect to it:
 ./modern/build/vtmodern --serve                 # port 7719; --port to change
 ./modern/build/vtmodern --serve --headless      # a back-office box with no screen
 
-# Every other terminal (no database of its own)
-./modern/build/vtmodern --connect 192.168.1.10 --terminal "Bar"
-./modern/build/vtmodern --connect 192.168.1.10 --terminal "Line" --page kitchen   # kitchen screen
+# Every other terminal (no database of its own): finds the store and pairs on screen
+./modern/build/vtmodern --connect auto --terminal "Bar"
+./modern/build/vtmodern --connect 192.168.1.10 --terminal "Line" --page kitchen   # a given server
+./modern/build/vtmodern --connect 192.168.1.10 --pair K7QM4-XHP2W --terminal "Bar"   # pair from a script
 ```
+
+**Pairing terminals.** Only paired devices can connect.
+1. On any store screen: Manager → Terminals → **Pair a Device** shows a code like `K7QM4-XHP2W`. It works once, for 10 minutes. With a server that has no screen, run `sudo vtmodern-setup pair` (or `vtmodern --pairing-code`) on it instead.
+2. The new terminal shows **Join a ViewTouch store**. It lists the stores it finds on the network (or type the server's address), then asks for the code and this terminal's name. It has its own keyboard for touch-only screens.
+3. It gets its own key, saved in `terminal.json` in its data folder, and connects with it from then on. It shows up in Manager → Terminals as a *paired device*, where its printer and drawer are set. Removing it there disconnects it at once and keeps it out. It then shows the Join screen again.
+
+**Finding the server.** Terminals ask on the network (UDP port 7719) and servers answer with the store's name. A paired terminal whose server changed address (DHCP) finds it again by its id and saves the new address.
 
 - **Shared data.** Checks, tables, the menu, staff, the drawer and reports are the same on every terminal. Check numbers run in one sequence, and End of Day sees every terminal.
 - **Check locks.** A check that is open on one terminal can't be opened on another (the table shows "on Bar"). Closing it, putting it away, logging out or losing the connection releases it.
@@ -103,7 +112,7 @@ One machine keeps the data; the others connect to it:
 - **Lost connection.** A terminal that loses the server shows *Reconnecting…*, keeps trying, and returns to the login page when the server is back.
 - **Responsiveness.** Terminals never wait on the network. Button actions continue when the server answers, and touches are ignored until then.
 - **Printing.** All printing happens at the server's printers. Each terminal has its own drawer and prints receipts on the printer set for it in Manager → Terminals (default: the "receipt" printer).
-- **Security.** The connection is plain TCP on your local network, with no encryption or terminal passwords. Keep it on a trusted network; PINs are still required for everything.
+- **Security.** Connections are encrypted (TLS 1.2, ECDHE-PSK with ChaCha20-Poly1305). Each paired device proves itself with its own 256-bit key, and the server with the same key, so no certificates are needed and a stranger's device can't connect or listen in. Pairing codes are stretched (PBKDF2, 600,000 rounds), so they can't be guessed from a recorded pairing. Open port 7719 for TCP and UDP in the server's firewall.
 
 ## Kitchen display and takeout / delivery
 

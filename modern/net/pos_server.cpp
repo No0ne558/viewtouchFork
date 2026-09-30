@@ -2,11 +2,14 @@
 
 #include "app/pos_service.hh"
 #include "net/layout_hub.hh"
+#include "net/pairing.hh"
 #include "net/protocol.hh"
 
 #include <QJsonArray>
 #include <QLoggingCategory>
-#include <QTcpSocket>
+#include <QSslPreSharedKeyAuthenticator>
+#include <QPointer>
+#include <QSslSocket>
 
 using namespace Qt::StringLiterals;
 
@@ -15,7 +18,9 @@ Q_LOGGING_CATEGORY(lcServer, "vt.server")
 namespace vt::net {
 
 struct PosServer::Connection {
-    QTcpSocket *socket = nullptr;
+    QSslSocket *socket = nullptr;
+    QString terminalId;   // the paired device, from its key
+    QString pairingCode;  // or: a device pairing with this code
     std::unique_ptr<LineChannel> channel;
     std::unique_ptr<app::PosService> session;   // after hello
     QVariantMap sent;                           // last state sent
@@ -28,7 +33,20 @@ PosServer::PosServer(app::PosShared *shared, LayoutHub *layouts, QObject *parent
     , shared_(shared)
     , layouts_(layouts)
 {
-    connect(&server_, &QTcpServer::newConnection, this, &PosServer::onNewConnection);
+    server_.setSslConfiguration(tlsConfiguration());
+    connect(&server_, &QTcpServer::pendingConnectionAvailable, this, &PosServer::onNewConnection);
+    connect(&server_, &QSslServer::preSharedKeyAuthenticationRequired, this, &PosServer::onPreSharedKey);
+    connect(&server_, &QSslServer::errorOccurred, this, [](QSslSocket *socket, QAbstractSocket::SocketError e) {
+        if (e == QAbstractSocket::SslHandshakeFailedError)
+            qCInfo(lcServer).noquote() << "refused a device without a valid key from"
+                                       << socket->peerAddress().toString();
+    });
+    connect(shared_, &app::PosShared::adminChanged, this, &PosServer::dropRevoked);
+    // Terminals find this server again by its id after an address change.
+    if (shared_->settings.serverId.empty()) {
+        shared_->settings.serverId = newDeviceId().toStdString();
+        shared_->saveSettings();
+    }
     flushTimer_.setSingleShot(true);
     flushTimer_.setInterval(0);
     connect(&flushTimer_, &QTimer::timeout, this, [this] {
@@ -59,7 +77,32 @@ PosServer::~PosServer()
 
 bool PosServer::listen(const QHostAddress &address, quint16 port)
 {
+    if (!tlsAvailable(&error_))
+        return false;
+    error_.clear();
     return server_.listen(address, port);
+}
+
+void PosServer::onPreSharedKey(QSslSocket *socket, QSslPreSharedKeyAuthenticator *auth)
+{
+    const QByteArray identity = auth->identity();
+    QByteArray key;
+    if (identity == PairingIdentity) {
+        if (const app::PosShared::Pairing *p = shared_->activePairing()) {
+            if (!pairingKeys_.contains(p->code))
+                pairingKeys_.insert(p->code, pairingKey(p->code));
+            key = pairingKeys_.value(p->code);
+            socket->setProperty("vtPairingCode", p->code);
+        }
+    } else if (identity.startsWith("t:")) {
+        const QString id = QString::fromLatin1(identity.mid(2));
+        if (const core::TerminalConfig *t = shared_->settings.pairedTerminal(id.toStdString())) {
+            key = QByteArray::fromBase64(QByteArray::fromStdString(t->key));
+            socket->setProperty("vtTerminalId", id);
+        }
+    }
+    // Unknown device or no pairing open: a key nobody has, so the handshake fails.
+    auth->setPreSharedKey(key.isEmpty() ? newDeviceKey() : key);
 }
 
 int PosServer::terminalCount() const
@@ -69,9 +112,11 @@ int PosServer::terminalCount() const
 
 void PosServer::onNewConnection()
 {
-    while (QTcpSocket *socket = server_.nextPendingConnection()) {
+    while (auto *socket = qobject_cast<QSslSocket *>(server_.nextPendingConnection())) {
         auto c = std::make_unique<Connection>();
         c->socket = socket;
+        c->terminalId = socket->property("vtTerminalId").toString();
+        c->pairingCode = socket->property("vtPairingCode").toString();
         c->channel = std::make_unique<LineChannel>(socket);
         Connection *raw = c.get();
         connections_.push_back(std::move(c));
@@ -101,10 +146,24 @@ void PosServer::handle(Connection *c, const QJsonObject &m)
 {
     const QString type = m.value(u"t").toString();
 
+    if (!c->pairingCode.isEmpty()) {   // a device pairing: nothing else is allowed
+        if (type == u"pair")
+            pair(c, m);
+        else
+            c->socket->abort();
+        return;
+    }
+
     if (type == u"hello") {
         if (c->session)
             return;
-        const QString name = m.value(u"terminal").toString(u"Terminal"_s);
+        // The name the device was paired under, not what it says.
+        const core::TerminalConfig *paired = shared_->settings.pairedTerminal(c->terminalId.toStdString());
+        if (!paired) {
+            c->socket->abort();
+            return;
+        }
+        const QString name = QString::fromStdString(paired->name);
         c->session = std::make_unique<app::PosService>(shared_, name);
         app::PosService *s = c->session.get();
         // Any change to this session's state is sent out on the next flush.
@@ -160,6 +219,60 @@ void PosServer::handle(Connection *c, const QJsonObject &m)
         c->channel->send({{u"t"_s, u"reply"_s}, {u"id"_s, id},
                           {u"r"_s, QJsonObject{{u"ok"_s, ok}, {u"error"_s, error}}}});
         return;
+    }
+}
+
+void PosServer::pair(Connection *c, const QJsonObject &m)
+{
+    // The code must still be the open one: used once, and not after it expired.
+    const app::PosShared::Pairing *open = shared_->activePairing();
+    const QString name = m.value(u"name").toString().trimmed();
+    if (!open || open->code != c->pairingCode || name.isEmpty()) {
+        c->channel->send({{u"t"_s, u"error"_s},
+                          {u"text"_s, name.isEmpty() ? tr("The terminal needs a name.")
+                                                     : tr("That pairing code is no longer open.")}});
+        c->socket->disconnectFromHost();
+        return;
+    }
+    // A device paired under an existing terminal's name takes its place (a
+    // replaced tablet keeps that terminal's printer and drawer settings).
+    auto &list = shared_->settings.terminals;
+    auto it = std::ranges::find_if(list, [&](const core::TerminalConfig &t) { return t.name == name.toStdString(); });
+    if (it == list.end()) {
+        list.push_back({});
+        it = list.end() - 1;
+    }
+    it->name = name.toStdString();
+    it->id = newDeviceId().toStdString();
+    const QByteArray key = newDeviceKey();
+    it->key = key.toBase64().toStdString();
+    it->pairedAt = shared_->now();
+    const QString id = QString::fromStdString(it->id);
+    shared_->pairing.reset();   // one device per code
+    pairingKeys_.clear();
+    shared_->saveSettings();
+
+    c->channel->send({{u"t"_s, u"paired"_s}, {u"id"_s, id}, {u"key"_s, QString::fromLatin1(key.toBase64())},
+                      {u"name"_s, name}, {u"serverId"_s, QString::fromStdString(shared_->settings.serverId)},
+                      {u"serverName"_s, QString::fromStdString(shared_->settings.storeName)}});
+    c->socket->disconnectFromHost();
+    qCInfo(lcServer).noquote() << "paired a new device:" << name;
+}
+
+void PosServer::dropRevoked()
+{
+    // abort() can drop the connection at once: pick them out first.
+    QList<QPointer<QSslSocket>> revoked;
+    for (auto &c : connections_) {
+        if (!c->terminalId.isEmpty() && !shared_->settings.pairedTerminal(c->terminalId.toStdString())) {
+            qCInfo(lcServer).noquote() << "device unpaired; disconnecting"
+                                       << (c->session ? c->session->terminalName() : c->terminalId);
+            revoked << c->socket;
+        }
+    }
+    for (const QPointer<QSslSocket> &s : revoked) {
+        if (s)
+            s->abort();
     }
 }
 

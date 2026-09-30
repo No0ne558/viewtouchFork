@@ -1,18 +1,20 @@
 #!/bin/sh
 # Set up this machine's part in a ViewTouch store.
 #
-#   sudo vtmodern-setup store                 this screen keeps the data; other terminals may join
-#   sudo vtmodern-setup server                keeps the data with no screen (back office / closet box)
-#   sudo vtmodern-setup terminal HOST [NAME]  this screen joins the server at HOST
-#   sudo vtmodern-setup off                   stop starting ViewTouch at boot
-#   vtmodern-setup status                     what is set up now
+#   sudo vtmodern-setup store                   this screen keeps the data; other terminals may join
+#   sudo vtmodern-setup server                  keeps the data with no screen (back office / closet box)
+#   sudo vtmodern-setup terminal [HOST] [NAME]  this screen joins a store (found on the network,
+#                                               or at HOST) after pairing on its screen
+#   sudo vtmodern-setup pair                    on the server: a code to pair a terminal with
+#   sudo vtmodern-setup off                     stop starting ViewTouch at boot
+#   vtmodern-setup status                       what is set up now
 set -eu
 
 CONF_DIR=/etc/viewtouch
 KIOSK_CONF=$CONF_DIR/kiosk.conf
 
 usage() {
-    sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
     exit "${1:-0}"
 }
 
@@ -52,6 +54,16 @@ warn_desktop() {
     fi
 }
 
+firewall_note() {
+    if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+        echo "The firewall is on; let terminals in (and find this server) with:"
+        echo "  sudo firewall-cmd --permanent --add-port=7719/tcp --add-port=7719/udp && sudo firewall-cmd --reload"
+    elif command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+        echo "The firewall is on; let terminals in (and find this server) with:"
+        echo "  sudo ufw allow 7719/tcp && sudo ufw allow 7719/udp"
+    fi
+}
+
 start_kiosk() {
     systemctl daemon-reload
     systemctl disable --now vtmodern.service >/dev/null 2>&1 || true
@@ -67,7 +79,9 @@ store)
     write_kiosk_block "serve = yes"
     start_kiosk
     echo "This screen now runs ViewTouch at boot and keeps the store's data."
-    echo "Other terminals join with: sudo vtmodern-setup terminal $(uname -n)"
+    echo "Other terminals: sudo vtmodern-setup terminal, then pair them with a code from"
+    echo "Manager -> Terminals -> Pair a Device on this screen."
+    firewall_note
     ;;
 server)
     need_root
@@ -76,21 +90,24 @@ server)
     systemctl enable vtmodern.service
     systemctl restart vtmodern.service
     echo "ViewTouch now serves terminals from this machine (port 7719)."
-    echo "Terminals join with: sudo vtmodern-setup terminal $(uname -n)"
-    if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
-        echo "The firewall is on; let terminals in with:"
-        echo "  sudo firewall-cmd --permanent --add-port=7719/tcp && sudo firewall-cmd --reload"
-    fi
+    echo "Set up each terminal with: sudo vtmodern-setup terminal"
+    echo "and pair it with a code from:  sudo vtmodern-setup pair"
+    firewall_note
     ;;
 terminal)
     need_root
-    [ $# -ge 2 ] || usage 1
-    host=$2
+    host=${2:-auto}
     name=${3:-$(uname -n)}
     write_kiosk_block "connect = $host
 terminal = $name"
     start_kiosk
-    echo "This screen now joins the ViewTouch server at $host as \"$name\"."
+    echo "This screen now shows the Join screen. Pick the store, type a pairing code, and Join."
+    echo "The code comes from Manager -> Terminals -> Pair a Device on any store screen,"
+    echo "or, on a server without a screen: sudo vtmodern-setup pair"
+    ;;
+pair)
+    need_root
+    exec vtmodern --data-dir /var/lib/viewtouch --pairing-code
     ;;
 off)
     need_root

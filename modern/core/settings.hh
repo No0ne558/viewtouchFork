@@ -32,6 +32,11 @@ struct TerminalConfig {
     std::string name;
     std::string receiptPrinter;
     std::string drawer;   // "yes" / "no": has a cash drawer; empty = the store's setting
+    // A paired device (tablet, remote terminal): the id it connects as and
+    // its secret key (base64). Empty for terminals set up by name only.
+    std::string id;
+    std::string key;
+    std::int64_t pairedAt = 0;
 
     bool operator==(const TerminalConfig &) const = default;
 };
@@ -92,6 +97,9 @@ struct PosSettings {
     std::int64_t gratuityBp = 0;   // 0 = off; 1800 = 18%
     int gratuityMinGuests = 6;
     std::vector<TerminalConfig> terminals;
+    // This store's server, as terminals know it (found again after an
+    // address change). Made once, on first start.
+    std::string serverId;
     std::vector<MealPeriod> mealPeriods = defaultMealPeriods();
     CashMode cashMode = CashMode::TerminalDrawer;
     // Whether terminals have a cash drawer, unless set per terminal.
@@ -116,6 +124,15 @@ struct PosSettings {
                 return t.receiptPrinter;
         }
         return "receipt";
+    }
+
+    const TerminalConfig *pairedTerminal(const std::string &id) const
+    {
+        for (const TerminalConfig &t : terminals) {
+            if (!id.empty() && t.id == id && !t.key.empty())
+                return &t;
+        }
+        return nullptr;
     }
 
     const PrinterConfig *printer(const std::string &id) const

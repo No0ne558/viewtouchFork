@@ -57,6 +57,8 @@ class PosSession : public QObject {
     Q_PROPERTY(int adminRevision READ adminRevision NOTIFY adminChanged)
     // The logged-in employee's card tips + gratuity not yet paid out.
     Q_PROPERTY(QString tipsOwed READ tipsOwed NOTIFY dayChanged)
+    // A device pairing in progress (managers only): {active, code, until}.
+    Q_PROPERTY(QVariantMap pairing READ pairingInfo NOTIFY adminChanged)
     // The store's meal periods: [{id, name, start (minutes after midnight)}].
     Q_PROPERTY(QVariantList mealPeriods READ mealPeriods NOTIFY adminChanged)
     // Bumps when an asynchronous query (report, admin records) has an answer.
@@ -107,6 +109,7 @@ public:
     virtual int adminRevision() const = 0;
     virtual QString tipsOwed() const = 0;
     virtual QVariantList mealPeriods() const = 0;
+    virtual QVariantMap pairingInfo() const = 0;
     virtual int queryRevision() const { return 0; }
 
     virtual void selectLine(qint64 lineId) { invoke(QStringLiteral("selectLine"), {lineId}); }
@@ -163,6 +166,8 @@ public:
     // kind: "payout" | "paidIn"
     Q_INVOKABLE void payout(const QString &kind) { invoke(QStringLiteral("payout"), {kind}); }
     Q_INVOKABLE void cashOutTips() { invoke(QStringLiteral("cashOutTips")); }
+    Q_INVOKABLE void startPairing() { invoke(QStringLiteral("startPairing")); }
+    Q_INVOKABLE void stopPairing() { invoke(QStringLiteral("stopPairing")); }
 
 signals:
     void sessionChanged();

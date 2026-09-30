@@ -52,9 +52,28 @@ struct Store {
         REQUIRE(server.listen(QHostAddress::LocalHost, 0));
     }
 
+    // A device already paired under `name`.
+    net::Credentials pairedDevice(const QString &name)
+    {
+        core::TerminalConfig t;
+        t.name = name.toStdString();
+        t.id = net::newDeviceId().toStdString();
+        const QByteArray key = net::newDeviceKey();
+        t.key = key.toBase64().toStdString();
+        shared.settings.terminals.push_back(t);
+        net::Credentials c;
+        c.host = u"127.0.0.1"_s;
+        c.port = server.port();
+        c.terminalId = QString::fromStdString(t.id);
+        c.terminalName = name;
+        c.key = key;
+        return c;
+    }
+
     std::unique_ptr<net::RemoteSession> terminal(const QString &name)
     {
         auto t = std::make_unique<net::RemoteSession>(name);
+        t->setCredentials(pairedDevice(name));
         t->connectTo(u"127.0.0.1"_s, server.port());
         REQUIRE(t->waitForWelcome(5000));
         return t;
@@ -330,6 +349,7 @@ TEST_CASE("Remote terminal reconnects and starts at the login page", "[net][remo
     Screen t(store->terminal(u"Front"_s));
     t.pin("1111");
     CHECK(t.c.pageId() == u"tables"_s);
+    const auto pairedDevices = store->shared.settings.terminals;
 
     // Server goes away: the terminal says so and keeps trying.
     store.reset();
@@ -339,9 +359,11 @@ TEST_CASE("Remote terminal reconnects and starts at the login page", "[net][remo
     t.settle();
     CHECK_FALSE(notices.isEmpty());
 
-    // A new server on the same port: back online, logged out.
+    // The server restarts on the same port (its paired devices are saved):
+    // back online, logged out.
     test::RecordingSink sink;
     PosShared shared(test::seedPosData(), &sink);
+    shared.settings.terminals = pairedDevices;
     net::LayoutHub hub(seedLayout());
     net::PosServer server(&shared, &hub);
     REQUIRE(server.listen(QHostAddress::LocalHost, port));

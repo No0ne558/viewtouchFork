@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 // Manager editor for one kind of record (props.panel: menu | employees |
-// tenders | printers | taxes | store). List on the left, form on the right;
+// tenders | printers | taxes | store | terminals | mealPeriods). List on the left, form on the right;
 // the form's fields come from the service, like the page inspector.
 Item {
     id: w
@@ -71,9 +71,57 @@ Item {
         scale: w.zoom
         transformOrigin: Item.TopLeft
 
+        // Terminals: pair a tablet or another screen. The code shows here
+        // until the device uses it or 10 minutes pass.
+        Rectangle {
+            id: pairBar
+            visible: w.panel === "terminals"
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+            height: visible ? 64 : 0
+            radius: 8
+            color: w.pos && w.pos.pairing.active ? "#173a26" : "#232933"
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 12
+                Label {
+                    visible: !(w.pos && w.pos.pairing.active)
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Add a tablet or another screen: Pair a Device, then type the code on it (its Join screen).")
+                    opacity: 0.8
+                }
+                Label {
+                    visible: w.pos && w.pos.pairing.active
+                    text: qsTr("Pairing code")
+                    opacity: 0.8
+                }
+                Label {
+                    visible: w.pos && w.pos.pairing.active
+                    text: w.pos ? (w.pos.pairing.code ?? "") : ""
+                    font.pixelSize: 30
+                    font.bold: true
+                    font.letterSpacing: 4
+                    color: "#7ee2a8"
+                }
+                Label {
+                    visible: w.pos && w.pos.pairing.active
+                    Layout.fillWidth: true
+                    text: qsTr("works once, until %1").arg(w.pos ? (w.pos.pairing.until ?? "") : "")
+                    opacity: 0.8
+                }
+                Button {
+                    text: w.pos && w.pos.pairing.active ? qsTr("Stop") : qsTr("Pair a Device")
+                    highlighted: !(w.pos && w.pos.pairing.active)
+                    onClicked: w.pos.pairing.active ? w.pos.stopPairing() : w.pos.startPairing()
+                }
+            }
+        }
+
         RowLayout {
             anchors.fill: parent
             anchors.margins: 10
+            anchors.topMargin: pairBar.visible ? pairBar.height + 20 : 10
             spacing: 12
 
             // --- list ---

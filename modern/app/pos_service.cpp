@@ -1046,6 +1046,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"payout"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.payout(cashMovementKindFromString(ss(a.value(0).toString())))); }},
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
+        {u"startPairing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.startPairing()); }},
+        {u"stopPairing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.stopPairing()); }},
         {u"openDrawerSession"_s, [](PosService &p, const QVariantList &) { return QVariant(p.openDrawerSession()); }},
         {u"countDrawer"_s, [](PosService &p, const QVariantList &) { return QVariant(p.countDrawer()); }},
         {u"countDrawerById"_s, [](PosService &p, const QVariantList &a) {
