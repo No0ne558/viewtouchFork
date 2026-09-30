@@ -26,6 +26,9 @@ struct Employee {
     std::string pinSalt;
     std::string pinHash;
     bool active = true;
+    // Cash handling for this person: "serverBank" (own bank), "drawer" (the
+    // terminal's drawer), or empty for the store's setting.
+    std::string cashMode;
 
     bool can(const std::string &permission) const { return permissionsForRole(role).contains(permission); }
     bool operator==(const Employee &) const = default;

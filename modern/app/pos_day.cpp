@@ -182,6 +182,13 @@ const DrawerSession *PosShared::latestBankFor(const std::string &employeeId) con
     return latest;
 }
 
+bool PosService::serverBank() const
+{
+    if (const Employee *e = user(); e && !e->cashMode.empty())
+        return e->cashMode == "serverBank";
+    return s_->settings.cashMode == CashMode::ServerBank;
+}
+
 DrawerSession *PosService::myDrawer()
 {
     if (serverBank())
@@ -408,7 +415,7 @@ QString PosService::tipsOwed() const
 
 QVariantMap PosService::drawerInfo() const
 {
-    const QString mode = qs(toString(s_->settings.cashMode));
+    const QString mode = serverBank() ? u"serverBank"_s : u"drawer"_s;   // this person's
     const DrawerSession *latest = latestMyDrawer();
     // Managers see everyone else's open drawers and banks, to count them.
     QVariantList others;

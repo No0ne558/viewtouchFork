@@ -285,7 +285,8 @@ public:
 
 private:
     std::string receiptPrinter() const { return s_->settings.receiptPrinterFor(terminal_.toStdString()); }
-    bool serverBank() const { return s_->settings.cashMode == core::CashMode::ServerBank; }
+    // Cash handling for the logged-in person: their own choice, else the store's.
+    bool serverBank() const;
     core::DrawerSession *myDrawer();
     const core::DrawerSession *latestMyDrawer() const;
     // Server banks: my open bank, started at `start` if I have none.

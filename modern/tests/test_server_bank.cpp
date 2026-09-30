@@ -170,3 +170,58 @@ TEST_CASE("Cash handling is a store setting", "[bank][admin]")
     cashSale(pos);                                   // no drawer needed now
     CHECK(app::settingsFromJson(app::toJson(pos.shared()->settings)).cashMode == core::CashMode::ServerBank);
 }
+
+TEST_CASE("Per-employee cash handling: banks and a counter drawer in one store", "[bank][admin]")
+{
+    app::PosData data = bankData();                     // store: server banks
+    for (core::Employee &e : data.employees) {
+        if (e.role == "cashier")
+            e.cashMode = "drawer";                      // the counter cashier uses the drawer
+    }
+    PosShared shared(data, nullptr);
+    Kicks kicks;
+    shared.printer = &kicks;
+    PosService counter(&shared, u"Counter"_s);
+
+    // The cashier needs the counter's drawer open; the sale opens it.
+    REQUIRE(counter.loginWithPin(u"2222"_s));
+    CHECK(counter.drawerInfo()[u"mode"_s].toString() == u"drawer"_s);
+    counter.addItem(u"draft-beer"_s);
+    REQUIRE(counter.tender(u"cash"_s));
+    CHECK_FALSE(counter.closeCheck());
+    counter.entryKey(u"10000"_s);
+    REQUIRE(counter.openDrawerSession());
+    REQUIRE(counter.closeCheck());
+    CHECK(counter.drawerInfo()[u"name"_s].toString() == u"Counter drawer"_s);
+    CHECK(counter.drawerInfo()[u"expected"_s].toString() == u"$106.60"_s);
+    const int kicksForCashier = kicks.drawerKicks;
+    CHECK(kicksForCashier == 2);                        // start + cash sale
+    counter.logout();
+
+    // A server on the same terminal keeps their own cash.
+    REQUIRE(counter.loginWithPin(u"1111"_s));
+    CHECK(counter.drawerInfo()[u"mode"_s].toString() == u"serverBank"_s);
+    cashSale(counter);
+    CHECK(counter.drawerInfo()[u"name"_s].toString() == u"Sam's bank"_s);
+    CHECK(counter.drawerInfo()[u"expected"_s].toString() == u"$6.60"_s);
+    CHECK(kicks.drawerKicks == kicksForCashier);        // the drawer stays shut
+    counter.logout();
+
+    // The manager changes it per person on the Employees screen.
+    REQUIRE(counter.loginWithPin(u"1234"_s));
+    const QVariantList staff = counter.adminRecords(u"employees"_s);
+    int samIndex = -1;
+    for (int i = 0; i < staff.size(); ++i) {
+        if (staff[i].toMap()[u"name"_s] == u"Sam"_s)
+            samIndex = i;
+    }
+    REQUIRE(samIndex >= 0);
+    QVariantMap sam = staff[samIndex].toMap();
+    CHECK(sam[u"cashMode"_s].toString().isEmpty());     // store setting
+    sam[u"cashMode"_s] = u"bogus"_s;
+    CHECK_FALSE(counter.adminSave(u"employees"_s, samIndex, sam));
+    sam[u"cashMode"_s] = u"drawer"_s;
+    REQUIRE(counter.adminSave(u"employees"_s, samIndex, sam));
+    CHECK(shared.employees[samIndex].cashMode == "drawer");
+    CHECK(app::employeeFromJson(app::toJson(shared.employees[samIndex])).cashMode == "drawer");
+}

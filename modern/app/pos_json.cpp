@@ -203,6 +203,7 @@ QJsonObject toJson(const Employee &e)
     return {
         {u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
         {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active},
+        {u"cashMode"_s, qs(e.cashMode)},
     };
 }
 
@@ -213,6 +214,7 @@ Employee employeeFromJson(const QJsonObject &o)
     e.name = ss(o.value(u"name").toString());
     e.role = ss(o.value(u"role").toString(u"server"_s));
     e.active = o.value(u"active").toBool(true);
+    e.cashMode = ss(o.value(u"cashMode").toString());
     if (o.contains(u"pin")) {
         e.pinSalt = newSalt();
         e.pinHash = hashPin(o.value(u"pin").toString(), e.pinSalt);

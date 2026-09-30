@@ -123,6 +123,7 @@ One machine keeps the data; the others connect to it:
   - **Check out** at the end of the shift: Log Out → **My Bank…**, count your cash, type it, **Check Out**. It shows *Cash to turn in*, then over / short. Open checks have to be closed or handed over first.
   - Pay outs, paid ins and tip cash-outs come out of the bank of whoever does them.
   - Managers see every other open bank on the Drawer page and can **Count** one for a server who left. End of Day waits until every bank is counted.
+- **Per person:** Manager → Employees → *Cash handling* overrides the store setting for one person: *Own bank* or *Terminal's cash drawer*. For example, servers carry banks while the counter cashier rings into the counter's drawer; the drawer opens only for the cashier's cash sales.
 - **Drawers per terminal** (the other *Cash handling* choice). Each terminal starts, counts and balances its own drawer ("Bar drawer"). Cash payments need this terminal's drawer open, and End of Day waits until every drawer is counted.
 - **Pay outs and paid ins** (Drawer page, manager): type the amount, optionally touch Reason…, then Pay Out or Paid In. They show in the drawer's expected cash and on the Drawers report.
 - **Cash out tips.** Logout → Cash Out My Tips pays the card tips owed to you from this terminal's drawer.
