@@ -240,3 +240,35 @@ TEST_CASE("Validation reports broken references", "[layout]")
     l.page(u"login"_s)->role.clear();
     CHECK(l.validate().filter(u"required role 'login'"_s).size() == 1);
 }
+
+TEST_CASE("An old tableMap floor plan loads as separate table zones", "[layout][tables]")
+{
+    const QJsonObject json{
+        {u"id"_s, u"floor"_s}, {u"name"_s, u"Floor"_s}, {u"kind"_s, u"tables"_s},
+        {u"zones"_s, QJsonArray{
+            QJsonObject{{u"id"_s, u"title"_s}, {u"kind"_s, u"label"_s}, {u"rect"_s, QJsonObject{{u"x"_s, 0}, {u"y"_s, 0}, {u"w"_s, 100}, {u"h"_s, 50}}}},
+            QJsonObject{{u"id"_s, u"map"_s}, {u"kind"_s, u"tableMap"_s}, {u"z"_s, 2},
+                        {u"rect"_s, QJsonObject{{u"x"_s, 16}, {u"y"_s, 16}, {u"w"_s, 1400}, {u"h"_s, 1000}}},
+                        {u"props"_s, QJsonObject{{u"tables"_s, QJsonArray{
+                            QJsonObject{{u"label"_s, u"T1"_s}, {u"x"_s, 80}, {u"y"_s, 80}, {u"w"_s, 200}, {u"h"_s, 200},
+                                        {u"shape"_s, u"circle"_s}, {u"seats"_s, 2}},
+                            QJsonObject{{u"label"_s, u"Bar 1"_s}, {u"x"_s, 80}, {u"y"_s, 760}, {u"w"_s, 240}, {u"h"_s, 160}}}}}}},
+            QJsonObject{{u"id"_s, u"after"_s}, {u"kind"_s, u"button"_s}, {u"rect"_s, QJsonObject{{u"x"_s, 1500}, {u"y"_s, 0}, {u"w"_s, 100}, {u"h"_s, 50}}}},
+        }},
+    };
+    const Page p = Page::fromJson(json);
+    REQUIRE(p.zones.size() == 4);   // the map became two tables, in its place
+    CHECK(p.zones[0].id == u"title"_s);
+    const Zone &t1 = p.zones[1];
+    CHECK(t1.kind == u"table"_s);
+    CHECK(t1.id == u"table-t1"_s);
+    CHECK(t1.label == u"T1"_s);
+    CHECK(t1.rect == QRect(96, 96, 200, 200));
+    CHECK(t1.shape == u"circle"_s);
+    CHECK(t1.z == 2);
+    CHECK(t1.props.value(u"seats"_s).toInt() == 2);
+    CHECK(p.zones[2].id == u"table-bar-1"_s);
+    CHECK(p.zones[2].rect == QRect(96, 776, 240, 160));
+    CHECK_FALSE(p.zones[2].props.contains(u"seats"_s));
+    CHECK(p.zones[3].id == u"after"_s);
+}

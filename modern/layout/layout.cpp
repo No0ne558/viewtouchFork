@@ -185,12 +185,8 @@ QStringList Layout::tableLabels() const
     QStringList out;
     for (const Page &p : pages) {
         for (const Zone &z : p.zones) {
-            if (z.kind == u"table" && !z.label.trimmed().isEmpty())
+            if (z.kind == u"table")
                 out.append(z.label.trimmed());
-            else if (z.kind == u"tableMap") {
-                for (const QJsonValue &t : z.props.value(u"tables").toArray())
-                    out.append(t.toObject().value(u"label").toString().trimmed());
-            }
         }
     }
     return out;

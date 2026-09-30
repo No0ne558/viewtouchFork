@@ -118,7 +118,6 @@ if(Qt6_FOUND)
             ui/qml/WidgetGuestCount.qml
             ui/qml/WidgetOrderList.qml
             ui/qml/WidgetPaymentPanel.qml
-            ui/qml/WidgetTableMap.qml
             ui/qml/WidgetCheckList.qml
             ui/qml/WidgetKeyboard.qml
             ui/qml/WidgetClock.qml

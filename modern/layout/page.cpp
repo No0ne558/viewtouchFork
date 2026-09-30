@@ -1,6 +1,8 @@
 #include "layout/page.hh"
 
 #include <QJsonArray>
+#include <QRegularExpression>
+#include <QSet>
 
 using namespace Qt::StringLiterals;
 
@@ -25,6 +27,40 @@ const Zone *Page::zone(const QString &zoneId) const
     return nullptr;
 }
 
+namespace {
+
+// Floor plans used to be one "tableMap" zone listing its tables in
+// props.tables. Each listed table becomes a "table" zone of its own, in the
+// same place, so older pages keep working.
+QList<Zone> tablesOfMap(const Zone &map, const QSet<QString> &takenIds)
+{
+    static const QRegularExpression nonWord(u"[^a-z0-9]+"_s);
+    QList<Zone> out;
+    QSet<QString> ids = takenIds;
+    for (const QJsonValue &v : map.props.value(u"tables").toArray()) {
+        const QJsonObject t = v.toObject();
+        Zone z;
+        z.kind = u"table"_s;
+        z.label = t.value(u"label").toString();
+        QString id = u"table-"_s + z.label.toLower().replace(nonWord, u"-"_s);
+        for (int n = 2; ids.contains(id); ++n)
+            id = u"table-%1-%2"_s.arg(z.label.toLower().replace(nonWord, u"-"_s)).arg(n);
+        ids.insert(id);
+        z.id = id;
+        z.rect = QRect(map.rect.x() + t.value(u"x").toInt(), map.rect.y() + t.value(u"y").toInt(),
+                       t.value(u"w").toInt(200), t.value(u"h").toInt(200));
+        z.z = map.z;
+        z.shape = t.value(u"shape").toString(u"rect"_s);
+        z.behavior = u"none"_s;
+        if (t.contains(u"seats"))
+            z.props.insert(u"seats"_s, t.value(u"seats").toInt());
+        out.append(z);
+    }
+    return out;
+}
+
+} // namespace
+
 Page Page::fromJson(const QJsonObject &o)
 {
     Page p;
@@ -42,6 +78,18 @@ Page Page::fromJson(const QJsonObject &o)
     p.style = Style::fromJson(o.value(u"style").toObject());
     for (const QJsonValue &z : o.value(u"zones").toArray())
         p.zones.append(Zone::fromJson(z.toObject()));
+    for (qsizetype i = 0; i < p.zones.size(); ++i) {
+        if (p.zones[i].kind != u"tableMap")
+            continue;
+        QSet<QString> ids;
+        for (const Zone &z : std::as_const(p.zones))
+            ids.insert(z.id);
+        const QList<Zone> tables = tablesOfMap(p.zones[i], ids);
+        p.zones.removeAt(i);
+        for (qsizetype k = 0; k < tables.size(); ++k)
+            p.zones.insert(i + k, tables[k]);
+        i += tables.size() - 1;
+    }
 
     for (auto it = o.begin(); it != o.end(); ++it) {
         if (!kPageKeys.contains(it.key()))

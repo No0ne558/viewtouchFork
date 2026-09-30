@@ -118,7 +118,7 @@ write("pos/settings.json", {
 })
 
 # ---------------------------------------------------------------- theme
-WIDGETS = ["orderList", "loginPad", "tableMap", "guestCount", "numPad", "paymentPanel",
+WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,

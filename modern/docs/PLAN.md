@@ -125,7 +125,7 @@ About 15 of the old zone types (STANDARD, SIMPLE, CONDITIONAL, TOGGLE, SWITCH, I
 |---|---|---|
 | `loginPad` | LOGIN | PIN entry, clock in/out |
 | `logoutPanel` | LOGOUT | Clock out, break, save |
-| `tableMap` | TABLE, as one widget | Individual table buttons that show live status; tables are data, not zones |
+| `table` | TABLE | One table per zone, placed in the editor, showing live status (an earlier single `tableMap` panel is converted on load) |
 | `guestCount` | GUEST_COUNT | Enter number of guests |
 | `checkList` | CHECK_LIST | List of open checks |
 | `orderList` | ORDER_ENTRY | Current check: select, modify, seat/check paging |

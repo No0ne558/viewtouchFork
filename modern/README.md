@@ -155,7 +155,6 @@ Log in with a demo PIN: **1234** (manager), **1111** (server) or **2222** (cashi
 |---|---|
 | loginPad | PIN entry |
 | table | One table: its text is the table's name, `props.seats` its seats. Shows free / yours / someone else's |
-| tableMap | A whole floor plan in one panel (tables listed in `props.tables`); the single `table` zones are easier to arrange |
 | guestCount | Number of guests |
 | numPad | Number or amount entry (`props.mode: "amount"`) |
 | orderList | The current check |
@@ -180,7 +179,7 @@ Manager widgets:
 
 ## Editing pages
 
-**Tables** are zones like buttons. On the Tables page press F1, then *+ Panel ▾ → table* to add one, or select a table and *Duplicate* (T7 becomes T8, Bar 3 becomes Bar 4). Drag and resize them, pick a shape (circle, octagon…) and colors, and set *Table name* and *Seats* in the inspector. Every table needs its own name: the name is what checks and kitchen tickets show. Pages saved before tables became zones keep their floor plan; `--reset-layout` switches to the new starter floor.
+**Tables** are zones like buttons. On the Tables page press F1, then *+ Panel ▾ → table* to add one, or select a table and *Duplicate* (T7 becomes T8, Bar 3 becomes Bar 4). Drag and resize them, pick a shape (circle, octagon…) and colors, and set *Table name* and *Seats* in the inspector. Every table needs its own name: the name is what checks and kitchen tickets show. Floor plans saved before tables became zones (a single *tableMap* panel) turn into separate table zones when loaded, each in the same place.
 
 Press **F1**, or touch **Manager → Edit Pages**. Changes go into a draft. The running app keeps the saved pages until you press **Save**, which writes to the database in one transaction. **Done** asks whether to save or discard.
 
