@@ -34,6 +34,9 @@ UtmpMode=user
 Environment=XDG_SESSION_TYPE=wayland
 Environment=QT_QPA_PLATFORM=wayland
 Environment=QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+# Bring tty1 to the front: cage waits for its console to be the one on
+# screen (a desktop on another console would otherwise keep it waiting).
+ExecStartPre=-+/usr/bin/chvt 1
 ExecStart=/usr/bin/cage -d -s -- /usr/bin/vtmodern --kiosk --data-dir ${STATE_DIRECTORY} --config /etc/viewtouch/kiosk.conf
 Restart=always
 RestartSec=2

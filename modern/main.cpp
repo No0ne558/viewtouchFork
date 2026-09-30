@@ -459,10 +459,12 @@ int runRestore(const Args &cli, const Options &o)
     return 0;
 }
 
-// A server without a screen (and --help, --backup...) needs no display: pick
-// the offscreen platform before the application starts, unless the user
-// chose one.
-void preferOffscreenWhenHeadless(int argc, char *argv[])
+// Environment that must be set before the application starts:
+// - a server without a screen (and --help, --backup...) needs no display, so
+//   it gets the offscreen platform unless the user chose one;
+// - a kiosk must exit when its compositor dies (systemd then restarts both)
+//   instead of waiting to reconnect, as KDE asks Qt apps to.
+void prepareEnvironment(int argc, char *argv[])
 {
     for (int i = 1; i < argc; ++i) {
         const QByteArrayView arg(argv[i]);
@@ -474,6 +476,8 @@ void preferOffscreenWhenHeadless(int argc, char *argv[])
             qputenv("QT_FORCE_STDERR_LOGGING", "1");
         if ((command || arg == "--headless") && !qEnvironmentVariableIsSet("QT_QPA_PLATFORM"))
             qputenv("QT_QPA_PLATFORM", "offscreen");
+        if (arg == "--kiosk")
+            qunsetenv("QT_WAYLAND_RECONNECT");
     }
 }
 
@@ -514,7 +518,7 @@ void quitOnSignals(QCoreApplication &app)
 
 int main(int argc, char *argv[])
 {
-    preferOffscreenWhenHeadless(argc, argv);
+    prepareEnvironment(argc, argv);
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationVersion(QStringLiteral(VTM_VERSION));
     QGuiApplication::setApplicationName(u"ViewTouch"_s);
