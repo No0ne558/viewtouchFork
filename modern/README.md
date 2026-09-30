@@ -66,6 +66,25 @@ Installing starts nothing. Pick this machine's part in the store:
 
 **Building the packages:** `modern/packaging/build-packages.sh` builds for this machine; add `fedora`, `debian` or `ubuntu` to build in a podman container. The *Modern packages* GitHub workflow (Actions tab, or a `modern-v*` tag) builds all six.
 
+## Android tablets
+
+The Android app is a terminal: it finds the store's server on the Wi-Fi, pairs with it, and then works like any other terminal (same pages, live updates). It needs Android 9 or newer on a 64-bit or 32-bit ARM tablet.
+
+1. **Get the app:** run the *Modern Android* workflow (Actions tab → Modern Android → Run workflow). The run's artifacts hold `ViewTouch-arm64-v8a.apk` (most tablets) and `ViewTouch-armeabi-v7a.apk` (older or budget ones).
+2. **Install:** copy the APK to the tablet and open it. Android asks to allow installing apps from that source (Settings → Apps → Special access → Install unknown apps).
+3. **Pair:** open ViewTouch. The Join screen lists the stores on the Wi-Fi. Type a code from Manager → Terminals → **Pair a Device**, name the tablet, and **Join**.
+
+The app is full screen in landscape and keeps the screen on. Back goes back a page. If the server is out of reach, it starts with the pages it saved last and shows *Reconnecting…*. Its pairing key is never included in Android backups.
+
+**Signing:** to install updates over the previous version, every build must be signed with the same key. Make one once and store it in the repository's secrets:
+```sh
+keytool -genkeypair -keystore viewtouch.keystore -alias viewtouch -keyalg RSA -keysize 3072 -validity 10000
+base64 -w0 viewtouch.keystore      # → secret ANDROID_KEYSTORE_BASE64
+```
+Also add ANDROID_KEYSTORE_ALIAS (`viewtouch`) and ANDROID_KEYSTORE_PASSWORD. Keep the keystore somewhere safe: an app signed with a lost key can't be updated, only reinstalled. Without these secrets, each build gets a throwaway key.
+
+**Building elsewhere:** the workflow uses Qt 6.11.2 for Android (installed with `aqtinstall`), Android NDK r27c, JDK 17 and KDAB's OpenSSL for Android. Android builds need an x86_64 Linux, Windows or macOS machine: the NDK is not made for ARM64 Linux.
+
 ## Backups
 
 - **Automatic:** the machine that keeps the data backs up when it starts, every 24 hours and after every End of Day, keeping the newest 30. Backups go to `backups/` next to the database (`/var/lib/viewtouch/backups` when installed). A USB stick or network share is safer: set `backup-dir` in the .conf file. `backup-every` and `backup-keep` change the timing and count.

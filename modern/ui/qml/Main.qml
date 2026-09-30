@@ -130,6 +130,12 @@ ApplicationWindow {
         // Entering checks the layout.edit permission (a manager must be logged in).
         onActivated: root.editing ? root.requestLeaveEdit() : root.controller.requestEditMode()
     }
+    // Android's Back button goes back a page instead of closing the app.
+    Shortcut {
+        enabled: !root.editing
+        sequence: "Back"
+        onActivated: root.controller.goBack()
+    }
     Shortcut {
         enabled: !root.kiosk
         sequences: [StandardKey.FullScreen, "F11"]

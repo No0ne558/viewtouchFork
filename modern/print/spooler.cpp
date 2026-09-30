@@ -7,7 +7,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QMutex>
+#if QT_CONFIG(process)
 #include <QProcess>
+#endif
 #include <QTcpSocket>
 #include <QTimer>
 
@@ -147,6 +149,12 @@ private:
 
     bool toCups(const QString &queue, const QByteArray &data, QString *error)
     {
+#if !QT_CONFIG(process)
+        Q_UNUSED(queue)
+        Q_UNUSED(data)
+        *error = u"CUPS printing is not available on this system"_s;
+        return false;
+#else
         QProcess lp;
         QStringList args{u"-o"_s, u"raw"_s};
         if (!queue.isEmpty())
@@ -168,6 +176,7 @@ private:
             return false;
         }
         return true;
+#endif
     }
 
     PrintSpooler *owner_;

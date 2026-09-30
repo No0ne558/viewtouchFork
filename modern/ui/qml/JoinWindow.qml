@@ -190,8 +190,9 @@ ApplicationWindow {
             }
         }
 
-        // --- keyboard (touch screens without one) ---
+        // --- keyboard (touch screens without one; Android brings its own) ---
         ColumnLayout {
+            visible: Qt.platform.os !== "android"
             Layout.fillWidth: true
             Layout.fillHeight: false
             spacing: root.u * 0.3

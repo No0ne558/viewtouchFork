@@ -147,6 +147,32 @@ if(Qt6_FOUND)
     target_link_libraries(vtmodern PRIVATE vtm_ui vtm_uiplugin)
     target_compile_definitions(vtmodern PRIVATE VTM_VERSION="${PROJECT_VERSION}")
 
+    if(ANDROID)
+        # The tablet app: a terminal of a store (see main.cpp, Q_OS_ANDROID).
+        math(EXPR VTM_VERSION_CODE
+             "${PROJECT_VERSION_MAJOR} * 10000 + ${PROJECT_VERSION_MINOR} * 100 + ${PROJECT_VERSION_PATCH}")
+        set_target_properties(vtmodern PROPERTIES
+            QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/android
+            QT_ANDROID_PACKAGE_NAME org.viewtouch.pos
+            QT_ANDROID_APP_NAME "ViewTouch"
+            QT_ANDROID_VERSION_NAME ${PROJECT_VERSION}
+            QT_ANDROID_VERSION_CODE ${VTM_VERSION_CODE}
+            QT_ANDROID_MIN_SDK_VERSION 28
+            QT_ANDROID_TARGET_SDK_VERSION 35)
+        # Pages use DejaVu Sans, which Android doesn't have.
+        qt_add_resources(vtmodern "fonts" PREFIX "/fonts" BASE ${VTM_LEGACY_ROOT}/fonts/dejavu
+            FILES ${VTM_LEGACY_ROOT}/fonts/dejavu/DejaVuSans.ttf ${VTM_LEGACY_ROOT}/fonts/dejavu/DejaVuSans-Bold.ttf)
+        # Qt for Android has no OpenSSL of its own; the encrypted terminal
+        # connection needs it. KDAB's builds, as the Qt docs recommend.
+        include(FetchContent)
+        FetchContent_Declare(android_openssl
+            URL https://github.com/KDAB/android_openssl/archive/b71f1470962019bd89534a2919f5925f93bc5779.zip
+            DOWNLOAD_EXTRACT_TIMESTAMP ON)
+        FetchContent_MakeAvailable(android_openssl)
+        include(${android_openssl_SOURCE_DIR}/android_openssl.cmake)
+        add_android_openssl_libraries(vtmodern)
+    endif()
+
     # Starter layout shipped with the app (qrc:/seed)
     file(GLOB_RECURSE VTM_SEED_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
          CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/seed/*.json)
@@ -176,7 +202,9 @@ if(Qt6_FOUND)
     set_source_files_properties(${VTM_BURGER} PROPERTIES QT_RESOURCE_ALIAS burger.png)
     qt_add_resources(vtm_ui "images" PREFIX "/images" FILES ${VTM_BURGER})
 
-    include(packaging/Packaging.cmake)
+    if(NOT ANDROID)
+        include(packaging/Packaging.cmake)
+    endif()
 else()
     message(WARNING
         "Qt6 (Core Gui Quick QuickControls2 Sql >= 6.8) development files not found: "

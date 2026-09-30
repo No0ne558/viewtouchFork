@@ -26,6 +26,7 @@
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QLockFile>
+#include <QSaveFile>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QQuickWindow>
@@ -33,6 +34,12 @@
 #include <QSysInfo>
 #include <QTimer>
 #include <QtQml/qqmlextensionplugin.h>
+
+#ifdef Q_OS_ANDROID
+#include <QFontDatabase>
+#include <QJniObject>
+#include <QtCore/qnativeinterface.h>
+#endif
 
 #ifdef Q_OS_UNIX
 #include <QSocketNotifier>
@@ -138,6 +145,13 @@ public:
         if (o.valueName().isEmpty())   // a switch
             return !(v == u"no" || v == u"false" || v == u"off" || v == u"0");
         return !v.isEmpty();
+    }
+
+    // A default for an option given neither on the command line nor in the file.
+    void setDefault(const QCommandLineOption &o, const QString &value)
+    {
+        if (!cli_.isSet(o) && !config_.contains(o.names().constFirst()))
+            config_.insert(o.names().constFirst(), value);
     }
 
     QString value(const QCommandLineOption &o) const
@@ -260,13 +274,26 @@ std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o,
 
 // --- a terminal of a remote server ---------------------------------------------------------
 
+// A name to suggest for this terminal: the computer's name, or on a tablet
+// its model ("Galaxy Tab A8").
+QString suggestedTerminalName(const Args &cli, const Options &o)
+{
+    if (cli.isSet(o.terminal))
+        return cli.value(o.terminal);
+#ifdef Q_OS_ANDROID
+    const QString model = QJniObject::getStaticObjectField("android/os/Build", "MODEL", "Ljava/lang/String;").toString();
+    if (!model.isEmpty())
+        return model;
+#endif
+    return QSysInfo::machineHostName();
+}
+
 // The Join screen: find a store, pair with the manager's code. Nothing when
 // the window is closed.
 std::optional<vt::net::Credentials> joinStore(const Args &cli, const Options &o, const QString &address,
                                               const QString &problem)
 {
-    const QString name = cli.isSet(o.terminal) ? cli.value(o.terminal) : QSysInfo::machineHostName();
-    JoinController join(name, address, problem);
+    JoinController join(suggestedTerminalName(cli, o), address, problem);
     QQmlApplicationEngine engine;
     engine.setInitialProperties({{u"join"_s, QVariant::fromValue(&join)}, {u"kiosk"_s, cli.isSet(o.kiosk)}});
     engine.loadFromModule("ViewTouch", "JoinWindow");
@@ -332,8 +359,7 @@ int runTerminal(const Args &cli, const Options &o)
                 creds = c;
             loop.quit();
         });
-        pairer.start(host, port, cli.value(o.pair),
-                     cli.isSet(o.terminal) ? cli.value(o.terminal) : QSysInfo::machineHostName());
+        pairer.start(host, port, cli.value(o.pair), suggestedTerminalName(cli, o));
         loop.exec();
         if (!ok) {
             qCritical().noquote() << "Pairing failed:" << error;
@@ -361,20 +387,45 @@ int runTerminal(const Args &cli, const Options &o)
         remote.connectTo(creds->host, creds->port);
         qInfo().noquote() << "Connecting to" << creds->host << "port" << creds->port << "as" << creds->terminalName
                           << "...";
-        if (!remote.waitForWelcome(15000)) {
-            if (remote.isRejected()) {
-                QFile::remove(credentialFile);
-                problem = QCoreApplication::translate("main",
-                    "%1 no longer accepts this terminal (it was removed in Manager → Terminals). Pair it again.")
-                              .arg(creds->serverName.isEmpty() ? creds->host : creds->serverName);
-                creds.reset();
-                continue;
+        // The pages as last received, so the terminal can start (showing that
+        // it is offline) while the server is still out of reach.
+        const QString pagesFile = QDir(dataDir).filePath(u"pages-cache.json"_s);
+        auto cachePages = [pagesFile](const vt::layout::Layout &l) {
+            QSaveFile f(pagesFile);
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(QJsonDocument(l.toJson()).toJson(QJsonDocument::Compact));
+                f.commit();
             }
-            qCritical().noquote() << "No ViewTouch server answered at" << creds->host << "port" << creds->port;
-            return 1;
+        };
+        std::optional<vt::layout::Layout> pages;
+        for (bool announced = false; !pages;) {
+            if (remote.waitForWelcome(announced ? 60000 : 10000)) {
+                pages = remote.layout();
+                cachePages(*pages);
+                break;
+            }
+            if (remote.isRejected())
+                break;
+            QFile cached(pagesFile);
+            if (cached.open(QIODevice::ReadOnly))
+                pages = vt::layout::Layout::fromJson(QJsonDocument::fromJson(cached.readAll()).object());
+            if (!pages && !announced) {
+                qWarning().noquote() << "No ViewTouch server answers at" << creds->host << "port" << creds->port
+                                     << "yet; still trying.";
+                announced = true;
+            }
+        }
+        if (remote.isRejected()) {
+            QFile::remove(credentialFile);
+            QFile::remove(pagesFile);
+            problem = QCoreApplication::translate("main",
+                "%1 no longer accepts this terminal (it was removed in Manager → Terminals). Pair it again.")
+                          .arg(creds->serverName.isEmpty() ? creds->host : creds->serverName);
+            creds.reset();
+            continue;
         }
 
-        LayoutController controller(remote.layout());
+        LayoutController controller(*pages);
         controller.setPos(&remote);
         // Page edits are saved on the server, which passes them on to everyone.
         controller.setSaver([&remote](const vt::layout::Layout &layout, QString *) {
@@ -386,7 +437,10 @@ int runTerminal(const Args &cli, const Options &o)
                            : QCoreApplication::translate("main", "The server did not save the pages: %1").arg(error));
         });
         QObject::connect(&remote, &vt::net::RemoteSession::layoutReceived, &controller,
-                         [&controller](const vt::layout::Layout &layout) { controller.replaceLayout(layout); });
+                         [&controller, cachePages](const vt::layout::Layout &layout) {
+            controller.replaceLayout(layout);
+            cachePages(layout);
+        });
         // Unpaired while running: back to the Join screen.
         QObject::connect(&remote, &vt::net::RemoteSession::rejected, qApp, [] { QCoreApplication::exit(kRejoin); });
 
@@ -401,6 +455,7 @@ int runTerminal(const Args &cli, const Options &o)
         if (result != kRejoin)
             return result;
         QFile::remove(credentialFile);
+        QFile::remove(pagesFile);
         problem = QCoreApplication::translate("main",
             "%1 no longer accepts this terminal (it was removed in Manager → Terminals). Pair it again.")
                       .arg(creds->serverName.isEmpty() ? creds->host : creds->serverName);
@@ -693,6 +748,19 @@ void prepareEnvironment(int argc, char *argv[])
     }
 }
 
+#ifdef Q_OS_ANDROID
+// A POS screen must not go dark between orders.
+void keepScreenOn()
+{
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([] {
+        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        const QJniObject window = activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
+        constexpr jint FLAG_KEEP_SCREEN_ON = 0x00000080;
+        window.callMethod<void>("addFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
+    });
+}
+#endif
+
 #ifdef Q_OS_UNIX
 // systemctl stop (SIGTERM), Ctrl+C and SIGHUP end the event loop normally, so
 // queued database writes are flushed and the database lock is released. The
@@ -761,6 +829,14 @@ int main(int argc, char *argv[])
             return 1;
         }
     }
+#ifdef Q_OS_ANDROID
+    // A tablet is a terminal of a store: find it and pair on screen, then
+    // connect to it on every start.
+    args.setDefault(o.connect, u"auto"_s);
+    keepScreenOn();
+    for (const char *font : {":/fonts/DejaVuSans.ttf", ":/fonts/DejaVuSans-Bold.ttf"})
+        QFontDatabase::addApplicationFont(QString::fromLatin1(font));
+#endif
     if (args.isSet(o.backup))
         return runBackup(args, o);
     if (args.isSet(o.restore))
