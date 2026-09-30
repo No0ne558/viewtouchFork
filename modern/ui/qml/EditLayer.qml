@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Fusion
 
 // Edit-mode overlay, placed inside the scaled page surface so every
 // coordinate here is in logical canvas units. Handles selection, rubber-band,
