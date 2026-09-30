@@ -8,6 +8,8 @@ ApplicationWindow {
     required property LayoutController controller
     readonly property bool editing: controller.editing
     readonly property EditorController editor: controller.editor
+    // Kiosk screens stay full screen; elsewhere F11 switches to a window.
+    property bool kiosk: false
 
     width: 1280
     height: 720
@@ -127,6 +129,11 @@ ApplicationWindow {
         sequence: "F1"
         // Entering checks the layout.edit permission (a manager must be logged in).
         onActivated: root.editing ? root.requestLeaveEdit() : root.controller.requestEditMode()
+    }
+    Shortcut {
+        enabled: !root.kiosk
+        sequences: [StandardKey.FullScreen, "F11"]
+        onActivated: root.visibility === Window.FullScreen ? root.showNormal() : root.showFullScreen()
     }
     Shortcut { enabled: root.editing; sequences: [StandardKey.Save]; onActivated: root.controller.saveEdits() }
     Shortcut { enabled: root.editing; sequences: [StandardKey.Undo]; onActivated: root.editor.undo() }

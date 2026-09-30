@@ -62,7 +62,9 @@ struct Options {
     QCommandLineOption select{u"select"_s, u"In edit mode, select these zones (comma separated)."_s, u"ids"_s};
     QCommandLineOption size{u"size"_s, u"Window size, e.g. 1280x720."_s, u"WxH"_s, u"1280x720"_s};
     QCommandLineOption screenshot{u"screenshot"_s, u"Render, save a PNG to <file>, and exit."_s, u"file"_s};
-    QCommandLineOption kiosk{u"kiosk"_s, u"Full screen with no mouse pointer (touch screens)."_s};
+    QCommandLineOption kiosk{u"kiosk"_s, u"Full screen with no mouse pointer and no way out (touch screens)."_s};
+    QCommandLineOption windowed{u"windowed"_s,
+        u"Start in a window instead of full screen (also with --size). F11 switches either way."_s};
     QCommandLineOption backupDir{u"backup-dir"_s, u"Where backups go (default: <data dir>/backups)."_s, u"dir"_s};
     QCommandLineOption backupKeep{u"backup-keep"_s, u"Backups to keep (default 30; 0 = all)."_s, u"count"_s, u"30"_s};
     QCommandLineOption backupEvery{u"backup-every"_s,
@@ -194,6 +196,7 @@ std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o,
                      qApp, [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
     engine->setInitialProperties({
         {u"controller"_s, QVariant::fromValue(&controller)},
+        {u"kiosk"_s, cli.isSet(o.kiosk)},
         {u"width"_s, width > 0 ? width : 1280},
         {u"height"_s, height > 0 ? height : 720},
     });
@@ -202,10 +205,13 @@ std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o,
     auto *window = engine->rootObjects().isEmpty() ? nullptr : qobject_cast<QQuickWindow *>(engine->rootObjects().first());
     if (!window)
         return nullptr;
-    if (cli.isSet(o.kiosk)) {
+    // Full screen unless asked for a window (or a window size, or a picture).
+    const bool inWindow = !cli.isSet(o.kiosk)
+                          && (cli.isSet(o.windowed) || cli.isSet(o.size) || cli.isSet(o.screenshot));
+    if (!inWindow)
         window->showFullScreen();
+    if (cli.isSet(o.kiosk))
         QGuiApplication::setOverrideCursor(Qt::BlankCursor);
-    }
     if (cli.isSet(o.screenshot)) {
         const QString file = cli.value(o.screenshot);
         QTimer::singleShot(1000, window, [window, file] {
@@ -536,7 +542,7 @@ int main(int argc, char *argv[])
     cli.addHelpOption();
     cli.addVersionOption();
     const QList<QCommandLineOption> all = {o.config, o.dataDir, o.db, o.layout, o.resetLayout, o.resetMenu, o.serve,
-        o.port, o.listen, o.headless, o.connect, o.terminal, o.kiosk, o.login, o.page, o.edit, o.select, o.size,
+        o.port, o.listen, o.headless, o.connect, o.terminal, o.kiosk, o.windowed, o.login, o.page, o.edit, o.select, o.size,
         o.screenshot, o.backupDir, o.backupKeep, o.backupEvery, o.backup, o.restore};
     cli.addOptions(all);
     cli.process(app);

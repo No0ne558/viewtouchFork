@@ -243,7 +243,8 @@ ctest --test-dir modern/build
 ./modern/build/vtmodern                   # data in ~/.local/share/ViewTouch/ViewTouch/
 ./modern/build/vtmodern --reset-layout    # back to the starter pages
 ./modern/build/vtmodern --data-dir /tmp/t # use another data folder (database, backups, printouts)
-./modern/build/vtmodern --kiosk           # full screen, no mouse pointer
+./modern/build/vtmodern --windowed        # in a window (it starts full screen; F11 switches)
+./modern/build/vtmodern --kiosk           # full screen, no mouse pointer, F11 off
 ./modern/build/vtmodern --login 1234      # start logged in (testing)
 ```
 
