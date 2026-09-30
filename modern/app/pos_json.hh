@@ -52,6 +52,10 @@ core::PrinterConfig printerFromJson(const QJsonObject &o);
 QJsonObject toJson(const core::PosSettings &s);
 core::PosSettings settingsFromJson(const QJsonObject &o);
 
+// "HH:MM" <-> minutes after midnight; clockMinutes gives -1 for bad text.
+QString clockText(int minutes);
+int clockMinutes(const QString &text);
+
 // Salted SHA-256 of a PIN, hex encoded.
 std::string hashPin(const QString &pin, const std::string &salt);
 std::string newSalt();

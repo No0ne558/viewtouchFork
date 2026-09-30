@@ -245,10 +245,32 @@
       ]
     },
     {
-      "id": "kitchen-display",
+      "id": "admin-mealPeriods",
       "kind": "button",
       "rect": {
         "x": 976,
+        "y": 520,
+        "w": 384,
+        "h": 160
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Meal Periods",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "mealPeriods"
+          }
+        }
+      ]
+    },
+    {
+      "id": "kitchen-display",
+      "kind": "button",
+      "rect": {
+        "x": 1384,
         "y": 520,
         "w": 384,
         "h": 160
@@ -268,8 +290,8 @@
       "id": "bar-display",
       "kind": "button",
       "rect": {
-        "x": 1384,
-        "y": 520,
+        "x": 160,
+        "y": 700,
         "w": 384,
         "h": 160
       },

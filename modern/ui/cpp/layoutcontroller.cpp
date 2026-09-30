@@ -1,6 +1,7 @@
 #include "layoutcontroller.hh"
 
 #include "core/employee.hh"
+#include "core/settings.hh"
 #include "storage/layout_store.hh"
 
 #include <QPointer>
@@ -56,7 +57,10 @@ LayoutController::LayoutController(Layout layout, QObject *parent)
     , layout_(std::move(layout))
     , nav_(layout_)
 {
-    nav_.setMealPeriod(mealPeriodAt(QTime::currentTime()));
+    updateMealPeriod();
+    mealTimer_.setInterval(60 * 1000);
+    connect(&mealTimer_, &QTimer::timeout, this, &LayoutController::updateMealPeriod);
+    mealTimer_.start();
     nav_.reset(homePageOf(layout_));
     refresh();
 }
@@ -68,11 +72,31 @@ LayoutController::~LayoutController()
 
 QString LayoutController::mealPeriodAt(QTime time)
 {
-    if (time < QTime(11, 0))
-        return u"breakfast"_s;
-    if (time < QTime(16, 0))
-        return u"lunch"_s;
-    return u"dinner"_s;
+    return QString::fromStdString(vt::core::mealPeriodAt(vt::core::defaultMealPeriods(), time.msecsSinceStartOfDay() / 60000));
+}
+
+QString LayoutController::mealPeriodAt(const QVariantList &periods, QTime time)
+{
+    std::vector<vt::core::MealPeriod> list;
+    for (const QVariant &v : periods) {
+        const QVariantMap m = v.toMap();
+        list.push_back({m.value(u"id"_s).toString().toStdString(), {}, m.value(u"start"_s).toInt()});
+    }
+    return QString::fromStdString(vt::core::mealPeriodAt(list, time.msecsSinceStartOfDay() / 60000));
+}
+
+void LayoutController::setMealPeriod(const QString &period)
+{
+    mealPeriodFixed_ = true;
+    nav_.setMealPeriod(period);
+}
+
+void LayoutController::updateMealPeriod()
+{
+    if (mealPeriodFixed_)
+        return;
+    const QTime now = QTime::currentTime();
+    nav_.setMealPeriod(pos_ ? mealPeriodAt(pos_->mealPeriods(), now) : mealPeriodAt(now));
 }
 
 void LayoutController::setStore(vt::storage::LayoutStore *store)
@@ -109,6 +133,11 @@ void LayoutController::setPos(PosSession *pos)
         connect(pos_, &PosSession::loggedInChanged, this, &LayoutController::onLoggedInChanged);
         connect(pos_, &PosSession::checkClosed, this, [this] { navigate(Navigator::Mode::Home); });
         connect(pos_, &PosSession::qualifierChanged, this, &LayoutController::refresh);
+        connect(pos_, &PosSession::adminChanged, this, [this] {
+            updateMealPeriod();
+            if (editor_)
+                editor_->setMealPeriods(pos_->mealPeriods());
+        });
         // Whoever is editing must stay allowed to: logging out, being
         // deactivated or losing the role closes the editor (unsaved edits
         // are dropped, as in the legacy system).
@@ -119,6 +148,7 @@ void LayoutController::setPos(PosSession *pos)
             }
         });
     }
+    updateMealPeriod();
     emit posChanged();
     refresh();
 }
@@ -347,6 +377,8 @@ void LayoutController::enterEditMode()
     if (editing_)
         return;
     editor_ = new EditorController(layout_, this);
+    if (pos_)
+        editor_->setMealPeriods(pos_->mealPeriods());
     connect(editor_, &EditorController::layoutChanged, this, &LayoutController::onDraftChanged);
     connect(editor_, &EditorController::showPageRequested, this, &LayoutController::showPage);
     emit editorChanged();
@@ -496,7 +528,7 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
             {u"tenders"_s, u"admin-tenders"_s}, {u"printers"_s, u"admin-printers"_s},
             {u"taxes"_s, u"admin-taxes"_s}, {u"settings"_s, u"admin-store"_s},
             {u"reports"_s, u"reports"_s}, {u"drawers"_s, u"drawer"_s}, {u"endOfDay"_s, u"end-of-day"_s},
-            {u"terminals"_s, u"admin-terminals"_s},
+            {u"terminals"_s, u"admin-terminals"_s}, {u"mealPeriods"_s, u"admin-meal-periods"_s},
         };
         const QString page = pages.value(args.value(u"panel"_s).toString());
         if (!page.isEmpty() && activeLayout().page(page))

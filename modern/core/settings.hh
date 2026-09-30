@@ -35,6 +35,37 @@ struct TerminalConfig {
     bool operator==(const TerminalConfig &) const = default;
 };
 
+// A part of the day. Index pages whose mealPeriod is this id are the ones the
+// "index" jump opens while it lasts. A period runs from its start until the
+// next one starts; before the first start of the day the last one continues
+// (a dinner that runs past midnight).
+struct MealPeriod {
+    std::string id;
+    std::string name;
+    int start = 0;   // minutes after midnight
+
+    bool operator==(const MealPeriod &) const = default;
+};
+
+inline std::vector<MealPeriod> defaultMealPeriods()
+{
+    return {{"breakfast", "Breakfast", 4 * 60}, {"lunch", "Lunch", 11 * 60}, {"dinner", "Dinner", 16 * 60}};
+}
+
+// The id of the period running at `minute` (0-1439); empty if there are none.
+inline std::string mealPeriodAt(const std::vector<MealPeriod> &periods, int minute)
+{
+    const MealPeriod *current = nullptr;
+    const MealPeriod *latest = nullptr;
+    for (const MealPeriod &p : periods) {
+        if (!latest || p.start > latest->start)
+            latest = &p;
+        if (p.start <= minute && (!current || p.start > current->start))
+            current = &p;
+    }
+    return current ? current->id : latest ? latest->id : std::string();
+}
+
 // Store-wide POS settings, edited on the manager's admin screens.
 struct PosSettings {
     std::string storeName = "ViewTouch";
@@ -48,6 +79,7 @@ struct PosSettings {
     std::int64_t gratuityBp = 0;   // 0 = off; 1800 = 18%
     int gratuityMinGuests = 6;
     std::vector<TerminalConfig> terminals;
+    std::vector<MealPeriod> mealPeriods = defaultMealPeriods();
 
     std::string receiptPrinterFor(const std::string &terminal) const
     {

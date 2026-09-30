@@ -57,6 +57,8 @@ class PosSession : public QObject {
     Q_PROPERTY(int adminRevision READ adminRevision NOTIFY adminChanged)
     // The logged-in employee's card tips + gratuity not yet paid out.
     Q_PROPERTY(QString tipsOwed READ tipsOwed NOTIFY dayChanged)
+    // The store's meal periods: [{id, name, start (minutes after midnight)}].
+    Q_PROPERTY(QVariantList mealPeriods READ mealPeriods NOTIFY adminChanged)
     // Bumps when an asynchronous query (report, admin records) has an answer.
     Q_PROPERTY(int queryRevision READ queryRevision NOTIFY queriesChanged)
 
@@ -104,6 +106,7 @@ public:
     virtual QVariantList days() const = 0;
     virtual int adminRevision() const = 0;
     virtual QString tipsOwed() const = 0;
+    virtual QVariantList mealPeriods() const = 0;
     virtual int queryRevision() const { return 0; }
 
     virtual void selectLine(qint64 lineId) { invoke(QStringLiteral("selectLine"), {lineId}); }

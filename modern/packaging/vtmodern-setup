@@ -1,0 +1,117 @@
+#!/bin/sh
+# Set up this machine's part in a ViewTouch store.
+#
+#   sudo vtmodern-setup store                 this screen keeps the data; other terminals may join
+#   sudo vtmodern-setup server                keeps the data with no screen (back office / closet box)
+#   sudo vtmodern-setup terminal HOST [NAME]  this screen joins the server at HOST
+#   sudo vtmodern-setup off                   stop starting ViewTouch at boot
+#   vtmodern-setup status                     what is set up now
+set -eu
+
+CONF_DIR=/etc/viewtouch
+KIOSK_CONF=$CONF_DIR/kiosk.conf
+
+usage() {
+    sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+    exit "${1:-0}"
+}
+
+need_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "Run this with sudo." >&2
+        exit 1
+    fi
+}
+
+# Replace the block between the "set by vtmodern-setup" markers in kiosk.conf.
+write_kiosk_block() {
+    tmp=$(mktemp)
+    if [ -f "$KIOSK_CONF" ] && grep -q '^# --- set by vtmodern-setup ---' "$KIOSK_CONF"; then
+        awk -v block="$1" '
+            /^# --- set by vtmodern-setup ---/ { print; printf "%s\n", block; skip = 1; next }
+            /^# --- end ---/ { skip = 0 }
+            !skip { print }' "$KIOSK_CONF" > "$tmp"
+    else
+        { echo '# --- set by vtmodern-setup ---'; printf '%s\n' "$1"; echo '# --- end ---';
+          [ -f "$KIOSK_CONF" ] && cat "$KIOSK_CONF"; } > "$tmp"
+    fi
+    install -D -m 0644 "$tmp" "$KIOSK_CONF"
+    rm -f "$tmp"
+}
+
+warn_desktop() {
+    if systemctl is-enabled --quiet display-manager.service 2>/dev/null; then
+        dm=$(systemctl show -p Id --value display-manager.service 2>/dev/null || echo "the desktop login")
+        echo
+        echo "Note: $dm (a desktop login) is also enabled and will compete for the screen."
+        echo "For a dedicated POS screen turn it off:  sudo systemctl disable $dm"
+    fi
+    if ! command -v cage >/dev/null 2>&1; then
+        echo
+        echo "Note: the kiosk needs 'cage'. Install it: sudo dnf install cage   (or: sudo apt install cage)"
+    fi
+}
+
+start_kiosk() {
+    systemctl daemon-reload
+    systemctl disable --now vtmodern.service >/dev/null 2>&1 || true
+    systemctl enable vtmodern-kiosk.service
+    systemctl restart vtmodern-kiosk.service
+    warn_desktop
+}
+
+cmd=${1:-}
+case "$cmd" in
+store)
+    need_root
+    write_kiosk_block "serve = yes"
+    start_kiosk
+    echo "This screen now runs ViewTouch at boot and keeps the store's data."
+    echo "Other terminals join with: sudo vtmodern-setup terminal $(uname -n)"
+    ;;
+server)
+    need_root
+    systemctl daemon-reload
+    systemctl disable --now vtmodern-kiosk.service >/dev/null 2>&1 || true
+    systemctl enable vtmodern.service
+    systemctl restart vtmodern.service
+    echo "ViewTouch now serves terminals from this machine (port 7719)."
+    echo "Terminals join with: sudo vtmodern-setup terminal $(uname -n)"
+    if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+        echo "The firewall is on; let terminals in with:"
+        echo "  sudo firewall-cmd --permanent --add-port=7719/tcp && sudo firewall-cmd --reload"
+    fi
+    ;;
+terminal)
+    need_root
+    [ $# -ge 2 ] || usage 1
+    host=$2
+    name=${3:-$(uname -n)}
+    write_kiosk_block "connect = $host
+terminal = $name"
+    start_kiosk
+    echo "This screen now joins the ViewTouch server at $host as \"$name\"."
+    ;;
+off)
+    need_root
+    systemctl disable --now vtmodern.service vtmodern-kiosk.service >/dev/null 2>&1 || true
+    echo "ViewTouch no longer starts at boot. The data in /var/lib/viewtouch is kept."
+    ;;
+status)
+    for unit in vtmodern.service vtmodern-kiosk.service; do
+        printf '%-24s %s, %s\n' "$unit" "$(systemctl is-enabled $unit 2>/dev/null || true)" \
+            "$(systemctl is-active $unit 2>/dev/null || true)"
+    done
+    if [ -f "$KIOSK_CONF" ]; then
+        echo "kiosk.conf:"
+        sed -n '/^# --- set by vtmodern-setup ---/,/^# --- end ---/p' "$KIOSK_CONF" | grep -v '^#' | sed 's/^/  /'
+    fi
+    ls -1t /var/lib/viewtouch/backups 2>/dev/null | head -1 | sed 's/^/newest backup: /' || true
+    ;;
+-h|--help|help|"")
+    usage 0
+    ;;
+*)
+    usage 1
+    ;;
+esac

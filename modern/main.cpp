@@ -7,6 +7,7 @@
 #include "print/spooler.hh"
 #include "print/ticket_printer.hh"
 #include "storage/async_writer.hh"
+#include "storage/backup.hh"
 #include "storage/layout_store.hh"
 #include "storage/pos_store.hh"
 
@@ -16,6 +17,7 @@
 #include <QFile>
 #include <QGuiApplication>
 #include <QJsonDocument>
+#include <QLockFile>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QQuickWindow>
@@ -24,6 +26,13 @@
 #include <QTimer>
 #include <QtQml/qqmlextensionplugin.h>
 
+#ifdef Q_OS_UNIX
+#include <QSocketNotifier>
+#include <csignal>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
+
 Q_IMPORT_QML_PLUGIN(ViewTouchPlugin)
 
 using namespace Qt::StringLiterals;
@@ -31,7 +40,11 @@ using namespace Qt::StringLiterals;
 namespace {
 
 struct Options {
-    QCommandLineOption db{u"db"_s, u"SQLite database (default: <app data>/viewtouch.db)."_s, u"file"_s};
+    QCommandLineOption config{u"config"_s,
+        u"Read options from <file>: one \"option = value\" per line (\"serve = yes\" for switches)."_s, u"file"_s};
+    QCommandLineOption dataDir{u"data-dir"_s,
+        u"Where the database, backups and printouts live (default: %1)."_s.arg(defaultDataDir()), u"dir"_s};
+    QCommandLineOption db{u"db"_s, u"SQLite database (default: <data dir>/viewtouch.db)."_s, u"file"_s};
     QCommandLineOption layout{u"layout"_s,
         u"Show pages from <dir> instead of the database. Saving in the editor still writes to the database."_s, u"dir"_s};
     QCommandLineOption resetLayout{u"reset-layout"_s, u"Replace the saved pages with the built-in starter pages."_s};
@@ -49,11 +62,93 @@ struct Options {
     QCommandLineOption select{u"select"_s, u"In edit mode, select these zones (comma separated)."_s, u"ids"_s};
     QCommandLineOption size{u"size"_s, u"Window size, e.g. 1280x720."_s, u"WxH"_s, u"1280x720"_s};
     QCommandLineOption screenshot{u"screenshot"_s, u"Render, save a PNG to <file>, and exit."_s, u"file"_s};
+    QCommandLineOption kiosk{u"kiosk"_s, u"Full screen with no mouse pointer (touch screens)."_s};
+    QCommandLineOption backupDir{u"backup-dir"_s, u"Where backups go (default: <data dir>/backups)."_s, u"dir"_s};
+    QCommandLineOption backupKeep{u"backup-keep"_s, u"Backups to keep (default 30; 0 = all)."_s, u"count"_s, u"30"_s};
+    QCommandLineOption backupEvery{u"backup-every"_s,
+        u"Hours between automatic backups (default 24; 0 = only at End of Day)."_s, u"hours"_s, u"24"_s};
+    QCommandLineOption backup{u"backup"_s, u"Back up the database now (safe while ViewTouch runs) and exit."_s};
+    QCommandLineOption restore{u"restore"_s,
+        u"Put backup <file> in place of the database and exit. ViewTouch must not be running."_s, u"file"_s};
+
+    static QString defaultDataDir() { return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation); }
 };
 
-QString dataDir()
+// Command-line options, with defaults from a --config file. The command line
+// wins over the file.
+class Args {
+public:
+    explicit Args(const QCommandLineParser &cli) : cli_(cli) {}
+
+    bool loadConfig(const QString &file, const QList<QCommandLineOption> &known, QString *error)
+    {
+        QFile f(file);
+        if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            *error = u"Cannot read %1: %2"_s.arg(file, f.errorString());
+            return false;
+        }
+        QStringList names;
+        for (const QCommandLineOption &o : known)
+            names += o.names();
+        int lineNo = 0;
+        while (!f.atEnd()) {
+            ++lineNo;
+            const QString line = QString::fromUtf8(f.readLine()).trimmed();
+            if (line.isEmpty() || line.startsWith(u'#') || line.startsWith(u';') || line.startsWith(u'['))
+                continue;
+            const qsizetype eq = line.indexOf(u'=');
+            const QString key = (eq < 0 ? line : line.left(eq)).trimmed();
+            QString value = eq < 0 ? u"yes"_s : line.mid(eq + 1).trimmed();
+            if (value.size() >= 2 && value.startsWith(u'"') && value.endsWith(u'"'))
+                value = value.mid(1, value.size() - 2);
+            if (!names.contains(key) || key == u"config") {
+                *error = u"%1 line %2: unknown option \"%3\""_s.arg(file).arg(lineNo).arg(key);
+                return false;
+            }
+            config_.insert(key, value);
+        }
+        return true;
+    }
+
+    bool isSet(const QCommandLineOption &o) const
+    {
+        if (cli_.isSet(o))
+            return true;
+        const QString name = o.names().constFirst();
+        if (!config_.contains(name))
+            return false;
+        const QString v = config_.value(name).toLower();
+        if (o.valueName().isEmpty())   // a switch
+            return !(v == u"no" || v == u"false" || v == u"off" || v == u"0");
+        return !v.isEmpty();
+    }
+
+    QString value(const QCommandLineOption &o) const
+    {
+        if (cli_.isSet(o))
+            return cli_.value(o);
+        const QString v = config_.value(o.names().constFirst());
+        return !v.isEmpty() ? v : o.defaultValues().value(0);
+    }
+
+private:
+    const QCommandLineParser &cli_;
+    QHash<QString, QString> config_;
+};
+
+QString dataDirOf(const Args &cli, const Options &o)
 {
-    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    return cli.isSet(o.dataDir) ? cli.value(o.dataDir) : Options::defaultDataDir();
+}
+
+QString dbPathOf(const Args &cli, const Options &o)
+{
+    return cli.isSet(o.db) ? cli.value(o.db) : QDir(dataDirOf(cli, o)).filePath(u"viewtouch.db"_s);
+}
+
+QString backupDirOf(const Args &cli, const Options &o)
+{
+    return cli.isSet(o.backupDir) ? cli.value(o.backupDir) : QDir(dataDirOf(cli, o)).filePath(u"backups"_s);
 }
 
 void say(vt::app::PosSession &pos, const QString &text)
@@ -82,7 +177,7 @@ bool waitUntil(Condition condition, int msec)
 
 // Startup page/edit options, then the window. Returns the engine (null when
 // the window could not be created).
-std::unique_ptr<QQmlApplicationEngine> showUi(QCommandLineParser &cli, const Options &o, LayoutController &controller)
+std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o, LayoutController &controller)
 {
     if (cli.isSet(o.page) && !controller.showPage(cli.value(o.page)))
         qWarning().noquote() << "Cannot open page" << cli.value(o.page);
@@ -107,6 +202,10 @@ std::unique_ptr<QQmlApplicationEngine> showUi(QCommandLineParser &cli, const Opt
     auto *window = engine->rootObjects().isEmpty() ? nullptr : qobject_cast<QQuickWindow *>(engine->rootObjects().first());
     if (!window)
         return nullptr;
+    if (cli.isSet(o.kiosk)) {
+        window->showFullScreen();
+        QGuiApplication::setOverrideCursor(Qt::BlankCursor);
+    }
     if (cli.isSet(o.screenshot)) {
         const QString file = cli.value(o.screenshot);
         QTimer::singleShot(1000, window, [window, file] {
@@ -121,7 +220,7 @@ std::unique_ptr<QQmlApplicationEngine> showUi(QCommandLineParser &cli, const Opt
 
 // --- a terminal of a remote server ---------------------------------------------------------
 
-int runTerminal(QCommandLineParser &cli, const Options &o)
+int runTerminal(const Args &cli, const Options &o)
 {
     QString host = cli.value(o.connect);
     quint16 port = vt::net::DefaultPort;
@@ -163,9 +262,22 @@ int runTerminal(QCommandLineParser &cli, const Options &o)
 
 // --- this machine holds the data (standalone, or serving terminals) -----------------------
 
-int runStore(QCommandLineParser &cli, const Options &o)
+int runStore(const Args &cli, const Options &o)
 {
-    const QString dbPath = cli.isSet(o.db) ? cli.value(o.db) : QDir(dataDir()).filePath(u"viewtouch.db"_s);
+    const QString dbPath = dbPathOf(cli, o);
+    QDir().mkpath(QFileInfo(dbPath).absolutePath());
+
+    // One ViewTouch per database: a second one would split the sales.
+    QLockFile lock(dbPath + u".lock"_s);
+    lock.setStaleLockTime(0);
+    if (!lock.tryLock(0)) {
+        qint64 pid = 0;
+        QString host, app;
+        lock.getLockInfo(&pid, &host, &app);
+        qCritical().noquote() << u"The database %1 is already in use by another ViewTouch (process %2). "
+                                 "Join it as a terminal with --connect instead."_s.arg(dbPath).arg(pid);
+        return 1;
+    }
 
     vt::storage::LayoutStore store(dbPath);
     QString dbError;
@@ -241,7 +353,7 @@ int runStore(QCommandLineParser &cli, const Options &o)
     // Printing: a worker thread delivers tickets; "file" printers write under
     // <app data>/printouts so tickets are visible without hardware.
     vt::print::PrintSpooler spooler;
-    vt::print::TicketPrinter ticketPrinter(spooler, QDir(dataDir()).filePath(u"printouts"_s));
+    vt::print::TicketPrinter ticketPrinter(spooler, QDir(dataDirOf(cli, o)).filePath(u"printouts"_s));
     pos.setPrinter(&ticketPrinter);
     QObject::connect(&spooler, &vt::print::PrintSpooler::jobFailed, &pos,
                      [&pos](const QString &printer, const QString &what, const QString &error) {
@@ -251,6 +363,27 @@ int runStore(QCommandLineParser &cli, const Options &o)
         QObject::connect(writer.get(), &vt::storage::AsyncWriter::writeFailed, &pos, [&pos](const QString &error) {
             say(pos, QCoreApplication::translate("main", "Could not save to the database (will retry): %1").arg(error));
         });
+    }
+
+    // Backups: every --backup-every hours and after each End of Day.
+    std::unique_ptr<vt::storage::BackupScheduler> backups;
+    if (havePosStore) {
+        backups = std::make_unique<vt::storage::BackupScheduler>(
+            dbPath, backupDirOf(cli, o), cli.value(o.backupKeep).toInt(), cli.value(o.backupEvery).toInt());
+        QObject::connect(backups.get(), &vt::storage::BackupScheduler::finished, &pos,
+                         [&pos](bool ok, const QString &, const QString &error) {
+            if (!ok)
+                say(pos, QCoreApplication::translate("main", "The database backup failed: %1").arg(error));
+        });
+        QObject::connect(shared, &vt::app::PosShared::dayChanged, backups.get(),
+                         [shared, &backups, &writer, closedDays = shared->pastDays.size()]() mutable {
+            if (shared->pastDays.size() > closedDays) {
+                closedDays = shared->pastDays.size();
+                writer->flush();   // the day's final writes go in the backup
+                backups->backupNow();
+            }
+        });
+        backups->start();
     }
 
     // Every save of the pages goes through the hub, which tells the terminals.
@@ -288,14 +421,108 @@ int runStore(QCommandLineParser &cli, const Options &o)
     return engine ? qApp->exec() : 1;
 }
 
+// --- backups from the command line ---------------------------------------------------------
+
+int runBackup(const Args &cli, const Options &o)
+{
+    const QString dir = backupDirOf(cli, o);
+    const QString target = QDir(dir).filePath(vt::storage::backupFileName(QDateTime::currentDateTime()));
+    QString error;
+    if (!QDir().mkpath(dir) || !vt::storage::backupDatabase(dbPathOf(cli, o), target, &error)) {
+        qCritical().noquote() << "Backup failed:" << (error.isEmpty() ? u"cannot create "_s + dir : error);
+        return 1;
+    }
+    vt::storage::pruneBackups(dir, cli.value(o.backupKeep).toInt());
+    qInfo().noquote() << "Backed up to" << target;
+    return 0;
+}
+
+int runRestore(const Args &cli, const Options &o)
+{
+    const QString dbPath = dbPathOf(cli, o);
+    QDir().mkpath(QFileInfo(dbPath).absolutePath());
+    QLockFile lock(dbPath + u".lock"_s);
+    lock.setStaleLockTime(0);
+    if (!lock.tryLock(0)) {
+        qCritical().noquote() << u"ViewTouch is running on %1. Stop it first "
+                                 "(installed as a service: sudo systemctl stop vtmodern vtmodern-kiosk)."_s.arg(dbPath);
+        return 1;
+    }
+    QString keptAs, error;
+    if (!vt::storage::restoreDatabase(cli.value(o.restore), dbPath, &keptAs, &error)) {
+        qCritical().noquote() << "Restore failed:" << error;
+        return 1;
+    }
+    qInfo().noquote() << "Restored" << cli.value(o.restore) << "to" << dbPath;
+    if (!keptAs.isEmpty())
+        qInfo().noquote() << "The previous database is kept as" << keptAs;
+    return 0;
+}
+
+// A server without a screen (and --help, --backup...) needs no display: pick
+// the offscreen platform before the application starts, unless the user
+// chose one.
+void preferOffscreenWhenHeadless(int argc, char *argv[])
+{
+    for (int i = 1; i < argc; ++i) {
+        const QByteArrayView arg(argv[i]);
+        const bool command = arg == "--backup" || arg == "--restore" || arg.startsWith("--restore=") || arg == "-h"
+                             || arg == "--help" || arg == "--help-all" || arg == "-v" || arg == "--version";
+        // One-shot commands answer on the terminal, even through a pipe
+        // (Qt would otherwise send the messages to the journal).
+        if (command)
+            qputenv("QT_FORCE_STDERR_LOGGING", "1");
+        if ((command || arg == "--headless") && !qEnvironmentVariableIsSet("QT_QPA_PLATFORM"))
+            qputenv("QT_QPA_PLATFORM", "offscreen");
+    }
+}
+
+#ifdef Q_OS_UNIX
+// systemctl stop (SIGTERM), Ctrl+C and SIGHUP end the event loop normally, so
+// queued database writes are flushed and the database lock is released. The
+// handler only writes to a socket; the event loop does the rest.
+int signalPipe[2] = {-1, -1};
+
+void onSignal(int)
+{
+    const char byte = 1;
+    [[maybe_unused]] const auto n = ::write(signalPipe[0], &byte, 1);
+}
+
+void quitOnSignals(QCoreApplication &app)
+{
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, signalPipe) != 0)
+        return;
+    auto *notifier = new QSocketNotifier(signalPipe[1], QSocketNotifier::Read, &app);
+    QObject::connect(notifier, &QSocketNotifier::activated, &app, [notifier] {
+        notifier->setEnabled(false);
+        char byte;
+        [[maybe_unused]] const auto n = ::read(signalPipe[1], &byte, 1);
+        qInfo("Stopping");
+        QCoreApplication::quit();
+    });
+    struct sigaction sa = {};
+    sa.sa_handler = onSignal;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    for (int sig : {SIGTERM, SIGINT, SIGHUP})
+        ::sigaction(sig, &sa, nullptr);
+}
+#endif
+
 } // namespace
 
 int main(int argc, char *argv[])
 {
+    preferOffscreenWhenHeadless(argc, argv);
     QGuiApplication app(argc, argv);
+    QGuiApplication::setApplicationVersion(QStringLiteral(VTM_VERSION));
     QGuiApplication::setApplicationName(u"ViewTouch"_s);
     QGuiApplication::setOrganizationName(u"ViewTouch"_s);
     QQuickStyle::setStyle(u"Fusion"_s);   // editor chrome; POS pages draw themselves
+#ifdef Q_OS_UNIX
+    quitOnSignals(app);
+#endif
 
     const Options o;
     QCommandLineParser cli;
@@ -303,9 +530,24 @@ int main(int argc, char *argv[])
         "One machine keeps the data (standalone, or --serve for other terminals);\n"
         "other terminals run with --connect <server>."_s);
     cli.addHelpOption();
-    cli.addOptions({o.db, o.layout, o.resetLayout, o.resetMenu, o.serve, o.port, o.listen, o.headless, o.connect,
-                    o.terminal, o.login, o.page, o.edit, o.select, o.size, o.screenshot});
+    cli.addVersionOption();
+    const QList<QCommandLineOption> all = {o.config, o.dataDir, o.db, o.layout, o.resetLayout, o.resetMenu, o.serve,
+        o.port, o.listen, o.headless, o.connect, o.terminal, o.kiosk, o.login, o.page, o.edit, o.select, o.size,
+        o.screenshot, o.backupDir, o.backupKeep, o.backupEvery, o.backup, o.restore};
+    cli.addOptions(all);
     cli.process(app);
 
-    return cli.isSet(o.connect) ? runTerminal(cli, o) : runStore(cli, o);
+    Args args(cli);
+    if (cli.isSet(o.config)) {
+        QString error;
+        if (!args.loadConfig(cli.value(o.config), all, &error)) {
+            qCritical().noquote() << error;
+            return 1;
+        }
+    }
+    if (args.isSet(o.backup))
+        return runBackup(args, o);
+    if (args.isSet(o.restore))
+        return runRestore(args, o);
+    return args.isSet(o.connect) ? runTerminal(args, o) : runStore(args, o);
 }

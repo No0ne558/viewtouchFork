@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(ViewTouchModern VERSION 0.1.0 LANGUAGES CXX)
+project(ViewTouchModern VERSION 0.7.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -77,6 +77,7 @@ if(Qt6_FOUND)
         storage/layout_store.hh storage/layout_store.cpp
         storage/pos_store.hh storage/pos_store.cpp
         storage/async_writer.hh storage/async_writer.cpp
+        storage/backup.hh storage/backup.cpp
     )
     target_link_libraries(vtm_storage PUBLIC vtm_layout vtm_pos Qt6::Sql)
 
@@ -140,6 +141,7 @@ if(Qt6_FOUND)
 
     qt_add_executable(vtmodern main.cpp)
     target_link_libraries(vtmodern PRIVATE vtm_ui vtm_uiplugin)
+    target_compile_definitions(vtmodern PRIVATE VTM_VERSION="${PROJECT_VERSION}")
 
     # Starter layout shipped with the app (qrc:/seed)
     file(GLOB_RECURSE VTM_SEED_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
@@ -169,6 +171,8 @@ if(Qt6_FOUND)
     set(VTM_BURGER ${VTM_LEGACY_ROOT}/assets/default_images/burger.png)
     set_source_files_properties(${VTM_BURGER} PROPERTIES QT_RESOURCE_ALIAS burger.png)
     qt_add_resources(vtm_ui "images" PREFIX "/images" FILES ${VTM_BURGER})
+
+    include(packaging/Packaging.cmake)
 else()
     message(WARNING
         "Qt6 (Core Gui Quick QuickControls2 Sql >= 6.8) development files not found: "

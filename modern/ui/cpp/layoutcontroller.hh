@@ -10,6 +10,7 @@
 #include <QPointer>
 #include <QSize>
 #include <QTime>
+#include <QTimer>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
@@ -84,9 +85,12 @@ public:
     const vt::layout::Layout &layout() const { return layout_; }
     const vt::layout::Layout &activeLayout() const;
 
-    // Meal period for index jumps. Defaults from the clock.
-    void setMealPeriod(const QString &period) { nav_.setMealPeriod(period); }
+    // Meal period for index jumps. Follows the clock and the store's meal
+    // periods (checked every minute) unless set here.
+    void setMealPeriod(const QString &period);
+    // With the built-in periods, or with a session's mealPeriods list.
     static QString mealPeriodAt(QTime time);
+    static QString mealPeriodAt(const QVariantList &periods, QTime time);
 
     Q_INVOKABLE void activate(const QString &zoneId);
     Q_INVOKABLE void goBack();
@@ -148,6 +152,9 @@ private:
     // so QML panels unload before the editor they bind to goes away.
     QPointer<EditorController> editor_;
     bool editing_ = false;
+    QTimer mealTimer_;
+    bool mealPeriodFixed_ = false;
+    void updateMealPeriod();
     Saver saver_;
     vt::app::PosSession *pos_ = nullptr;
     int pending_ = 0;

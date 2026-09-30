@@ -2,6 +2,7 @@
 
 #include <QCryptographicHash>
 #include <QRandomGenerator>
+#include <QRegularExpression>
 
 #include <cmath>
 
@@ -378,6 +379,18 @@ PrinterConfig printerFromJson(const QJsonObject &o)
     return p;
 }
 
+QString clockText(int minutes)
+{
+    return u"%1:%2"_s.arg(minutes / 60, 2, 10, QChar(u'0')).arg(minutes % 60, 2, 10, QChar(u'0'));
+}
+
+int clockMinutes(const QString &text)
+{
+    static const QRegularExpression re(u"^\\s*([01]?[0-9]|2[0-3])(?::([0-5][0-9]))?\\s*$"_s);
+    const QRegularExpressionMatch m = re.match(text);
+    return m.hasMatch() ? m.captured(1).toInt() * 60 + m.captured(2).toInt() : -1;
+}
+
 QJsonObject toJson(const PosSettings &s)
 {
     QJsonArray terminals;
@@ -393,6 +406,9 @@ QJsonObject toJson(const PosSettings &s)
             o.insert(u"percent"_s, double(t.percentBp) / 100.0);
         tenders.append(o);
     }
+    QJsonArray mealPeriods;
+    for (const MealPeriod &m : s.mealPeriods)
+        mealPeriods.append(QJsonObject{{u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"start"_s, clockText(m.start)}});
     return {
         {u"schemaVersion"_s, PosSchemaVersion},
         {u"storeName"_s, qs(s.storeName)},
@@ -407,6 +423,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"receiptFooter"_s, qs(s.receiptFooter)},
         {u"gratuity"_s, QJsonObject{{u"percent"_s, double(s.gratuityBp) / 100.0}, {u"minGuests"_s, s.gratuityMinGuests}}},
         {u"terminals"_s, terminals},
+        {u"mealPeriods"_s, mealPeriods},
     };
 }
 
@@ -431,6 +448,14 @@ PosSettings settingsFromJson(const QJsonObject &o)
     for (const QJsonValue &v : o.value(u"terminals").toArray()) {
         const QJsonObject t = v.toObject();
         s.terminals.push_back({ss(t.value(u"name").toString()), ss(t.value(u"receiptPrinter").toString())});
+    }
+    if (o.contains(u"mealPeriods")) {   // older settings keep the defaults
+        s.mealPeriods.clear();
+        for (const QJsonValue &v : o.value(u"mealPeriods").toArray()) {
+            const QJsonObject m = v.toObject();
+            s.mealPeriods.push_back({ss(m.value(u"id").toString()), ss(m.value(u"name").toString()),
+                                     std::max(0, clockMinutes(m.value(u"start").toString()))});
+        }
     }
     for (const QJsonValue &v : o.value(u"tenders").toArray()) {
         const QJsonObject t = v.toObject();

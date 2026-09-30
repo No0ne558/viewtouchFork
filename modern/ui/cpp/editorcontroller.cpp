@@ -341,7 +341,23 @@ QVariantList EditorController::zoneFields(const QString &kind) const
 
 QVariantList EditorController::pageFields() const
 {
-    return vt::layout::schema::pageFields().toVariantList();
+    QVariantList fields = vt::layout::schema::pageFields().toVariantList();
+    if (mealPeriods_.isEmpty())
+        return fields;
+    QVariantList choices{QVariantMap{{u"value"_s, QString()}, {u"text"_s, tr("(none)")}}};
+    for (const QVariant &v : mealPeriods_) {
+        const QVariantMap m = v.toMap();
+        choices.append(QVariantMap{{u"value"_s, m.value(u"id"_s)}, {u"text"_s, m.value(u"name"_s)}});
+    }
+    choices.append(QVariantMap{{u"value"_s, u"all"_s}, {u"text"_s, tr("All day")}});
+    for (QVariant &f : fields) {
+        QVariantMap m = f.toMap();
+        if (m.value(u"path"_s) == u"mealPeriod"_s) {
+            m.insert(u"options"_s, choices);
+            f = m;
+        }
+    }
+    return fields;
 }
 
 QVariantList EditorController::themeFields() const

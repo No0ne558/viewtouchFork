@@ -263,10 +263,10 @@ comes once everything works as intended.
   - A drawer and a receipt printer per terminal.
   - Drawer pay-outs and paid-ins; servers cash out tips from the drawer.
   - Tips report.
-- **M7: Install & run as a service**
+- **M7: Install & run as a service** (done)
   - Packages for Fedora and Debian/Ubuntu/Raspberry Pi OS (x86_64 + aarch64).
   - Server as a systemd service; terminals start in kiosk mode at boot.
   - Automatic database backups.
-  - Store hours / meal periods as settings.
+  - Meal periods as settings (Manager → Meal Periods). Separate store opening hours were not needed: the business day runs from End of Day to End of Day.
 - **Hands-on fixing** (ongoing): issues found on real hardware get fixed as they come in.
 - **M8: Card payments** (last): processor to be chosen (Stripe Terminal, Square, …) behind a payment-processor interface with a simulator for tests.

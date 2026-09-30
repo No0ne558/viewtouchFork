@@ -35,8 +35,53 @@ The full design and milestones are in [docs/PLAN.md](docs/PLAN.md).
 | M4 Printing, drawers, reports, end of day, admin screens, split check | done |
 | M5 Several terminals on one server, kitchen display, takeout/delivery details | done |
 | M6 Tips, party gratuity, per-terminal drawers and printers, pay outs / paid ins, tip cash-out | done |
-| M7 Install and run as a service (Fedora, Debian/Ubuntu, Raspberry Pi), kiosk mode, backups | next |
+| M7 Packages (Fedora, Debian/Raspberry Pi OS, Ubuntu), service and kiosk at boot, backups, meal periods | done |
 | M8 Card payments | last |
+
+## Installing
+
+Packages are built for Fedora 44, Debian 13 (and Raspberry Pi OS based on it) and Ubuntu 26.04, on x86_64 and aarch64 (64-bit Raspberry Pi). They need Qt 6.8 or newer, so older releases (Debian 12, Ubuntu 24.04) are not supported.
+
+```sh
+sudo dnf install ./vtmodern-0.7.0-1.fc44.x86_64.rpm            # Fedora
+sudo apt install ./vtmodern_0.7.0-1~debian13_arm64.deb         # Debian / Raspberry Pi OS
+```
+
+Installing starts nothing. Pick this machine's part in the store:
+
+| Command | This machine |
+|---|---|
+| `sudo vtmodern-setup store` | Has a screen and keeps the data; other terminals may join |
+| `sudo vtmodern-setup server` | Keeps the data with no screen (back office, closet box) |
+| `sudo vtmodern-setup terminal <server> [name]` | Has a screen and joins the server |
+| `sudo vtmodern-setup off` | Stops starting ViewTouch at boot |
+| `vtmodern-setup status` | Shows what is set up and the newest backup |
+
+- **Screens start full screen at boot** (`vtmodern-kiosk.service`) in the `cage` kiosk on the first console, with no desktop and no mouse pointer. Turn off any desktop login (`sudo systemctl disable gdm`) on a dedicated POS screen. On a desktop, *ViewTouch* is also in the applications menu.
+- **The server** (`vtmodern.service`) runs sandboxed as the `viewtouch` account and restarts if it stops. Open port 7719/tcp in the firewall for the terminals.
+- **Settings** live in `/etc/viewtouch/kiosk.conf` and `/etc/viewtouch/server.conf`: any `vtmodern --help` option, written `option = value`. Restart the service after a change.
+- **Data** lives in `/var/lib/viewtouch` and is kept when the package is removed. Only one ViewTouch can use a database at a time; a second one is refused and told to `--connect` instead.
+- **Logs:** `journalctl -u vtmodern` or `journalctl -u vtmodern-kiosk`.
+
+**Building the packages:** `modern/packaging/build-packages.sh` builds for this machine; add `fedora`, `debian` or `ubuntu` to build in a podman container. The *Modern packages* GitHub workflow (Actions tab, or a `modern-v*` tag) builds all six.
+
+## Backups
+
+- **Automatic:** the machine that keeps the data backs up when it starts, every 24 hours and after every End of Day, keeping the newest 30. Backups go to `backups/` next to the database (`/var/lib/viewtouch/backups` when installed). A USB stick or network share is safer: set `backup-dir` in the .conf file. `backup-every` and `backup-keep` change the timing and count.
+- **By hand:** `vtmodern --backup` (add `--data-dir /var/lib/viewtouch` for an installed store). It is safe while ViewTouch runs.
+- **Restore:**
+  ```sh
+  sudo systemctl stop vtmodern vtmodern-kiosk
+  sudo vtmodern --data-dir /var/lib/viewtouch --restore /var/lib/viewtouch/backups/viewtouch-20260929-230000.db
+  sudo systemctl start vtmodern      # or vtmodern-kiosk
+  ```
+  The backup is checked first. The database it replaces is kept beside it as `viewtouch.db.before-restore-<time>`.
+
+Each backup is a complete SQLite copy. Checks, pages, menu, staff, settings and past days are all in it.
+
+## Meal periods
+
+Manager → Meal Periods sets when breakfast, lunch and dinner start (the starter set is 04:00, 11:00 and 16:00). You can add others, such as Late Night. Each period runs until the next one starts, and past midnight until the first one. The Menu button opens the index page whose *Meal period* (page inspector) matches the time. With no page for the current period, it opens an *All day* index page, else the first one.
 
 ## Several terminals
 
@@ -89,14 +134,14 @@ Log in with a demo PIN: **1234** (manager), **1111** (server) or **2222** (cashi
 5. **Split Check** on the Settle page moves items to another check at the same table. Touching a table that has several checks lets you choose one.
 
 **Manager** (PIN 1234 → Manager):
-- **Menu, Employees, Payments (Tenders), Printers, Taxes, Settings:** edit and Save. Staff are deactivated rather than deleted. PINs must be unique, and you can't lock yourself out.
+- **Menu, Employees, Payments (Tenders), Printers, Taxes, Settings, Terminals, Meal Periods:** edit and Save. Staff are deactivated rather than deleted. PINs must be unique, and you can't lock yourself out.
 - **Reports:** Sales, Items, Servers, Labor and Drawer, for today (live) or any closed day (◀ ▶). Print sends a report to the receipt printer.
 - **Drawers:** start with a bank, then count at the end of the shift to see over or short. No Sale opens the drawer.
 - **End of Day:** once every check is settled and the drawer is counted, this saves the day's reports and starts a new day.
 
 **Printing**
 - **When tickets print:** Send prints a kitchen ticket per station (each menu item names its printer, such as kitchen or bar). Voiding a sent item prints a VOID ticket. Closing a cash sale opens the drawer.
-- **Where they go:** the starter printers write text files to `~/.local/share/ViewTouch/ViewTouch/printouts/`. In Manager → Printers, switch them to **Network** (raw TCP 9100, ESC/POS) or **CUPS**.
+- **Where they go:** the starter printers write text files to `printouts/` in the data folder (`~/.local/share/ViewTouch/ViewTouch/`, or `/var/lib/viewtouch` when installed). In Manager → Printers, switch them to **Network** (raw TCP 9100, ESC/POS) or **CUPS**.
 - **Printer failures:** printing runs on its own thread. A printer that is off or unplugged is retried and then reported on screen; it never freezes the POS.
 
 **Behind the scenes**
@@ -126,7 +171,7 @@ Manager widgets:
 
 | Widget | What it does |
 |---|---|
-| adminPanel | Manager editors (`props.panel`: menu, employees, tenders, printers, taxes, store) |
+| adminPanel | Manager editors (`props.panel`: menu, employees, tenders, printers, taxes, store, terminals, mealPeriods) |
 | reportView | Reports |
 | drawerPanel | Cash drawer |
 | endOfDay | End of day |
@@ -183,7 +228,7 @@ tests/    Catch2 unit tests
 
 ## Building
 
-Prerequisites (Fedora):
+Prerequisites: a C++23 compiler, CMake, Ninja and Qt 6.8 or newer. `sudo modern/packaging/build-packages.sh deps` installs them on Fedora, Debian and Ubuntu, or by hand on Fedora:
 
 ```sh
 sudo dnf install gcc-c++ cmake ninja-build qt6-qtbase-devel qt6-qtdeclarative-devel
@@ -193,9 +238,10 @@ sudo dnf install gcc-c++ cmake ninja-build qt6-qtbase-devel qt6-qtdeclarative-de
 cmake -S modern -B modern/build -G Ninja
 cmake --build modern/build
 ctest --test-dir modern/build
-./modern/build/vtmodern                   # pages saved in ~/.local/share/ViewTouch/ViewTouch/viewtouch.db
+./modern/build/vtmodern                   # data in ~/.local/share/ViewTouch/ViewTouch/
 ./modern/build/vtmodern --reset-layout    # back to the starter pages
-./modern/build/vtmodern --db /tmp/t.db    # use another database
+./modern/build/vtmodern --data-dir /tmp/t # use another data folder (database, backups, printouts)
+./modern/build/vtmodern --kiosk           # full screen, no mouse pointer
 ./modern/build/vtmodern --login 1234      # start logged in (testing)
 ```
 

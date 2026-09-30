@@ -111,6 +111,9 @@ write("pos/settings.json", {
     "receiptHeader": "123 Main Street\nOpen daily 7am - 10pm",
     "gratuity": {"percent": 18, "minGuests": 6},
     "terminals": [],
+    "mealPeriods": [{"id": "breakfast", "name": "Breakfast", "start": "04:00"},
+                    {"id": "lunch", "name": "Lunch", "start": "11:00"},
+                    {"id": "dinner", "name": "Dinner", "start": "16:00"}],
     "receiptFooter": "Thank you for visiting!\nPowered by ViewTouch",
 })
 
@@ -336,16 +339,16 @@ page("logout", "Log Out", "logout", [
 
 admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"), ("Taxes", "taxes"),
          ("Tenders", "tenders"), ("Printers", "printers"), ("Reports", "reports"), ("Drawers", "drawers"),
-         ("End of Day", "endOfDay"), ("Terminals", "terminals")]
+         ("End of Day", "endOfDay"), ("Terminals", "terminals"), ("Meal Periods", "mealPeriods")]
 mgr = [label("title", 160, 40, 1600, 100, "Manager")]
 for i, (text, panel) in enumerate(admin):
     col, row = i % 4, i // 4
     mgr.append(zone(f"admin-{panel}", 160 + col * 408, 160 + row * 180, 384, 160, text,
                     actions=[command("openAdmin", panel=panel)]))
 mgr += [
-    # grid slots 10-11 (row 2) and 15 (row 3)
-    zone("kitchen-display", 976, 520, 384, 160, "Kitchen Display", actions=[jump(page="kitchen")]),
-    zone("bar-display", 1384, 520, 384, 160, "Bar Display", actions=[jump(page="bar-display")]),
+    # grid slots 11 (row 2), 12 and 15 (row 3)
+    zone("kitchen-display", 1384, 520, 384, 160, "Kitchen Display", actions=[jump(page="kitchen")]),
+    zone("bar-display", 160, 700, 384, 160, "Bar Display", actions=[jump(page="bar-display")]),
     zone("edit-pages", 1384, 700, 384, 160, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
     zone("back", 160, 900, 384, 140, "‹ Back", actions=[jump(mode="back")]),
 ]
@@ -355,7 +358,8 @@ page("manager", "Manager", "manager", mgr, role="manager", permission="manager")
 for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees", "Employees", "employees"),
                          ("admin-tenders", "Payment Types", "tenders"), ("admin-printers", "Printers", "printers"),
                          ("admin-taxes", "Taxes", "taxes"), ("admin-store", "Store Settings", "store"),
-                         ("admin-terminals", "Terminals", "terminals")]:
+                         ("admin-terminals", "Terminals", "terminals"),
+                         ("admin-meal-periods", "Meal Periods", "mealPeriods")]:
     page(pid, name, "manager", [
         label("title", 16, 16, 1888, 80, name),
         zone("editor", 16, 112, 1888, 816, kind="adminPanel", props={"panel": panel}),

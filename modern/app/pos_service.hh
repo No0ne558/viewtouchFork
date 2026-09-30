@@ -274,6 +274,7 @@ public:
     QVariantList days() const override;
     int adminRevision() const override { return s_->adminRevision; }
     QString tipsOwed() const override;
+    QVariantList mealPeriods() const override;
 
 private:
     std::string receiptPrinter() const { return s_->settings.receiptPrinterFor(terminal_.toStdString()); }
@@ -293,6 +294,7 @@ private:
     bool saveMenuRecord(int index, const QVariantMap &record);
     bool saveEmployeeRecord(int index, const QVariantMap &record);
     bool saveTenderRecord(int index, const QVariantMap &record);
+    bool saveMealPeriodRecord(int index, const QVariantMap &record);
     bool savePrinterRecord(int index, const QVariantMap &record);
     void settingsChanged();
 

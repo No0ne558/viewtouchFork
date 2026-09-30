@@ -7,6 +7,8 @@
 
 #include <QRegularExpression>
 
+#include <algorithm>
+
 using namespace Qt::StringLiterals;
 using namespace vt::core;
 
@@ -144,6 +146,13 @@ QVariantList PosService::adminFields(const QString &panel)
             with(with(field(u"gratuityMinGuests"_s, tr("…for tables of at least"), u"int"_s), u"min"_s, 1), u"max"_s, 99),
         };
     }
+    if (panel == u"mealPeriods") {
+        return {
+            field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
+            field(u"start"_s, tr("Starts at"), u"string"_s,
+                  tr("24-hour time, e.g. 11:00. Runs until the next period starts.")),
+        };
+    }
     if (panel == u"terminals") {
         QVariantList printers = options({{"", "Receipt (default)"}});
         for (const PrinterConfig &p : s_->settings.printers)
@@ -154,6 +163,14 @@ QVariantList PosService::adminFields(const QString &panel)
         };
     }
     return {};
+}
+
+QVariantList PosService::mealPeriods() const
+{
+    QVariantList out;
+    for (const MealPeriod &m : s_->settings.mealPeriods)
+        out.append(QVariantMap{{u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"start"_s, m.start}});
+    return out;
 }
 
 QVariantList PosService::adminRecords(const QString &panel)
@@ -204,6 +221,10 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"gratuityPercent"_s, double(s_->settings.gratuityBp) / 100.0},
              {u"gratuityMinGuests"_s, s_->settings.gratuityMinGuests}},
             tr("Store"), QString());
+    } else if (panel == u"mealPeriods") {
+        for (const MealPeriod &m : s_->settings.mealPeriods)
+            add({{u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"start"_s, clockText(m.start)}}, qs(m.name),
+                tr("from %1").arg(clockText(m.start)));
     } else if (panel == u"terminals") {
         for (const TerminalConfig &t : s_->settings.terminals) {
             const PrinterConfig *p = s_->settings.printer(t.receiptPrinter);
@@ -226,6 +247,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"kind"_s, u"card"_s}, {u"percent"_s, 0.0}};
     if (panel == u"terminals")
         return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}};
+    if (panel == u"mealPeriods")
+        return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"printers")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"type"_s, u"network"_s}, {u"host"_s, QString()},
                 {u"port"_s, 9100}, {u"path"_s, QString()}, {u"format"_s, QString()}, {u"width"_s, 42},
@@ -246,6 +269,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         ok = saveTenderRecord(index, record);
     } else if (panel == u"printers") {
         ok = savePrinterRecord(index, record);
+    } else if (panel == u"mealPeriods") {
+        ok = saveMealPeriodRecord(index, record);
     } else if (panel == u"terminals") {
         const QString name = record.value(u"name"_s).toString().trimmed();
         if (name.isEmpty())
@@ -375,6 +400,35 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     return true;
 }
 
+bool PosService::saveMealPeriodRecord(int index, const QVariantMap &record)
+{
+    auto &list = s_->settings.mealPeriods;
+    if (index >= int(list.size()))
+        return false;
+    const QString name = record.value(u"name"_s).toString().trimmed();
+    if (name.isEmpty())
+        return fail(tr("The meal period needs a name."));
+    const int start = clockMinutes(record.value(u"start"_s).toString());
+    if (start < 0)
+        return fail(tr("Type the start as a 24-hour time, like 16:30."));
+    for (int i = 0; i < int(list.size()); ++i) {
+        if (i != index && list[i].start == start)
+            return fail(tr("%1 already starts at %2.").arg(qs(list[i].name), clockText(start)));
+    }
+    MealPeriod m{{}, ss(name), start};
+    if (index >= 0) {
+        m.id = list[index].id;
+        list[index] = m;
+    } else {
+        const QString wanted = record.value(u"id"_s).toString().trimmed();
+        m.id = ss(uniqueId(wanted.isEmpty() ? name : wanted, list, [](const MealPeriod &x) { return x.id; }, -1));
+        list.push_back(m);
+    }
+    std::ranges::sort(list, {}, &MealPeriod::start);
+    settingsChanged();
+    return true;
+}
+
 bool PosService::saveTenderRecord(int index, const QVariantMap &record)
 {
     if (index >= int(s_->settings.tenders.size()))
@@ -450,6 +504,9 @@ bool PosService::adminDelete(const QString &panel, int index)
         emit s_->staffChanged();
     } else if (panel == u"tenders" && index >= 0 && index < int(s_->settings.tenders.size())) {
         s_->settings.tenders.erase(s_->settings.tenders.begin() + index);
+        settingsChanged();
+    } else if (panel == u"mealPeriods" && index >= 0 && index < int(s_->settings.mealPeriods.size())) {
+        s_->settings.mealPeriods.erase(s_->settings.mealPeriods.begin() + index);
         settingsChanged();
     } else if (panel == u"terminals" && index >= 0 && index < int(s_->settings.terminals.size())) {
         s_->settings.terminals.erase(s_->settings.terminals.begin() + index);

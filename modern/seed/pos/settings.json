@@ -73,5 +73,22 @@
     "minGuests": 6
   },
   "terminals": [],
+  "mealPeriods": [
+    {
+      "id": "breakfast",
+      "name": "Breakfast",
+      "start": "04:00"
+    },
+    {
+      "id": "lunch",
+      "name": "Lunch",
+      "start": "11:00"
+    },
+    {
+      "id": "dinner",
+      "name": "Dinner",
+      "start": "16:00"
+    }
+  ],
   "receiptFooter": "Thank you for visiting!\nPowered by ViewTouch"
 }

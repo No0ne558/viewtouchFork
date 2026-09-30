@@ -93,6 +93,8 @@ public:
 
     // --- inspector ---
     Q_INVOKABLE QVariantList zoneFields(const QString &kind) const;
+    // The store's meal periods, offered for index pages' meal period.
+    void setMealPeriods(const QVariantList &periods) { mealPeriods_ = periods; }
     Q_INVOKABLE QVariantList pageFields() const;
     Q_INVOKABLE QVariantList themeFields() const;
     Q_INVOKABLE QVariantList actionTypes() const;
@@ -130,6 +132,7 @@ signals:
     void showPageRequested(const QString &pageId);
 
 private:
+    QVariantList mealPeriods_;
     void onLayoutChanged();
     void setSelection(QStringList ids);
     void bump();
