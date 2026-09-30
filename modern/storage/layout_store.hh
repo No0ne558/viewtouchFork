@@ -2,6 +2,7 @@
 
 #include "layout/layout.hh"
 
+#include <QHash>
 #include <QString>
 #include <QStringList>
 
@@ -28,6 +29,16 @@ public:
     bool hasLayout() const;
     std::optional<layout::Layout> load(QStringList *errors = nullptr) const;
     bool save(const layout::Layout &layout, QString *error = nullptr);
+
+    // Which starter pages this store has been given, and the fingerprint of
+    // each as installed (see Layout::updateFromStarter). Empty for stores
+    // from before this was kept.
+    struct StarterState {
+        QStringList seen;
+        QHash<QString, QString> installed;
+    };
+    StarterState starterState() const;
+    bool setStarterState(const StarterState &state, QString *error = nullptr);
 
 private:
     QString path_;

@@ -67,3 +67,23 @@ TEST_CASE("LayoutStore refuses a database from a newer version", "[store]")
     CHECK_FALSE(store.open(&error));
     CHECK(error.contains(u"newer"_s));
 }
+
+TEST_CASE("LayoutStore remembers which starter pages it was given", "[store][upgrade]")
+{
+    QTemporaryDir dir;
+    const QString dbPath = dir.filePath(u"pages.db"_s);
+    {
+        LayoutStore store(dbPath);
+        REQUIRE(store.open());
+        CHECK(store.starterState().seen.isEmpty());   // a store from before this was kept
+        LayoutStore::StarterState s;
+        s.seen = {u"login"_s, u"tables"_s};
+        s.installed.insert(u"login"_s, u"abc"_s);
+        REQUIRE(store.setStarterState(s));
+    }
+    LayoutStore store(dbPath);
+    REQUIRE(store.open());
+    const LayoutStore::StarterState back = store.starterState();
+    CHECK(back.seen == QStringList{u"login"_s, u"tables"_s});
+    CHECK(back.installed.value(u"login"_s) == u"abc"_s);
+}

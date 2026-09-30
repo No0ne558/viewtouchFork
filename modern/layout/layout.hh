@@ -3,6 +3,7 @@
 #include "layout/page.hh"
 
 #include <QJsonObject>
+#include <QHash>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -52,6 +53,21 @@ public:
     // Human-readable problems: dangling references, duplicate ids, missing
     // required roles, zones off the canvas. Empty means the layout is sound.
     QStringList validate() const;
+
+    // Bringing a saved layout up to date with a newer set of starter pages:
+    // - starter pages it doesn't have and never had (`seen`) are added;
+    // - starter pages it still has exactly as installed (their fingerprint
+    //   is in `installed`) are replaced by the newer version;
+    // - anything else (edited, or from before fingerprints) is left alone.
+    // Returns what changed and the fingerprints to keep for next time.
+    struct StarterUpdate {
+        QStringList added;
+        QStringList updated;
+        QHash<QString, QString> installed;   // page id -> fingerprint of the starter version installed
+    };
+    StarterUpdate updateFromStarter(const Layout &starter, const QStringList &seen,
+                                    const QHash<QString, QString> &installed);
+    static QString fingerprint(const Page &page);
 
     // The version of `pageId` made for `formFactor` screens ("phone"), if any.
     const Page *variantFor(const QString &pageId, const QString &formFactor) const;

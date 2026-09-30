@@ -509,6 +509,30 @@ int runStore(const Args &cli, const Options &o)
         layout = vt::layout::Layout::loadDirectory(cli.value(o.layout), &errors);
     } else if (haveStore && store.hasLayout() && !cli.isSet(o.resetLayout)) {
         layout = store.load(&errors);
+        // Pages saved by an older ViewTouch: add the starter pages this
+        // version brings, and update the ones nobody has edited.
+        const auto starter = vt::layout::Layout::loadDirectory(u":/seed"_s);
+        if (layout && starter) {
+            vt::storage::LayoutStore::StarterState state = store.starterState();
+            if (state.seen.isEmpty()) {   // from before this was kept: what it has counts as given
+                for (const vt::layout::Page &p : layout->pages)
+                    state.seen << p.id;
+            }
+            const auto update = layout->updateFromStarter(*starter, state.seen, state.installed);
+            QString error;
+            if ((!update.added.isEmpty() || !update.updated.isEmpty()) && !store.save(*layout, &error))
+                qWarning().noquote() << "Could not save the updated pages:" << error;
+            if (!update.added.isEmpty())
+                qInfo().noquote() << "New starter pages added:" << update.added.join(u", ");
+            if (!update.updated.isEmpty())
+                qInfo().noquote() << "Starter pages updated (they were never edited):" << update.updated.join(u", ");
+            for (const vt::layout::Page &p : starter->pages) {
+                if (!state.seen.contains(p.id))
+                    state.seen << p.id;
+            }
+            state.installed = update.installed;
+            store.setStarterState(state);
+        }
     }
     if (!layout && !cli.isSet(o.layout)) {
         layout = vt::layout::Layout::loadDirectory(u":/seed"_s, &errors);
@@ -516,6 +540,13 @@ int runStore(const Args &cli, const Options &o)
             QString error;
             if (!store.save(*layout, &error))
                 qWarning().noquote() << "Could not store starter pages:" << error;
+            // Remember them as given, as installed: later versions update them.
+            vt::storage::LayoutStore::StarterState state;
+            for (const vt::layout::Page &p : layout->pages) {
+                state.seen << p.id;
+                state.installed.insert(p.id, vt::layout::Layout::fingerprint(p));
+            }
+            store.setStarterState(state);
         }
     }
     for (const QString &e : std::as_const(errors))

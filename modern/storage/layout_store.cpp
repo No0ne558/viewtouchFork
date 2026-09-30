@@ -2,7 +2,9 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -89,6 +91,38 @@ bool LayoutStore::open(QString *error)
             db.rollback();
             return false;
         }
+    }
+    return true;
+}
+
+LayoutStore::StarterState LayoutStore::starterState() const
+{
+    StarterState s;
+    QSqlQuery q(QSqlDatabase::database(connection_));
+    if (!q.exec(u"SELECT value FROM meta WHERE key = 'starter_pages'"_s) || !q.next())
+        return s;
+    const QJsonObject o = QJsonDocument::fromJson(q.value(0).toByteArray()).object();
+    for (const QJsonValue &v : o.value(u"seen").toArray())
+        s.seen << v.toString();
+    const QJsonObject installed = o.value(u"installed").toObject();
+    for (auto it = installed.begin(); it != installed.end(); ++it)
+        s.installed.insert(it.key(), it.value().toString());
+    return s;
+}
+
+bool LayoutStore::setStarterState(const StarterState &state, QString *error)
+{
+    QJsonObject installed;
+    for (auto it = state.installed.cbegin(); it != state.installed.cend(); ++it)
+        installed.insert(it.key(), it.value());
+    const QJsonObject o{{u"seen"_s, QJsonArray::fromStringList(state.seen)}, {u"installed"_s, installed}};
+    QSqlQuery q(QSqlDatabase::database(connection_));
+    q.prepare(u"INSERT OR REPLACE INTO meta (key, value) VALUES ('starter_pages', ?)"_s);
+    q.addBindValue(QString::fromUtf8(QJsonDocument(o).toJson(QJsonDocument::Compact)));
+    if (!q.exec()) {
+        if (error)
+            *error = q.lastError().text();
+        return false;
     }
     return true;
 }

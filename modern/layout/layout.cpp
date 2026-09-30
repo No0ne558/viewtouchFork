@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
+#include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QRegularExpression>
 #include <QSaveFile>
@@ -178,6 +179,45 @@ QJsonObject Layout::resolveBackground(const QString &pageId) const
         Style::mergeMissing(bg, p->background);
     Style::mergeMissing(bg, theme.background);
     return bg;
+}
+
+QString Layout::fingerprint(const Page &page)
+{
+    // QJsonObject keeps its keys sorted, so equal pages give equal text.
+    return QString::fromLatin1(
+        QCryptographicHash::hash(QJsonDocument(page.toJson()).toJson(QJsonDocument::Compact), QCryptographicHash::Sha256)
+            .toHex());
+}
+
+Layout::StarterUpdate Layout::updateFromStarter(const Layout &starter, const QStringList &seen,
+                                                const QHash<QString, QString> &installed)
+{
+    StarterUpdate out;
+    for (const Page &fresh : starter.pages) {
+        const QString print = fingerprint(fresh);
+        Page *mine = page(fresh.id);
+        if (!mine) {
+            if (!seen.contains(fresh.id)) {   // new in this version (not deleted on purpose)
+                pages.append(fresh);
+                out.added << fresh.id;
+                out.installed.insert(fresh.id, print);
+            }
+            continue;
+        }
+        const auto was = installed.constFind(fresh.id);
+        if (was == installed.cend())
+            continue;   // not known to be the starter version: leave it
+        if (*was == print) {
+            out.installed.insert(fresh.id, print);   // unchanged starter page
+        } else if (fingerprint(*mine) == *was) {   // never edited: take the new one
+            *mine = fresh;
+            out.updated << fresh.id;
+            out.installed.insert(fresh.id, print);
+        } else {
+            out.installed.insert(fresh.id, *was);   // edited here: keep theirs
+        }
+    }
+    return out;
 }
 
 const Page *Layout::variantFor(const QString &pageId, const QString &formFactor) const

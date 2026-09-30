@@ -272,3 +272,49 @@ TEST_CASE("An old tableMap floor plan loads as separate table zones", "[layout][
     CHECK_FALSE(p.zones[2].props.contains(u"seats"_s));
     CHECK(p.zones[3].id == u"after"_s);
 }
+
+TEST_CASE("Starter pages: new ones added, unedited ones updated, edits kept", "[layout][upgrade]")
+{
+    auto makePage = [](const QString &id, const QString &label) {
+        Page p;
+        p.id = id;
+        p.name = id;
+        Zone z;
+        z.id = u"b"_s;
+        z.label = label;
+        z.rect = QRect(0, 0, 100, 100);
+        p.zones.append(z);
+        return p;
+    };
+    // What an older version installed: manager, tables, extra.
+    Layout saved;
+    saved.pages = {makePage(u"manager"_s, u"v1"_s), makePage(u"tables"_s, u"v1"_s), makePage(u"legacy"_s, u"v1"_s)};
+    QHash<QString, QString> installed{{u"manager"_s, Layout::fingerprint(saved.pages[0])},
+                                      {u"tables"_s, Layout::fingerprint(saved.pages[1])}};
+    saved.pages[1].zones[0].label = u"my floor"_s;   // the store edited its tables page
+
+    // The new version: all three changed, plus two new pages; "gone" was deleted here on purpose.
+    Layout starter;
+    starter.pages = {makePage(u"manager"_s, u"v2"_s), makePage(u"tables"_s, u"v2"_s), makePage(u"legacy"_s, u"v2"_s),
+                     makePage(u"tables-phone"_s, u"v2"_s), makePage(u"gone"_s, u"v2"_s)};
+    const QStringList seen{u"manager"_s, u"tables"_s, u"legacy"_s, u"gone"_s};
+
+    const auto update = saved.updateFromStarter(starter, seen, installed);
+    CHECK(update.added == QStringList{u"tables-phone"_s});
+    CHECK(update.updated == QStringList{u"manager"_s});
+    CHECK(saved.page(u"manager"_s)->zones[0].label == u"v2"_s);         // never edited: updated
+    CHECK(saved.page(u"tables"_s)->zones[0].label == u"my floor"_s);    // edited: kept
+    CHECK(saved.page(u"legacy"_s)->zones[0].label == u"v1"_s);          // no fingerprint: left alone
+    CHECK_FALSE(saved.page(u"gone"_s));                                  // deleted on purpose: stays gone
+    CHECK(saved.page(u"tables-phone"_s));
+    // Fingerprints to keep: the new versions where installed, the old one where edited.
+    CHECK(update.installed.value(u"manager"_s) == Layout::fingerprint(*starter.page(u"manager"_s)));
+    CHECK(update.installed.value(u"tables"_s) == installed.value(u"tables"_s));
+    CHECK(update.installed.contains(u"tables-phone"_s));
+    CHECK_FALSE(update.installed.contains(u"legacy"_s));
+
+    // Running it again changes nothing.
+    const auto again = saved.updateFromStarter(starter, seen + update.added, update.installed);
+    CHECK(again.added.isEmpty());
+    CHECK(again.updated.isEmpty());
+}
