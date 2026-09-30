@@ -223,6 +223,30 @@ bool waitUntil(Condition condition, int msec)
     return condition();
 }
 
+#ifdef Q_OS_ANDROID
+// Phone pages are portrait; standard ones landscape.
+void requestOrientation(bool portrait)
+{
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([portrait] {
+        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        constexpr jint SENSOR_LANDSCAPE = 6;
+        constexpr jint SENSOR_PORTRAIT = 7;
+        activity.callMethod<void>("setRequestedOrientation", "(I)V", portrait ? SENSOR_PORTRAIT : SENSOR_LANDSCAPE);
+    });
+}
+
+// A POS screen must not go dark between orders.
+void keepScreenOn()
+{
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([] {
+        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        const QJniObject window = activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
+        constexpr jint FLAG_KEEP_SCREEN_ON = 0x00000080;
+        window.callMethod<void>("addFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
+    });
+}
+#endif
+
 // Full screen unless asked for a window (or a window size, or a picture).
 void present(QQuickWindow *window, const Args &cli, const Options &o)
 {
@@ -793,29 +817,6 @@ void prepareEnvironment(int argc, char *argv[])
     }
 }
 
-#ifdef Q_OS_ANDROID
-// Phone pages are portrait; standard ones landscape.
-void requestOrientation(bool portrait)
-{
-    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([portrait] {
-        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
-        constexpr jint SENSOR_LANDSCAPE = 6;
-        constexpr jint SENSOR_PORTRAIT = 7;
-        activity.callMethod<void>("setRequestedOrientation", "(I)V", portrait ? SENSOR_PORTRAIT : SENSOR_LANDSCAPE);
-    });
-}
-
-// A POS screen must not go dark between orders.
-void keepScreenOn()
-{
-    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([] {
-        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
-        const QJniObject window = activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
-        constexpr jint FLAG_KEEP_SCREEN_ON = 0x00000080;
-        window.callMethod<void>("addFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
-    });
-}
-#endif
 
 #ifdef Q_OS_UNIX
 // systemctl stop (SIGTERM), Ctrl+C and SIGHUP end the event loop normally, so
