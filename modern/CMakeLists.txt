@@ -151,8 +151,11 @@ if(Qt6_FOUND)
 
     if(ANDROID)
         # The tablet app: a terminal of a store (see main.cpp, Q_OS_ANDROID).
+        # Each build must number higher than the last for Android to update:
+        # the version (0.7.0 -> 700) times 1000 plus the build number (CI run).
+        set(VTM_ANDROID_BUILD 0 CACHE STRING "Build number, part of the Android version code")
         math(EXPR VTM_VERSION_CODE
-             "${PROJECT_VERSION_MAJOR} * 10000 + ${PROJECT_VERSION_MINOR} * 100 + ${PROJECT_VERSION_PATCH}")
+             "(${PROJECT_VERSION_MAJOR} * 10000 + ${PROJECT_VERSION_MINOR} * 100 + ${PROJECT_VERSION_PATCH}) * 1000 + ${VTM_ANDROID_BUILD}")
         set_target_properties(vtmodern PROPERTIES
             QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/android
             QT_ANDROID_PACKAGE_NAME org.viewtouch.pos
