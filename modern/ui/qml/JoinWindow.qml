@@ -17,7 +17,7 @@ ApplicationWindow {
     title: qsTr("ViewTouch — Join a store")
     color: "#171a1f"
 
-    readonly property real u: Math.max(10, Math.min(width / 64, height / 40))
+    readonly property real u: Math.max(10, Math.min(Math.max(width, height) / 64, Math.min(width, height) / 40))
     property TextField target: codeField   // where the keyboard types
 
     palette {
@@ -76,10 +76,13 @@ ApplicationWindow {
             font.pixelSize: root.u
         }
 
-        RowLayout {
+        // Side by side; one above the other on a portrait phone.
+        GridLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: root.u * 2
+            columns: root.width >= root.height ? 2 : 1
+            columnSpacing: root.u * 2
+            rowSpacing: root.u
 
             // --- which store ---
             ColumnLayout {

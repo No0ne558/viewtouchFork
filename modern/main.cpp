@@ -82,6 +82,9 @@ struct Options {
     QCommandLineOption size{u"size"_s, u"Window size, e.g. 1280x720."_s, u"WxH"_s, u"1280x720"_s};
     QCommandLineOption screenshot{u"screenshot"_s, u"Render, save a PNG to <file>, and exit."_s, u"file"_s};
     QCommandLineOption kiosk{u"kiosk"_s, u"Full screen with no mouse pointer and no way out (touch screens)."_s};
+    QCommandLineOption screen{u"screen"_s,
+        u"Pages for this screen: phone (phone versions, portrait), standard, or auto "
+        "(phones get phone pages; the default on Android). Overrides Manager → Terminals."_s, u"mode"_s};
     QCommandLineOption windowed{u"windowed"_s,
         u"Start in a window instead of full screen (also with --size). F11 switches either way."_s};
     QCommandLineOption backupDir{u"backup-dir"_s, u"Where backups go (default: <data dir>/backups)."_s, u"dir"_s};
@@ -235,6 +238,17 @@ void present(QQuickWindow *window, const Args &cli, const Options &o)
 // the window could not be created).
 std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o, LayoutController &controller)
 {
+#ifdef Q_OS_ANDROID
+    controller.setAutoFormFactor(true);
+    QObject::connect(&controller, &LayoutController::formFactorChanged, &controller,
+                     [&controller] { requestOrientation(controller.formFactor() == u"phone"); });
+    requestOrientation(controller.formFactor() == u"phone");
+#endif
+    if (cli.isSet(o.screen)) {
+        controller.setFormFactorOverride(cli.value(o.screen));
+        if (cli.value(o.screen) == u"auto")
+            controller.setAutoFormFactor(true);   // try it on a desktop by resizing the window
+    }
     if (cli.isSet(o.page) && !controller.showPage(cli.value(o.page)))
         qWarning().noquote() << "Cannot open page" << cli.value(o.page);
     if (cli.isSet(o.edit) && controller.requestEditMode()) {   // needs --login with a manager PIN
@@ -749,6 +763,17 @@ void prepareEnvironment(int argc, char *argv[])
 }
 
 #ifdef Q_OS_ANDROID
+// Phone pages are portrait; standard ones landscape.
+void requestOrientation(bool portrait)
+{
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([portrait] {
+        const QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        constexpr jint SENSOR_LANDSCAPE = 6;
+        constexpr jint SENSOR_PORTRAIT = 7;
+        activity.callMethod<void>("setRequestedOrientation", "(I)V", portrait ? SENSOR_PORTRAIT : SENSOR_LANDSCAPE);
+    });
+}
+
 // A POS screen must not go dark between orders.
 void keepScreenOn()
 {
@@ -816,7 +841,7 @@ int main(int argc, char *argv[])
     cli.addHelpOption();
     cli.addVersionOption();
     const QList<QCommandLineOption> all = {o.config, o.dataDir, o.db, o.layout, o.resetLayout, o.resetMenu, o.serve,
-        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.windowed, o.login, o.page, o.edit, o.select, o.size,
+        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
         o.screenshot, o.backupDir, o.backupKeep, o.backupEvery, o.backup, o.restore, o.pairingCode};
     cli.addOptions(all);
     cli.process(app);

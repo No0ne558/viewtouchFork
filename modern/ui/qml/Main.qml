@@ -11,6 +11,11 @@ ApplicationWindow {
     // Kiosk screens stay full screen; elsewhere F11 switches to a window.
     property bool kiosk: false
 
+    // Phones get phone pages (the controller decides; see formFactor).
+    onWidthChanged: controller.windowResized(width, height)
+    onHeightChanged: controller.windowResized(width, height)
+    Component.onCompleted: controller.windowResized(width, height)
+
     width: 1280
     height: 720
     visible: true

@@ -180,6 +180,15 @@ QJsonObject Layout::resolveBackground(const QString &pageId) const
     return bg;
 }
 
+const Page *Layout::variantFor(const QString &pageId, const QString &formFactor) const
+{
+    for (const Page &p : pages) {
+        if (!p.variantOf.isEmpty() && p.variantOf == pageId && p.formFactor == formFactor)
+            return &p;
+    }
+    return nullptr;
+}
+
 QStringList Layout::tableLabels() const
 {
     QStringList out;
@@ -251,6 +260,13 @@ QStringList Layout::validate() const
             const QList<const Page *> chain = templateChain(p.id);
             if (!chain.isEmpty() && !chain.last()->templateId.isEmpty() && page(chain.last()->templateId))
                 issues << u"%1: template chain loops or is deeper than %2"_s.arg(where).arg(MaxTemplateDepth);
+        }
+
+        if (!p.variantOf.isEmpty()) {
+            if (!page(p.variantOf))
+                issues << u"%1: it is a version of '%2', which does not exist"_s.arg(where, p.variantOf);
+            else if (variantFor(p.variantOf, p.formFactor) != &p)
+                issues << u"%1: '%2' has more than one %3 version"_s.arg(where, p.variantOf, p.formFactor);
         }
 
         QSet<QString> zoneIds;

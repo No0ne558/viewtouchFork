@@ -40,6 +40,7 @@ if(Qt6_FOUND)
         layout/layout.hh layout/layout.cpp
         layout/json_path.hh layout/json_path.cpp
         layout/schema.hh layout/schema.cpp
+        layout/reflow.hh layout/reflow.cpp
         app/navigator.hh app/navigator.cpp
     )
     target_include_directories(vtm_layout PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -116,6 +117,7 @@ if(Qt6_FOUND)
             ui/qml/ActionListEditor.qml
             ui/qml/WidgetKey.qml
             ui/qml/WidgetTable.qml
+            ui/qml/WidgetTableGrid.qml
             ui/qml/WidgetLoginPad.qml
             ui/qml/WidgetNumPad.qml
             ui/qml/WidgetGuestCount.qml

@@ -296,6 +296,7 @@ public:
     QString tipsOwed() const override;
     QVariantList mealPeriods() const override;
     QVariantMap pairingInfo() const override;
+    QString screenMode() const override;
 
     // --- pairing devices (manager) -------------------------------------------------
     // Start a pairing: a 10-character code, good for 10 minutes and one device.

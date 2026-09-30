@@ -27,7 +27,7 @@ Group groupOf(const QString &key)
         {u"loggedIn"_s, Group::Session}, {u"userName"_s, Group::Session}, {u"userRole"_s, Group::Session},
         {u"permissions"_s, Group::Session}, {u"clockedIn"_s, Group::Session}, {u"clockedInSince"_s, Group::Session},
         {u"storeName"_s, Group::Admin}, {u"currencySymbol"_s, Group::Admin}, {u"adminRevision"_s, Group::Admin},
-        {u"mealPeriods"_s, Group::Admin}, {u"pairing"_s, Group::Admin},
+        {u"mealPeriods"_s, Group::Admin}, {u"pairing"_s, Group::Admin}, {u"screenMode"_s, Group::Admin},
         {u"pinLength"_s, Group::Entry}, {u"entry"_s, Group::Entry}, {u"entryAmount"_s, Group::Entry},
         {u"entryGuests"_s, Group::Entry}, {u"textEntry"_s, Group::Entry},
         {u"pendingQualifier"_s, Group::Qualifier},

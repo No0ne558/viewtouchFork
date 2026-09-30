@@ -37,6 +37,9 @@ struct TerminalConfig {
     std::string id;
     std::string key;
     std::int64_t pairedAt = 0;
+    // Pages to show: "phone" (phone versions), "standard", or empty to
+    // decide from the screen size.
+    std::string screen;
 
     bool operator==(const TerminalConfig &) const = default;
 };

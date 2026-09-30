@@ -106,7 +106,7 @@ QStringList basicKinds()
 
 QStringList widgetKinds()
 {
-    return {u"table"_s, u"orderList"_s, u"loginPad"_s, u"guestCount"_s, u"checkList"_s,
+    return {u"table"_s, u"tableGrid"_s, u"orderList"_s, u"loginPad"_s, u"guestCount"_s, u"checkList"_s,
             u"paymentPanel"_s, u"numPad"_s, u"keyboard"_s, u"splitCheck"_s, u"drawerPanel"_s,
             u"reportView"_s, u"endOfDay"_s, u"logoutPanel"_s, u"clock"_s, u"statusBar"_s,
             u"adminPanel"_s, u"kitchenDisplay"_s, u"customerInfo"_s};
@@ -204,6 +204,18 @@ QJsonArray pageFields()
     out.append(intField(u"grid"_s, u"Snap grid"_s, general, 1, 128));
     out.append(intField(u"canvas.w"_s, u"Canvas width"_s, general, 320, 7680));
     out.append(intField(u"canvas.h"_s, u"Canvas height"_s, general, 240, 4320));
+
+    const QString screens = u"Phones"_s;
+    out.append(with(field(u"variantOf"_s, u"Phone version of"_s, u"page"_s, screens), u"hint"_s,
+                    u"Phones show this page instead of that one (with For screens: Phones)"_s));
+    out.append(with(with(field(u"formFactor"_s, u"For screens"_s, u"enum"_s, screens), u"options"_s,
+                         options({{"", "All"}, {"phone", "Phones"}})),
+                    u"hint"_s, u"Use a portrait canvas, e.g. 1080 × 2280"_s));
+    out.append(with(intField(u"contentArea.x"_s, u"Content area X"_s, screens, 0, 7680), u"hint"_s,
+                    u"Phone templates: where pages without a phone version get their buttons"_s));
+    out.append(intField(u"contentArea.y"_s, u"Content area Y"_s, screens, 0, 7680));
+    out.append(intField(u"contentArea.w"_s, u"Content area width"_s, screens, 0, 7680));
+    out.append(intField(u"contentArea.h"_s, u"Content area height"_s, screens, 0, 7680));
 
     const QString bg = u"Background"_s;
     out.append(with(field(u"background.fill"_s, u"Color"_s, u"color"_s, bg), u"inheritable"_s, true));

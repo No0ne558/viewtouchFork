@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QList>
 #include <QMap>
+#include <QRect>
 #include <QSize>
 #include <QString>
 
@@ -29,6 +30,14 @@ struct Page {
     // Permission needed to open this page (e.g. "manager"); empty = anyone
     // logged in. Replaces the legacy password-jump.
     QString permission;
+    // A version of another page for one kind of screen: `variantOf` is that
+    // page's id, `formFactor` the screen ("phone"). Phones show it in place
+    // of the page; everything else still refers to the page by its own id.
+    QString variantOf;
+    QString formFactor;
+    // Phone templates: where a page without a phone version of its own gets
+    // its buttons laid out (see layout/reflow.hh). Empty: none.
+    QRect contentArea;
     QSize canvas{1920, 1080};
     int grid = 8;
     QJsonObject background;   // { fill, texture }; missing keys inherit

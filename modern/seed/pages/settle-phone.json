@@ -1,0 +1,283 @@
+{
+  "schemaVersion": 1,
+  "id": "settle-phone",
+  "name": "Settle (phone)",
+  "kind": "settle",
+  "canvas": {
+    "w": 1080,
+    "h": 2280
+  },
+  "grid": 8,
+  "variantOf": "settle",
+  "formFactor": "phone",
+  "zones": [
+    {
+      "id": "payment",
+      "kind": "paymentPanel",
+      "rect": {
+        "x": 16,
+        "y": 16,
+        "w": 1048,
+        "h": 900
+      },
+      "shape": "rect",
+      "behavior": "none"
+    },
+    {
+      "id": "pad",
+      "kind": "numPad",
+      "rect": {
+        "x": 16,
+        "y": 932,
+        "w": 520,
+        "h": 700
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "props": {
+        "mode": "amount"
+      }
+    },
+    {
+      "id": "tender-cash",
+      "kind": "button",
+      "rect": {
+        "x": 552,
+        "y": 932,
+        "w": 512,
+        "h": 127
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Cash",
+      "actions": [
+        {
+          "type": "tender",
+          "tender": "cash"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f8a4c"
+        }
+      }
+    },
+    {
+      "id": "tender-credit",
+      "kind": "button",
+      "rect": {
+        "x": 552,
+        "y": 1075,
+        "w": 512,
+        "h": 127
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Credit Card",
+      "actions": [
+        {
+          "type": "tender",
+          "tender": "credit"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#2b62b0"
+        }
+      }
+    },
+    {
+      "id": "tender-gift",
+      "kind": "button",
+      "rect": {
+        "x": 552,
+        "y": 1218,
+        "w": 512,
+        "h": 127
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Gift Card",
+      "actions": [
+        {
+          "type": "tender",
+          "tender": "gift"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
+      "id": "tender-discount",
+      "kind": "button",
+      "rect": {
+        "x": 552,
+        "y": 1361,
+        "w": 512,
+        "h": 127
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "10% Off",
+      "actions": [
+        {
+          "type": "tender",
+          "tender": "discount"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#a86a12"
+        }
+      }
+    },
+    {
+      "id": "tender-comp",
+      "kind": "button",
+      "rect": {
+        "x": 552,
+        "y": 1504,
+        "w": 512,
+        "h": 127
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Comp",
+      "actions": [
+        {
+          "type": "tender",
+          "tender": "comp"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#6b46c1"
+        }
+      }
+    },
+    {
+      "id": "close",
+      "kind": "button",
+      "rect": {
+        "x": 16,
+        "y": 1648,
+        "w": 520,
+        "h": 180
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Close Check",
+      "actions": [
+        {
+          "type": "command",
+          "name": "closeCheck"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f8a4c"
+        }
+      }
+    },
+    {
+      "id": "receipt",
+      "kind": "button",
+      "rect": {
+        "x": 552,
+        "y": 1648,
+        "w": 512,
+        "h": 180
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Print Receipt",
+      "actions": [
+        {
+          "type": "command",
+          "name": "printReceipt"
+        }
+      ]
+    },
+    {
+      "id": "remove-payment",
+      "kind": "button",
+      "rect": {
+        "x": 16,
+        "y": 1844,
+        "w": 336,
+        "h": 180
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Undo Payment",
+      "actions": [
+        {
+          "type": "command",
+          "name": "removePayment"
+        }
+      ]
+    },
+    {
+      "id": "split",
+      "kind": "button",
+      "rect": {
+        "x": 368,
+        "y": 1844,
+        "w": 336,
+        "h": 180
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Split Check",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "split"
+        }
+      ]
+    },
+    {
+      "id": "drawer",
+      "kind": "button",
+      "rect": {
+        "x": 720,
+        "y": 1844,
+        "w": 344,
+        "h": 180
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Drawer\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "drawer"
+        }
+      ]
+    },
+    {
+      "id": "done",
+      "kind": "button",
+      "rect": {
+        "x": 16,
+        "y": 2040,
+        "w": 1048,
+        "h": 220
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "\u2039 Back to Order",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "back"
+        }
+      ]
+    }
+  ]
+}

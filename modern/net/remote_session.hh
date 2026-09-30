@@ -84,6 +84,7 @@ public:
     QString tipsOwed() const override { return v(u"tipsOwed").toString(); }
     QVariantList mealPeriods() const override { return v(u"mealPeriods").toList(); }
     QVariantMap pairingInfo() const override { return v(u"pairing").toMap(); }
+    QString screenMode() const override { return v(u"screenMode").toString(); }
     int queryRevision() const override { return queryRevision_; }
 
     // Answered from a cache; fetched from the server when missing or stale.

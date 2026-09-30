@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "id": "logout-phone",
+  "name": "Log Out (phone)",
+  "kind": "logout",
+  "canvas": {
+    "w": 1080,
+    "h": 2280
+  },
+  "grid": 8,
+  "variantOf": "logout",
+  "formFactor": "phone",
+  "zones": [
+    {
+      "id": "title",
+      "kind": "label",
+      "rect": {
+        "x": 24,
+        "y": 40,
+        "w": 1032,
+        "h": 110
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "End of shift"
+    },
+    {
+      "id": "panel",
+      "kind": "logoutPanel",
+      "rect": {
+        "x": 24,
+        "y": 170,
+        "w": 1032,
+        "h": 520
+      },
+      "shape": "rect",
+      "behavior": "none"
+    },
+    {
+      "id": "clock-out",
+      "kind": "button",
+      "rect": {
+        "x": 24,
+        "y": 720,
+        "w": 508,
+        "h": 200
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Clock Out",
+      "actions": [
+        {
+          "type": "command",
+          "name": "clockOut"
+        }
+      ]
+    },
+    {
+      "id": "break",
+      "kind": "button",
+      "rect": {
+        "x": 548,
+        "y": 720,
+        "w": 508,
+        "h": 200
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Start Break",
+      "actions": [
+        {
+          "type": "command",
+          "name": "startBreak"
+        }
+      ]
+    },
+    {
+      "id": "logout",
+      "kind": "button",
+      "rect": {
+        "x": 24,
+        "y": 936,
+        "w": 508,
+        "h": 200
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Log Out",
+      "actions": [
+        {
+          "type": "command",
+          "name": "logout"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#b83232"
+        }
+      }
+    },
+    {
+      "id": "cancel",
+      "kind": "button",
+      "rect": {
+        "x": 548,
+        "y": 936,
+        "w": 508,
+        "h": 200
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Cancel",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "back"
+        }
+      ]
+    },
+    {
+      "id": "tips",
+      "kind": "button",
+      "rect": {
+        "x": 24,
+        "y": 1152,
+        "w": 508,
+        "h": 200
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Cash Out My Tips",
+      "actions": [
+        {
+          "type": "command",
+          "name": "cashOutTips"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f8a4c"
+        }
+      }
+    },
+    {
+      "id": "bank",
+      "kind": "button",
+      "rect": {
+        "x": 548,
+        "y": 1152,
+        "w": 508,
+        "h": 200
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "My Bank\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "drawer"
+        }
+      ]
+    }
+  ]
+}

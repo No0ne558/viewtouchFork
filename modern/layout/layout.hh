@@ -53,6 +53,9 @@ public:
     // required roles, zones off the canvas. Empty means the layout is sound.
     QStringList validate() const;
 
+    // The version of `pageId` made for `formFactor` screens ("phone"), if any.
+    const Page *variantFor(const QString &pageId, const QString &formFactor) const;
+
     // Every table name in the layout (its table zones).
     QStringList tableLabels() const;
     // A table name not used yet, following `like`: "T7" -> "T8" (the next

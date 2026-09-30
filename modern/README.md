@@ -74,7 +74,9 @@ The Android app is a terminal: it finds the store's server on the Wi-Fi, pairs w
 2. **Install:** copy the APK to the tablet and open it. Android asks to allow installing apps from that source (Settings → Apps → Special access → Install unknown apps).
 3. **Pair:** open ViewTouch. The Join screen lists the stores on the Wi-Fi. Type a code from Manager → Terminals → **Pair a Device**, name the tablet, and **Join**.
 
-The app is full screen in landscape and keeps the screen on. Back goes back a page. If the server is out of reach, it starts with the pages it saved last and shows *Reconnecting…*. Its pairing key is never included in Android backups.
+**Phones.** On a phone (a screen whose shorter side is under 600dp, like a folded Fold) the app turns portrait and shows *phone pages*: big buttons in one column. Unfolded or on a tablet it goes back to the standard pages in landscape. Details are under *Phones and small screens*.
+
+The app is full screen and keeps the screen on. Back goes back a page. If the server is out of reach, it starts with the pages it saved last and shows *Reconnecting…*. Its pairing key is never included in Android backups.
 
 **Signing:** to install updates over the previous version, every build must be signed with the same key. Make one once and store it in the repository's secrets:
 ```sh
@@ -84,6 +86,15 @@ base64 -w0 viewtouch.keystore      # → secret ANDROID_KEYSTORE_BASE64
 Also add ANDROID_KEYSTORE_ALIAS (`viewtouch`) and ANDROID_KEYSTORE_PASSWORD. Keep the keystore somewhere safe: an app signed with a lost key can't be updated, only reinstalled. Without these secrets, each build gets a throwaway key.
 
 **Building elsewhere:** the workflow uses Qt 6.11.2 for Android (installed with `aqtinstall`), Android NDK r27c, JDK 17 and KDAB's OpenSSL for Android. Android builds need an x86_64 Linux, Windows or macOS machine: the NDK is not made for ARM64 Linux.
+
+## Phones and small screens
+
+Every page is designed on a 1920 × 1080 landscape canvas and scaled to the screen. On a phone that makes buttons too small, so phones get **phone pages** instead:
+
+- **Phone versions.** A page can have a phone version: a separate page on a portrait canvas (1080 × 2280) marked *Phone version of* that page (page inspector → *Phones*). Phones show it instead; buttons and roles keep pointing at the original page. The starter pages include phone versions of Login, Tables (a scrolling grid of every table), Guest Count, the order template, Settle, Log Out, Customer and Open Checks.
+- **Laid out for you.** A page without a phone version, such as the menu, item and modifier pages, is shown inside the phone version of its template, the phone order screen. That screen has the check on top, qualifiers and Void / Send / Pay at the bottom. The page's own buttons go in the middle in reading order, two or three across, with titles and panels across the full width. So new menu pages work on phones without any extra work.
+- **Which screens are phones.** On Android, a screen whose shorter side is under 600dp (Android's own phone/tablet line), so a Fold switches as it opens and closes. Manager → Terminals → *Screen layout* can force phone or standard pages for a terminal, and `--screen phone|standard|auto` does the same from the command line. Try phone pages on a desktop with `vtmodern --screen phone --size 540x1140`.
+- **Editing.** The editor always shows pages as designed. Open a phone version from the page list to edit it, or make one with *Copy*, then set *Phone version of*, *For screens: Phones* and a portrait canvas.
 
 ## Backups
 

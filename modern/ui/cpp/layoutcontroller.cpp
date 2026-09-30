@@ -2,6 +2,7 @@
 
 #include "core/employee.hh"
 #include "core/settings.hh"
+#include "layout/reflow.hh"
 #include "storage/layout_store.hh"
 
 #include <QPointer>
@@ -135,6 +136,7 @@ void LayoutController::setPos(PosSession *pos)
         connect(pos_, &PosSession::qualifierChanged, this, &LayoutController::refresh);
         connect(pos_, &PosSession::adminChanged, this, [this] {
             updateMealPeriod();
+            updateFormFactor();
             if (editor_)
                 editor_->setMealPeriods(pos_->mealPeriods());
         });
@@ -149,6 +151,7 @@ void LayoutController::setPos(PosSession *pos)
         });
     }
     updateMealPeriod();
+    updateFormFactor();
     emit posChanged();
     refresh();
 }
@@ -286,8 +289,103 @@ QString LayoutController::pageKind() const
 
 QSize LayoutController::canvasSize() const
 {
-    const auto *p = currentPage();
-    return p ? p->canvas : QSize(1920, 1080);
+    return shown().canvas;
+}
+
+// --- screens of different sizes ----------------------------------------------------
+
+LayoutController::Shown LayoutController::shown() const
+{
+    const Layout &l = activeLayout();
+    const QString id = nav_.current();
+    const vt::layout::Page *page = l.page(id);
+    Shown s{id, page ? page->canvas : QSize(1920, 1080), {}, {}};
+    // The editor always works on the page as designed.
+    if (page && formFactor_ == u"phone" && !editing() && page->variantOf.isEmpty()) {
+        if (const vt::layout::Page *v = l.variantFor(id, u"phone"_s)) {
+            s.pageId = v->id;
+            s.canvas = v->canvas;
+            s.zones = l.effectiveZones(v->id);
+            return s;
+        }
+        // A template with a phone version: it frames this page's own buttons.
+        const QList<const vt::layout::Page *> chain = l.templateChain(id);
+        for (qsizetype i = 1; i < chain.size(); ++i) {
+            const vt::layout::Page *frame = l.variantFor(chain[i]->id, u"phone"_s);
+            if (!frame || frame->contentArea.isEmpty())
+                continue;
+            s.pageId = frame->id;
+            s.canvas = frame->canvas;
+            s.zones = l.effectiveZones(frame->id);
+            QList<Layout::PlacedZone> own;
+            for (const Layout::PlacedZone &pz : l.effectiveZones(id)) {
+                if (chain.indexOf(pz.owner) < i)   // this page, or templates below the framed one
+                    own.append(pz);
+            }
+            QList<const vt::layout::Zone *> zones;
+            for (const Layout::PlacedZone &pz : own)
+                zones.append(pz.zone);
+            const QList<QRect> rects = vt::layout::reflowZones(zones, frame->contentArea);
+            for (qsizetype k = 0; k < own.size(); ++k) {
+                if (rects[k].isEmpty())
+                    continue;
+                s.zones.append(own[k]);
+                s.moved.insert(own[k].zone, rects[k]);
+            }
+            return s;
+        }
+    }
+    s.zones = l.effectiveZones(id);
+    return s;
+}
+
+void LayoutController::setFormFactorOverride(const QString &formFactor)
+{
+    formFactorOverride_ = formFactor == u"auto" ? QString() : formFactor;
+    updateFormFactor();
+}
+
+void LayoutController::setAutoFormFactor(bool on)
+{
+    autoFormFactor_ = on;
+    updateFormFactor();
+}
+
+void LayoutController::windowResized(qreal width, qreal height)
+{
+    phoneSizedWindow_ = width > 0 && height > 0 && std::min(width, height) < 600;
+    updateFormFactor();
+}
+
+void LayoutController::updateFormFactor()
+{
+    QString mode = formFactorOverride_;
+    if (mode.isEmpty() && pos_)
+        mode = pos_->screenMode();   // Manager -> Terminals
+    if (mode != u"phone" && mode != u"standard")
+        mode = autoFormFactor_ && phoneSizedWindow_ ? u"phone"_s : u"standard"_s;
+    if (mode == formFactor_)
+        return;
+    formFactor_ = mode;
+    emit formFactorChanged();
+    refresh();
+    emit pageChanged();
+}
+
+QVariantList LayoutController::tables() const
+{
+    QVariantList out;
+    QSet<QString> seen;
+    for (const vt::layout::Page &p : layout_.pages) {
+        for (const vt::layout::Zone &z : p.zones) {
+            const QString name = z.label.trimmed();
+            if (z.kind != u"table" || name.isEmpty() || seen.contains(name.toLower()))
+                continue;
+            seen.insert(name.toLower());
+            out.append(QVariantMap{{u"name"_s, name}, {u"seats"_s, z.props.value(u"seats"_s).toInt()}});
+        }
+    }
+    return out;
 }
 
 int LayoutController::pageGrid() const
@@ -298,7 +396,7 @@ int LayoutController::pageGrid() const
 
 QVariantMap LayoutController::background() const
 {
-    return activeLayout().resolveBackground(nav_.current()).toVariantMap();
+    return activeLayout().resolveBackground(shown().pageId).toVariantMap();
 }
 
 void LayoutController::activate(const QString &zoneId)
@@ -307,7 +405,7 @@ void LayoutController::activate(const QString &zoneId)
         return;   // the editor overlay owns touches
     if (busy())
         return;   // still waiting for the server on the previous touch
-    for (const Layout::PlacedZone &pz : layout_.effectiveZones(nav_.current())) {
+    for (const Layout::PlacedZone &pz : shown().zones) {
         if (pz.zone->id != zoneId)
             continue;
         if (!pz.zone->enabled)
@@ -359,7 +457,7 @@ bool LayoutController::triggerHotkey(const QString &key)
 {
     if (key.isEmpty() || editing())
         return false;
-    const auto zones = layout_.effectiveZones(nav_.current());
+    const auto zones = shown().zones;
     // Topmost zone wins, matching touch order.
     for (auto it = zones.rbegin(); it != zones.rend(); ++it) {
         if (it->zone->enabled && it->zone->hotkey.compare(key, Qt::CaseInsensitive) == 0) {
@@ -595,9 +693,16 @@ void LayoutController::refresh()
     const auto *page = currentPage();
     const bool onItemPage = page && (page->kind == u"items" || page->kind == u"modifier");
 
+    const Shown s = shown();
     QList<ZoneModel::Row> rows;
-    for (const Layout::PlacedZone &pz : l.effectiveZones(pageId)) {
+    for (const Layout::PlacedZone &pz : s.zones) {
         const vt::layout::Zone &z = *pz.zone;
+        // Laid out again for a phone: its own rect there, a plain shape, and
+        // the look it has on its own page.
+        const bool moved = s.moved.contains(pz.zone);
+        const QRect rect = moved ? s.moved.value(pz.zone) : z.rect;
+        const QString shape = moved && z.shape != u"rect" ? u"rounded"_s : z.shape;
+        const QString stylePage = moved ? pageId : s.pageId;
         const QString target = primaryJumpTarget(l, z);
         const QString qualifier = pos_ ? qualifierOf(z) : QString();
         const bool current = !editing()
@@ -609,11 +714,11 @@ void LayoutController::refresh()
             {ZoneModel::KindRole, z.kind},
             {ZoneModel::ZoneNameRole, z.name},
             {ZoneModel::LabelRole, z.label},
-            {ZoneModel::ZoneXRole, z.rect.x()},
-            {ZoneModel::ZoneYRole, z.rect.y()},
-            {ZoneModel::ZoneWRole, z.rect.width()},
-            {ZoneModel::ZoneHRole, z.rect.height()},
-            {ZoneModel::ShapeRole, z.shape},
+            {ZoneModel::ZoneXRole, rect.x()},
+            {ZoneModel::ZoneYRole, rect.y()},
+            {ZoneModel::ZoneWRole, rect.width()},
+            {ZoneModel::ZoneHRole, rect.height()},
+            {ZoneModel::ShapeRole, shape},
             {ZoneModel::BehaviorRole, z.behavior},
             {ZoneModel::ZoneEnabledRole, z.enabled},
             {ZoneModel::InheritedRole, pz.inherited},
@@ -621,9 +726,9 @@ void LayoutController::refresh()
             {ZoneModel::HotkeyRole, z.hotkey},
             {ZoneModel::GroupRole, z.group},
             {ZoneModel::ImagePathRole, z.imagePath},
-            {ZoneModel::StyleNormalRole, l.resolveStyle(z, pageId, ZoneState::Normal).toVariantMap()},
-            {ZoneModel::StyleSelectedRole, l.resolveStyle(z, pageId, ZoneState::Selected).toVariantMap()},
-            {ZoneModel::StyleDisabledRole, l.resolveStyle(z, pageId, ZoneState::Disabled).toVariantMap()},
+            {ZoneModel::StyleNormalRole, l.resolveStyle(z, stylePage, ZoneState::Normal).toVariantMap()},
+            {ZoneModel::StyleSelectedRole, l.resolveStyle(z, stylePage, ZoneState::Selected).toVariantMap()},
+            {ZoneModel::StyleDisabledRole, l.resolveStyle(z, stylePage, ZoneState::Disabled).toVariantMap()},
             {ZoneModel::PropsRole, z.props.toVariantMap()},
         });
     }

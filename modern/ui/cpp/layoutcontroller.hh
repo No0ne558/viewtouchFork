@@ -44,6 +44,9 @@ class LayoutController : public QObject {
     Q_PROPERTY(EditorController *editor READ editor NOTIFY editorChanged)
     Q_PROPERTY(vt::app::PosSession *pos READ pos NOTIFY posChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    // "phone": phone versions of pages (and phone-sized layouts) are shown;
+    // "standard": pages as designed.
+    Q_PROPERTY(QString formFactor READ formFactor NOTIFY formFactorChanged)
 
 public:
     // Persists a layout; false (with a message) when it could not.
@@ -92,6 +95,17 @@ public:
     static QString mealPeriodAt(QTime time);
     static QString mealPeriodAt(const QVariantList &periods, QTime time);
 
+    QString formFactor() const { return formFactor_; }
+    // Force "phone" or "standard" (command line); empty: the terminal's
+    // setting, else automatic.
+    void setFormFactorOverride(const QString &formFactor);
+    // Automatic: a window whose shorter side is under 600 (logical pixels,
+    // Android's phone/tablet line) is a phone. On for Android.
+    void setAutoFormFactor(bool on);
+    Q_INVOKABLE void windowResized(qreal width, qreal height);
+    // Every table in the pages, for the phone table list: [{name, seats}].
+    Q_INVOKABLE QVariantList tables() const;
+
     Q_INVOKABLE void activate(const QString &zoneId);
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goHome();
@@ -118,6 +132,7 @@ public:
 
 signals:
     void pageChanged();
+    void formFactorChanged();
     void statusChanged();
     void editingChanged();
     void editorChanged();
@@ -143,6 +158,21 @@ private:
     void refresh();
     void setStatus(const QString &text);
     const vt::layout::Page *currentPage() const { return activeLayout().page(nav_.current()); }
+    // What this screen shows for the current page: its phone version, or
+    // the phone template with the page's own zones laid out in its content
+    // area (moved), or the page itself.
+    struct Shown {
+        QString pageId;
+        QSize canvas;
+        QList<vt::layout::Layout::PlacedZone> zones;
+        QHash<const vt::layout::Zone *, QRect> moved;   // reflowed: rect on this screen
+    };
+    Shown shown() const;
+    void updateFormFactor();
+    QString formFactor_ = QStringLiteral("standard");
+    QString formFactorOverride_;
+    bool autoFormFactor_ = false;
+    bool phoneSizedWindow_ = false;
 
     vt::layout::Layout layout_;
     vt::app::Navigator nav_;

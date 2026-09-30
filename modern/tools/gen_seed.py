@@ -436,4 +436,120 @@ page("library", "Button Library", "library", [
     zone("lib-status", 40, 780, 1840, 80, kind="statusBar"),
 ], background={"texture": "graymarble", "fill": "#555a60"})
 
+# ---------------------------------------------------------------- phone pages
+# Phone versions of the pages a server uses. Phones show them in place of the
+# page they are a version of (variantOf). Pages without one are shown inside
+# the phone order template, their buttons laid out in its content area
+# (index, item and modifier pages, the note page).
+PW, PH = 1080, 2280
+
+def phone_page(base, name, kind, zones, **kw):
+    page(f"{base}-phone", f"{name} (phone)", kind, zones, variantOf=base, formFactor="phone",
+         canvas={"w": PW, "h": PH}, **kw)
+
+def grid_buttons(buttons, y, cols, h, x=24, width=PW - 48, gap=16):
+    """(id, text, actions, kw) in rows of `cols` from `y`; returns zones and the y below them."""
+    out = []
+    w = (width - gap * (cols - 1)) // cols
+    for i, (zid, text, acts, kw) in enumerate(buttons):
+        col, row = i % cols, i // cols
+        out.append(zone(zid, x + col * (w + gap), y + row * (h + gap), w, h, text, actions=acts, **kw))
+    rows = (len(buttons) + cols - 1) // cols
+    return out, y + rows * (h + gap)
+
+phone_page("login", "Login", "login", [
+    label("title", 40, 60, 1000, 150, "ViewTouch", style={"normal": {"fontSize": 96}}),
+    zone("clock", 140, 230, 800, 100, kind="clock"),
+    zone("login-pad", 60, 360, 960, 1400, kind="loginPad"),
+    zone("clock-in", 40, 1800, 320, 200, "Clock In", actions=[command("clockIn")]),
+    zone("start", 380, 1800, 320, 200, "Log In", actions=[command("login")], style=fill(GREEN)),
+    zone("clock-out", 720, 1800, 320, 200, "Clock Out", actions=[command("clockOut")]),
+])
+
+tables_buttons, _ = grid_buttons([
+    ("quick", "Quick Order", [command("startQuick"), jump(mode="index")], {"style": fill(GREEN)}),
+    ("checks", "Open Checks", [jump(role="checkList")], {}),
+    ("takeout", "Takeout", [command("startTakeout"), jump(page="customer")], {}),
+    ("delivery", "Delivery", [command("startDelivery"), jump(page="customer")], {}),
+    ("manager", "Manager", [jump(role="manager")], {}),
+    ("logout", "Log Out", [jump(role="logout")], {"style": fill(RED)}),
+], 1640, 2, 190)
+phone_page("tables", "Tables", "tables", [
+    label("title", 24, 24, 1032, 100, "Tables"),
+    zone("tables", 24, 140, 1032, 1480, kind="tableGrid"),
+    *tables_buttons,
+], background={"fill": "#2a2118"})
+
+phone_page("guest-count", "Guest Count", "guestCount", [
+    label("title", 24, 40, 1032, 120, "How many guests?"),
+    zone("guests", 140, 180, 800, 220, kind="guestCount"),
+    zone("pad", 140, 420, 800, 1300, kind="numPad"),
+    zone("cancel", 40, 1780, 480, 220, "Cancel", actions=[command("releaseCheck"), jump(mode="back")]),
+    zone("start", 560, 1780, 480, 220, "Start Order", actions=[command("startCheck"), jump(mode="index")],
+         style=fill(GREEN)),
+])
+
+# The order screen: tabs, the check, the page's buttons, qualifiers, actions.
+TAB = {"normal": {"fontSize": 34}}
+qualifiers, y = grid_buttons([(f"flow-{q}", q.capitalize(), [{"type": "qualifier", "qualifier": q}], {})
+                              for q in ("no", "extra", "lite", "side")], 1926, 4, 150, x=16, width=PW - 32)
+actions, _ = grid_buttons([
+    ("flow-void", "Void", [command("voidItem")], {"behavior": "double", "style": fill(RED)}),
+    ("flow-send", "Send", [command("sendOrder")], {"style": fill(GREEN)}),
+    ("flow-pay", "Pay", [jump(role="settle")], {"style": fill(BLUE)}),
+], y, 3, 172, x=16, width=PW - 32)
+phone_page("order-template", "Order Template", "template", [
+    zone("tab-categories", 16, 16, 340, 110, "‹ Menu", actions=[jump(mode="index")], style=TAB),
+    zone("tab-note", 372, 16, 340, 110, "Note", actions=[jump(page="note")], style=TAB),
+    zone("flow-tables", 728, 16, 336, 110, "Tables", actions=[command("releaseCheck"), jump(role="tables", mode="replace")],
+         style=TAB),
+    zone("order-list", 16, 142, 1048, 720, kind="orderList"),
+    *qualifiers,
+    *actions,
+], contentArea={"x": 16, "y": 878, "w": 1048, "h": 1032})
+
+tender_zones = []
+th = (700 - 16 * (len(tenders) - 1)) // len(tenders)
+for i, (text, tid, color) in enumerate(tenders):
+    tender_zones.append(zone(f"tender-{tid}", 552, 932 + i * (th + 16), 512, th, text,
+                             actions=[{"type": "tender", "tender": tid}], style=fill(color)))
+phone_page("settle", "Settle", "settle", [
+    zone("payment", 16, 16, 1048, 900, kind="paymentPanel"),
+    zone("pad", 16, 932, 520, 700, kind="numPad", props={"mode": "amount"}),
+    *tender_zones,
+    zone("close", 16, 1648, 520, 180, "Close Check", actions=[command("closeCheck")], style=fill(GREEN)),
+    zone("receipt", 552, 1648, 512, 180, "Print Receipt", actions=[command("printReceipt")]),
+    zone("remove-payment", 16, 1844, 336, 180, "Undo Payment", actions=[command("removePayment")]),
+    zone("split", 368, 1844, 336, 180, "Split Check", actions=[jump(page="split")]),
+    zone("drawer", 720, 1844, 344, 180, "Drawer…", actions=[jump(page="drawer")]),
+    zone("done", 16, 2040, 1048, 220, "‹ Back to Order", actions=[jump(mode="back")]),
+])
+
+logout_buttons, _ = grid_buttons([
+    ("clock-out", "Clock Out", [command("clockOut")], {}),
+    ("break", "Start Break", [command("startBreak")], {}),
+    ("logout", "Log Out", [command("logout")], {"style": fill(RED)}),
+    ("cancel", "Cancel", [jump(mode="back")], {}),
+    ("tips", "Cash Out My Tips", [command("cashOutTips")], {"style": fill(GREEN)}),
+    ("bank", "My Bank…", [jump(page="drawer")], {}),
+], 720, 2, 200)
+phone_page("logout", "Log Out", "logout", [
+    label("title", 24, 40, 1032, 110, "End of shift"),
+    zone("panel", 24, 170, 1032, 520, kind="logoutPanel"),
+    *logout_buttons,
+])
+
+phone_page("customer", "Customer", "custom", [
+    label("title", 24, 24, 1032, 100, "Who is the order for?"),
+    zone("customer", 24, 140, 1032, 1860, kind="customerInfo"),
+    zone("cancel", 24, 2030, 508, 220, "Cancel", actions=[command("releaseCheck"), jump(mode="back")]),
+    zone("menu", 548, 2030, 508, 220, "Menu ›", actions=[jump(mode="index")], style=fill(GREEN)),
+])
+
+phone_page("check-list", "Open Checks", "custom", [
+    label("title", 24, 24, 1032, 100, "Open checks"),
+    zone("list", 24, 140, 1032, 1860, kind="checkList"),
+    zone("back", 24, 2030, 1032, 220, "‹ Back", actions=[jump(mode="back")]),
+])
+
 print("seed written to", OUT)

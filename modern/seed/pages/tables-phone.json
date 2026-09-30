@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "id": "tables-phone",
+  "name": "Tables (phone)",
+  "kind": "tables",
+  "canvas": {
+    "w": 1080,
+    "h": 2280
+  },
+  "grid": 8,
+  "variantOf": "tables",
+  "formFactor": "phone",
+  "background": {
+    "fill": "#2a2118"
+  },
+  "zones": [
+    {
+      "id": "title",
+      "kind": "label",
+      "rect": {
+        "x": 24,
+        "y": 24,
+        "w": 1032,
+        "h": 100
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "Tables"
+    },
+    {
+      "id": "tables",
+      "kind": "tableGrid",
+      "rect": {
+        "x": 24,
+        "y": 140,
+        "w": 1032,
+        "h": 1480
+      },
+      "shape": "rect",
+      "behavior": "none"
+    },
+    {
+      "id": "quick",
+      "kind": "button",
+      "rect": {
+        "x": 24,
+        "y": 1640,
+        "w": 508,
+        "h": 190
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Quick Order",
+      "actions": [
+        {
+          "type": "command",
+          "name": "startQuick"
+        },
+        {
+          "type": "jump",
+          "mode": "index"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f8a4c"
+        }
+      }
+    },
+    {
+      "id": "checks",
+      "kind": "button",
+      "rect": {
+        "x": 548,
+        "y": 1640,
+        "w": 508,
+        "h": 190
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Open Checks",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "role": "checkList"
+        }
+      ]
+    },
+    {
+      "id": "takeout",
+      "kind": "button",
+      "rect": {
+        "x": 24,
+        "y": 1846,
+        "w": 508,
+        "h": 190
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Takeout",
+      "actions": [
+        {
+          "type": "command",
+          "name": "startTakeout"
+        },
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "customer"
+        }
+      ]
+    },
+    {
+      "id": "delivery",
+      "kind": "button",
+      "rect": {
+        "x": 548,
+        "y": 1846,
+        "w": 508,
+        "h": 190
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Delivery",
+      "actions": [
+        {
+          "type": "command",
+          "name": "startDelivery"
+        },
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "customer"
+        }
+      ]
+    },
+    {
+      "id": "manager",
+      "kind": "button",
+      "rect": {
+        "x": 24,
+        "y": 2052,
+        "w": 508,
+        "h": 190
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Manager",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "role": "manager"
+        }
+      ]
+    },
+    {
+      "id": "logout",
+      "kind": "button",
+      "rect": {
+        "x": 548,
+        "y": 2052,
+        "w": 508,
+        "h": 190
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Log Out",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "role": "logout"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#b83232"
+        }
+      }
+    }
+  ]
+}

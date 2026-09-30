@@ -402,7 +402,7 @@ QJsonObject toJson(const PosSettings &s)
     for (const TerminalConfig &t : s.terminals)
         terminals.append(QJsonObject{{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)},
                                      {u"drawer"_s, qs(t.drawer)}, {u"id"_s, qs(t.id)}, {u"key"_s, qs(t.key)},
-                                     {u"pairedAt"_s, qint64(t.pairedAt)}});
+                                     {u"pairedAt"_s, qint64(t.pairedAt)}, {u"screen"_s, qs(t.screen)}});
     QJsonArray printers;
     for (const PrinterConfig &p : s.printers)
         printers.append(toJson(p));
@@ -460,7 +460,8 @@ PosSettings settingsFromJson(const QJsonObject &o)
         const QJsonObject t = v.toObject();
         s.terminals.push_back({ss(t.value(u"name").toString()), ss(t.value(u"receiptPrinter").toString()),
                                ss(t.value(u"drawer").toString()), ss(t.value(u"id").toString()),
-                               ss(t.value(u"key").toString()), i64(t.value(u"pairedAt"))});
+                               ss(t.value(u"key").toString()), i64(t.value(u"pairedAt")),
+                               ss(t.value(u"screen").toString())});
     }
     s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));
     s.terminalsHaveDrawer = o.value(u"terminalsHaveDrawer").toBool(true);

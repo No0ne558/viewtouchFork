@@ -187,6 +187,10 @@ QVariantList PosService::adminFields(const QString &panel)
             with(field(u"drawer"_s, tr("Cash drawer"), u"enum"_s,
                        tr("Store setting: %1.").arg(s_->settings.terminalsHaveDrawer ? tr("has a drawer") : tr("no drawer"))),
                  u"options"_s, options({{"", "Store setting"}, {"yes", "Has a cash drawer"}, {"no", "No cash drawer"}})),
+            with(field(u"screen"_s, tr("Screen layout"), u"enum"_s,
+                       tr("Phone pages: big buttons in portrait, for phones and small handhelds.")),
+                 u"options"_s, options({{"", "Automatic (phone pages on phones)"}, {"standard", "Standard pages"},
+                                        {"phone", "Phone pages"}})),
         };
     }
     return {};
@@ -261,7 +265,8 @@ QVariantList PosService::adminRecords(const QString &panel)
     } else if (panel == u"terminals") {
         for (const TerminalConfig &t : s_->settings.terminals) {
             const PrinterConfig *p = s_->settings.printer(t.receiptPrinter);
-            add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}, {u"drawer"_s, qs(t.drawer)}},
+            add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}, {u"drawer"_s, qs(t.drawer)},
+                 {u"screen"_s, qs(t.screen)}},
                 qs(t.name), (p ? qs(p->name) : tr("Receipt (default)"))
                                 + (s_->settings.hasDrawer(t.name) ? QString() : tr(" · no drawer"))
                                 + (t.key.empty() ? QString() : tr(" · paired device")));
@@ -281,7 +286,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"tenders")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"kind"_s, u"card"_s}, {u"percent"_s, 0.0}};
     if (panel == u"terminals")
-        return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}, {u"drawer"_s, QString()}};
+        return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}, {u"drawer"_s, QString()},
+                {u"screen"_s, QString()}};
     if (panel == u"mealPeriods")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"printers")
@@ -323,6 +329,10 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         t.name = ss(name);
         t.receiptPrinter = ss(record.value(u"receiptPrinter"_s).toString());
         t.drawer = ss(drawer);
+        const QString screen = record.value(u"screen"_s).toString();
+        if (!QStringList{QString(), u"standard"_s, u"phone"_s}.contains(screen))
+            return fail(tr("Choose the terminal's screen layout."));
+        t.screen = ss(screen);
         if (index >= 0 && index < int(list.size()))
             list[index] = t;
         else
@@ -638,6 +648,15 @@ bool PosService::stopPairing()
     ++s_->adminRevision;
     emit s_->adminChanged();
     return true;
+}
+
+QString PosService::screenMode() const
+{
+    for (const TerminalConfig &t : s_->settings.terminals) {
+        if (qs(t.name) == terminal_)
+            return qs(t.screen);
+    }
+    return {};
 }
 
 QVariantMap PosService::pairingInfo() const

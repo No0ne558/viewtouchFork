@@ -11,6 +11,7 @@ namespace vt::layout {
 namespace {
 const QStringList kPageKeys = {
     u"id"_s, u"name"_s, u"kind"_s, u"role"_s, u"templateId"_s, u"mealPeriod"_s, u"permission"_s,
+    u"variantOf"_s, u"formFactor"_s, u"contentArea"_s,
     u"canvas"_s, u"grid"_s, u"background"_s, u"style"_s, u"zones"_s,
     u"schemaVersion"_s,
 };
@@ -71,6 +72,10 @@ Page Page::fromJson(const QJsonObject &o)
     p.templateId = o.value(u"templateId").toString();
     p.mealPeriod = o.value(u"mealPeriod").toString();
     p.permission = o.value(u"permission").toString();
+    p.variantOf = o.value(u"variantOf").toString();
+    p.formFactor = o.value(u"formFactor").toString();
+    if (const QJsonObject a = o.value(u"contentArea").toObject(); !a.isEmpty())
+        p.contentArea = QRect(a.value(u"x").toInt(), a.value(u"y").toInt(), a.value(u"w").toInt(), a.value(u"h").toInt());
     const QJsonObject c = o.value(u"canvas").toObject();
     p.canvas = QSize(c.value(u"w").toInt(p.canvas.width()), c.value(u"h").toInt(p.canvas.height()));
     p.grid = o.value(u"grid").toInt(p.grid);
@@ -108,6 +113,11 @@ QJsonObject Page::toJson() const
     if (!templateId.isEmpty()) o.insert(u"templateId", templateId);
     if (!mealPeriod.isEmpty()) o.insert(u"mealPeriod", mealPeriod);
     if (!permission.isEmpty()) o.insert(u"permission", permission);
+    if (!variantOf.isEmpty()) o.insert(u"variantOf", variantOf);
+    if (!formFactor.isEmpty()) o.insert(u"formFactor", formFactor);
+    if (!contentArea.isEmpty())
+        o.insert(u"contentArea", QJsonObject{{u"x"_s, contentArea.x()}, {u"y"_s, contentArea.y()},
+                                             {u"w"_s, contentArea.width()}, {u"h"_s, contentArea.height()}});
     o.insert(u"canvas", QJsonObject{{u"w"_s, canvas.width()}, {u"h"_s, canvas.height()}});
     o.insert(u"grid", grid);
     if (!background.isEmpty()) o.insert(u"background", background);
