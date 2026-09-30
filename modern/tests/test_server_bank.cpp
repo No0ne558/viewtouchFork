@@ -3,6 +3,8 @@
 #include "pos_fixture.hh"
 #include "qt_catch.hh"
 
+#include <QSignalSpy>
+
 using namespace Qt::StringLiterals;
 using namespace vt;
 using vt::app::PosService;
@@ -224,4 +226,101 @@ TEST_CASE("Per-employee cash handling: banks and a counter drawer in one store",
     REQUIRE(counter.adminSave(u"employees"_s, samIndex, sam));
     CHECK(shared.employees[samIndex].cashMode == "drawer");
     CHECK(app::employeeFromJson(app::toJson(shared.employees[samIndex])).cashMode == "drawer");
+}
+
+TEST_CASE("Checking out with open checks: store rule, per-employee override", "[bank][checkout]")
+{
+    auto samWithOpenCheck = [](app::PosData data, const std::string &samRule) {
+        for (core::Employee &e : data.employees) {
+            if (e.name == "Sam")
+                e.checkout = samRule;
+        }
+        auto pos = std::make_unique<PosService>(data, nullptr);
+        REQUIRE(pos->loginWithPin(u"1111"_s));
+        cashSale(*pos);                          // opens Sam's bank
+        pos->addItem(u"draft-beer"_s);           // ...and leaves a check open
+        pos->releaseCheck();
+        pos->entryKey(u"660"_s);
+        return pos;
+    };
+
+    app::PosData strict = bankData();            // store: close checks first (the default)
+    CHECK(strict.settings.checkoutNeedsClosedChecks);
+    CHECK_FALSE(samWithOpenCheck(strict, "")->countDrawer());
+    CHECK(samWithOpenCheck(strict, "anyTime")->countDrawer());
+
+    app::PosData relaxed = bankData();
+    relaxed.settings.checkoutNeedsClosedChecks = false;
+    CHECK(samWithOpenCheck(relaxed, "")->countDrawer());
+    CHECK_FALSE(samWithOpenCheck(relaxed, "closeChecks")->countDrawer());
+
+    // Set on the manager screens.
+    PosService pos(bankData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    QVariantMap store = pos.adminRecords(u"store"_s)[0].toMap();
+    store[u"checkoutNeedsClosedChecks"_s] = false;
+    REQUIRE(pos.adminSave(u"store"_s, 0, store));
+    CHECK_FALSE(pos.shared()->settings.checkoutNeedsClosedChecks);
+    QVariantMap first = pos.adminRecords(u"employees"_s)[0].toMap();
+    first[u"checkout"_s] = u"closeChecks"_s;
+    REQUIRE(pos.adminSave(u"employees"_s, 0, first));
+    CHECK(pos.shared()->employees[0].checkout == "closeChecks");
+    first[u"checkout"_s] = u"never"_s;
+    CHECK_FALSE(pos.adminSave(u"employees"_s, 0, first));
+    const auto back = app::settingsFromJson(app::toJson(pos.shared()->settings));
+    CHECK_FALSE(back.checkoutNeedsClosedChecks);
+    CHECK(app::employeeFromJson(app::toJson(pos.shared()->employees[0])).checkout == "closeChecks");
+}
+
+TEST_CASE("Which terminals have a cash drawer", "[bank][drawers]")
+{
+    app::PosData data = bankData();
+    for (core::Employee &e : data.employees) {
+        if (e.role == "cashier")
+            e.cashMode = "drawer";
+    }
+    data.settings.terminals = {{"Host", "", "no"}};   // the host stand has no drawer
+    PosShared shared(data, nullptr);
+    Kicks kicks;
+    shared.printer = &kicks;
+    PosService host(&shared, u"Host"_s);
+    PosService counter(&shared, u"Counter"_s);         // not listed: store setting (has one)
+    CHECK(shared.settings.hasDrawer("Counter"));
+    CHECK_FALSE(shared.settings.hasDrawer("Host"));
+
+    // The drawer cashier can't take cash at the host stand...
+    REQUIRE(host.loginWithPin(u"2222"_s));
+    CHECK_FALSE(host.drawerInfo()[u"hasDrawer"_s].toBool());
+    host.entryKey(u"10000"_s);
+    CHECK_FALSE(host.openDrawerSession());
+    CHECK_FALSE(host.noSale());
+    host.addItem(u"draft-beer"_s);
+    REQUIRE(host.tender(u"cash"_s));
+    QSignalSpy notices(&host, &PosService::notice);
+    CHECK_FALSE(host.closeCheck());
+    CHECK(notices.last()[0].toString().contains(u"Host has no cash drawer"_s));
+    host.logout();
+    CHECK(kicks.drawerKicks == 0);
+
+    // ...but a server with a bank can.
+    REQUIRE(host.loginWithPin(u"1111"_s));
+    cashSale(host);
+    CHECK(host.drawerInfo()[u"name"_s].toString() == u"Sam's bank"_s);
+
+    // With "no drawers" as the store setting, only terminals marked yes have one.
+    shared.settings.terminalsHaveDrawer = false;
+    shared.settings.terminals.push_back({"Counter", "", "yes"});
+    CHECK(shared.settings.hasDrawer("Counter"));
+    CHECK_FALSE(shared.settings.hasDrawer("Patio"));
+
+    // Terminals screen.
+    REQUIRE(counter.loginWithPin(u"1234"_s));
+    QVariantMap t = counter.adminNewRecord(u"terminals"_s);
+    t[u"name"_s] = u"Patio"_s;
+    t[u"drawer"_s] = u"maybe"_s;
+    CHECK_FALSE(counter.adminSave(u"terminals"_s, -1, t));
+    t[u"drawer"_s] = u"yes"_s;
+    REQUIRE(counter.adminSave(u"terminals"_s, -1, t));
+    CHECK(shared.settings.hasDrawer("Patio"));
+    CHECK(app::settingsFromJson(app::toJson(shared.settings)).terminals.back().drawer == "yes");
 }

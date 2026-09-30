@@ -287,6 +287,11 @@ private:
     std::string receiptPrinter() const { return s_->settings.receiptPrinterFor(terminal_.toStdString()); }
     // Cash handling for the logged-in person: their own choice, else the store's.
     bool serverBank() const;
+    bool terminalHasDrawer() const { return s_->settings.hasDrawer(terminal_.toStdString()); }
+    // Why cash can't go in this terminal's drawer (none, or not started).
+    QString noDrawerMessage() const;
+    // Whether the logged-in person must close their checks before checking out.
+    bool mustCloseChecksToCheckOut() const;
     core::DrawerSession *myDrawer();
     const core::DrawerSession *latestMyDrawer() const;
     // Server banks: my open bank, started at `start` if I have none.

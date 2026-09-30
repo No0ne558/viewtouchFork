@@ -162,6 +162,8 @@ Item {
                     Layout.fillHeight: true
                     contentWidth: availableWidth
                     clip: true
+                    // Always show that there is more below (touch screens have no wheel).
+                    ScrollBar.vertical.policy: contentHeight > availableHeight ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
 
                     ColumnLayout {
                         width: scroll.availableWidth

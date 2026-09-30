@@ -29,6 +29,9 @@ struct Employee {
     // Cash handling for this person: "serverBank" (own bank), "drawer" (the
     // terminal's drawer), or empty for the store's setting.
     std::string cashMode;
+    // Checking out with checks still open: "closeChecks" (not allowed),
+    // "anyTime" (allowed), or empty for the store's setting.
+    std::string checkout;
 
     bool can(const std::string &permission) const { return permissionsForRole(role).contains(permission); }
     bool operator==(const Employee &) const = default;

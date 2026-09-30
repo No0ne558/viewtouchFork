@@ -84,6 +84,8 @@ bool PosService::noSale()
 {
     if (!require(perm::Settle, tr("Opening the drawer")))
         return false;
+    if (!terminalHasDrawer())
+        return fail(tr("%1 has no cash drawer.").arg(terminal_));
     if (!s_->printer)
         return fail(tr("No printer is set up."));
     s_->printer->openDrawer(s_->settings, receiptPrinter());
@@ -182,6 +184,20 @@ const DrawerSession *PosShared::latestBankFor(const std::string &employeeId) con
     return latest;
 }
 
+QString PosService::noDrawerMessage() const
+{
+    return terminalHasDrawer()
+               ? tr("Open this terminal's cash drawer first (Drawer…).")
+               : tr("%1 has no cash drawer. Take cash on a terminal with one, or use your own bank.").arg(terminal_);
+}
+
+bool PosService::mustCloseChecksToCheckOut() const
+{
+    if (const Employee *e = user(); e && !e->checkout.empty())
+        return e->checkout == "closeChecks";
+    return s_->settings.checkoutNeedsClosedChecks;
+}
+
 bool PosService::serverBank() const
 {
     if (const Employee *e = user(); e && !e->cashMode.empty())
@@ -262,6 +278,8 @@ bool PosService::openDrawerSession()
         emit s_->dayChanged();
         return true;
     }
+    if (!terminalHasDrawer())
+        return fail(tr("%1 has no cash drawer.").arg(terminal_));
     const std::string terminal = terminal_.toStdString();
     if (const DrawerSession *open = s_->openDrawerFor(terminal))
         return fail(tr("%1 is already open.").arg(qs(open->name)));
@@ -292,7 +310,7 @@ bool PosService::countDrawer()
     DrawerSession *open = myDrawer();
     if (!open)
         return fail(serverBank() ? tr("You have no bank open.") : tr("No drawer is open on this terminal."));
-    if (serverBank()) {
+    if (serverBank() && mustCloseChecksToCheckOut()) {
         const auto mine = std::ranges::count_if(s_->open, [&](const auto &entry) {
             return entry.second.serverId == user()->id;
         });
@@ -351,7 +369,7 @@ bool PosService::payout(CashMovement::Kind kind)
         return fail(tr("Enter the amount on the keypad first."));
     DrawerSession *d = serverBank() ? ensureMyBank() : myDrawer();   // a bank starts with the first cash
     if (!d)
-        return fail(tr("Open this terminal's drawer first."));
+        return fail(noDrawerMessage());
     CashMovement m;
     m.id = d->nextMovementId++;
     m.kind = kind;
@@ -365,7 +383,7 @@ bool PosService::payout(CashMovement::Kind kind)
     emit entryChanged();
     if (s_->sink)
         s_->sink->saveDrawer(*d);
-    if (s_->printer && !serverBank())
+    if (s_->printer && !serverBank() && terminalHasDrawer())
         s_->printer->openDrawer(s_->settings, receiptPrinter());
     emit notice(kind == CashMovement::Kind::PaidIn ? tr("Paid in %1").arg(format(amount))
                                                    : tr("Paid out %1").arg(format(amount)));
@@ -385,7 +403,7 @@ bool PosService::cashOutTips()
     // With server banks the tips come out of the server's own cash.
     DrawerSession *d = serverBank() ? ensureMyBank() : myDrawer();
     if (!d)
-        return fail(tr("Open this terminal's drawer first."));
+        return fail(noDrawerMessage());
     CashMovement m;
     m.id = d->nextMovementId++;
     m.kind = CashMovement::Kind::TipPayout;
@@ -397,7 +415,7 @@ bool PosService::cashOutTips()
     d->movements.push_back(m);
     if (s_->sink)
         s_->sink->saveDrawer(*d);
-    if (s_->printer && !serverBank())
+    if (s_->printer && !serverBank() && terminalHasDrawer())
         s_->printer->openDrawer(s_->settings, receiptPrinter());
     emit notice(tr("Paid %1 in tips to %2").arg(format(owed), qs(e->name)));
     emit s_->drawerChanged();
@@ -428,6 +446,7 @@ QVariantMap PosService::drawerInfo() const
     }
     if (!latest) {
         return {{u"exists"_s, false}, {u"open"_s, false}, {u"mode"_s, mode}, {u"others"_s, others},
+                {u"hasDrawer"_s, terminalHasDrawer()},
                 {u"name"_s, serverBank() ? (user() ? tr("%1's bank").arg(userName()) : tr("Bank"))
                                          : tr("%1 drawer").arg(terminal_)}};
     }
@@ -449,7 +468,7 @@ QVariantMap PosService::drawerInfo() const
     const Money expected = expectedNow(d);
     return {
         {u"exists"_s, true}, {u"open"_s, d.open()}, {u"name"_s, qs(d.name)},
-        {u"mode"_s, mode}, {u"others"_s, others},
+        {u"mode"_s, mode}, {u"others"_s, others}, {u"hasDrawer"_s, terminalHasDrawer()},
         {u"openedBy"_s, qs(d.openedBy)}, {u"opened"_s, clockText(d.openedAt)},
         {u"startingCash"_s, format(d.startingCash)}, {u"cashSales"_s, format(cash)},
         {u"movements"_s, movements},

@@ -31,6 +31,7 @@ struct PrinterConfig {
 struct TerminalConfig {
     std::string name;
     std::string receiptPrinter;
+    std::string drawer;   // "yes" / "no": has a cash drawer; empty = the store's setting
 
     bool operator==(const TerminalConfig &) const = default;
 };
@@ -93,6 +94,20 @@ struct PosSettings {
     std::vector<TerminalConfig> terminals;
     std::vector<MealPeriod> mealPeriods = defaultMealPeriods();
     CashMode cashMode = CashMode::TerminalDrawer;
+    // Whether terminals have a cash drawer, unless set per terminal.
+    bool terminalsHaveDrawer = true;
+    // Whether people must close (or hand over) their checks before they
+    // check out their bank, unless set per employee.
+    bool checkoutNeedsClosedChecks = true;
+
+    bool hasDrawer(const std::string &terminal) const
+    {
+        for (const TerminalConfig &t : terminals) {
+            if (t.name == terminal && !t.drawer.empty())
+                return t.drawer == "yes";
+        }
+        return terminalsHaveDrawer;
+    }
 
     std::string receiptPrinterFor(const std::string &terminal) const
     {

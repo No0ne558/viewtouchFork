@@ -14,6 +14,9 @@ Item {
     readonly property color ink: zone.st.textColor ?? "white"
     readonly property real unit: Math.max(14, Math.min(30, w.width * 0.045))
     readonly property bool bank: (d.mode ?? "") === "serverBank"
+    // Drawer users on a terminal set up without a cash drawer (one left
+    // open from before can still be counted).
+    readonly property bool noDrawer: !bank && !(d.hasDrawer ?? true) && !(d.open ?? false)
 
     component Line: RowLayout {
         property string name
@@ -38,7 +41,8 @@ Item {
             font.bold: true
         }
         Text {
-            text: !w.d.exists ? (w.bank ? qsTr("Starts with your first cash sale") : qsTr("Not started today"))
+            text: w.noDrawer ? qsTr("This terminal has no cash drawer")
+                 : !w.d.exists ? (w.bank ? qsTr("Starts with your first cash sale") : qsTr("Not started today"))
                  : w.d.open ? qsTr("Open since %1 (%2)").arg(w.d.opened).arg(w.d.openedBy)
                             : qsTr("Counted by %1").arg(w.d.closedBy)
             color: w.d.open ? "#7ee2a8" : "#f5b940"
@@ -119,7 +123,8 @@ Item {
         Text {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            text: w.bank ? (w.d.open ? qsTr("At the end of your shift, count your cash, type it on the keypad, then Check Out.")
+            text: w.noDrawer ? qsTr("Take cash on a terminal with a drawer, or have a manager give you your own bank (Manager → Employees → Cash handling).")
+                 : w.bank ? (w.d.open ? qsTr("At the end of your shift, count your cash, type it on the keypad, then Check Out.")
                                      : qsTr("Cash you take goes in your bank. To start with cash on hand, type it, then Start Bank."))
                          : w.d.open ? qsTr("At the end of the shift, count the cash, type the total on the keypad, then Count Drawer.")
                                     : qsTr("Type the starting cash on the keypad, then Start Drawer.")
@@ -144,6 +149,7 @@ Item {
             elide: Text.ElideRight
         }
         RowLayout {
+            visible: !w.noDrawer
             Layout.fillWidth: true
             Layout.preferredHeight: w.unit * 3
             Layout.fillHeight: false   // nested layouts fill by default

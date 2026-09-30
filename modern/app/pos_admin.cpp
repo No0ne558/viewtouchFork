@@ -104,6 +104,11 @@ QVariantList PosService::adminFields(const QString &panel)
                            .arg(s_->settings.cashMode == CashMode::ServerBank ? tr("server bank") : tr("terminal drawer"))),
                  u"options"_s, options({{"", "Store setting"}, {"serverBank", "Own bank (carries their cash)"},
                                         {"drawer", "Terminal's cash drawer"}})),
+            with(field(u"checkout"_s, tr("Checking out with open checks"), u"enum"_s,
+                       tr("Store setting: %1.").arg(s_->settings.checkoutNeedsClosedChecks
+                                                         ? tr("close all checks first") : tr("allowed"))),
+                 u"options"_s, options({{"", "Store setting"}, {"closeChecks", "Must close all checks first"},
+                                        {"anyTime", "May leave checks open"}})),
         };
     }
     if (panel == u"tenders") {
@@ -152,6 +157,11 @@ QVariantList PosService::adminFields(const QString &panel)
                           "use any terminal. Drawer: each terminal has a cash drawer.")),
                  u"options"_s, options({{"serverBank", "Server bank (each person carries their own cash)"},
                                         {"drawer", "Cash drawer on each terminal"}})),
+            field(u"terminalsHaveDrawer"_s, tr("Terminals have a cash drawer"), u"bool"_s,
+                  tr("Unless set for a terminal in Terminals.")),
+            field(u"checkoutNeedsClosedChecks"_s, tr("Close all checks before checking out"), u"bool"_s,
+                  tr("Servers must close or hand over their checks before they check out their bank. "
+                     "Can be set per employee.")),
             field(u"gratuityPercent"_s, tr("Party gratuity %"), u"percent"_s, tr("Added to large tables. 0 = off.")),
             with(with(field(u"gratuityMinGuests"_s, tr("…for tables of at least"), u"int"_s), u"min"_s, 1), u"max"_s, 99),
         };
@@ -170,6 +180,9 @@ QVariantList PosService::adminFields(const QString &panel)
         return {
             field(u"name"_s, tr("Terminal name"), u"string"_s, tr("As given with --terminal (this one: %1)").arg(terminal_)),
             with(field(u"receiptPrinter"_s, tr("Receipts and cash drawer on"), u"enum"_s), u"options"_s, printers),
+            with(field(u"drawer"_s, tr("Cash drawer"), u"enum"_s,
+                       tr("Store setting: %1.").arg(s_->settings.terminalsHaveDrawer ? tr("has a drawer") : tr("no drawer"))),
+                 u"options"_s, options({{"", "Store setting"}, {"yes", "Has a cash drawer"}, {"no", "No cash drawer"}})),
         };
     }
     return {};
@@ -199,7 +212,8 @@ QVariantList PosService::adminRecords(const QString &panel)
     } else if (panel == u"employees") {
         for (const Employee &e : s_->employees) {
             QVariantMap r{{u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
-                          {u"active"_s, e.active}, {u"pin"_s, QString()}, {u"cashMode"_s, qs(e.cashMode)}};
+                          {u"active"_s, e.active}, {u"pin"_s, QString()}, {u"cashMode"_s, qs(e.cashMode)},
+                          {u"checkout"_s, qs(e.checkout)}};
             const QString cash = e.cashMode == "serverBank" ? tr(" · own bank")
                                  : e.cashMode == "drawer"   ? tr(" · drawer") : QString();
             add(r, qs(e.name), qs(e.role) + cash + (e.active ? QString() : tr(" · inactive")));
@@ -232,7 +246,9 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"receiptHeader"_s, qs(s_->settings.receiptHeader)}, {u"receiptFooter"_s, qs(s_->settings.receiptFooter)},
              {u"gratuityPercent"_s, double(s_->settings.gratuityBp) / 100.0},
              {u"gratuityMinGuests"_s, s_->settings.gratuityMinGuests},
-             {u"cashMode"_s, qs(toString(s_->settings.cashMode))}},
+             {u"cashMode"_s, qs(toString(s_->settings.cashMode))},
+             {u"terminalsHaveDrawer"_s, s_->settings.terminalsHaveDrawer},
+             {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks}},
             tr("Store"), QString());
     } else if (panel == u"mealPeriods") {
         for (const MealPeriod &m : s_->settings.mealPeriods)
@@ -241,8 +257,9 @@ QVariantList PosService::adminRecords(const QString &panel)
     } else if (panel == u"terminals") {
         for (const TerminalConfig &t : s_->settings.terminals) {
             const PrinterConfig *p = s_->settings.printer(t.receiptPrinter);
-            add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}}, qs(t.name),
-                p ? qs(p->name) : tr("Receipt (default)"));
+            add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}, {u"drawer"_s, qs(t.drawer)}},
+                qs(t.name), (p ? qs(p->name) : tr("Receipt (default)"))
+                                + (s_->settings.hasDrawer(t.name) ? QString() : tr(" · no drawer")));
         }
     }
     return out;
@@ -255,11 +272,11 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"modifier"_s, false}, {u"available"_s, true}};
     if (panel == u"employees")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
-                {u"active"_s, true}, {u"cashMode"_s, QString()}};
+                {u"active"_s, true}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()}};
     if (panel == u"tenders")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"kind"_s, u"card"_s}, {u"percent"_s, 0.0}};
     if (panel == u"terminals")
-        return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}};
+        return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}, {u"drawer"_s, QString()}};
     if (panel == u"mealPeriods")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"printers")
@@ -293,7 +310,10 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             if (i != index && qs(list[i].name) == name)
                 return fail(tr("%1 is already set up.").arg(name));
         }
-        const TerminalConfig t{ss(name), ss(record.value(u"receiptPrinter"_s).toString())};
+        const QString drawer = record.value(u"drawer"_s).toString();
+        if (!QStringList{QString(), u"yes"_s, u"no"_s}.contains(drawer))
+            return fail(tr("Choose whether the terminal has a cash drawer."));
+        const TerminalConfig t{ss(name), ss(record.value(u"receiptPrinter"_s).toString()), ss(drawer)};
         if (index >= 0 && index < int(list.size()))
             list[index] = t;
         else
@@ -329,6 +349,10 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         s_->settings.gratuityMinGuests = std::max(1, record.value(u"gratuityMinGuests"_s, 6).toInt());
         if (record.contains(u"cashMode"_s))
             s_->settings.cashMode = cashModeFromString(ss(record.value(u"cashMode"_s).toString()));
+        if (record.contains(u"terminalsHaveDrawer"_s))
+            s_->settings.terminalsHaveDrawer = record.value(u"terminalsHaveDrawer"_s).toBool();
+        if (record.contains(u"checkoutNeedsClosedChecks"_s))
+            s_->settings.checkoutNeedsClosedChecks = record.value(u"checkoutNeedsClosedChecks"_s).toBool();
         settingsChanged();
         ok = true;
     }
@@ -395,8 +419,12 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     const QString cashMode = record.value(u"cashMode"_s).toString();
     if (!QStringList{QString(), u"serverBank"_s, u"drawer"_s}.contains(cashMode))
         return fail(tr("Choose how this person handles cash."));
+    const QString checkout = record.value(u"checkout"_s).toString();
+    if (!QStringList{QString(), u"closeChecks"_s, u"anyTime"_s}.contains(checkout))
+        return fail(tr("Choose whether this person may check out with open checks."));
     Employee e = index >= 0 ? s_->employees[index] : Employee{};
     e.cashMode = ss(cashMode);
+    e.checkout = ss(checkout);
     e.name = ss(name);
     e.role = ss(role);
     e.active = active;

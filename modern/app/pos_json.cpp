@@ -203,7 +203,7 @@ QJsonObject toJson(const Employee &e)
     return {
         {u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
         {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active},
-        {u"cashMode"_s, qs(e.cashMode)},
+        {u"cashMode"_s, qs(e.cashMode)}, {u"checkout"_s, qs(e.checkout)},
     };
 }
 
@@ -215,6 +215,7 @@ Employee employeeFromJson(const QJsonObject &o)
     e.role = ss(o.value(u"role").toString(u"server"_s));
     e.active = o.value(u"active").toBool(true);
     e.cashMode = ss(o.value(u"cashMode").toString());
+    e.checkout = ss(o.value(u"checkout").toString());
     if (o.contains(u"pin")) {
         e.pinSalt = newSalt();
         e.pinHash = hashPin(o.value(u"pin").toString(), e.pinSalt);
@@ -399,7 +400,8 @@ QJsonObject toJson(const PosSettings &s)
 {
     QJsonArray terminals;
     for (const TerminalConfig &t : s.terminals)
-        terminals.append(QJsonObject{{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}});
+        terminals.append(QJsonObject{{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)},
+                                     {u"drawer"_s, qs(t.drawer)}});
     QJsonArray printers;
     for (const PrinterConfig &p : s.printers)
         printers.append(toJson(p));
@@ -429,6 +431,8 @@ QJsonObject toJson(const PosSettings &s)
         {u"terminals"_s, terminals},
         {u"mealPeriods"_s, mealPeriods},
         {u"cashMode"_s, qs(toString(s.cashMode))},
+        {u"terminalsHaveDrawer"_s, s.terminalsHaveDrawer},
+        {u"checkoutNeedsClosedChecks"_s, s.checkoutNeedsClosedChecks},
     };
 }
 
@@ -452,9 +456,12 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.gratuityMinGuests = gratuity.value(u"minGuests").toInt(6);
     for (const QJsonValue &v : o.value(u"terminals").toArray()) {
         const QJsonObject t = v.toObject();
-        s.terminals.push_back({ss(t.value(u"name").toString()), ss(t.value(u"receiptPrinter").toString())});
+        s.terminals.push_back({ss(t.value(u"name").toString()), ss(t.value(u"receiptPrinter").toString()),
+                               ss(t.value(u"drawer").toString())});
     }
     s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));
+    s.terminalsHaveDrawer = o.value(u"terminalsHaveDrawer").toBool(true);
+    s.checkoutNeedsClosedChecks = o.value(u"checkoutNeedsClosedChecks").toBool(true);
     if (o.contains(u"mealPeriods")) {   // older settings keep the defaults
         s.mealPeriods.clear();
         for (const QJsonValue &v : o.value(u"mealPeriods").toArray()) {

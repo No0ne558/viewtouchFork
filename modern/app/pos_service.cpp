@@ -679,7 +679,7 @@ bool PosService::closeCheck()
     // terminal's drawer, which must be open.
     DrawerSession *drawer = !cash ? nullptr : serverBank() ? ensureMyBank() : myDrawer();
     if (cash && !drawer)
-        return fail(tr("Open this terminal's cash drawer first (Drawer…)."));
+        return fail(noDrawerMessage());
 
     if (c->unsentCount() > 0) {
         std::vector<OrderLine> fresh;
@@ -698,7 +698,7 @@ bool PosService::closeCheck()
         c->drawerSession = drawer->id;
     if (s_->sink)
         s_->sink->saveCheck(*c);
-    if (cash && s_->printer && !serverBank())
+    if (cash && s_->printer && !serverBank() && terminalHasDrawer())
         s_->printer->openDrawer(s_->settings, receiptPrinter());
     s_->closedToday.push_back(*c);
     lastClosedId_ = c->id;
