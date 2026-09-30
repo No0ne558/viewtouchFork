@@ -206,3 +206,54 @@ TEST_CASE("Customer details typed then Continue are kept", "[ui][pages]")
     CHECK(c.pageId() == u"index-lunch"_s);
     CHECK(pos.checkInfo()[u"customer"_s].toMap()[u"name"_s].toString() == u"Lee"_s);
 }
+
+TEST_CASE("F1 opens the editor only for someone allowed to edit pages", "[ui][pages][security]")
+{
+    auto layout = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    REQUIRE(layout);
+    app::PosService pos(test::seedPosData(), nullptr);
+    LayoutController c(std::move(*layout));
+    c.setPos(&pos);
+
+    QQmlApplicationEngine engine;
+    engine.setInitialProperties({{u"controller"_s, QVariant::fromValue(&c)},
+                                 {u"width"_s, 1600}, {u"height"_s, 900}});
+    engine.loadFromModule("ViewTouch", "Main");
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0));
+    REQUIRE(window);
+    REQUIRE(QTest::qWaitForWindowExposed(window));
+
+    // Nobody logged in, on the login page.
+    REQUIRE(c.pageId() == u"login"_s);
+    QTest::keyClick(window, Qt::Key_F1);
+    CHECK_FALSE(c.editing());
+    CHECK(c.statusText().contains(u"manager"_s));
+
+    // A server may not either.
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    QTest::keyClick(window, Qt::Key_F1);
+    CHECK_FALSE(c.editing());
+
+    // A manager may.
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    QTest::keyClick(window, Qt::Key_F1);
+    CHECK(c.editing());
+}
+
+TEST_CASE("Logging out closes the editor", "[pages][security]")
+{
+    auto layout = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    REQUIRE(layout);
+    app::PosService pos(test::seedPosData(), nullptr);
+    LayoutController c(std::move(*layout));
+    c.setPos(&pos);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(c.requestEditMode());
+    c.editor()->addZone(u"button"_s);   // unsaved
+
+    pos.logout();
+    CHECK_FALSE(c.editing());
+    CHECK(c.pageId() == u"login"_s);
+    CHECK(c.statusText().contains(u"Edit mode closed"_s));
+}

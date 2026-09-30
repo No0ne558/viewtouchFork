@@ -125,7 +125,8 @@ ApplicationWindow {
 
     Shortcut {
         sequence: "F1"
-        onActivated: root.editing ? root.requestLeaveEdit() : root.controller.enterEditMode()
+        // Entering checks the layout.edit permission (a manager must be logged in).
+        onActivated: root.editing ? root.requestLeaveEdit() : root.controller.requestEditMode()
     }
     Shortcut { enabled: root.editing; sequences: [StandardKey.Save]; onActivated: root.controller.saveEdits() }
     Shortcut { enabled: root.editing; sequences: [StandardKey.Undo]; onActivated: root.editor.undo() }

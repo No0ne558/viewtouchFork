@@ -45,7 +45,7 @@ struct Options {
     QCommandLineOption terminal{u"terminal"_s, u"This terminal's name (default: the computer's name)."_s, u"name"_s};
     QCommandLineOption login{u"login"_s, u"Log in with <pin> at startup (testing)."_s, u"pin"_s};
     QCommandLineOption page{u"page"_s, u"Open page <id> at startup."_s, u"id"_s};
-    QCommandLineOption edit{u"edit"_s, u"Start in edit mode."_s};
+    QCommandLineOption edit{u"edit"_s, u"Start in edit mode (with --login and a manager's PIN)."_s};
     QCommandLineOption select{u"select"_s, u"In edit mode, select these zones (comma separated)."_s, u"ids"_s};
     QCommandLineOption size{u"size"_s, u"Window size, e.g. 1280x720."_s, u"WxH"_s, u"1280x720"_s};
     QCommandLineOption screenshot{u"screenshot"_s, u"Render, save a PNG to <file>, and exit."_s, u"file"_s};
@@ -86,8 +86,7 @@ std::unique_ptr<QQmlApplicationEngine> showUi(QCommandLineParser &cli, const Opt
 {
     if (cli.isSet(o.page) && !controller.showPage(cli.value(o.page)))
         qWarning().noquote() << "Cannot open page" << cli.value(o.page);
-    if (cli.isSet(o.edit)) {
-        controller.enterEditMode();
+    if (cli.isSet(o.edit) && controller.requestEditMode()) {   // needs --login with a manager PIN
         if (cli.isSet(o.select))
             controller.editor()->selectOnly(cli.value(o.select).split(u','));
     }

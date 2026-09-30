@@ -109,6 +109,15 @@ void LayoutController::setPos(PosSession *pos)
         connect(pos_, &PosSession::loggedInChanged, this, &LayoutController::onLoggedInChanged);
         connect(pos_, &PosSession::checkClosed, this, [this] { navigate(Navigator::Mode::Home); });
         connect(pos_, &PosSession::qualifierChanged, this, &LayoutController::refresh);
+        // Whoever is editing must stay allowed to: logging out, being
+        // deactivated or losing the role closes the editor (unsaved edits
+        // are dropped, as in the legacy system).
+        connect(pos_, &PosSession::sessionChanged, this, [this] {
+            if (editing_ && !pos_->can(QString::fromLatin1(vt::core::perm::EditLayout))) {
+                leaveEditMode(false);
+                setStatus(tr("Edit mode closed: the page editor needs a manager logged in."));
+            }
+        });
     }
     emit posChanged();
     refresh();

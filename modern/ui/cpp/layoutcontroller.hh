@@ -101,10 +101,12 @@ public:
     Q_INVOKABLE void openCheck(qint64 checkId);
     Q_INVOKABLE void login();
 
-    // F1 / "Edit Pages": checks the layout.edit permission when a POS
-    // session is attached. enterEditMode() itself does not (tests, --edit).
+    // F1 / "Edit Pages" / --edit: the only way in from the UI. Needs the
+    // layout.edit permission when a POS session is attached.
     Q_INVOKABLE bool requestEditMode();
-    Q_INVOKABLE void enterEditMode();
+    // Unchecked, for C++ only (tests). Deliberately not Q_INVOKABLE, so no
+    // page or widget can skip the permission check.
+    void enterEditMode();
     // Persist the draft and make it the running layout; stays in edit mode.
     Q_INVOKABLE bool saveEdits();
     // Leave edit mode, saving first when `save` (and staying if saving fails).
