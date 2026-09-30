@@ -66,6 +66,18 @@ inline std::string mealPeriodAt(const std::vector<MealPeriod> &periods, int minu
     return current ? current->id : latest ? latest->id : std::string();
 }
 
+// Where cash goes. With a drawer per terminal, cash sales go in the drawer
+// of the terminal that closes the check. With server banks, whoever takes
+// the cash keeps it in their own bank (no drawer) and turns it in when they
+// check out, so any terminal can be used by anyone.
+enum class CashMode { TerminalDrawer, ServerBank };
+
+inline std::string toString(CashMode m) { return m == CashMode::ServerBank ? "serverBank" : "drawer"; }
+inline CashMode cashModeFromString(const std::string &s)
+{
+    return s == "serverBank" ? CashMode::ServerBank : CashMode::TerminalDrawer;
+}
+
 // Store-wide POS settings, edited on the manager's admin screens.
 struct PosSettings {
     std::string storeName = "ViewTouch";
@@ -80,6 +92,7 @@ struct PosSettings {
     int gratuityMinGuests = 6;
     std::vector<TerminalConfig> terminals;
     std::vector<MealPeriod> mealPeriods = defaultMealPeriods();
+    CashMode cashMode = CashMode::TerminalDrawer;
 
     std::string receiptPrinterFor(const std::string &terminal) const
     {

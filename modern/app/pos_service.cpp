@@ -674,7 +674,10 @@ bool PosService::closeCheck()
     if (t.balance.cents() > 0)
         return fail(tr("%1 is still due.").arg(format(t.balance)));
     const bool cash = t.cashPaid.cents() > 0;
-    DrawerSession *drawer = s_->openDrawerFor(terminal_.toStdString());
+    // With server banks the cash stays with whoever closes the check (their
+    // bank starts with the first cash sale); otherwise it goes in this
+    // terminal's drawer, which must be open.
+    DrawerSession *drawer = !cash ? nullptr : serverBank() ? ensureMyBank() : myDrawer();
     if (cash && !drawer)
         return fail(tr("Open this terminal's cash drawer first (Drawer…)."));
 
@@ -695,7 +698,7 @@ bool PosService::closeCheck()
         c->drawerSession = drawer->id;
     if (s_->sink)
         s_->sink->saveCheck(*c);
-    if (cash && s_->printer)
+    if (cash && s_->printer && !serverBank())
         s_->printer->openDrawer(s_->settings, receiptPrinter());
     s_->closedToday.push_back(*c);
     lastClosedId_ = c->id;
@@ -1045,6 +1048,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
         {u"openDrawerSession"_s, [](PosService &p, const QVariantList &) { return QVariant(p.openDrawerSession()); }},
         {u"countDrawer"_s, [](PosService &p, const QVariantList &) { return QVariant(p.countDrawer()); }},
+        {u"countDrawerById"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.countDrawerById(a.value(0).toLongLong())); }},
         {u"endOfDay"_s, [](PosService &p, const QVariantList &) { return QVariant(p.endOfDay()); }},
         {u"printReport"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.printReport(a.value(0).toString(), a.value(1).toLongLong())); }},

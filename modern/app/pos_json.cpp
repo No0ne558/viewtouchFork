@@ -317,6 +317,7 @@ QJsonObject toJson(const DrawerSession &d)
             {u"at"_s, qint64(m.at)}});
     }
     return {{u"id"_s, qint64(d.id)}, {u"name"_s, qs(d.name)}, {u"terminal"_s, qs(d.terminal)},
+            {u"employeeId"_s, qs(d.employeeId)},
             {u"openedAt"_s, qint64(d.openedAt)},
             {u"openedBy"_s, qs(d.openedBy)}, {u"startingCash"_s, qint64(d.startingCash.cents())},
             {u"closedAt"_s, qint64(d.closedAt)}, {u"closedBy"_s, qs(d.closedBy)},
@@ -337,6 +338,7 @@ DrawerSession drawerFromJson(const QJsonObject &o)
     d.expected = money(o.value(u"expected"));
     d.counted = money(o.value(u"counted"));
     d.terminal = ss(o.value(u"terminal").toString());
+    d.employeeId = ss(o.value(u"employeeId").toString());
     for (const QJsonValue &v : o.value(u"movements").toArray()) {
         const QJsonObject m = v.toObject();
         d.movements.push_back({i64(m.value(u"id")), cashMovementKindFromString(ss(m.value(u"kind").toString())),
@@ -424,6 +426,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"gratuity"_s, QJsonObject{{u"percent"_s, double(s.gratuityBp) / 100.0}, {u"minGuests"_s, s.gratuityMinGuests}}},
         {u"terminals"_s, terminals},
         {u"mealPeriods"_s, mealPeriods},
+        {u"cashMode"_s, qs(toString(s.cashMode))},
     };
 }
 
@@ -449,6 +452,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
         const QJsonObject t = v.toObject();
         s.terminals.push_back({ss(t.value(u"name").toString()), ss(t.value(u"receiptPrinter").toString())});
     }
+    s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));
     if (o.contains(u"mealPeriods")) {   // older settings keep the defaults
         s.mealPeriods.clear();
         for (const QJsonValue &v : o.value(u"mealPeriods").toArray()) {

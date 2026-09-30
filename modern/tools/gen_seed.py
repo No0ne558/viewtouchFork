@@ -111,6 +111,8 @@ write("pos/settings.json", {
     "receiptHeader": "123 Main Street\nOpen daily 7am - 10pm",
     "gratuity": {"percent": 18, "minGuests": 6},
     "terminals": [],
+    # Servers carry their own bank; terminals need no drawer of their own.
+    "cashMode": "serverBank",
     "mealPeriods": [{"id": "breakfast", "name": "Breakfast", "start": "04:00"},
                     {"id": "lunch", "name": "Lunch", "start": "11:00"},
                     {"id": "dinner", "name": "Dinner", "start": "16:00"}],
@@ -338,14 +340,16 @@ page("logout", "Log Out", "logout", [
     label("title", 560, 40, 800, 90, "End of shift"),
     zone("panel", 560, 150, 800, 400, kind="logoutPanel"),
     zone("clock-out", 560, 580, 390, 140, "Clock Out", actions=[command("clockOut")]),
-    zone("tips", 560, 900, 800, 120, "Cash Out My Tips", actions=[command("cashOutTips")], style=fill(GREEN)),
+    zone("tips", 560, 900, 390, 120, "Cash Out My Tips", actions=[command("cashOutTips")], style=fill(GREEN)),
+    # Server banks: check out (count your cash); with drawers: this terminal's drawer.
+    zone("bank", 970, 900, 390, 120, "My Bank…", actions=[jump(page="drawer")]),
     zone("break", 970, 580, 390, 140, "Start Break", actions=[command("startBreak")]),
     zone("logout", 560, 740, 390, 140, "Log Out", actions=[command("logout")], style=fill(RED)),
     zone("cancel", 970, 740, 390, 140, "Cancel", actions=[jump(mode="back")]),
 ], role="logout")
 
 admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"), ("Taxes", "taxes"),
-         ("Tenders", "tenders"), ("Printers", "printers"), ("Reports", "reports"), ("Drawers", "drawers"),
+         ("Tenders", "tenders"), ("Printers", "printers"), ("Reports", "reports"), ("Banks & Drawers", "drawers"),
          ("End of Day", "endOfDay"), ("Terminals", "terminals"), ("Meal Periods", "mealPeriods")]
 mgr = [label("title", 160, 40, 1600, 100, "Manager")]
 for i, (text, panel) in enumerate(admin):

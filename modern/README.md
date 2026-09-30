@@ -118,7 +118,12 @@ One machine keeps the data; the others connect to it:
 
 - **Tips** go on card payments. On the settle page, touch 15%, 18% or 20%, or type an amount and touch Amount. The receipt, the Tips report and the server's "tips owed" show them.
 - **Party gratuity.** Dine-in checks with at least *min guests* get the store's gratuity (Manager → Settings; 18% for 6+ by default, 0 turns it off). Anyone can add it on the settle page; lowering an automatic one needs a manager. Gratuity is part of the check total; tips are on top.
-- **Drawers per terminal.** Each terminal starts, counts and balances its own drawer ("Bar drawer"). Cash payments need this terminal's drawer open, and End of Day waits until every drawer is counted.
+- **Server banks** (the starter setting; Manager → Settings → *Cash handling*). Each person keeps the cash they take in their own bank, on whichever terminal they use, so terminals need no drawer.
+  - A bank starts with the first cash sale at $0. To start with change on hand, type it on the Drawer page and touch **Start Bank**.
+  - **Check out** at the end of the shift: Log Out → **My Bank…**, count your cash, type it, **Check Out**. It shows *Cash to turn in*, then over / short. Open checks have to be closed or handed over first.
+  - Pay outs, paid ins and tip cash-outs come out of the bank of whoever does them.
+  - Managers see every other open bank on the Drawer page and can **Count** one for a server who left. End of Day waits until every bank is counted.
+- **Drawers per terminal** (the other *Cash handling* choice). Each terminal starts, counts and balances its own drawer ("Bar drawer"). Cash payments need this terminal's drawer open, and End of Day waits until every drawer is counted.
 - **Pay outs and paid ins** (Drawer page, manager): type the amount, optionally touch Reason…, then Pay Out or Paid In. They show in the drawer's expected cash and on the Drawers report.
 - **Cash out tips.** Logout → Cash Out My Tips pays the card tips owed to you from this terminal's drawer.
 - **Manager → Terminals** sets each terminal's receipt printer (and so its drawer kick).

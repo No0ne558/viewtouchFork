@@ -73,6 +73,7 @@
     "minGuests": 6
   },
   "terminals": [],
+  "cashMode": "serverBank",
   "mealPeriods": [
     {
       "id": "breakfast",

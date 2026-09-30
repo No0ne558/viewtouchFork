@@ -142,6 +142,11 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"currencySymbol"_s, tr("Currency symbol"), u"string"_s),
             field(u"receiptHeader"_s, tr("Receipt header"), u"text"_s, tr("Address, phone… one per line")),
             field(u"receiptFooter"_s, tr("Receipt footer"), u"text"_s),
+            with(field(u"cashMode"_s, tr("Cash handling"), u"enum"_s,
+                       tr("Server bank: whoever takes cash keeps it and turns it in at check out, so anyone can "
+                          "use any terminal. Drawer: each terminal has a cash drawer.")),
+                 u"options"_s, options({{"serverBank", "Server bank (each person carries their own cash)"},
+                                        {"drawer", "Cash drawer on each terminal"}})),
             field(u"gratuityPercent"_s, tr("Party gratuity %"), u"percent"_s, tr("Added to large tables. 0 = off.")),
             with(with(field(u"gratuityMinGuests"_s, tr("…for tables of at least"), u"int"_s), u"min"_s, 1), u"max"_s, 99),
         };
@@ -219,7 +224,8 @@ QVariantList PosService::adminRecords(const QString &panel)
         add({{u"storeName"_s, qs(s_->settings.storeName)}, {u"currencySymbol"_s, qs(s_->settings.currencySymbol)},
              {u"receiptHeader"_s, qs(s_->settings.receiptHeader)}, {u"receiptFooter"_s, qs(s_->settings.receiptFooter)},
              {u"gratuityPercent"_s, double(s_->settings.gratuityBp) / 100.0},
-             {u"gratuityMinGuests"_s, s_->settings.gratuityMinGuests}},
+             {u"gratuityMinGuests"_s, s_->settings.gratuityMinGuests},
+             {u"cashMode"_s, qs(toString(s_->settings.cashMode))}},
             tr("Store"), QString());
     } else if (panel == u"mealPeriods") {
         for (const MealPeriod &m : s_->settings.mealPeriods)
@@ -314,6 +320,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             return fail(tr("Gratuity is between 0 and 100%."));
         s_->settings.gratuityBp = std::llround(gratuity * 100.0);
         s_->settings.gratuityMinGuests = std::max(1, record.value(u"gratuityMinGuests"_s, 6).toInt());
+        if (record.contains(u"cashMode"_s))
+            s_->settings.cashMode = cashModeFromString(ss(record.value(u"cashMode"_s).toString()));
         settingsChanged();
         ok = true;
     }

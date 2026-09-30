@@ -43,7 +43,8 @@ CashMovement::Kind cashMovementKindFromString(const std::string &s);
 struct DrawerSession {
     std::int64_t id = 0;
     std::string name = "Drawer 1";
-    std::string terminal;      // the terminal it belongs to
+    std::string terminal;      // drawer mode: the terminal it belongs to
+    std::string employeeId;    // server bank mode: whose bank it is
     std::int64_t openedAt = 0;
     std::string openedBy;
     Money startingCash;

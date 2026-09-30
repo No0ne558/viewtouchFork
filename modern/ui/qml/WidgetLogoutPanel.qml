@@ -55,6 +55,16 @@ Item {
             font.family: w.face
             font.pixelSize: w.unit * 0.8
         }
+        // Server banks: the cash this person has to turn in.
+        Text {
+            readonly property var bank: w.pos ? w.pos.drawer : ({})
+            visible: w.pos && w.pos.loggedIn && bank.mode === "serverBank" && (bank.open ?? false)
+            Layout.fillWidth: true
+            text: qsTr("Cash in your bank: %1").arg(bank.expected ?? "")
+            color: "#f5b940"
+            font.family: w.face
+            font.pixelSize: w.unit * 0.8
+        }
         Item { Layout.fillHeight: true }
     }
 }

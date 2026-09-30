@@ -60,7 +60,7 @@
       "rect": {
         "x": 560,
         "y": 900,
-        "w": 800,
+        "w": 390,
         "h": 120
       },
       "shape": "rect",
@@ -77,6 +77,26 @@
           "fill": "#1f8a4c"
         }
       }
+    },
+    {
+      "id": "bank",
+      "kind": "button",
+      "rect": {
+        "x": 970,
+        "y": 900,
+        "w": 390,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "My Bank\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "drawer"
+        }
+      ]
     },
     {
       "id": "break",

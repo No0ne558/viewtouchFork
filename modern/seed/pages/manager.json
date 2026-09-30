@@ -189,7 +189,7 @@
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "Drawers",
+      "label": "Banks & Drawers",
       "actions": [
         {
           "type": "command",

@@ -104,13 +104,16 @@ public:
     core::BusinessDay day;
     std::int64_t lastDayId = 0;
     std::vector<core::Check> closedToday;
-    std::vector<core::DrawerSession> drawers;   // one per terminal; today's plus open ones
+    std::vector<core::DrawerSession> drawers;   // drawers and server banks; today's plus open ones
     std::int64_t lastDrawerId = 0;
     std::vector<PastDay> pastDays;
 
     // The terminal's open drawer / its most recent one today.
     core::DrawerSession *openDrawerFor(const std::string &terminal);
     const core::DrawerSession *latestDrawerFor(const std::string &terminal) const;
+    // An employee's open server bank / their most recent one today.
+    core::DrawerSession *openBankFor(const std::string &employeeId);
+    const core::DrawerSession *latestBankFor(const std::string &employeeId) const;
     int adminRevision = 0;
 
     // Check locks: a check open on one terminal cannot be opened on another.
@@ -220,8 +223,12 @@ public:
     bool recallTicket();   // undo the latest bump
 
     // --- drawer and business day ---------------------------------------------------
+    // "My drawer" is this terminal's drawer, or with server banks the
+    // logged-in employee's own bank.
     bool openDrawerSession();   // starting cash from the keypad entry
-    bool countDrawer();         // counted cash from the keypad entry
+    bool countDrawer();         // counted cash from the keypad entry (bank: check out)
+    // Manager: count someone else's drawer or bank (a server who left).
+    bool countDrawerById(qint64 drawerId);
     bool endOfDay();
     const core::BusinessDay &currentDay() const { return s_->day; }
     const std::vector<core::Check> &closedToday() const { return s_->closedToday; }
@@ -278,6 +285,13 @@ public:
 
 private:
     std::string receiptPrinter() const { return s_->settings.receiptPrinterFor(terminal_.toStdString()); }
+    bool serverBank() const { return s_->settings.cashMode == core::CashMode::ServerBank; }
+    core::DrawerSession *myDrawer();
+    const core::DrawerSession *latestMyDrawer() const;
+    // Server banks: my open bank, started at `start` if I have none.
+    core::DrawerSession *ensureMyBank(Money start = {});
+    bool closeDrawer(core::DrawerSession &d);   // counted = keypad entry
+    Money expectedNow(const core::DrawerSession &d) const;
     void connectShared();
     core::Check *current();
     bool require(const char *permission, const QString &action);
