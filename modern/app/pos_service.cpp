@@ -34,7 +34,7 @@ PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
     , sink(sink)
     , lastDayId(data.lastDayId)
     , closedToday(std::move(data.closedToday))
-    , drawer(std::move(data.drawer))
+    , drawers(std::move(data.drawers))
     , lastDrawerId(data.lastDrawerId)
     , pastDays(std::move(data.pastDays))
     , now_([] { return QDateTime::currentMSecsSinceEpoch(); })
@@ -45,8 +45,8 @@ PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
     }
     for (const Check &c : closedToday)
         lastCheckId = std::max(lastCheckId, c.id);
-    if (drawer)
-        lastDrawerId = std::max(lastDrawerId, drawer->id);
+    for (const DrawerSession &d : drawers)
+        lastDrawerId = std::max(lastDrawerId, d.id);
     if (data.currentDay && data.currentDay->open()) {
         day = *data.currentDay;
         lastDayId = std::max(lastDayId, day.id);
@@ -405,6 +405,10 @@ bool PosService::startCheck(CheckType type)
     case CheckType::DineIn:
         c.label = ss(pendingTable_);
         c.guests = entryGuests();
+        if (s_->settings.gratuityBp > 0 && c.guests >= s_->settings.gratuityMinGuests) {
+            c.gratuityBp = s_->settings.gratuityBp;
+            c.autoGratuity = true;
+        }
         break;
     case CheckType::Takeout:
         c.label = ss(tr("Takeout %1").arg(c.id));
@@ -670,8 +674,9 @@ bool PosService::closeCheck()
     if (t.balance.cents() > 0)
         return fail(tr("%1 is still due.").arg(format(t.balance)));
     const bool cash = t.cashPaid.cents() > 0;
-    if (cash && !(s_->drawer && s_->drawer->open()))
-        return fail(tr("Open the cash drawer first (Manager → Drawer)."));
+    DrawerSession *drawer = s_->openDrawerFor(terminal_.toStdString());
+    if (cash && !drawer)
+        return fail(tr("Open this terminal's cash drawer first (Drawer…)."));
 
     if (c->unsentCount() > 0) {
         std::vector<OrderLine> fresh;
@@ -687,11 +692,11 @@ bool PosService::closeCheck()
     c->closedAt = now();
     c->businessDay = s_->day.id;
     if (cash)
-        c->drawerSession = s_->drawer->id;
+        c->drawerSession = drawer->id;
     if (s_->sink)
         s_->sink->saveCheck(*c);
     if (cash && s_->printer)
-        s_->printer->openDrawer(s_->settings);
+        s_->printer->openDrawer(s_->settings, receiptPrinter());
     s_->closedToday.push_back(*c);
     lastClosedId_ = c->id;
     const qint64 id = c->id;
@@ -803,6 +808,12 @@ QVariantMap PosService::totals() const
         {u"balance"_s, format(t.balance.cents() > 0 ? t.balance : Money())},
         {u"balanceCents"_s, qint64(t.balance.cents())},
         {u"change"_s, format(t.change)}, {u"hasChange"_s, t.change.cents() > 0},
+        {u"gratuity"_s, format(t.gratuity)}, {u"hasGratuity"_s, t.gratuity.cents() > 0},
+        {u"gratuityPercent"_s, double(c->gratuityBp) / 100.0}, {u"autoGratuity"_s, c->autoGratuity},
+        // What the Add gratuity key offers: the store's party rate, else 18%.
+        {u"storeGratuityPercent"_s, double(s_->settings.gratuityBp > 0 ? s_->settings.gratuityBp : 1800) / 100.0},
+        {u"tips"_s, format(t.tips)}, {u"hasTips"_s, t.tips.cents() > 0},
+        {u"hasCard"_s, std::ranges::any_of(c->payments, [](const Payment &p) { return p.kind == TenderKind::Card; })},
     };
 }
 
@@ -818,6 +829,8 @@ QVariantList PosService::payments() const
             ? u"%1 (%2%)"_s.arg(format(-items.percent(p.percentBp))).arg(double(p.percentBp) / 100.0)
             : format(p.amount);
         out.append(QVariantMap{{u"id"_s, qint64(p.id)}, {u"name"_s, qs(p.tenderName)}, {u"amount"_s, amount},
+                               {u"tip"_s, p.tip.cents() ? format(p.tip) : QString()},
+                               {u"card"_s, p.kind == TenderKind::Card},
                                {u"selected"_s, qint64(p.id) == selectedPayment_}});
     }
     return out;
@@ -1025,6 +1038,11 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"bumpTicket"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.bumpTicket(a.value(0).toLongLong(), a.value(1).toLongLong(), a.value(2).toString())); }},
         {u"recallTicket"_s, [](PosService &p, const QVariantList &) { return QVariant(p.recallTicket()); }},
+        {u"addTip"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addTip(a.value(0).toLongLong())); }},
+        {u"setGratuity"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setGratuity(a.value(0).toLongLong())); }},
+        {u"payout"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.payout(cashMovementKindFromString(ss(a.value(0).toString())))); }},
+        {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
         {u"openDrawerSession"_s, [](PosService &p, const QVariantList &) { return QVariant(p.openDrawerSession()); }},
         {u"countDrawer"_s, [](PosService &p, const QVariantList &) { return QVariant(p.countDrawer()); }},
         {u"endOfDay"_s, [](PosService &p, const QVariantList &) { return QVariant(p.endOfDay()); }},

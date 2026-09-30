@@ -46,9 +46,12 @@ public:
     // `voids`: the lines were cancelled after being sent.
     virtual void printKitchen(const core::PosSettings &settings, const core::Check &check,
                               const std::vector<core::OrderLine> &lines, bool voids) = 0;
-    virtual void printReceipt(const core::PosSettings &settings, const core::Check &check) = 0;
-    virtual void printReport(const core::PosSettings &settings, const core::Report &report) = 0;
-    virtual void openDrawer(const core::PosSettings &settings) = 0;
+    // `printerId`: the terminal's receipt printer (see PosSettings::receiptPrinterFor).
+    virtual void printReceipt(const core::PosSettings &settings, const core::Check &check,
+                              const std::string &printerId) = 0;
+    virtual void printReport(const core::PosSettings &settings, const core::Report &report,
+                             const std::string &printerId) = 0;
+    virtual void openDrawer(const core::PosSettings &settings, const std::string &printerId) = 0;
 };
 
 // A closed business day and its final reports (report id -> report JSON).
@@ -69,7 +72,7 @@ struct PosData {
     std::optional<core::BusinessDay> currentDay;  // none: the service opens one
     std::int64_t lastDayId = 0;
     std::vector<core::Check> closedToday;
-    std::optional<core::DrawerSession> drawer;    // today's latest drawer
+    std::vector<core::DrawerSession> drawers;     // today's, plus any still open
     std::int64_t lastDrawerId = 0;
     std::vector<PastDay> pastDays;                // newest first
 };
@@ -101,9 +104,13 @@ public:
     core::BusinessDay day;
     std::int64_t lastDayId = 0;
     std::vector<core::Check> closedToday;
-    std::optional<core::DrawerSession> drawer;
+    std::vector<core::DrawerSession> drawers;   // one per terminal; today's plus open ones
     std::int64_t lastDrawerId = 0;
     std::vector<PastDay> pastDays;
+
+    // The terminal's open drawer / its most recent one today.
+    core::DrawerSession *openDrawerFor(const std::string &terminal);
+    const core::DrawerSession *latestDrawerFor(const std::string &terminal) const;
     int adminRevision = 0;
 
     // Check locks: a check open on one terminal cannot be opened on another.
@@ -188,6 +195,18 @@ public:
     bool noSale();   // open the cash drawer without a sale
     bool setCustomer(const QVariantMap &customer);
 
+    // --- tips, gratuity, cash in and out ------------------------------------------
+    // Tip on the selected card payment (else the last one): a percentage of
+    // the check (bp, e.g. 1800) or, with percentBp 0, the keypad amount.
+    bool addTip(std::int64_t percentBp);
+    // Gratuity on the current check (bp; 0 removes). Removing an automatic
+    // one needs a manager.
+    bool setGratuity(std::int64_t percentBp);
+    // Pay out of / into this terminal's drawer: keypad amount, typed reason.
+    bool payout(core::CashMovement::Kind kind);
+    // Pay the logged-in employee the tips they are owed, from this drawer.
+    bool cashOutTips();
+
     // --- split check -------------------------------------------------------------
     // Move the selected line to another check (0 = a new one at the table).
     bool splitLine(qint64 targetCheckId);
@@ -254,8 +273,10 @@ public:
     QVariantMap dayInfo() const override;
     QVariantList days() const override;
     int adminRevision() const override { return s_->adminRevision; }
+    QString tipsOwed() const override;
 
 private:
+    std::string receiptPrinter() const { return s_->settings.receiptPrinterFor(terminal_.toStdString()); }
     void connectShared();
     core::Check *current();
     bool require(const char *permission, const QString &action);

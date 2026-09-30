@@ -11,8 +11,9 @@ namespace vt::print {
 // PosPrinter that formats tickets and hands them to the spooler.
 //
 // Routing: kitchen lines go to the printer named by each menu item
-// ("kitchen", "bar"...), falling back to "kitchen"; receipts and reports to
-// "receipt"; drawer kicks to the first printer with drawerKick set.
+// ("kitchen", "bar"...), falling back to "kitchen"; receipts, reports and
+// drawer kicks to the terminal's receipt printer (falling back to "receipt",
+// and for kicks to any printer with a drawer attached).
 // Relative file paths are resolved against `outputDir`.
 class TicketPrinter : public app::PosPrinter {
 public:
@@ -20,9 +21,11 @@ public:
 
     void printKitchen(const core::PosSettings &settings, const core::Check &check,
                       const std::vector<core::OrderLine> &lines, bool voids) override;
-    void printReceipt(const core::PosSettings &settings, const core::Check &check) override;
-    void printReport(const core::PosSettings &settings, const core::Report &report) override;
-    void openDrawer(const core::PosSettings &settings) override;
+    void printReceipt(const core::PosSettings &settings, const core::Check &check,
+                      const std::string &printerId) override;
+    void printReport(const core::PosSettings &settings, const core::Report &report,
+                     const std::string &printerId) override;
+    void openDrawer(const core::PosSettings &settings, const std::string &printerId) override;
 
     // For tests: the clock used on tickets.
     void setClock(std::function<std::int64_t()> now) { now_ = std::move(now); }

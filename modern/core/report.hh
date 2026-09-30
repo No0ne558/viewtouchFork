@@ -49,14 +49,23 @@ struct ReportContext {
 
 // Net cash a closed check left in its drawer.
 Money cashIntoDrawer(const Check &check, const TaxRates &rates);
-// Starting bank + net cash of the checks closed into this drawer.
+// Starting bank + net cash of the checks closed into this drawer + pay-ins
+// - pay-outs.
 Money expectedCash(const DrawerSession &drawer, const std::vector<Check> &closed, const TaxRates &rates);
+
+// Card tips and gratuity an employee earned on these checks, less the tips
+// already paid out to them from any drawer.
+Money tipsOwed(const std::string &employeeId, const std::vector<Check> &closed,
+               const std::vector<DrawerSession> &drawers, const TaxRates &rates);
 
 Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx);
 Report itemSales(const std::vector<Check> &closed, const std::vector<MenuItem> &menu, const ReportContext &ctx);
 Report serverSales(const std::vector<Check> &closed, const ReportContext &ctx);
 Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Employee> &employees,
                    const ReportContext &ctx);
-Report drawerReport(const DrawerSession *drawer, const std::vector<Check> &closed, const ReportContext &ctx);
+Report drawerReport(const std::vector<DrawerSession> &drawers, const std::vector<Check> &closed,
+                    const ReportContext &ctx);
+Report tipsReport(const std::vector<Check> &closed, const std::vector<DrawerSession> &drawers,
+                  const ReportContext &ctx);
 
 } // namespace vt::core

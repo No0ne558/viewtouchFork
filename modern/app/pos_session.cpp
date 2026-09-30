@@ -19,6 +19,7 @@ const QStringList &PosSession::stateKeys()
         u"entryGuests"_s, u"textEntry"_s, u"pendingQualifier"_s, u"pendingTable"_s, u"hasCheck"_s, u"check"_s,
         u"lines"_s, u"totals"_s, u"payments"_s, u"selectedLine"_s, u"selectedPayment"_s, u"openChecks"_s,
         u"checkFilter"_s, u"kitchenTickets"_s, u"drawer"_s, u"day"_s, u"days"_s, u"adminRevision"_s,
+        u"tipsOwed"_s,
     };
     return keys;
 }
@@ -36,7 +37,7 @@ QVariantMap PosSession::snapshot() const
         {u"payments"_s, payments()}, {u"selectedLine"_s, selectedLine()}, {u"selectedPayment"_s, selectedPayment()},
         {u"openChecks"_s, openChecks()}, {u"checkFilter"_s, checkFilter()}, {u"kitchenTickets"_s, kitchenTickets()},
         {u"drawer"_s, drawerInfo()}, {u"day"_s, dayInfo()}, {u"days"_s, days()},
-        {u"adminRevision"_s, adminRevision()},
+        {u"adminRevision"_s, adminRevision()}, {u"tipsOwed"_s, tipsOwed()},
     };
 }
 

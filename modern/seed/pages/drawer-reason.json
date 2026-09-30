@@ -1,64 +1,68 @@
 {
   "schemaVersion": 1,
-  "id": "drawer",
-  "name": "Drawer",
+  "id": "drawer-reason",
+  "name": "Drawer Reason",
   "kind": "manager",
   "canvas": {
     "w": 1920,
     "h": 1080
   },
   "grid": 8,
-  "permission": "check.settle",
+  "permission": "manager",
   "zones": [
     {
-      "id": "drawer",
-      "kind": "drawerPanel",
+      "id": "title",
+      "kind": "label",
       "rect": {
         "x": 16,
         "y": 16,
-        "w": 900,
-        "h": 1048
+        "w": 1888,
+        "h": 80
       },
       "shape": "rect",
-      "behavior": "none"
+      "behavior": "none",
+      "label": "Reason for the pay out or paid in"
     },
     {
-      "id": "pad",
-      "kind": "numPad",
+      "id": "keyboard",
+      "kind": "keyboard",
       "rect": {
-        "x": 932,
-        "y": 16,
-        "w": 520,
-        "h": 620
+        "x": 16,
+        "y": 112,
+        "w": 1888,
+        "h": 760
       },
       "shape": "rect",
       "behavior": "none",
       "props": {
-        "mode": "amount"
+        "placeholder": "Vendor, ice, change\u2026"
       }
     },
     {
-      "id": "reason",
+      "id": "cancel",
       "kind": "button",
       "rect": {
-        "x": 932,
-        "y": 652,
-        "w": 520,
+        "x": 16,
+        "y": 944,
+        "w": 432,
         "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "Reason\u2026",
+      "label": "Cancel",
       "actions": [
         {
+          "type": "command",
+          "name": "clearText"
+        },
+        {
           "type": "jump",
-          "mode": "push",
-          "page": "drawer-reason"
+          "mode": "back"
         }
       ]
     },
     {
-      "id": "back",
+      "id": "done",
       "kind": "button",
       "rect": {
         "x": 1472,
@@ -68,13 +72,18 @@
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "\u2039 Back",
+      "label": "Done",
       "actions": [
         {
           "type": "jump",
           "mode": "back"
         }
-      ]
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f8a4c"
+        }
+      }
     }
   ]
 }

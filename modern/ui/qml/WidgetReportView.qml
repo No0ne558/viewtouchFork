@@ -13,7 +13,8 @@ Item {
 
     readonly property var reportIds: [
         { id: "sales", label: qsTr("Sales") }, { id: "items", label: qsTr("Items") },
-        { id: "servers", label: qsTr("Servers") }, { id: "labor", label: qsTr("Labor") },
+        { id: "servers", label: qsTr("Servers") }, { id: "tips", label: qsTr("Tips") },
+        { id: "labor", label: qsTr("Labor") },
         { id: "drawer", label: qsTr("Drawer") },
     ]
     property string reportId: zone && zone.props && zone.props.report ? zone.props.report : "sales"

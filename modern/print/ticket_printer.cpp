@@ -67,20 +67,35 @@ void TicketPrinter::printKitchen(const PosSettings &settings, const Check &check
     }
 }
 
-void TicketPrinter::printReceipt(const PosSettings &settings, const Check &check)
+namespace {
+const PrinterConfig *receiptPrinter(const PosSettings &settings, const std::string &id)
 {
-    if (const PrinterConfig *p = settings.printer("receipt"))
+    const PrinterConfig *p = settings.printer(id);
+    return p ? p : settings.printer("receipt");
+}
+} // namespace
+
+void TicketPrinter::printReceipt(const PosSettings &settings, const Check &check, const std::string &printerId)
+{
+    if (const PrinterConfig *p = receiptPrinter(settings, printerId))
         send(settings, *p, receipt(check, context(settings)), u"Receipt #%1"_s.arg(check.id));
 }
 
-void TicketPrinter::printReport(const PosSettings &settings, const Report &report)
+void TicketPrinter::printReport(const PosSettings &settings, const Report &report, const std::string &printerId)
 {
-    if (const PrinterConfig *p = settings.printer("receipt"))
+    if (const PrinterConfig *p = receiptPrinter(settings, printerId))
         send(settings, *p, reportTicket(report, context(settings)), QString::fromStdString(report.title));
 }
 
-void TicketPrinter::openDrawer(const PosSettings &settings)
+void TicketPrinter::openDrawer(const PosSettings &settings, const std::string &printerId)
 {
+    // The terminal's own printer when its drawer is wired there, else any
+    // printer with a drawer.
+    const PrinterConfig *mine = receiptPrinter(settings, printerId);
+    if (mine && mine->drawerKick) {
+        send(settings, *mine, drawerKick(), u"Open drawer"_s);
+        return;
+    }
     for (const PrinterConfig &p : settings.printers) {
         if (p.drawerKick) {
             send(settings, p, drawerKick(), u"Open drawer"_s);

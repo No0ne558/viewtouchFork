@@ -34,7 +34,7 @@ Group groupOf(const QString &key)
         {u"selectedLine"_s, Group::Check}, {u"selectedPayment"_s, Group::Check},
         {u"openChecks"_s, Group::OpenChecks}, {u"checkFilter"_s, Group::OpenChecks},
         {u"kitchenTickets"_s, Group::Kitchen}, {u"drawer"_s, Group::Drawer},
-        {u"day"_s, Group::Day}, {u"days"_s, Group::Day},
+        {u"day"_s, Group::Day}, {u"days"_s, Group::Day}, {u"tipsOwed"_s, Group::Day},
     };
     return groups.value(key, Group::None);
 }

@@ -109,6 +109,8 @@ write("pos/settings.json", {
          "cutter": True, "drawerKick": False},
     ],
     "receiptHeader": "123 Main Street\nOpen daily 7am - 10pm",
+    "gratuity": {"percent": 18, "minGuests": 6},
+    "terminals": [],
     "receiptFooter": "Thank you for visiting!\nPowered by ViewTouch",
 })
 
@@ -326,6 +328,7 @@ page("logout", "Log Out", "logout", [
     label("title", 560, 40, 800, 90, "End of shift"),
     zone("panel", 560, 150, 800, 400, kind="logoutPanel"),
     zone("clock-out", 560, 580, 390, 140, "Clock Out", actions=[command("clockOut")]),
+    zone("tips", 560, 900, 800, 120, "Cash Out My Tips", actions=[command("cashOutTips")], style=fill(GREEN)),
     zone("break", 970, 580, 390, 140, "Start Break", actions=[command("startBreak")]),
     zone("logout", 560, 740, 390, 140, "Log Out", actions=[command("logout")], style=fill(RED)),
     zone("cancel", 970, 740, 390, 140, "Cancel", actions=[jump(mode="back")]),
@@ -333,16 +336,17 @@ page("logout", "Log Out", "logout", [
 
 admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"), ("Taxes", "taxes"),
          ("Tenders", "tenders"), ("Printers", "printers"), ("Reports", "reports"), ("Drawers", "drawers"),
-         ("End of Day", "endOfDay")]
+         ("End of Day", "endOfDay"), ("Terminals", "terminals")]
 mgr = [label("title", 160, 40, 1600, 100, "Manager")]
 for i, (text, panel) in enumerate(admin):
     col, row = i % 4, i // 4
-    mgr.append(zone(f"admin-{panel}", 160 + col * 408, 180 + row * 220, 384, 196, text,
+    mgr.append(zone(f"admin-{panel}", 160 + col * 408, 160 + row * 180, 384, 160, text,
                     actions=[command("openAdmin", panel=panel)]))
 mgr += [
-    zone("kitchen-display", 568, 620, 384, 196, "Kitchen Display", actions=[jump(page="kitchen")]),
-    zone("bar-display", 976, 620, 384, 196, "Bar Display", actions=[jump(page="bar-display")]),
-    zone("edit-pages", 1384, 620, 384, 196, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
+    # grid slots 10-11 (row 2) and 15 (row 3)
+    zone("kitchen-display", 976, 520, 384, 160, "Kitchen Display", actions=[jump(page="kitchen")]),
+    zone("bar-display", 1384, 520, 384, 160, "Bar Display", actions=[jump(page="bar-display")]),
+    zone("edit-pages", 1384, 700, 384, 160, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
     zone("back", 160, 900, 384, 140, "‹ Back", actions=[jump(mode="back")]),
 ]
 page("manager", "Manager", "manager", mgr, role="manager", permission="manager")
@@ -350,7 +354,8 @@ page("manager", "Manager", "manager", mgr, role="manager", permission="manager")
 # Manager screens (reached through openAdmin from the Manager page)
 for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees", "Employees", "employees"),
                          ("admin-tenders", "Payment Types", "tenders"), ("admin-printers", "Printers", "printers"),
-                         ("admin-taxes", "Taxes", "taxes"), ("admin-store", "Store Settings", "store")]:
+                         ("admin-taxes", "Taxes", "taxes"), ("admin-store", "Store Settings", "store"),
+                         ("admin-terminals", "Terminals", "terminals")]:
     page(pid, name, "manager", [
         label("title", 16, 16, 1888, 80, name),
         zone("editor", 16, 112, 1888, 816, kind="adminPanel", props={"panel": panel}),
@@ -365,8 +370,17 @@ page("reports", "Reports", "manager", [
 page("drawer", "Drawer", "manager", [
     zone("drawer", 16, 16, 900, 1048, kind="drawerPanel"),
     zone("pad", 932, 16, 520, 620, kind="numPad", props={"mode": "amount"}),
+    zone("reason", 932, 652, 520, 120, "Reason…", actions=[jump(page="drawer-reason")]),
     zone("back", 1472, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
 ], permission="check.settle")
+
+# Why cash left or entered the drawer; Pay Out / Paid In use the typed text.
+page("drawer-reason", "Drawer Reason", "manager", [
+    label("title", 16, 16, 1888, 80, "Reason for the pay out or paid in"),
+    zone("keyboard", 16, 112, 1888, 760, kind="keyboard", props={"placeholder": "Vendor, ice, change…"}),
+    zone("cancel", 16, 944, 432, 120, "Cancel", actions=[command("clearText"), jump(mode="back")]),
+    zone("done", 1472, 944, 432, 120, "Done", actions=[jump(mode="back")], style=fill(GREEN)),
+], permission="manager")
 
 # Kitchen and bar displays. "public": they run without anyone logged in;
 # start a kitchen screen with --connect <server> --page kitchen.

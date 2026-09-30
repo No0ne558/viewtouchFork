@@ -140,6 +140,17 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"currencySymbol"_s, tr("Currency symbol"), u"string"_s),
             field(u"receiptHeader"_s, tr("Receipt header"), u"text"_s, tr("Address, phone… one per line")),
             field(u"receiptFooter"_s, tr("Receipt footer"), u"text"_s),
+            field(u"gratuityPercent"_s, tr("Party gratuity %"), u"percent"_s, tr("Added to large tables. 0 = off.")),
+            with(with(field(u"gratuityMinGuests"_s, tr("…for tables of at least"), u"int"_s), u"min"_s, 1), u"max"_s, 99),
+        };
+    }
+    if (panel == u"terminals") {
+        QVariantList printers = options({{"", "Receipt (default)"}});
+        for (const PrinterConfig &p : s_->settings.printers)
+            printers.append(QVariantMap{{u"value"_s, qs(p.id)}, {u"text"_s, qs(p.name)}});
+        return {
+            field(u"name"_s, tr("Terminal name"), u"string"_s, tr("As given with --terminal (this one: %1)").arg(terminal_)),
+            with(field(u"receiptPrinter"_s, tr("Receipts and cash drawer on"), u"enum"_s), u"options"_s, printers),
         };
     }
     return {};
@@ -189,8 +200,16 @@ QVariantList PosService::adminRecords(const QString &panel)
             tr("Tax rates"), QString());
     } else if (panel == u"store") {
         add({{u"storeName"_s, qs(s_->settings.storeName)}, {u"currencySymbol"_s, qs(s_->settings.currencySymbol)},
-             {u"receiptHeader"_s, qs(s_->settings.receiptHeader)}, {u"receiptFooter"_s, qs(s_->settings.receiptFooter)}},
+             {u"receiptHeader"_s, qs(s_->settings.receiptHeader)}, {u"receiptFooter"_s, qs(s_->settings.receiptFooter)},
+             {u"gratuityPercent"_s, double(s_->settings.gratuityBp) / 100.0},
+             {u"gratuityMinGuests"_s, s_->settings.gratuityMinGuests}},
             tr("Store"), QString());
+    } else if (panel == u"terminals") {
+        for (const TerminalConfig &t : s_->settings.terminals) {
+            const PrinterConfig *p = s_->settings.printer(t.receiptPrinter);
+            add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}}, qs(t.name),
+                p ? qs(p->name) : tr("Receipt (default)"));
+        }
     }
     return out;
 }
@@ -205,6 +224,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"active"_s, true}};
     if (panel == u"tenders")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"kind"_s, u"card"_s}, {u"percent"_s, 0.0}};
+    if (panel == u"terminals")
+        return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}};
     if (panel == u"printers")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"type"_s, u"network"_s}, {u"host"_s, QString()},
                 {u"port"_s, 9100}, {u"path"_s, QString()}, {u"format"_s, QString()}, {u"width"_s, 42},
@@ -225,6 +246,22 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         ok = saveTenderRecord(index, record);
     } else if (panel == u"printers") {
         ok = savePrinterRecord(index, record);
+    } else if (panel == u"terminals") {
+        const QString name = record.value(u"name"_s).toString().trimmed();
+        if (name.isEmpty())
+            return fail(tr("The terminal needs a name."));
+        auto &list = s_->settings.terminals;
+        for (int i = 0; i < int(list.size()); ++i) {
+            if (i != index && qs(list[i].name) == name)
+                return fail(tr("%1 is already set up.").arg(name));
+        }
+        const TerminalConfig t{ss(name), ss(record.value(u"receiptPrinter"_s).toString())};
+        if (index >= 0 && index < int(list.size()))
+            list[index] = t;
+        else
+            list.push_back(t);
+        settingsChanged();
+        ok = true;
     } else if (panel == u"taxes") {
         const double rates[] = {number(record, u"food"), number(record, u"alcohol"),
                                 number(record, u"merchandise"), number(record, u"room")};
@@ -247,6 +284,11 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         s_->settings.currencySymbol = ss(record.value(u"currencySymbol"_s).toString());
         s_->settings.receiptHeader = ss(record.value(u"receiptHeader"_s).toString());
         s_->settings.receiptFooter = ss(record.value(u"receiptFooter"_s).toString());
+        const double gratuity = number(record, u"gratuityPercent");
+        if (gratuity < 0 || gratuity > 100)
+            return fail(tr("Gratuity is between 0 and 100%."));
+        s_->settings.gratuityBp = std::llround(gratuity * 100.0);
+        s_->settings.gratuityMinGuests = std::max(1, record.value(u"gratuityMinGuests"_s, 6).toInt());
         settingsChanged();
         ok = true;
     }
@@ -408,6 +450,9 @@ bool PosService::adminDelete(const QString &panel, int index)
         emit s_->staffChanged();
     } else if (panel == u"tenders" && index >= 0 && index < int(s_->settings.tenders.size())) {
         s_->settings.tenders.erase(s_->settings.tenders.begin() + index);
+        settingsChanged();
+    } else if (panel == u"terminals" && index >= 0 && index < int(s_->settings.terminals.size())) {
+        s_->settings.terminals.erase(s_->settings.terminals.begin() + index);
         settingsChanged();
     } else if (panel == u"printers" && index >= 0 && index < int(s_->settings.printers.size())) {
         s_->settings.printers.erase(s_->settings.printers.begin() + index);

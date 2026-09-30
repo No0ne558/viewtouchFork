@@ -71,7 +71,18 @@ Item {
                 }
             }
             Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: "#3a4250" }
+            Line {
+                visible: w.totals.hasGratuity ?? false
+                name: qsTr("Gratuity %1%").arg(w.totals.gratuityPercent ?? 0)
+                value: w.totals.gratuity ?? ""
+            }
             Line { name: qsTr("Total"); value: w.totals.total ?? ""; strong: true; size: w.unit * 1.2 }
+            Line {
+                visible: w.totals.hasTips ?? false
+                name: qsTr("Tips")
+                value: w.totals.tips ?? ""
+                tint: "#7ee2a8"
+            }
         }
 
         Text {
@@ -98,10 +109,52 @@ Item {
                     anchors.fill: parent
                     anchors.leftMargin: 8
                     anchors.rightMargin: 8
-                    name: pay.modelData.name
+                    name: pay.modelData.name + (pay.modelData.tip ? qsTr("  + tip %1").arg(pay.modelData.tip) : "")
                     value: pay.modelData.amount
                 }
             }
+        }
+
+        // Tips go on card payments: percentages, or the keypad amount.
+        RowLayout {
+            visible: w.totals.hasCard ?? false
+            Layout.fillWidth: true
+            Layout.preferredHeight: w.unit * 2.4
+            Layout.fillHeight: false   // nested layouts fill by default
+            spacing: w.unit * 0.3
+            Text {
+                text: qsTr("Tip")
+                color: w.ink
+                font.family: w.face
+                font.pixelSize: w.unit
+            }
+            Repeater {
+                model: [15, 18, 20]
+                delegate: WidgetKey {
+                    required property int modelData
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    text: modelData + "%"
+                    fontScale: 0.4
+                    onClicked: w.pos.addTip(modelData)
+                }
+            }
+            WidgetKey {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                text: w.pos && w.pos.entry !== "" ? w.pos.entryAmount : qsTr("Amount")
+                fontScale: 0.34
+                onClicked: w.pos.addTip(0)
+            }
+        }
+        WidgetKey {
+            visible: w.pos && w.pos.hasCheck
+            Layout.fillWidth: true
+            Layout.preferredHeight: w.unit * 2
+            text: (w.totals.hasGratuity ?? false) ? qsTr("Remove gratuity") : qsTr("Add %1% gratuity").arg(w.totals.storeGratuityPercent ?? 18)
+            baseColor: "#2d3440"
+            fontScale: 0.4
+            onClicked: w.pos.setGratuity((w.totals.hasGratuity ?? false) ? 0 : (w.totals.storeGratuityPercent ?? 18))
         }
 
         Line {

@@ -26,6 +26,15 @@ struct PrinterConfig {
     bool operator==(const PrinterConfig &) const = default;
 };
 
+// Per-terminal setup: which printer takes its receipts (and opens its
+// drawer). Terminals not listed use the "receipt" printer.
+struct TerminalConfig {
+    std::string name;
+    std::string receiptPrinter;
+
+    bool operator==(const TerminalConfig &) const = default;
+};
+
 // Store-wide POS settings, edited on the manager's admin screens.
 struct PosSettings {
     std::string storeName = "ViewTouch";
@@ -35,6 +44,19 @@ struct PosSettings {
     std::vector<PrinterConfig> printers;
     std::string receiptHeader;   // lines under the store name
     std::string receiptFooter;
+    // Auto-gratuity: added to dine-in checks with at least this many guests.
+    std::int64_t gratuityBp = 0;   // 0 = off; 1800 = 18%
+    int gratuityMinGuests = 6;
+    std::vector<TerminalConfig> terminals;
+
+    std::string receiptPrinterFor(const std::string &terminal) const
+    {
+        for (const TerminalConfig &t : terminals) {
+            if (t.name == terminal && !t.receiptPrinter.empty())
+                return t.receiptPrinter;
+        }
+        return "receipt";
+    }
 
     const PrinterConfig *printer(const std::string &id) const
     {

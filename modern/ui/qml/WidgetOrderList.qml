@@ -177,6 +177,8 @@ Item {
             Cell { text: w.totals.discounts ?? ""; visible: w.totals.hasDiscount ?? false }
             Cell { text: qsTr("Tax"); Layout.fillWidth: true }
             Cell { text: w.totals.tax ?? "" }
+            Cell { text: qsTr("Gratuity %1%").arg(w.totals.gratuityPercent ?? 0); visible: w.totals.hasGratuity ?? false; Layout.fillWidth: true }
+            Cell { text: w.totals.gratuity ?? ""; visible: w.totals.hasGratuity ?? false }
             Cell { text: qsTr("Total"); strong: true; Layout.fillWidth: true }
             Cell { text: w.totals.total ?? ""; strong: true }
             Cell { text: qsTr("Paid"); visible: w.paid; Layout.fillWidth: true }

@@ -496,6 +496,7 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
             {u"tenders"_s, u"admin-tenders"_s}, {u"printers"_s, u"admin-printers"_s},
             {u"taxes"_s, u"admin-taxes"_s}, {u"settings"_s, u"admin-store"_s},
             {u"reports"_s, u"reports"_s}, {u"drawers"_s, u"drawer"_s}, {u"endOfDay"_s, u"end-of-day"_s},
+            {u"terminals"_s, u"admin-terminals"_s},
         };
         const QString page = pages.value(args.value(u"panel"_s).toString());
         if (!page.isEmpty() && activeLayout().page(page))
@@ -517,8 +518,19 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
         {u"printReceipt"_s, {u"printReceipt"_s, {}}}, {u"noSale"_s, {u"noSale"_s, {}}},
         {u"openDrawer"_s, {u"noSale"_s, {}}}, {u"openDrawerSession"_s, {u"openDrawerSession"_s, {}}},
         {u"countDrawer"_s, {u"countDrawer"_s, {}}}, {u"endOfDay"_s, {u"endOfDay"_s, {}}},
-        {u"recallTicket"_s, {u"recallTicket"_s, {}}},
+        {u"recallTicket"_s, {u"recallTicket"_s, {}}}, {u"cashOutTips"_s, {u"cashOutTips"_s, {}}},
+        {u"clearText"_s, {u"textKey"_s, {u"clear"_s}}},
     };
+    // Commands that carry arguments.
+    if (pos_ && name == u"addTip")   // args.percent: 15, 18...; none = keypad amount
+        return call(u"addTip"_s, {qint64(args.value(u"percent"_s).toDouble() * 100 + 0.5)},
+                    [done](const QVariant &ok) { done(ok.toBool()); });
+    if (pos_ && name == u"gratuity")
+        return call(u"setGratuity"_s, {qint64(args.value(u"percent"_s).toDouble() * 100 + 0.5)},
+                    [done](const QVariant &ok) { done(ok.toBool()); });
+    if (pos_ && (name == u"payout" || name == u"paidIn"))
+        return call(u"payout"_s, {name}, [done](const QVariant &ok) { done(ok.toBool()); });
+
     if (pos_) {
         if (const auto it = operations.constFind(name); it != operations.cend())
             return call(it->first, it->second, [done](const QVariant &ok) { done(ok.toBool()); });

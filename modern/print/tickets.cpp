@@ -76,6 +76,8 @@ Document receipt(const Check &check, const TicketContext &ctx)
     }
     for (const auto &[cls, amount] : t.taxByClass)
         d.columns(capitalized(toString(cls)) + " tax", ctx.money(amount));
+    if (t.gratuity.cents() != 0)
+        d.columns("Gratuity " + std::to_string(check.gratuityBp / 100) + "%", ctx.money(t.gratuity));
     d.columns("TOTAL", ctx.money(t.total), true, true);
     bool paid = false;
     for (const Payment &p : check.payments) {
@@ -86,7 +88,11 @@ Document receipt(const Check &check, const TicketContext &ctx)
             paid = true;
         }
         d.columns(p.tenderName, ctx.money(p.amount));
+        if (p.tip.cents() != 0)
+            d.columns("  Tip", ctx.money(p.tip));
     }
+    if (t.tips.cents() != 0)
+        d.columns("Total with tip", ctx.money(t.total + t.tips), true);
     if (t.change.cents() > 0)
         d.columns("Change", ctx.money(t.change), true);
     else if (t.balance.cents() > 0)

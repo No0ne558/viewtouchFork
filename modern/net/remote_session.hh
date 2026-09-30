@@ -67,6 +67,7 @@ public:
     QVariantMap dayInfo() const override { return v(u"day").toMap(); }
     QVariantList days() const override { return v(u"days").toList(); }
     int adminRevision() const override { return v(u"adminRevision").toInt(); }
+    QString tipsOwed() const override { return v(u"tipsOwed").toString(); }
     int queryRevision() const override { return queryRevision_; }
 
     // Answered from a cache; fetched from the server when missing or stale.

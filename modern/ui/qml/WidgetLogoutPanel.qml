@@ -49,7 +49,8 @@ Item {
         Text {
             visible: w.pos && w.pos.loggedIn
             Layout.fillWidth: true
-            text: w.myChecks === 1 ? qsTr("1 open check") : qsTr("%1 open checks").arg(w.myChecks)
+            text: (w.myChecks === 1 ? qsTr("1 open check") : qsTr("%1 open checks").arg(w.myChecks))
+                  + (w.pos && w.pos.tipsOwed ? "  ·  " + qsTr("tips owed %1").arg(w.pos.tipsOwed) : "")
             color: w.ink
             font.family: w.face
             font.pixelSize: w.unit * 0.8

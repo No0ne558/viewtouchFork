@@ -249,3 +249,24 @@ About 15 of the old zone types (STANDARD, SIMPLE, CONDITIONAL, TOGGLE, SWITCH, I
 ## Immediate next step after approval
 
 Do M0: create the `Modernization` branch, scaffold `modern/`, and commit. Then start M1: the layout model, the JSON format and seed pages, and PageView rendering.
+
+---
+
+## Roadmap after M5 (agreed 2026-09-29)
+
+M0–M5 are done. Work continues on the `Modernization` branch; the pull request
+comes once everything works as intended.
+
+- **M6: Tips & cash handling** (done)
+  - Tips on card payments (15/18/20% or a typed amount).
+  - Auto-gratuity for large parties (settings).
+  - A drawer and a receipt printer per terminal.
+  - Drawer pay-outs and paid-ins; servers cash out tips from the drawer.
+  - Tips report.
+- **M7: Install & run as a service**
+  - Packages for Fedora and Debian/Ubuntu/Raspberry Pi OS (x86_64 + aarch64).
+  - Server as a systemd service; terminals start in kiosk mode at boot.
+  - Automatic database backups.
+  - Store hours / meal periods as settings.
+- **Hands-on fixing** (ongoing): issues found on real hardware get fixed as they come in.
+- **M8: Card payments** (last): processor to be chosen (Stripe Terminal, Square, …) behind a payment-processor interface with a simulator for tests.

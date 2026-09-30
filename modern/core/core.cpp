@@ -1,6 +1,7 @@
 // Implementation of the pure-C++ POS domain (tax, menu, employees, checks).
 
 #include "core/check.hh"
+#include "core/day.hh"
 #include "core/employee.hh"
 #include "core/menu.hh"
 #include "core/tax.hh"
@@ -95,6 +96,25 @@ std::set<std::string> permissionsForRole(const std::string &role)
     if (role == "cashier" || role == "server")
         return {perm::Order, perm::Settle};
     return {};
+}
+
+// --- day ---------------------------------------------------------------------------
+
+std::string toString(CashMovement::Kind k)
+{
+    switch (k) {
+    case CashMovement::Kind::Payout: return "payout";
+    case CashMovement::Kind::PaidIn: return "paidIn";
+    case CashMovement::Kind::TipPayout: return "tipPayout";
+    }
+    return "payout";
+}
+
+CashMovement::Kind cashMovementKindFromString(const std::string &s)
+{
+    if (s == "paidIn") return CashMovement::Kind::PaidIn;
+    if (s == "tipPayout") return CashMovement::Kind::TipPayout;
+    return CashMovement::Kind::Payout;
 }
 
 // --- enums -------------------------------------------------------------------------
@@ -358,8 +378,11 @@ Totals Check::totals(const TaxRates &rates) const
         t.tax += tax;
     }
 
-    t.total = t.subtotal + t.tax;
+    // Gratuity: on the (discounted) subtotal, not taxed, added after tax.
+    t.gratuity = t.subtotal.percent(gratuityBp);
+    t.total = t.subtotal + t.tax + t.gratuity;
     for (const Payment &p : payments) {
+        t.tips += p.tip;
         if (p.kind != TenderKind::Discount)
             t.paid += p.amount;
         if (p.kind == TenderKind::Cash)

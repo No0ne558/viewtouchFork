@@ -50,6 +50,15 @@ Item {
             spacing: w.unit * 0.2
             Line { name: qsTr("Starting cash"); value: w.d.startingCash ?? "" }
             Line { name: qsTr("Cash sales"); value: w.d.cashSales ?? "" }
+            Repeater {
+                model: w.d.movements ?? []
+                delegate: Line {
+                    required property var modelData
+                    name: modelData.what + "  (" + modelData.time + ")"
+                    value: modelData.amount
+                    tint: "#b8c0cc"
+                }
+            }
             Line { name: qsTr("Expected in drawer"); value: w.d.expected ?? ""; strong: true }
             Line { visible: !w.d.open; name: qsTr("Counted"); value: w.d.counted ?? "" }
             Line {
@@ -79,6 +88,15 @@ Item {
             font.family: w.face
             font.pixelSize: w.unit
         }
+        Text {
+            visible: (w.d.open ?? false) && w.pos && w.pos.textEntry !== ""
+            text: qsTr("Reason: %1").arg(w.pos ? w.pos.textEntry : "")
+            color: "#f5b940"
+            font.family: w.face
+            font.pixelSize: w.unit * 0.8
+            Layout.fillWidth: true
+            elide: Text.ElideRight
+        }
         RowLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: w.unit * 3
@@ -98,6 +116,29 @@ Item {
                 text: qsTr("No Sale")
                 fontScale: 0.34
                 onClicked: w.pos.noSale()
+            }
+        }
+        // Manager: cash taken out (vendor, ice…) or put in (change). The
+        // reason comes from the Reason… keyboard page when typed.
+        RowLayout {
+            visible: w.d.open ?? false
+            Layout.fillWidth: true
+            Layout.preferredHeight: w.unit * 3
+            Layout.fillHeight: false
+            spacing: w.unit * 0.4
+            WidgetKey {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                text: qsTr("Pay Out")
+                fontScale: 0.34
+                onClicked: w.pos.payout("payout")
+            }
+            WidgetKey {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                text: qsTr("Paid In")
+                fontScale: 0.34
+                onClicked: w.pos.payout("paidIn")
             }
         }
     }

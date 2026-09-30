@@ -28,9 +28,22 @@ struct RecordingPrinter : app::PosPrinter {
             k.lines.push_back(l.name);
         kitchen.push_back(k);
     }
-    void printReceipt(const core::PosSettings &, const core::Check &c) override { receipts.push_back(c.id); }
-    void printReport(const core::PosSettings &, const core::Report &r) override { reports.push_back(r.title); }
-    void openDrawer(const core::PosSettings &) override { ++drawerKicks; }
+    std::string lastPrinter;
+    void printReceipt(const core::PosSettings &, const core::Check &c, const std::string &printer) override
+    {
+        receipts.push_back(c.id);
+        lastPrinter = printer;
+    }
+    void printReport(const core::PosSettings &, const core::Report &r, const std::string &printer) override
+    {
+        reports.push_back(r.title);
+        lastPrinter = printer;
+    }
+    void openDrawer(const core::PosSettings &, const std::string &printer) override
+    {
+        ++drawerKicks;
+        lastPrinter = printer;
+    }
 };
 
 struct Pos {
@@ -137,7 +150,7 @@ TEST_CASE("Cash needs an open drawer; the drawer tracks net cash", "[m4][drawer]
     CHECK_FALSE(d[u"open"_s].toBool());
     CHECK(d[u"overShortCents"_s].toLongLong() == -17);
     CHECK(notices.last()[0].toString().contains(u"short"_s));
-    CHECK(t.printer.reports.back() == "Drawer");
+    CHECK(t.printer.reports.back() == "Drawers");
 }
 
 TEST_CASE("Reports add up the day's closed checks", "[m4][reports]")

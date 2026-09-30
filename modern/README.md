@@ -34,7 +34,9 @@ The full design and milestones are in [docs/PLAN.md](docs/PLAN.md).
 | M3 Core POS flow (login → order → pay) | done |
 | M4 Printing, drawers, reports, end of day, admin screens, split check | done |
 | M5 Several terminals on one server, kitchen display, takeout/delivery details | done |
-| Later | Card processor, WebSocket/browser terminals, per-terminal printers and drawers |
+| M6 Tips, party gratuity, per-terminal drawers and printers, pay outs / paid ins, tip cash-out | done |
+| M7 Install and run as a service (Fedora, Debian/Ubuntu, Raspberry Pi), kiosk mode, backups | next |
+| M8 Card payments | last |
 
 ## Several terminals
 
@@ -55,7 +57,7 @@ One machine keeps the data; the others connect to it:
 - **Page edits reach every terminal.** Pages edited on any terminal are saved on the server and pushed to the others. Saving needs a manager on that terminal.
 - **Lost connection.** A terminal that loses the server shows *Reconnecting…*, keeps trying, and returns to the login page when the server is back.
 - **Responsiveness.** Terminals never wait on the network. Button actions continue when the server answers, and touches are ignored until then.
-- **Printing.** All printing happens at the server's printers, and the cash drawer is shared.
+- **Printing.** All printing happens at the server's printers. Each terminal has its own drawer and prints receipts on the printer set for it in Manager → Terminals (default: the "receipt" printer).
 - **Security.** The connection is plain TCP on your local network, with no encryption or terminal passwords. Keep it on a trusted network; PINs are still required for everything.
 
 ## Kitchen display and takeout / delivery
@@ -66,6 +68,15 @@ One machine keeps the data; the others connect to it:
   - Each station bumps only its own lines, so the bar clearing drinks leaves the kitchen's food on its screen.
   - Paid-first counter orders stay on screen until they are bumped.
 - **Takeout / Delivery** (floor plan) asks for the customer: name, phone, address and a note. The details save as you type. They print on the receipt and kitchen tickets and show on the order, the kitchen card and the check list. A takeout or delivery that is put away with nothing ordered is discarded.
+
+## Tips and cash handling
+
+- **Tips** go on card payments. On the settle page, touch 15%, 18% or 20%, or type an amount and touch Amount. The receipt, the Tips report and the server's "tips owed" show them.
+- **Party gratuity.** Dine-in checks with at least *min guests* get the store's gratuity (Manager → Settings; 18% for 6+ by default, 0 turns it off). Anyone can add it on the settle page; lowering an automatic one needs a manager. Gratuity is part of the check total; tips are on top.
+- **Drawers per terminal.** Each terminal starts, counts and balances its own drawer ("Bar drawer"). Cash payments need this terminal's drawer open, and End of Day waits until every drawer is counted.
+- **Pay outs and paid ins** (Drawer page, manager): type the amount, optionally touch Reason…, then Pay Out or Paid In. They show in the drawer's expected cash and on the Drawers report.
+- **Cash out tips.** Logout → Cash Out My Tips pays the card tips owed to you from this terminal's drawer.
+- **Manager → Terminals** sets each terminal's receipt printer (and so its drawer kick).
 
 ## Running the POS
 

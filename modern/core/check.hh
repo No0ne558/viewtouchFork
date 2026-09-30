@@ -64,8 +64,9 @@ struct Payment {
     std::string tenderId;
     std::string tenderName;
     TenderKind kind = TenderKind::Cash;
-    Money amount;                 // Cash/Card
+    Money amount;                 // Cash/Card: what it pays toward the check
     std::int64_t percentBp = 0;   // Discount, applied to the current items total
+    Money tip;                    // Card: tip on top of the amount (owed to the server)
 
     bool operator==(const Payment &) const = default;
 };
@@ -98,8 +99,10 @@ struct Totals {
     Money subtotal;      // items - discounts
     Money tax;
     std::map<TaxClass, Money> taxByClass;
-    Money total;         // subtotal + tax
-    Money paid;          // cash + card
+    Money gratuity;      // service charge on the subtotal (owed to the server)
+    Money total;         // subtotal + tax + gratuity
+    Money paid;          // cash + card toward the total (tips not included)
+    Money tips;          // card tips, on top of the total
     Money cashPaid;      // cash tendered
     Money balance;       // total - paid (negative = change owed)
     Money change;        // max(0, -balance), always given in cash
@@ -125,6 +128,8 @@ struct Check {
     std::int64_t businessDay = 0;     // day the check was closed in
     std::int64_t drawerSession = 0;   // drawer that took its cash
     Customer customer;
+    std::int64_t gratuityBp = 0;      // e.g. 1800 = 18% of the subtotal
+    bool autoGratuity = false;        // added for a large party (not by hand)
 
     OrderLine *line(std::int64_t lineId);
     const OrderLine *line(std::int64_t lineId) const;

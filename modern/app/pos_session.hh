@@ -55,6 +55,8 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantMap day READ dayInfo NOTIFY dayChanged)
     Q_PROPERTY(QVariantList days READ days NOTIFY dayChanged)
     Q_PROPERTY(int adminRevision READ adminRevision NOTIFY adminChanged)
+    // The logged-in employee's card tips + gratuity not yet paid out.
+    Q_PROPERTY(QString tipsOwed READ tipsOwed NOTIFY dayChanged)
     // Bumps when an asynchronous query (report, admin records) has an answer.
     Q_PROPERTY(int queryRevision READ queryRevision NOTIFY queriesChanged)
 
@@ -101,6 +103,7 @@ public:
     virtual QVariantMap dayInfo() const = 0;
     virtual QVariantList days() const = 0;
     virtual int adminRevision() const = 0;
+    virtual QString tipsOwed() const = 0;
     virtual int queryRevision() const { return 0; }
 
     virtual void selectLine(qint64 lineId) { invoke(QStringLiteral("selectLine"), {lineId}); }
@@ -150,6 +153,12 @@ public:
     }
     Q_INVOKABLE void recallTicket() { invoke(QStringLiteral("recallTicket")); }
     Q_INVOKABLE void setCustomer(const QVariantMap &customer) { invoke(QStringLiteral("setCustomer"), {customer}); }
+    // percent: 15, 18, 20...; 0 = the keypad amount.
+    Q_INVOKABLE void addTip(double percent) { invoke(QStringLiteral("addTip"), {qint64(percent * 100 + 0.5)}); }
+    Q_INVOKABLE void setGratuity(double percent) { invoke(QStringLiteral("setGratuity"), {qint64(percent * 100 + 0.5)}); }
+    // kind: "payout" | "paidIn"
+    Q_INVOKABLE void payout(const QString &kind) { invoke(QStringLiteral("payout"), {kind}); }
+    Q_INVOKABLE void cashOutTips() { invoke(QStringLiteral("cashOutTips")); }
 
 signals:
     void sessionChanged();

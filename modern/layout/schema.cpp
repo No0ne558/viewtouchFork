@@ -254,7 +254,11 @@ QJsonArray actionTypes()
                             {"clockOut", "Clock out"}, {"startCheck", "Start table check"},
                             {"startQuick", "Start quick check"}, {"startTakeout", "Start takeout"},
                             {"releaseCheck", "Put check away"}, {"addComment", "Add note"},
-                            {"openAdmin", "Admin screen"}, {"editMode", "Edit pages"}}))}),
+                            {"openAdmin", "Admin screen"}, {"editMode", "Edit pages"},
+                            {"addTip", "Add tip (args.percent)"}, {"gratuity", "Gratuity (args.percent)"},
+                            {"payout", "Pay out of drawer"}, {"paidIn", "Pay into drawer"},
+                            {"cashOutTips", "Cash out my tips"}, {"clearText", "Clear typed text"}, {"recallTicket", "Recall kitchen ticket"},
+                            {"startDelivery", "Start delivery"}}))}),
     };
 }
 

@@ -141,8 +141,8 @@ TEST_CASE("TicketPrinter routes kitchen lines by printer and writes files", "[pr
     const core::Check c = burgerCheck(seed.settings, seed.menu);
 
     printer.printKitchen(seed.settings, c, c.lines, false);
-    printer.printReceipt(seed.settings, c);
-    printer.openDrawer(seed.settings);
+    printer.printReceipt(seed.settings, c, "receipt");
+    printer.openDrawer(seed.settings, "receipt");
     REQUIRE(spooler.waitIdle(5000));
 
     const QString kitchen = readFile(dir.filePath(u"kitchen.txt"_s));

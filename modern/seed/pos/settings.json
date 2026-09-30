@@ -68,5 +68,10 @@
     }
   ],
   "receiptHeader": "123 Main Street\nOpen daily 7am - 10pm",
+  "gratuity": {
+    "percent": 18,
+    "minGuests": 6
+  },
+  "terminals": [],
   "receiptFooter": "Thank you for visiting!\nPowered by ViewTouch"
 }
