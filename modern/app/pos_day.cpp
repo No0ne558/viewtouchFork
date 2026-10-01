@@ -601,7 +601,12 @@ QVariantMap PosService::customerPrompt() const
     QVariantMap loyalty{{u"enabled"_s, s_->settings.loyaltyEnabled}};
     if (s_->settings.loyaltyEnabled && c) {
         const CustomerRecord *r = s_->customer(c->customerId);
-        loyalty.insert(u"member"_s, r ? qs(r->name.empty() ? r->phone : r->name) : QString());
+        // On a screen the room can see: a first name, never the phone number.
+        const std::string digits = r ? CustomerRecord::digits(r->phone) : std::string();
+        loyalty.insert(u"member"_s, !r ? QString()
+                                    : !r->name.empty() ? qs(r->name.substr(0, r->name.find(' ')))
+                                    : tr("...%1").arg(qs(digits.size() > 4 ? digits.substr(digits.size() - 4) : digits)));
+        loyalty.insert(u"named"_s, r && !r->name.empty());
         loyalty.insert(u"points"_s, r ? r->points : 0);
         loyalty.insert(u"earning"_s, pointsFor(*c));
         QVariantList rewards;

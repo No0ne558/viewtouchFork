@@ -171,7 +171,12 @@ Reports have a row of periods: *Day* (one business day, as before), *This Week*,
 
 ## Customer display
 
-A second monitor facing the guest shows their order as it is rung up, the total, and "Thank you" with their change. On Settle, **Ask Guest for Tip** shows the tip choices (Store Settings → *Tip choices for guests*, 15, 18, 20 and 25 % to start) and *No tip*; the guest's choice goes on their card payment, now or when it is added.
+A second monitor facing the guest:
+
+- **Between guests:** the logo (or store name) in the store's color, then its messages and pictures in turn (Store Settings → *Customer display: between guests*, one per line; `image:/path/photo.jpg` for a picture), plus any promotion running now.
+- **While ordering:** the table or check number, each item with its choices (add-on prices shown as +$1.00), voids struck through, discounts and promotions, the total. With loyalty on, *Earn rewards*: the guest types their phone number on the screen's keypad and is found or signed up. It shows their first name (never the number), their points and what this visit earns.
+- **Tips:** on Settle, **Ask Guest for Tip** offers the tip choices, a custom amount on the keypad, or no tip; the choice goes on their card payment.
+- **After paying:** "Thank you", their change and the points they earned, and *Print receipt*, *Text me* (when texting is set up) or *No receipt*.
 
 Start with `--customer-display auto` (or `customer-display = auto` in the kiosk's .conf): on a desktop it opens a full-screen window on the other monitor; on a kiosk, whose one window spans both monitors, the POS stays on the left monitor and the guest's side is on the right. With one monitor, `--customer-display split` puts it in the right third, to try it out.
 

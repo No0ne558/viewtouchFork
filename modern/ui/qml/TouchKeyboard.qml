@@ -123,16 +123,16 @@ Rectangle {
                             color: "white"
                             font.pixelSize: Math.max(14, Math.min(key.height * 0.42, 30))
                         }
-                        // A MouseArea never takes the focus: the field keeps it.
-                        MouseArea {
+                        // A TapHandler never takes the focus (the field keeps it), and
+                        // every tap counts: "ll" is two letters, not a double-click.
+                        TapHandler {
                             id: tap
-                            anchors.fill: parent
-                            onClicked: kb.press(key.modelData)
-                            pressAndHoldInterval: 400
-                            onPressAndHold: if (key.modelData === "back") repeat.start()
-                            onReleased: repeat.stop()
-                            Timer { id: repeat; interval: 70; repeat: true; onTriggered: kb.press("back") }
+                            longPressThreshold: 0.4
+                            onTapped: kb.press(key.modelData)
+                            onLongPressed: if (key.modelData === "back") repeat.start()
+                            onPressedChanged: if (!pressed) repeat.stop()
                         }
+                        Timer { id: repeat; interval: 70; repeat: true; onTriggered: kb.press("back") }
                     }
                 }
             }

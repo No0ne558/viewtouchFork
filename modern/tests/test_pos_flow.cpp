@@ -438,40 +438,77 @@ TEST_CASE("UI: the customer display shows the order, asks for a tip, says thank 
     REQUIRE(QTest::qWaitForWindowExposed(window));
     const QByteArray dir = qgetenv("VTM_SHOTS");
     const auto shot = [&](const char *name) {
-        QTest::qWait(50);
+        QTest::qWait(60);
         if (!dir.isEmpty())
             window->grabWindow().save(QString::fromLocal8Bit(dir) + u'/' + QString::fromLatin1(name) + u".png"_s);
+    };
+    std::function<QQuickItem *(QQuickItem *, const QString &)> find = [&](QQuickItem *root, const QString &text) -> QQuickItem * {
+        for (QQuickItem *i : root->childItems()) {
+            if (!i->isVisible())
+                continue;
+            if (i->property("text").toString() == text)
+                return i;
+            if (QQuickItem *hit = find(i, text))
+                return hit;
+        }
+        return nullptr;
+    };
+    std::function<QQuickItem *(QQuickItem *, const QString &)> named = [&](QQuickItem *root, const QString &name) -> QQuickItem * {
+        for (QQuickItem *i : root->childItems()) {
+            if (i->isVisible() && i->objectName() == name)
+                return i;
+            if (QQuickItem *hit = named(i, name))
+                return hit;
+        }
+        return nullptr;
+    };
+    const auto tap = [&](const QString &text) {
+        QQuickItem *item = named(window->contentItem(), u"guestKey-"_s + text);   // a keypad key, else by its text
+        if (!item)
+            item = find(window->contentItem(), text);
+        INFO(text.toStdString());
+        REQUIRE(item);
+        QTest::mouseClick(window, Qt::LeftButton, {}, item->mapToScene(QPointF(item->width() / 2, item->height() / 2)).toPoint());
+        QTest::qWait(30);
     };
     REQUIRE(s.pos.loginWithPin(u"1234"_s));
     s.pos.entryKey(u"10000"_s);
     REQUIRE(s.pos.openDrawerSession());
     shot("10-display-welcome");
-    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
-    s.pos.addItem(u"cobb"_s);
+
+    REQUIRE(s.pos.selectTable(u"T4"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    s.pos.addItem(u"bacon-burger"_s);
+    s.pos.addItem(u"medium-rare"_s);
+    s.pos.addItem(u"onion-rings"_s);
+    s.pos.addItem(u"house-salad"_s);
+    REQUIRE(s.pos.chooseOption(u"dressing"_s, 0));
+    REQUIRE(s.pos.chooseOption(u"salad-protein"_s, 0));
+    REQUIRE(s.pos.finishChoosing());
     s.pos.addItem(u"water"_s);
-    s.pos.addItem(u"caesar"_s);                       // needs nothing chosen
+    // The guest joins rewards with their phone number.
+    tap(u"Earn rewards: touch to add your phone"_s);
+    for (const char *k : {"5", "5", "5", "0", "1", "0", "1", "2", "3", "4"})
+        tap(QString::fromLatin1(k));
+    tap(u"OK"_s);
+    CHECK(s.pos.customerPrompt()[u"loyalty"_s].toMap()[u"member"_s].toString() == u"...1234"_s);   // never the whole number
     shot("11-display-order");
+
     REQUIRE(s.pos.askForTip());
     shot("12-display-tip");
-    // The guest touches 20%.
-    auto *contentItem = window->contentItem();
-    std::function<QQuickItem *(QQuickItem *)> find = [&](QQuickItem *root) -> QQuickItem * {
-        for (QQuickItem *i : root->childItems()) {
-            if (i->isVisible() && i->property("text").toString() == u"20%"_s)
-                return i;
-            if (QQuickItem *hit = find(i))
-                return hit;
-        }
-        return nullptr;
-    };
-    QQuickItem *twenty = find(contentItem);
-    REQUIRE(twenty);
-    QTest::mouseClick(window, Qt::LeftButton, {}, twenty->mapToScene(QPointF(twenty->width() / 2, twenty->height() / 2)).toPoint());
-    QTest::qWait(30);
-    CHECK(s.pos.customerPrompt()[u"tipChosen"_s].toBool());
-    REQUIRE(s.pos.tender(u"cash"_s, 4000));
+    tap(u"Custom amount"_s);
+    for (const char *k : {"5", "0", "0"})
+        tap(QString::fromLatin1(k));
+    tap(u"OK"_s);
+    CHECK(s.pos.customerPrompt()[u"tip"_s] == u"$5.00"_s);
+    const int earning = s.pos.customerPrompt()[u"loyalty"_s].toMap()[u"earning"_s].toInt();
+    CHECK(earning > 20);
+    REQUIRE(s.pos.tender(u"credit"_s));
     REQUIRE(s.pos.closeCheck());
     shot("13-display-thanks");
+    CHECK(find(window->contentItem(), u"You earned %1 points"_s.arg(earning)));
+    tap(u"No receipt"_s);
+    CHECK_FALSE(find(window->contentItem(), u"Print receipt"_s));
 }
 
 TEST_CASE("UI: the kitchen display with a rush ticket and the all-day counts", "[flow][ui][kitchen]")
