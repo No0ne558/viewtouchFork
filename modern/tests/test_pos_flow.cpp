@@ -273,9 +273,17 @@ TEST_CASE("UI flow: keypad login, table map, guest pad, menu, pay", "[flow][ui]"
 
     s.tapCanvas(592 + 444 + 200, 192 + 120);  // Salads
     CHECK(s.c.pageId() == u"items-salads"_s);
-    s.tapCanvas(592 + 150, 192 + 90);         // House Salad
+    s.tapCanvas(592 + 150, 192 + 90);         // House Salad: it asks for a dressing
+    CHECK(s.c.pageId() == u"modifiers"_s);
+    s.tapKey(u"Done"_s);                      // not without the dressing
+    CHECK(s.c.pageId() == u"modifiers"_s);
+    s.tapKey(u"Ranch"_s);
+    s.shot("2-choose");
+    s.tapKey(u"Done"_s);
+    CHECK(s.c.pageId() == u"items-salads"_s);
     CHECK(s.pos.lines().size() == 1);
-    s.tapCanvas(592 + 444 + 150, 192 + 90);   // Caesar
+    s.tapCanvas(592 + 444 + 150, 192 + 90);   // Caesar: a protein is optional
+    s.tapKey(u"Done"_s);
     CHECK(s.pos.lines().size() == 2);
     s.shot("2-order");
 
@@ -311,9 +319,12 @@ TEST_CASE("UI: seats and courses on the order screen; Fire sends the held course
     s.tapKey(u"+"_s);                                   // seat 1
     CHECK(s.pos.checkInfo()[u"seat"_s] == 1);
     s.tapCanvas(592 + 150, 192 + 90);                   // House Salad, seat 1
+    s.tapKey(u"Ranch"_s);
+    s.tapKey(u"Done"_s);
     s.tapKey(u"+"_s);                                   // seat 2
     s.tapKey(u"2"_s);                                   // course 2
     s.tapCanvas(592 + 444 + 150, 192 + 90);             // Caesar, seat 2, course 2
+    s.tapKey(u"Done"_s);
     const QVariantList lines = s.pos.lines();
     REQUIRE(lines.size() == 2);
     CHECK(lines[0].toMap()[u"seat"_s] == 1);

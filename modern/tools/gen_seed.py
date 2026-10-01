@@ -77,6 +77,20 @@ for n, p in BURGERS: menu(n, p, "burgers")
 for n, p in SALADS: menu(n, p, "salads")
 for n, p, t in DRINKS: menu(n, p, "drinks", tax=t, printer="bar")
 for n, p in BREAKFAST: menu(n, p, "breakfast")
+
+# Choices asked for when an item is ordered (the Choose page). Burgers keep
+# their Temperature -> Side pages: both ways work.
+def item(id):
+    return next(m for m in MENU if m["id"] == id)
+for sid in ("house-salad", "greek"):
+    item(sid)["modifierGroups"] = ["dressing", "salad-protein"]
+for sid in ("caesar", "cobb"):
+    item(sid)["modifierGroups"] = ["salad-protein"]
+item("two-eggs")["modifierGroups"] = ["eggs"]
+item("omelette")["modifierGroups"] = ["omelette-fillings"]
+# Dinner portions and the evening wine price.
+for bid, price in (("classic-burger", 12.50), ("bacon-burger", 14.50), ("house-wine", 9.00)):
+    item(bid)["periodPrices"] = {"dinner": price}
 for n in TEMPS: menu(n, 0.00, "temperature", modifier=True)
 for n, p in SIDES: menu(n, p, "sides", modifier=True)
 write("pos/menu.json", MENU, versioned=False)
@@ -113,6 +127,19 @@ write("pos/settings.json", {
     "terminals": [],
     # Servers carry their own bank; terminals need no drawer of their own.
     "cashMode": "serverBank",
+    "modifierGroups": [
+        {"id": "dressing", "name": "Dressing", "min": 1, "max": 1,
+         "options": [{"name": n, "price": 0} for n in ("Ranch", "Blue Cheese", "Balsamic", "Caesar", "Oil & Vinegar")]},
+        {"id": "salad-protein", "name": "Add a Protein", "min": 0, "max": 1,
+         "options": [{"name": "Grilled Chicken", "price": 4.00}, {"name": "Shrimp", "price": 5.00},
+                     {"name": "Salmon", "price": 6.00}]},
+        {"id": "eggs", "name": "Eggs", "min": 1, "max": 1,
+         "options": [{"name": n, "price": 0} for n in ("Scrambled", "Over Easy", "Over Medium", "Sunny Side Up", "Poached")]},
+        {"id": "omelette-fillings", "name": "Fillings", "min": 0, "max": 3,
+         "options": [{"name": "Cheese", "price": 0}, {"name": "Ham", "price": 1.00}, {"name": "Mushrooms", "price": 0},
+                     {"name": "Peppers", "price": 0}, {"name": "Onions", "price": 0}, {"name": "Spinach", "price": 0},
+                     {"name": "Bacon", "price": 1.50}]},
+    ],
     "mealPeriods": [{"id": "breakfast", "name": "Breakfast", "start": "04:00"},
                     {"id": "lunch", "name": "Lunch", "start": "11:00"},
                     {"id": "dinner", "name": "Dinner", "start": "16:00"}],
@@ -302,6 +329,19 @@ page("customer", "Customer", "custom", [
     zone("menu", 1472, 944, 432, 120, "Continue to Menu ›", actions=[jump(mode="index")], style=fill(GREEN)),
 ])
 
+# Choices for the item just ordered (its modifier groups). Inside the order
+# screen, like item pages, so phones frame it too.
+page("modifiers", "Choose", "modifier", [
+    zone("choices", 592, 104, 1312, 860, kind="modifierPicker"),
+], templateId="order-template", role="modifiers")
+
+# Sold out (86): from Check Options or the Manager page.
+page("sold-out", "Sold Out (86)", "custom", [
+    label("title", 16, 16, 1888, 80, "Touch an item to mark it sold out, or back on"),
+    zone("list", 16, 112, 1888, 816, kind="soldOutList"),
+    zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+], permission="order")
+
 # --- managing a check (from the order screen's Check… tab) ---
 page("check-options", "Check Options", "custom", [
     label("title", 16, 16, 1888, 80, "This check"),
@@ -310,6 +350,7 @@ page("check-options", "Check Options", "custom", [
     zone("move", 932, 278, 972, 150, "Move to Another Table…", actions=[jump(page="move-table")]),
     zone("merge", 932, 444, 972, 150, "Merge Another Check Into This One…", actions=[jump(page="merge")]),
     zone("reopen", 932, 610, 972, 150, "Reopen a Closed Check… (manager)", actions=[jump(page="closed-checks")]),
+    zone("sold-out", 932, 776, 972, 150, "Sold Out (86)…", actions=[jump(page="sold-out")]),
     zone("back", 932, 944, 972, 120, "‹ Back to the Order", actions=[jump(mode="back")]),
 ], permission="order")
 page("transfer", "Transfer Check", "custom", [
@@ -384,16 +425,18 @@ page("logout", "Log Out", "logout", [
 
 admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"), ("Taxes", "taxes"),
          ("Tenders", "tenders"), ("Printers", "printers"), ("Reports", "reports"), ("Banks & Drawers", "drawers"),
-         ("End of Day", "endOfDay"), ("Terminals", "terminals"), ("Meal Periods", "mealPeriods")]
+         ("End of Day", "endOfDay"), ("Terminals", "terminals"), ("Meal Periods", "mealPeriods"),
+         ("Modifier Groups", "modifierGroups")]
 mgr = [label("title", 160, 40, 1600, 100, "Manager")]
 for i, (text, panel) in enumerate(admin):
     col, row = i % 4, i // 4
     mgr.append(zone(f"admin-{panel}", 160 + col * 408, 160 + row * 180, 384, 160, text,
                     actions=[command("openAdmin", panel=panel)]))
 mgr += [
-    # grid slots 11 (row 2), 12, 14 and 15 (row 3)
-    zone("kitchen-display", 1384, 520, 384, 160, "Kitchen Display", actions=[jump(page="kitchen")]),
-    zone("bar-display", 160, 700, 384, 160, "Bar Display", actions=[jump(page="bar-display")]),
+    # grid slots 12 and 13 (row 3), then 14 and 15
+    zone("kitchen-display", 160, 700, 384, 160, "Kitchen Display", actions=[jump(page="kitchen")]),
+    zone("bar-display", 568, 700, 384, 160, "Bar Display", actions=[jump(page="bar-display")]),
+    zone("sold-out", 1384, 880, 384, 160, "Sold Out (86)…", actions=[jump(page="sold-out")]),
     zone("edit-pages", 1384, 700, 384, 160, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
     # Touch twice. On a kiosk screen it stays closed until the next boot.
     zone("close-app", 976, 700, 384, 160, "Close ViewTouch", actions=[command("closeApp")], behavior="double",
@@ -407,7 +450,8 @@ for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees
                          ("admin-tenders", "Payment Types", "tenders"), ("admin-printers", "Printers", "printers"),
                          ("admin-taxes", "Taxes", "taxes"), ("admin-store", "Store Settings", "store"),
                          ("admin-terminals", "Terminals", "terminals"),
-                         ("admin-meal-periods", "Meal Periods", "mealPeriods")]:
+                         ("admin-meal-periods", "Meal Periods", "mealPeriods"),
+                         ("admin-modifier-groups", "Modifier Groups", "modifierGroups")]:
     page(pid, name, "manager", [
         label("title", 16, 16, 1888, 80, name),
         zone("editor", 16, 112, 1888, 816, kind="adminPanel", props={"panel": panel}),

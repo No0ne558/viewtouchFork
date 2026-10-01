@@ -94,6 +94,11 @@ QVariantList PosService::adminFields(const QString &panel)
             with(field(u"printer"_s, tr("Kitchen ticket goes to"), u"enum"_s), u"options"_s, printers),
             field(u"modifier"_s, tr("Is a modifier (attaches to the item before it)"), u"bool"_s),
             field(u"available"_s, tr("Available (untick when sold out / 86'd)"), u"bool"_s),
+            field(u"modifierGroups"_s, tr("Modifier groups"), u"string"_s,
+                  tr("Choices asked for when it's ordered, by group ID, comma separated: %1")
+                      .arg(groupIds().join(u", "))),
+            field(u"periodPrices"_s, tr("Prices by meal period"), u"text"_s,
+                  tr("One per line, e.g. \"dinner = 14.50\". Meal periods: %1").arg(periodIds().join(u", "))),
         };
     }
     if (panel == u"employees") {
@@ -170,6 +175,16 @@ QVariantList PosService::adminFields(const QString &panel)
             with(with(field(u"gratuityMinGuests"_s, tr("…for tables of at least"), u"int"_s), u"min"_s, 1), u"max"_s, 99),
         };
     }
+    if (panel == u"modifierGroups") {
+        return {
+            field(u"name"_s, tr("Name"), u"string"_s, tr("What the server sees, e.g. Temperature")), readonlyId,
+            with(with(field(u"min"_s, tr("Choices required"), u"int"_s, tr("0 = optional")), u"min"_s, 0), u"max"_s, 20),
+            with(with(field(u"max"_s, tr("Most choices allowed"), u"int"_s,
+                            tr("1 = pick one (a new choice replaces it), 0 = any number")), u"min"_s, 0), u"max"_s, 20),
+            field(u"options"_s, tr("Options"), u"text"_s,
+                  tr("One per line; a price after +, e.g. \"Onion Rings + 1.50\"")),
+        };
+    }
     if (panel == u"mealPeriods") {
         return {
             field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
@@ -214,7 +229,7 @@ QVariantList PosService::adminRecords(const QString &panel)
     };
     if (panel == u"menu") {
         for (const MenuItem &m : s_->menu)
-            add(toJson(m).toVariantMap(), qs(m.name),
+            add(menuRecord(m), qs(m.name),
                 format(m.price) + (m.isModifier ? tr(" · modifier") : QString())
                     + (m.available ? QString() : tr(" · SOLD OUT")));
     } else if (panel == u"employees") {
@@ -258,6 +273,15 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"terminalsHaveDrawer"_s, s_->settings.terminalsHaveDrawer},
              {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks}},
             tr("Store"), QString());
+    } else if (panel == u"modifierGroups") {
+        for (const ModifierGroup &g : s_->settings.modifierGroups) {
+            QStringList lines;
+            for (const ModifierOption &o : g.options)
+                lines << (o.price.cents() ? u"%1 + %2"_s.arg(qs(o.name), qs(o.price.toString())) : qs(o.name));
+            add({{u"id"_s, qs(g.id)}, {u"name"_s, qs(g.name)}, {u"min"_s, g.min}, {u"max"_s, g.max},
+                 {u"options"_s, lines.join(u'\n')}},
+                qs(g.name), tr("%1 options").arg(g.options.size()) + (g.min > 0 ? tr(" · required") : QString()));
+        }
     } else if (panel == u"mealPeriods") {
         for (const MealPeriod &m : s_->settings.mealPeriods)
             add({{u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"start"_s, clockText(m.start)}}, qs(m.name),
@@ -279,7 +303,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
 {
     if (panel == u"menu")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"price"_s, 0.0}, {u"family"_s, QString()},
-                {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"modifier"_s, false}, {u"available"_s, true}};
+                {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"modifier"_s, false}, {u"available"_s, true},
+                {u"modifierGroups"_s, QString()}, {u"periodPrices"_s, QString()}};
     if (panel == u"employees")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
                 {u"active"_s, true}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()}};
@@ -290,6 +315,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"screen"_s, QString()}};
     if (panel == u"mealPeriods")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
+    if (panel == u"modifierGroups")
+        return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"min"_s, 1}, {u"max"_s, 1}, {u"options"_s, QString()}};
     if (panel == u"printers")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"type"_s, u"network"_s}, {u"host"_s, QString()},
                 {u"port"_s, 9100}, {u"path"_s, QString()}, {u"format"_s, QString()}, {u"width"_s, 42},
@@ -312,6 +339,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         ok = savePrinterRecord(index, record);
     } else if (panel == u"mealPeriods") {
         ok = saveMealPeriodRecord(index, record);
+    } else if (panel == u"modifierGroups") {
+        ok = saveModifierGroupRecord(index, record);
     } else if (panel == u"terminals") {
         const QString name = record.value(u"name"_s).toString().trimmed();
         if (name.isEmpty())
@@ -392,7 +421,34 @@ bool PosService::saveMenuRecord(int index, const QVariantMap &record)
         return fail(tr("The item needs a name."));
     if (number(record, u"price") < 0)
         return fail(tr("Prices cannot be negative."));
-    MenuItem item = menuItemFromJson(QJsonObject::fromVariantMap(record));
+    // The form's text fields, as menu data.
+    QVariantMap data = record;
+    QVariantList groups;
+    for (QString g : record.value(u"modifierGroups"_s).toString().split(u',', Qt::SkipEmptyParts)) {
+        g = g.trimmed();
+        if (g.isEmpty())
+            continue;
+        if (!s_->settings.modifierGroup(ss(g)))
+            return fail(tr("There is no modifier group '%1' (see Manager → Modifier Groups).").arg(g));
+        groups << g;
+    }
+    data.insert(u"modifierGroups"_s, groups);
+    QVariantMap prices;
+    for (const QString &line : record.value(u"periodPrices"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
+        const QStringList kv = line.split(u'=');
+        bool ok = false;
+        const double price = kv.value(1).trimmed().remove(qs(s_->settings.currencySymbol)).toDouble(&ok);
+        const QString period = kv.value(0).trimmed();
+        if (period.isEmpty() && line.trimmed().isEmpty())
+            continue;
+        if (kv.size() != 2 || !ok || price < 0 || period.isEmpty())
+            return fail(tr("Write meal period prices like \"dinner = 14.50\"."));
+        if (!periodIds().contains(period))
+            return fail(tr("There is no meal period '%1'.").arg(period));
+        prices.insert(period, price);
+    }
+    data.insert(u"periodPrices"_s, prices);
+    MenuItem item = menuItemFromJson(QJsonObject::fromVariantMap(data));
     item.name = ss(name);
     if (index >= 0) {
         item.id = s_->menu[index].id;
@@ -463,6 +519,86 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     if (s_->sink)
         s_->sink->saveEmployee(s_->employees[index]);
     emit s_->staffChanged();
+    return true;
+}
+
+QVariantMap PosService::menuRecord(const MenuItem &m) const
+{
+    QVariantMap r = toJson(m).toVariantMap();
+    QStringList groups;
+    for (const std::string &g : m.modifierGroups)
+        groups << qs(g);
+    r.insert(u"modifierGroups"_s, groups.join(u", "));
+    QStringList prices;
+    for (const auto &[period, price] : m.periodPrices)
+        prices << u"%1 = %2"_s.arg(qs(period), qs(price.toString()));
+    r.insert(u"periodPrices"_s, prices.join(u'\n'));
+    for (const char16_t *k : {u"family", u"printer"}) {
+        if (!r.contains(QString::fromUtf16(k)))
+            r.insert(QString::fromUtf16(k), QString());
+    }
+    r.insert(u"modifier"_s, m.isModifier);
+    r.insert(u"available"_s, m.available);
+    return r;
+}
+
+QStringList PosService::groupIds() const
+{
+    QStringList out;
+    for (const ModifierGroup &g : s_->settings.modifierGroups)
+        out << qs(g.id);
+    return out;
+}
+
+QStringList PosService::periodIds() const
+{
+    QStringList out;
+    for (const MealPeriod &m : s_->settings.mealPeriods)
+        out << qs(m.id);
+    return out;
+}
+
+bool PosService::saveModifierGroupRecord(int index, const QVariantMap &record)
+{
+    auto &list = s_->settings.modifierGroups;
+    if (index >= int(list.size()))
+        return false;
+    const QString name = record.value(u"name"_s).toString().trimmed();
+    if (name.isEmpty())
+        return fail(tr("The group needs a name."));
+    ModifierGroup g;
+    g.name = ss(name);
+    g.min = std::max(0, record.value(u"min"_s).toInt());
+    g.max = std::max(0, record.value(u"max"_s).toInt());
+    if (g.max > 0 && g.min > g.max)
+        return fail(tr("It can't require more choices than it allows."));
+    for (const QString &line : record.value(u"options"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
+        const qsizetype plus = line.lastIndexOf(u'+');
+        QString optName = (plus > 0 ? line.left(plus) : line).trimmed();
+        Money price;
+        if (plus > 0) {
+            bool ok = false;
+            const double p = line.mid(plus + 1).trimmed().remove(qs(s_->settings.currencySymbol)).toDouble(&ok);
+            if (!ok || p < 0)
+                return fail(tr("Write option prices like \"Onion Rings + 1.50\"."));
+            price = Money::fromCents(std::llround(p * 100.0));
+        }
+        if (!optName.isEmpty())
+            g.options.push_back({ss(optName), price});
+    }
+    if (g.options.empty())
+        return fail(tr("Add the options, one per line."));
+    if (g.min > int(g.options.size()))
+        return fail(tr("It requires more choices than it has options."));
+    if (index >= 0) {
+        g.id = list[index].id;
+        list[index] = g;
+    } else {
+        const QString wanted = record.value(u"id"_s).toString().trimmed();
+        g.id = ss(uniqueId(wanted.isEmpty() ? name : wanted, list, [](const ModifierGroup &x) { return x.id; }, -1));
+        list.push_back(g);
+    }
+    settingsChanged();
     return true;
 }
 
@@ -570,6 +706,9 @@ bool PosService::adminDelete(const QString &panel, int index)
         emit s_->staffChanged();
     } else if (panel == u"tenders" && index >= 0 && index < int(s_->settings.tenders.size())) {
         s_->settings.tenders.erase(s_->settings.tenders.begin() + index);
+        settingsChanged();
+    } else if (panel == u"modifierGroups" && index >= 0 && index < int(s_->settings.modifierGroups.size())) {
+        s_->settings.modifierGroups.erase(s_->settings.modifierGroups.begin() + index);
         settingsChanged();
     } else if (panel == u"mealPeriods" && index >= 0 && index < int(s_->settings.mealPeriods.size())) {
         s_->settings.mealPeriods.erase(s_->settings.mealPeriods.begin() + index);

@@ -52,6 +52,9 @@ core::PrinterConfig printerFromJson(const QJsonObject &o);
 QJsonObject toJson(const core::PosSettings &s);
 core::PosSettings settingsFromJson(const QJsonObject &o);
 
+QJsonArray modifierGroupsToJson(const std::vector<core::ModifierGroup> &groups);
+std::vector<core::ModifierGroup> modifierGroupsFromJson(const QJsonArray &a);
+
 // "HH:MM" <-> minutes after midnight; clockMinutes gives -1 for bad text.
 QString clockText(int minutes);
 int clockMinutes(const QString &text);

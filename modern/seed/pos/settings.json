@@ -74,6 +74,120 @@
   },
   "terminals": [],
   "cashMode": "serverBank",
+  "modifierGroups": [
+    {
+      "id": "dressing",
+      "name": "Dressing",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "name": "Ranch",
+          "price": 0
+        },
+        {
+          "name": "Blue Cheese",
+          "price": 0
+        },
+        {
+          "name": "Balsamic",
+          "price": 0
+        },
+        {
+          "name": "Caesar",
+          "price": 0
+        },
+        {
+          "name": "Oil & Vinegar",
+          "price": 0
+        }
+      ]
+    },
+    {
+      "id": "salad-protein",
+      "name": "Add a Protein",
+      "min": 0,
+      "max": 1,
+      "options": [
+        {
+          "name": "Grilled Chicken",
+          "price": 4.0
+        },
+        {
+          "name": "Shrimp",
+          "price": 5.0
+        },
+        {
+          "name": "Salmon",
+          "price": 6.0
+        }
+      ]
+    },
+    {
+      "id": "eggs",
+      "name": "Eggs",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "name": "Scrambled",
+          "price": 0
+        },
+        {
+          "name": "Over Easy",
+          "price": 0
+        },
+        {
+          "name": "Over Medium",
+          "price": 0
+        },
+        {
+          "name": "Sunny Side Up",
+          "price": 0
+        },
+        {
+          "name": "Poached",
+          "price": 0
+        }
+      ]
+    },
+    {
+      "id": "omelette-fillings",
+      "name": "Fillings",
+      "min": 0,
+      "max": 3,
+      "options": [
+        {
+          "name": "Cheese",
+          "price": 0
+        },
+        {
+          "name": "Ham",
+          "price": 1.0
+        },
+        {
+          "name": "Mushrooms",
+          "price": 0
+        },
+        {
+          "name": "Peppers",
+          "price": 0
+        },
+        {
+          "name": "Onions",
+          "price": 0
+        },
+        {
+          "name": "Spinach",
+          "price": 0
+        },
+        {
+          "name": "Bacon",
+          "price": 1.5
+        }
+      ]
+    }
+  ],
   "mealPeriods": [
     {
       "id": "breakfast",

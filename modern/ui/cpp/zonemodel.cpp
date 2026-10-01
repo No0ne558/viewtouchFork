@@ -35,6 +35,7 @@ QHash<int, QByteArray> ZoneModel::roleNames() const
         {StyleSelectedRole, "styleSelected"},
         {StyleDisabledRole, "styleDisabled"},
         {PropsRole, "props"},
+        {SoldOutRole, "soldOut"},
     };
 }
 

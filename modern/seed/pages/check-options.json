@@ -116,6 +116,26 @@
       ]
     },
     {
+      "id": "sold-out",
+      "kind": "button",
+      "rect": {
+        "x": 932,
+        "y": 776,
+        "w": 972,
+        "h": 150
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Sold Out (86)\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "sold-out"
+        }
+      ]
+    },
+    {
       "id": "back",
       "kind": "button",
       "rect": {

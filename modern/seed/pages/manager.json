@@ -267,11 +267,33 @@
       ]
     },
     {
-      "id": "kitchen-display",
+      "id": "admin-modifierGroups",
       "kind": "button",
       "rect": {
         "x": 1384,
         "y": 520,
+        "w": 384,
+        "h": 160
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Modifier Groups",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "modifierGroups"
+          }
+        }
+      ]
+    },
+    {
+      "id": "kitchen-display",
+      "kind": "button",
+      "rect": {
+        "x": 160,
+        "y": 700,
         "w": 384,
         "h": 160
       },
@@ -290,7 +312,7 @@
       "id": "bar-display",
       "kind": "button",
       "rect": {
-        "x": 160,
+        "x": 568,
         "y": 700,
         "w": 384,
         "h": 160
@@ -303,6 +325,26 @@
           "type": "jump",
           "mode": "push",
           "page": "bar-display"
+        }
+      ]
+    },
+    {
+      "id": "sold-out",
+      "kind": "button",
+      "rect": {
+        "x": 1384,
+        "y": 880,
+        "w": 384,
+        "h": 160
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Sold Out (86)\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "sold-out"
         }
       ]
     },

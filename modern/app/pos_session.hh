@@ -53,6 +53,13 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantList closedChecks READ closedChecks NOTIFY dayChanged)
     // Active employees [{id, name, role, clockedIn, me}], to transfer checks to.
     Q_PROPERTY(QVariantList staff READ staff NOTIFY sessionChanged)
+    // Modifiers being chosen for the item just ordered: {active, item, groups:
+    // [{id, name, rule, chosen, done, options: [{index, name, price, chosen}]}]}.
+    Q_PROPERTY(QVariantMap choosing READ choosingInfo NOTIFY checkChanged)
+    // Sold-out (86'd) items: their ids and lower-case names.
+    Q_PROPERTY(QStringList soldOut READ soldOut NOTIFY adminChanged)
+    // The menu for the 86 list [{id, name, family, price, modifier, available}].
+    Q_PROPERTY(QVariantList menuItems READ menuItems NOTIFY adminChanged)
     // The current check's history [{time, who, what}].
     Q_PROPERTY(QVariantList checkHistory READ checkHistory NOTIFY checkChanged)
     Q_PROPERTY(QString checkFilter READ checkFilter WRITE setCheckFilter NOTIFY openChecksChanged)
@@ -112,6 +119,9 @@ public:
     virtual QVariantList closedChecks() const = 0;
     virtual QVariantList staff() const = 0;
     virtual QVariantList checkHistory() const = 0;
+    virtual QVariantMap choosingInfo() const = 0;
+    virtual QStringList soldOut() const = 0;
+    virtual QVariantList menuItems() const = 0;
     virtual QString checkFilter() const = 0;
     virtual QVariantList kitchenTickets() const = 0;
     virtual QVariantMap drawerInfo() const = 0;
@@ -175,6 +185,10 @@ public:
     Q_INVOKABLE void setSeat(int seat) { invoke(QStringLiteral("setSeat"), {seat}); }
     Q_INVOKABLE void setCourse(int course) { invoke(QStringLiteral("setCourse"), {course}); }
     Q_INVOKABLE void fireCourse() { invoke(QStringLiteral("fireCourse")); }
+    Q_INVOKABLE void chooseOption(const QString &groupId, int index) { invoke(QStringLiteral("chooseOption"), {groupId, index}); }
+    Q_INVOKABLE void finishChoosing() { invoke(QStringLiteral("finishChoosing")); }
+    Q_INVOKABLE void cancelChoosing() { invoke(QStringLiteral("cancelChoosing")); }
+    Q_INVOKABLE void setAvailable(const QString &itemId, bool available) { invoke(QStringLiteral("setAvailable"), {itemId, available}); }
     Q_INVOKABLE void transferCheck(const QString &employeeId) { invoke(QStringLiteral("transferCheck"), {employeeId}); }
     Q_INVOKABLE void moveCheck(const QString &table) { invoke(QStringLiteral("moveCheck"), {table}); }
     Q_INVOKABLE void mergeCheck(qint64 otherId) { invoke(QStringLiteral("mergeCheck"), {otherId}); }

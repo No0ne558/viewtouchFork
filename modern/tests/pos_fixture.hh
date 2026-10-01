@@ -30,6 +30,10 @@ inline app::PosData seedPosData()
     // The drawer tests were written for a cash drawer per terminal; server
     // banks (the starter setting) have tests of their own.
     d.settings.cashMode = core::CashMode::TerminalDrawer;
+    // Prices must not depend on the time the tests run: meal-period prices
+    // have tests of their own, with a fixed clock.
+    for (core::MenuItem &m : d.menu)
+        m.periodPrices.clear();
     return d;
 }
 

@@ -34,6 +34,7 @@ public:
         StyleSelectedRole,
         StyleDisabledRole,
         PropsRole,
+        SoldOutRole,   // orders an item that is 86'd
     };
 
     using Row = QHash<int, QVariant>;

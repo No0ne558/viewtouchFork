@@ -211,6 +211,16 @@ public:
     bool noSale();   // open the cash drawer without a sale
     bool setCustomer(const QVariantMap &customer);
 
+    // --- the menu while ordering (app/pos_menu.cpp) -------------------------------------
+    // An item with modifier groups opens choosing: choose options, then
+    // finish (required groups must be satisfied) or cancel (the item comes off).
+    bool chooseOption(const QString &groupId, int index);
+    bool finishChoosing();
+    bool cancelChoosing();
+    // 86 / un-86 an item (anyone taking orders).
+    bool setAvailable(const QString &itemId, bool available);
+    std::string currentMealPeriod() const;
+
     // --- seats and courses --------------------------------------------------------
     // The seat / course new items go to; also changes the selected line.
     bool setSeat(int seat);
@@ -306,6 +316,9 @@ public:
     QVariantList closedChecks() const override;
     QVariantList staff() const override;
     QVariantList checkHistory() const override;
+    QVariantMap choosingInfo() const override;
+    QStringList soldOut() const override;
+    QVariantList menuItems() const override;
     QVariantList kitchenTickets() const override;
     QVariantMap drawerInfo() const override;
     QVariantMap dayInfo() const override;
@@ -355,6 +368,10 @@ private:
     bool saveEmployeeRecord(int index, const QVariantMap &record);
     bool saveTenderRecord(int index, const QVariantMap &record);
     bool saveMealPeriodRecord(int index, const QVariantMap &record);
+    bool saveModifierGroupRecord(int index, const QVariantMap &record);
+    QVariantMap menuRecord(const core::MenuItem &m) const;
+    QStringList groupIds() const;
+    QStringList periodIds() const;
     bool savePrinterRecord(int index, const QVariantMap &record);
     void settingsChanged();
 
@@ -367,6 +384,7 @@ private:
     int seat_ = 0;      // seat for new items (0: none)
     int course_ = 1;    // course for new items
     bool lineTouched_ = false;   // the selected line was touched (not just added)
+    std::int64_t choosingLine_ = 0;   // the line whose modifiers are being chosen
     qint64 selectedLine_ = 0;
     qint64 selectedPayment_ = 0;
     core::Qualifier qualifier_ = core::Qualifier::None;

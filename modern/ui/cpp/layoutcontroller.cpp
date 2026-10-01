@@ -137,6 +137,7 @@ void LayoutController::setPos(PosSession *pos)
         connect(pos_, &PosSession::adminChanged, this, [this] {
             updateMealPeriod();
             updateFormFactor();
+            refresh();   // sold-out marks
             if (editor_)
                 editor_->setMealPeriods(pos_->mealPeriods());
         });
@@ -372,6 +373,16 @@ void LayoutController::updateFormFactor()
     emit pageChanged();
 }
 
+void LayoutController::finishChoosing()
+{
+    if (!pos_ || busy())
+        return;
+    call(u"finishChoosing"_s, {}, [this](const QVariant &ok) {
+        if (ok.toBool())
+            goBack();
+    });
+}
+
 QVariantList LayoutController::tables() const
 {
     QVariantList out;
@@ -578,6 +589,10 @@ void LayoutController::runAction(const Action &a, Done done)
             if (!sequence.isEmpty() && nav_.startSequence(sequence)) {
                 refresh();
                 emit pageChanged();
+            } else if (pos_ && pos_->choosingInfo().value(u"active"_s).toBool()) {
+                // Its modifier groups: choose on the modifiers page.
+                if (const QString page = rolePage(u"modifiers"_s); !page.isEmpty())
+                    navigate(Navigator::Mode::Push, page);
             }
             done(true);
         };
@@ -639,6 +654,7 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
             {u"taxes"_s, u"admin-taxes"_s}, {u"settings"_s, u"admin-store"_s},
             {u"reports"_s, u"reports"_s}, {u"drawers"_s, u"drawer"_s}, {u"endOfDay"_s, u"end-of-day"_s},
             {u"terminals"_s, u"admin-terminals"_s}, {u"mealPeriods"_s, u"admin-meal-periods"_s},
+            {u"modifierGroups"_s, u"admin-modifier-groups"_s},
         };
         const QString page = pages.value(args.value(u"panel"_s).toString());
         if (!page.isEmpty() && activeLayout().page(page))
@@ -715,6 +731,13 @@ void LayoutController::refresh()
         const QRect rect = moved ? s.moved.value(pz.zone) : z.rect;
         const QString shape = moved && z.shape != u"rect" ? u"rounded"_s : z.shape;
         const QString stylePage = moved ? pageId : s.pageId;
+        // A button that orders an 86'd item: marked, and touching it does nothing.
+        bool soldOut = false;
+        if (pos_ && !editing() && !z.actions.isEmpty() && z.actions.first().type() == u"addItem") {
+            const QString item = z.actions.first().str(u"item");
+            const QStringList out = pos_->soldOut();
+            soldOut = out.contains(item) || out.contains(item.toLower());
+        }
         const QString target = primaryJumpTarget(l, z);
         const QString qualifier = pos_ ? qualifierOf(z) : QString();
         const bool current = !editing()
@@ -732,7 +755,7 @@ void LayoutController::refresh()
             {ZoneModel::ZoneHRole, rect.height()},
             {ZoneModel::ShapeRole, shape},
             {ZoneModel::BehaviorRole, z.behavior},
-            {ZoneModel::ZoneEnabledRole, z.enabled},
+            {ZoneModel::ZoneEnabledRole, z.enabled && !soldOut},
             {ZoneModel::InheritedRole, pz.inherited},
             {ZoneModel::CurrentRole, current},
             {ZoneModel::HotkeyRole, z.hotkey},
@@ -742,6 +765,7 @@ void LayoutController::refresh()
             {ZoneModel::StyleSelectedRole, l.resolveStyle(z, stylePage, ZoneState::Selected).toVariantMap()},
             {ZoneModel::StyleDisabledRole, l.resolveStyle(z, stylePage, ZoneState::Disabled).toVariantMap()},
             {ZoneModel::PropsRole, z.props.toVariantMap()},
+            {ZoneModel::SoldOutRole, soldOut},
         });
     }
     zones_.setRows(std::move(rows));

@@ -3,7 +3,9 @@
 #include "core/money.hh"
 #include "core/tax.hh"
 
+#include <map>
 #include <string>
+#include <vector>
 
 namespace vt::core {
 
@@ -18,8 +20,39 @@ struct MenuItem {
     bool isModifier = false;
     std::string printer;     // kitchen routing target (used by printing, M4)
     bool available = true;   // false = "86'd", cannot be ordered
+    // Choices asked for when it is ordered (ModifierGroup ids, in order).
+    std::vector<std::string> modifierGroups;
+    // A different price during a meal period (meal period id -> price),
+    // e.g. dinner portions, or a Happy Hour period.
+    std::map<std::string, Money> periodPrices;
 
+    Money priceDuring(const std::string &mealPeriod) const
+    {
+        const auto it = periodPrices.find(mealPeriod);
+        return it == periodPrices.end() ? price : it->second;
+    }
     bool operator==(const MenuItem &) const = default;
+};
+
+// One choice in a modifier group: "Medium Rare", "Onion Rings +1.50".
+struct ModifierOption {
+    std::string name;
+    Money price;
+
+    bool operator==(const ModifierOption &) const = default;
+};
+
+// Choices asked for when an item is ordered: "Temperature" (exactly one),
+// "Toppings" (up to three)... `min` choices are required; `max` is the most
+// allowed (0 = any number; 1 = choosing another replaces the choice).
+struct ModifierGroup {
+    std::string id;
+    std::string name;
+    int min = 0;
+    int max = 1;
+    std::vector<ModifierOption> options;
+
+    bool operator==(const ModifierGroup &) const = default;
 };
 
 // No / Lite / Extra ... applied to the next item or modifier ordered.

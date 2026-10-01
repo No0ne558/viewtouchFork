@@ -22,6 +22,7 @@ Item {
     required property var styleSelected
     required property var styleDisabled
     required property var props
+    required property bool soldOut   // its item is 86'd: shown, not orderable
 
     // POS session and controller, for widgets.
     property LayoutController controller
@@ -43,7 +44,8 @@ Item {
     readonly property bool isWidget: !["button", "label", "image", "comment"].includes(kind)
     // Widgets with a working implementation (Widget<Kind>.qml); the rest
     // show a placeholder until their milestone.
-    readonly property var builtWidgets: ["table", "tableGrid", "staffPicker", "checkHistory", "orderList", "loginPad", "guestCount", "numPad",
+    readonly property var builtWidgets: ["table", "tableGrid", "staffPicker", "checkHistory", "modifierPicker",
+        "soldOutList", "orderList", "loginPad", "guestCount", "numPad",
         "paymentPanel", "checkList", "keyboard", "clock", "logoutPanel", "statusBar",
         "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "kitchenDisplay", "customerInfo"]
     readonly property bool hasWidget: isWidget && builtWidgets.includes(kind)
@@ -103,6 +105,31 @@ Item {
         style: zone.st.textStyle === "embossed" ? Text.Raised
              : zone.st.textStyle === "outline" ? Text.Outline : Text.Normal
         styleColor: Qt.darker(color, 3)
+    }
+
+    // 86'd: the item can't be ordered right now.
+    Rectangle {
+        visible: zone.soldOut
+        anchors.fill: parent
+        radius: zone.st.radius ?? 14
+        color: "#a0000000"
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(parent.width * 0.9, soldOutText.implicitWidth + 24)
+            height: soldOutText.implicitHeight + 10
+            radius: 6
+            rotation: -8
+            color: "#b83232"
+            Text {
+                id: soldOutText
+                anchors.centerIn: parent
+                text: qsTr("SOLD OUT")
+                color: "white"
+                font.family: zone.st.font ?? "DejaVu Sans"
+                font.pixelSize: Math.max(12, Math.min(zone.height * 0.22, 34))
+                font.bold: true
+            }
+        }
     }
 
     Loader {

@@ -106,6 +106,9 @@ public:
     // Every table in the pages, for the phone table list: [{name, seats}].
     Q_INVOKABLE QVariantList tables() const;
 
+    // Modifier choices done: back to the menu once the required ones are made.
+    Q_INVOKABLE void finishChoosing();
+
     Q_INVOKABLE void activate(const QString &zoneId);
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goHome();

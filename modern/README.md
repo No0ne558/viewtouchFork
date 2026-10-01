@@ -179,6 +179,11 @@ Log in with a demo PIN: **1234** (manager), **1111** (server) or **2222** (cashi
 4. **Pay**, then type an amount (or use the balance due) and choose a payment: Cash gives change, card payments are capped at the balance, and 10% Off and Comp are discounts. Then **Close Check**. Cash needs an open drawer: **Drawer…** on the Settle page.
 5. **Split Check** on the Settle page moves items to another check at the same table. Touching a table that has several checks lets you choose one.
 
+**Menu choices, prices and 86:**
+- **Modifier groups** (Manager → Modifier Groups) are the choices an item asks for: *Dressing* (choose 1), *Add a Protein* (optional, priced), *Fillings* (up to 3). Give items their groups in Manager → Menu. Ordering such an item opens the **Choose** page beside the check. Required groups must be chosen before **Done**, and **Cancel Item** takes it off. Modifier pages (the burgers' Temperature → Side) still work, so use whichever suits each item.
+- **Prices by meal period** (Manager → Menu → *Prices by meal period*, e.g. `dinner = 14.50`): an item costs that during the period. Make a *Happy Hour* meal period for happy-hour prices. Items already on a check keep their price.
+- **Sold out (86):** Check Options or Manager → **Sold Out (86)…**. Touch an item to 86 it or bring it back. Its menu buttons say **SOLD OUT** and can't be ordered, on every terminal. Anyone taking orders can do this.
+
 **Managing checks** (the order screen's **Check…** tab):
 - **Transfer** a check to another server, **move** it to another table, or **merge** another open check into it (items, payments and guests come along). Servers can do this to their own checks, managers to anyone's.
 - **Reopen** a check closed today (managers). Its cash leaves the drawer or bank until it is closed again. A refund is a reopen: void the item or take off the payment, then close.

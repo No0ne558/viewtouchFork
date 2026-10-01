@@ -5,7 +5,10 @@
     "price": 11.5,
     "family": "burgers",
     "taxClass": "food",
-    "printer": "kitchen"
+    "printer": "kitchen",
+    "periodPrices": {
+      "dinner": 12.5
+    }
   },
   {
     "id": "cheeseburger",
@@ -21,7 +24,10 @@
     "price": 13.5,
     "family": "burgers",
     "taxClass": "food",
-    "printer": "kitchen"
+    "printer": "kitchen",
+    "periodPrices": {
+      "dinner": 14.5
+    }
   },
   {
     "id": "mushroom-swiss",
@@ -61,7 +67,11 @@
     "price": 8.5,
     "family": "salads",
     "taxClass": "food",
-    "printer": "kitchen"
+    "printer": "kitchen",
+    "modifierGroups": [
+      "dressing",
+      "salad-protein"
+    ]
   },
   {
     "id": "caesar",
@@ -69,7 +79,10 @@
     "price": 9.75,
     "family": "salads",
     "taxClass": "food",
-    "printer": "kitchen"
+    "printer": "kitchen",
+    "modifierGroups": [
+      "salad-protein"
+    ]
   },
   {
     "id": "cobb",
@@ -77,7 +90,10 @@
     "price": 12.5,
     "family": "salads",
     "taxClass": "food",
-    "printer": "kitchen"
+    "printer": "kitchen",
+    "modifierGroups": [
+      "salad-protein"
+    ]
   },
   {
     "id": "greek",
@@ -85,7 +101,11 @@
     "price": 10.25,
     "family": "salads",
     "taxClass": "food",
-    "printer": "kitchen"
+    "printer": "kitchen",
+    "modifierGroups": [
+      "dressing",
+      "salad-protein"
+    ]
   },
   {
     "id": "coffee",
@@ -149,7 +169,10 @@
     "price": 8.0,
     "family": "drinks",
     "taxClass": "alcohol",
-    "printer": "bar"
+    "printer": "bar",
+    "periodPrices": {
+      "dinner": 9.0
+    }
   },
   {
     "id": "two-eggs",
@@ -157,7 +180,10 @@
     "price": 8.95,
     "family": "breakfast",
     "taxClass": "food",
-    "printer": "kitchen"
+    "printer": "kitchen",
+    "modifierGroups": [
+      "eggs"
+    ]
   },
   {
     "id": "pancakes",
@@ -181,7 +207,10 @@
     "price": 11.25,
     "family": "breakfast",
     "taxClass": "food",
-    "printer": "kitchen"
+    "printer": "kitchen",
+    "modifierGroups": [
+      "omelette-fillings"
+    ]
   },
   {
     "id": "rare",

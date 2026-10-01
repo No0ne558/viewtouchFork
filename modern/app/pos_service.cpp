@@ -448,6 +448,7 @@ bool PosService::openCheck(std::int64_t checkId)
     currentId_ = checkId;
     seat_ = 0;
     course_ = 1;
+    choosingLine_ = 0;
     selectedLine_ = 0;
     selectedPayment_ = 0;
     pendingTable_.clear();
@@ -476,6 +477,7 @@ void PosService::releaseCheck()
     currentId_ = 0;
     seat_ = 0;
     course_ = 1;
+    choosingLine_ = 0;
     selectedLine_ = 0;
     selectedPayment_ = 0;
     pendingTable_.clear();
@@ -508,11 +510,19 @@ bool PosService::addItem(const QString &idOrName)
             return fail(tr("Order an item before adding %1.").arg(qs(item->name)));
         selectedLine_ = target->id;
     } else {
-        OrderLine &line = c.addItem(*item, q);
+        MenuItem priced = *item;   // the price for this meal period (dinner, happy hour...)
+        priced.price = item->priceDuring(currentMealPeriod());
+        OrderLine &line = c.addItem(priced, q);
         line.seat = seat_;
         line.course = course_;
         selectedLine_ = line.id;
         lineTouched_ = false;
+        // Items with modifier groups ask for their choices next.
+        choosingLine_ = 0;
+        for (const std::string &g : item->modifierGroups) {
+            if (s_->settings.modifierGroup(g))
+                choosingLine_ = line.id;
+        }
     }
     if (qualifier_ != Qualifier::None) {
         qualifier_ = Qualifier::None;
@@ -1063,6 +1073,12 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
              return QVariant(p.payout(cashMovementKindFromString(ss(a.value(0).toString())))); }},
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
         {u"setSeat"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setSeat(a.value(0).toInt())); }},
+        {u"chooseOption"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.chooseOption(a.value(0).toString(), a.value(1).toInt())); }},
+        {u"finishChoosing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.finishChoosing()); }},
+        {u"cancelChoosing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cancelChoosing()); }},
+        {u"setAvailable"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.setAvailable(a.value(0).toString(), a.value(1).toBool())); }},
         {u"setCourse"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setCourse(a.value(0).toInt())); }},
         {u"fireCourse"_s, [](PosService &p, const QVariantList &) { return QVariant(p.fireCourse()); }},
         {u"startPairing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.startPairing()); }},

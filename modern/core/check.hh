@@ -17,6 +17,7 @@ struct Modifier {
     std::string name;
     Money unitPrice;
     Qualifier qualifier = Qualifier::None;
+    std::string group;   // the ModifierGroup it was chosen from, if any
 
     Money price() const { return qualifiedPrice(unitPrice, qualifier); }
     std::string displayName() const { return qualifierPrefix(qualifier) + name; }

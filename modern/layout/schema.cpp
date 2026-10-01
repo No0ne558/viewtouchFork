@@ -106,7 +106,8 @@ QStringList basicKinds()
 
 QStringList widgetKinds()
 {
-    return {u"table"_s, u"tableGrid"_s, u"staffPicker"_s, u"checkHistory"_s, u"orderList"_s, u"loginPad"_s, u"guestCount"_s, u"checkList"_s,
+    return {u"table"_s, u"tableGrid"_s, u"staffPicker"_s, u"checkHistory"_s, u"modifierPicker"_s,
+            u"soldOutList"_s, u"orderList"_s, u"loginPad"_s, u"guestCount"_s, u"checkList"_s,
             u"paymentPanel"_s, u"numPad"_s, u"keyboard"_s, u"splitCheck"_s, u"drawerPanel"_s,
             u"reportView"_s, u"endOfDay"_s, u"logoutPanel"_s, u"clock"_s, u"statusBar"_s,
             u"adminPanel"_s, u"kitchenDisplay"_s, u"customerInfo"_s};

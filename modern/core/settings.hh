@@ -104,6 +104,16 @@ struct PosSettings {
     // address change). Made once, on first start.
     std::string serverId;
     std::vector<MealPeriod> mealPeriods = defaultMealPeriods();
+    std::vector<ModifierGroup> modifierGroups;
+
+    const ModifierGroup *modifierGroup(const std::string &id) const
+    {
+        for (const ModifierGroup &g : modifierGroups) {
+            if (g.id == id)
+                return &g;
+        }
+        return nullptr;
+    }
     CashMode cashMode = CashMode::TerminalDrawer;
     // Whether terminals have a cash drawer, unless set per terminal.
     bool terminalsHaveDrawer = true;

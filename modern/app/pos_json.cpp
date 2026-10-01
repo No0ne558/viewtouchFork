@@ -37,6 +37,8 @@ QJsonObject toJson(const Check &c)
             QJsonObject mo{{u"itemId"_s, qs(m.itemId)}, {u"name"_s, qs(m.name)}, {u"unitPrice"_s, qint64(m.unitPrice.cents())}};
             if (m.qualifier != Qualifier::None)
                 mo.insert(u"qualifier"_s, qs(toString(m.qualifier)));
+            if (!m.group.empty())
+                mo.insert(u"group"_s, qs(m.group));
             mods.append(mo);
         }
         QJsonObject lo{
@@ -124,7 +126,8 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
             const QJsonObject mo = mv.toObject();
             l.modifiers.push_back({ss(mo.value(u"itemId").toString()), ss(mo.value(u"name").toString()),
                                    money(mo.value(u"unitPrice")),
-                                   qualifierFromString(ss(mo.value(u"qualifier").toString()))});
+                                   qualifierFromString(ss(mo.value(u"qualifier").toString())),
+                                   ss(mo.value(u"group").toString())});
         }
         c.lines.push_back(l);
     }
@@ -169,6 +172,18 @@ QJsonObject toJson(const MenuItem &m)
     if (m.isModifier) o.insert(u"modifier"_s, true);
     if (!m.printer.empty()) o.insert(u"printer"_s, qs(m.printer));
     if (!m.available) o.insert(u"available"_s, false);
+    if (!m.modifierGroups.empty()) {
+        QJsonArray groups;
+        for (const std::string &g : m.modifierGroups)
+            groups.append(qs(g));
+        o.insert(u"modifierGroups"_s, groups);
+    }
+    if (!m.periodPrices.empty()) {
+        QJsonObject prices;
+        for (const auto &[period, price] : m.periodPrices)
+            prices.insert(qs(period), decimalFromCents(price.cents()));
+        o.insert(u"periodPrices"_s, prices);
+    }
     return o;
 }
 
@@ -185,6 +200,11 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     m.isModifier = o.value(u"modifier").toBool();
     m.printer = ss(o.value(u"printer").toString());
     m.available = o.value(u"available").toBool(true);
+    for (const QJsonValue &g : o.value(u"modifierGroups").toArray())
+        m.modifierGroups.push_back(ss(g.toString()));
+    const QJsonObject prices = o.value(u"periodPrices").toObject();
+    for (auto it = prices.begin(); it != prices.end(); ++it)
+        m.periodPrices[ss(it.key())] = Money::fromCents(centsFromDecimal(it.value().toDouble()));
     return m;
 }
 
@@ -399,6 +419,39 @@ PrinterConfig printerFromJson(const QJsonObject &o)
     return p;
 }
 
+QJsonArray modifierGroupsToJson(const std::vector<ModifierGroup> &groups)
+{
+    QJsonArray out;
+    for (const ModifierGroup &g : groups) {
+        QJsonArray options;
+        for (const ModifierOption &o : g.options)
+            options.append(QJsonObject{{u"name"_s, qs(o.name)}, {u"price"_s, decimalFromCents(o.price.cents())}});
+        out.append(QJsonObject{{u"id"_s, qs(g.id)}, {u"name"_s, qs(g.name)}, {u"min"_s, g.min}, {u"max"_s, g.max},
+                               {u"options"_s, options}});
+    }
+    return out;
+}
+
+std::vector<ModifierGroup> modifierGroupsFromJson(const QJsonArray &a)
+{
+    std::vector<ModifierGroup> out;
+    for (const QJsonValue &v : a) {
+        const QJsonObject o = v.toObject();
+        ModifierGroup g;
+        g.id = ss(o.value(u"id").toString());
+        g.name = ss(o.value(u"name").toString(qs(g.id)));
+        g.min = std::max(0, o.value(u"min").toInt(0));
+        g.max = std::max(0, o.value(u"max").toInt(1));
+        for (const QJsonValue &ov : o.value(u"options").toArray()) {
+            const QJsonObject opt = ov.toObject();
+            g.options.push_back({ss(opt.value(u"name").toString()),
+                                 Money::fromCents(centsFromDecimal(opt.value(u"price").toDouble()))});
+        }
+        out.push_back(std::move(g));
+    }
+    return out;
+}
+
 QString clockText(int minutes)
 {
     return u"%1:%2"_s.arg(minutes / 60, 2, 10, QChar(u'0')).arg(minutes % 60, 2, 10, QChar(u'0'));
@@ -447,6 +500,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"terminals"_s, terminals},
         {u"mealPeriods"_s, mealPeriods},
         {u"cashMode"_s, qs(toString(s.cashMode))},
+        {u"modifierGroups"_s, modifierGroupsToJson(s.modifierGroups)},
         {u"terminalsHaveDrawer"_s, s.terminalsHaveDrawer},
         {u"serverId"_s, qs(s.serverId)},
         {u"checkoutNeedsClosedChecks"_s, s.checkoutNeedsClosedChecks},
@@ -479,6 +533,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
                                ss(t.value(u"screen").toString())});
     }
     s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));
+    s.modifierGroups = modifierGroupsFromJson(o.value(u"modifierGroups").toArray());
     s.terminalsHaveDrawer = o.value(u"terminalsHaveDrawer").toBool(true);
     s.serverId = ss(o.value(u"serverId").toString());
     s.checkoutNeedsClosedChecks = o.value(u"checkoutNeedsClosedChecks").toBool(true);
