@@ -174,6 +174,9 @@ public:
     // Backups (set up by main on the store server): take one now, and how
     // the last one went - {at, ok, error, copy, copyOk}.
     std::function<bool()> requestBackup;
+    // Factory reset from the Manager page: main backs up, closes, deletes the
+    // database and starts again. False: not possible here.
+    std::function<bool()> requestFactoryReset;
     QVariantMap backup;
     void setBackupStatus(QVariantMap status)
     {
@@ -397,6 +400,9 @@ public:
     bool startPairing();
     // Back the database up now (managers).
     bool backupNow();
+    // Everything back to a fresh install, after a backup (managers; `confirm`
+    // must be "RESET"). ViewTouch restarts with the starter set.
+    bool factoryReset(const QString &confirm);
 
     // --- customers, gift cards, house accounts (pos_customers.cpp) ---------------
     // Search by phone digits or name ("" = the most recent).

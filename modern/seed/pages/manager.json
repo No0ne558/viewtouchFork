@@ -481,6 +481,31 @@
       }
     },
     {
+      "id": "factory-reset",
+      "kind": "button",
+      "rect": {
+        "x": 568,
+        "y": 794,
+        "w": 384,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Factory Reset\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "factory-reset"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#b83232"
+        }
+      }
+    },
+    {
       "id": "back",
       "kind": "button",
       "rect": {

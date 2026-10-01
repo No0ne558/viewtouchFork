@@ -239,7 +239,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -564,6 +564,7 @@ slots += [
     # Touch twice. On a kiosk screen it stays closed until the next boot.
     zone("close-app", 0, 0, 0, 0, "Close ViewTouch", actions=[command("closeApp")], behavior="double",
          style=fill(RED)),
+    zone("factory-reset", 0, 0, 0, 0, "Factory Reset…", actions=[jump(page="factory-reset")], style=fill(RED)),
 ]
 for i, z in enumerate(slots):
     col, row = i % 4, i // 4
@@ -585,6 +586,12 @@ for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees
         zone("editor", 16, 112, 1888, 816, kind="adminPanel", props={"panel": panel}),
         zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
     ], permission="manager")
+
+page("factory-reset", "Factory Reset", "manager", [
+    label("title", 16, 16, 1888, 80, "Factory reset"),
+    zone("reset", 16, 112, 1888, 816, kind="factoryReset"),
+    zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
+], permission="manager")
 
 page("admin-schedule", "Schedule", "manager", [
     label("title", 16, 16, 1888, 80, "Schedule"),

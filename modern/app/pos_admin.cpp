@@ -994,6 +994,20 @@ QString PosShared::startPairing()
     return pairing->code;
 }
 
+bool PosService::factoryReset(const QString &confirm)
+{
+    if (!require(perm::Manager, tr("Factory reset")))
+        return false;
+    if (confirm.trimmed() != u"RESET")
+        return fail(tr("Type RESET to confirm."));
+    if (!s_->requestFactoryReset)
+        return fail(tr("A factory reset is done on the computer that keeps the data."));
+    if (!s_->requestFactoryReset())
+        return fail(tr("The backup failed, so nothing was reset."));
+    emit notice(tr("Backed up. Resetting and restarting..."));
+    return true;
+}
+
 bool PosService::backupNow()
 {
     if (!require(perm::Manager, tr("Backups")))

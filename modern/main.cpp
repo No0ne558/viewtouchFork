@@ -32,6 +32,7 @@
 #include <QNetworkRequest>
 #include <QSaveFile>
 #include <QScreen>
+#include <QProcess>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QQuickWindow>
@@ -283,6 +284,9 @@ void present(QQuickWindow *window, const Args &cli, const Options &o)
 // Exit status of a kiosk a manager closed: vtmodern-kiosk.service does not
 // restart on it (RestartPreventExitStatus).
 constexpr int kKioskClosed = 64;
+// Exit status of a factory reset from the Manager page: main wipes the
+// database and starts again (systemd restarts the services on it).
+constexpr int kFactoryReset = 65;
 
 std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o, LayoutController &controller)
 {
@@ -622,6 +626,25 @@ ApplicationWindow {
     return cli.isSet(o.kiosk) ? kKioskClosed : 1;   // a kiosk must not restart into it
 }
 
+// Delete the database (and printouts): the next start is a fresh install.
+void wipeStore(const Args &cli, const Options &o)
+{
+    const QString dbPath = dbPathOf(cli, o);
+    for (const QString &suffix : {u""_s, u"-wal"_s, u"-shm"_s})
+        QFile::remove(dbPath + suffix);
+    QDir(QDir(dataDirOf(cli, o)).filePath(u"printouts"_s)).removeRecursively();
+}
+
+QString backupBeforeReset(const Args &cli, const Options &o, QString *error)
+{
+    const QString dir = backupDirOf(cli, o);
+    const QString target = QDir(dir).filePath(vt::storage::backupFileName(QDateTime::currentDateTime())
+                                                  .replace(u".db"_s, u"-before-reset.db"_s));
+    if (!QDir().mkpath(dir) || !vt::storage::backupDatabase(dbPathOf(cli, o), target, error))
+        return {};
+    return target;
+}
+
 // --- this machine holds the data (standalone, or serving terminals) -----------------------
 
 int runStore(const Args &cli, const Options &o)
@@ -826,6 +849,24 @@ int runStore(const Args &cli, const Options &o)
         });
     };
 
+    // Factory reset from the Manager page: back up now, then leave; main
+    // deletes the database once it is closed and starts again.
+    if (havePosStore) {
+        shared->requestFactoryReset = [&cli, &o, &writer] {
+            if (writer)
+                writer->flush();
+            QString error;
+            const QString target = backupBeforeReset(cli, o, &error);
+            if (target.isEmpty()) {
+                qWarning().noquote() << "Factory reset: the backup failed:" << error;
+                return false;
+            }
+            qInfo().noquote() << "Factory reset: backed up to" << target;
+            QTimer::singleShot(1500, qApp, [] { QCoreApplication::exit(kFactoryReset); });   // the notice shows first
+            return true;
+        };
+    }
+
     // Every save of the pages goes through the hub, which tells the terminals.
     vt::net::LayoutHub hub(*layout, haveStore ? &store : nullptr);
     std::unique_ptr<vt::net::PosServer> server;
@@ -953,19 +994,15 @@ int runFactoryReset(const Args &cli, const Options &o)
         return 1;
     }
     if (QFile::exists(dbPath)) {
-        const QString dir = backupDirOf(cli, o);
-        const QString target = QDir(dir).filePath(vt::storage::backupFileName(QDateTime::currentDateTime())
-                                                      .replace(u".db"_s, u"-before-reset.db"_s));
         QString error;
-        if (!QDir().mkpath(dir) || !vt::storage::backupDatabase(dbPath, target, &error)) {
-            qCritical().noquote() << "Not reset: the backup failed:" << (error.isEmpty() ? dir : error);
+        const QString target = backupBeforeReset(cli, o, &error);
+        if (target.isEmpty()) {
+            qCritical().noquote() << "Not reset: the backup failed:" << error;
             return 1;
         }
         qInfo().noquote() << "Backed up to" << target;
-        for (const QString &suffix : {u""_s, u"-wal"_s, u"-shm"_s})
-            QFile::remove(dbPath + suffix);
     }
-    QDir(QDir(dataDirOf(cli, o)).filePath(u"printouts"_s)).removeRecursively();
+    wipeStore(cli, o);
     qInfo().noquote() << "Factory reset done. The next start begins with the starter pages, menu, staff and settings.";
     return 0;
 }
@@ -1156,5 +1193,17 @@ int main(int argc, char *argv[])
         return runRestore(args, o);
     if (args.isSet(o.pairingCode))
         return runPairingCode(args, o);
-    return args.isSet(o.connect) ? runTerminal(args, o) : runStore(args, o);
+    if (args.isSet(o.connect))
+        return runTerminal(args, o);
+    const int code = runStore(args, o);
+    if (code != kFactoryReset)
+        return code;
+    // The stores are closed now: wipe, then start again - systemd does that
+    // for the services; otherwise start a new ViewTouch with the same options.
+    wipeStore(args, o);
+    qInfo("Factory reset done; starting again.");
+    if (qEnvironmentVariableIsSet("INVOCATION_ID"))
+        return kFactoryReset;
+    QProcess::startDetached(QCoreApplication::applicationFilePath(), QCoreApplication::arguments().mid(1));
+    return 0;
 }

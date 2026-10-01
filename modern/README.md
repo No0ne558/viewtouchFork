@@ -99,6 +99,7 @@ Every page is designed on a 1920 × 1080 landscape canvas and scaled to the scre
 ## Factory reset and demo data
 
 - `vtmodern --factory-reset` puts the store back to a fresh install: it backs the database up first (`backups/viewtouch-<time>-before-reset.db`), then deletes it, so the next start begins with the starter pages, menu, staff and settings. Backups and saved report exports stay. Stop ViewTouch first (`sudo systemctl stop vtmodern vtmodern-kiosk` when installed; add `--data-dir /var/lib/viewtouch`).
+- Or from the screen: **Manager → Factory Reset…**, type RESET. ViewTouch backs up, closes, deletes the database and starts again with the starter set (the installed services are restarted by systemd; on a desktop it starts itself again). Terminals reconnect on their own.
 - `vtmodern --demo-data` fills a store that has no sales yet with demo history. It plays two months of service, and the same two months last year, through the real POS: staff clock in and take breaks, orders with their choices, the kitchen bumping tickets, cards with tips, cash, gift cards and house accounts, banks checked out, End of Day. It also adds 12 customers, 8 gift cards, two weeks of shifts and tonight's waitlist. It takes a few seconds.
 - Together: `vtmodern --factory-reset --demo-data`.
 

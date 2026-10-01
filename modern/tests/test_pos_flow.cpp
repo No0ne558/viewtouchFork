@@ -545,3 +545,27 @@ TEST_CASE("UI: a month's report beside last year", "[flow][ui][range]")
     CHECK(Screen::findBy(s.window->contentItem(), "text", u"Change"_s));
     s.shot("16-range-report");
 }
+
+TEST_CASE("UI: Manager -> Factory Reset asks for RESET before it does anything", "[flow][ui][reset]")
+{
+    Screen s;
+    int asked = 0;
+    s.pos.shared()->requestFactoryReset = [&] { ++asked; return true; };
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"manager"_s));
+    QTest::qWait(30);
+    s.tapCanvas(160 + 1 * 408 + 192, 124 + 5 * 134 + 60);      // slot 22 (row 6, column 2): Factory Reset…
+    QTest::qWait(30);
+    REQUIRE(s.c.pageId() == u"factory-reset"_s);
+    QQuickItem *button = Screen::findBy(s.window->contentItem(), "text", u"Back Up and Reset Everything"_s);
+    REQUIRE(button);
+    CHECK_FALSE(button->isEnabled());
+    s.tapItem(Screen::findBy(s.window->contentItem(), "placeholderText", u"RESET"_s));
+    for (const char ch : {'R', 'E', 'S', 'E', 'T'})
+        QTest::keyClick(s.window, ch);
+    QTest::qWait(30);
+    CHECK(button->isEnabled());
+    s.shot("17-factory-reset");
+    s.tapItem(button);
+    CHECK(asked == 1);
+}

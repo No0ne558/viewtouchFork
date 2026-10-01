@@ -312,3 +312,23 @@ TEST_CASE("Factory reset: backed up, then a fresh store", "[demo][backup]")
     CHECK(backups.first().endsWith(u"-before-reset.db"_s));
     CHECK(storage::verifyDatabase(backups.first()));
 }
+
+TEST_CASE("Factory reset from the Manager page: managers, typed RESET, backed up first", "[demo][reset]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    int asked = 0;
+    bool backupWorks = true;
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    CHECK_FALSE(pos.factoryReset(u"RESET"_s));                     // not on the machine with the data
+    pos.shared()->requestFactoryReset = [&] { ++asked; return backupWorks; };
+    CHECK_FALSE(pos.factoryReset(u"reset please"_s));
+    backupWorks = false;
+    CHECK_FALSE(pos.factoryReset(u"RESET"_s));                     // the backup failed: nothing happens
+    backupWorks = true;
+    REQUIRE(pos.factoryReset(u" RESET "_s));
+    CHECK(asked == 2);
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    CHECK_FALSE(pos.factoryReset(u"RESET"_s));                     // managers only
+    CHECK(asked == 2);
+}
