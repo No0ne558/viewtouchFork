@@ -100,6 +100,30 @@
       }
     },
     {
+      "id": "lib-close",
+      "kind": "button",
+      "rect": {
+        "x": 1320,
+        "y": 140,
+        "w": 300,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "double",
+      "label": "Close ViewTouch",
+      "actions": [
+        {
+          "type": "command",
+          "name": "closeApp"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#b83232"
+        }
+      }
+    },
+    {
       "id": "lib-toggle",
       "kind": "button",
       "rect": {

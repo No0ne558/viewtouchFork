@@ -133,6 +133,8 @@ public:
 signals:
     void pageChanged();
     void formFactorChanged();
+    // A manager asked to close ViewTouch (the closeApp command).
+    void closeRequested();
     void statusChanged();
     void editingChanged();
     void editorChanged();

@@ -40,6 +40,12 @@ ExecStartPre=-+/usr/bin/chvt 1
 ExecStart=/usr/bin/cage -d -s -- /usr/bin/vtmodern --kiosk --data-dir ${STATE_DIRECTORY} --config /etc/viewtouch/kiosk.conf
 Restart=always
 RestartSec=2
+# Manager -> Close ViewTouch exits with 64: the kiosk then stays off until
+# the next boot, and the screen goes to the second console (the desktop, or
+# a text login on a dedicated register).
+SuccessExitStatus=64
+RestartPreventExitStatus=64
+ExecStopPost=-+/bin/sh -c 'if [ "$$EXIT_STATUS" = 64 ]; then /usr/bin/chvt 2; fi'
 TimeoutStopSec=30
 
 [Install]

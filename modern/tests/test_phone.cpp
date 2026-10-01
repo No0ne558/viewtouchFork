@@ -218,3 +218,23 @@ TEST_CASE("Page versions are saved and checked", "[phone][layout]")
     CHECK(issues.filter(u"'nowhere', which does not exist"_s).size() == 1);
     CHECK(issues.filter(u"more than one phone version"_s).size() == 1);
 }
+
+TEST_CASE("Close ViewTouch: managers only", "[ui][close]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    LayoutController c(seedLayout());
+    c.setPos(&pos);
+    QSignalSpy closing(&c, &LayoutController::closeRequested);
+
+    REQUIRE(pos.loginWithPin(u"1111"_s));                 // a server
+    REQUIRE(c.jumpTo(u"library"_s));
+    c.activate(u"lib-close"_s);
+    CHECK(closing.isEmpty());
+    CHECK(c.statusText().contains(u"needs a manager"_s));
+
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"1234"_s));                 // a manager
+    REQUIRE(c.jumpTo(u"manager"_s));
+    c.activate(u"close-app"_s);
+    CHECK(closing.size() == 1);
+}

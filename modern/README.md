@@ -58,7 +58,7 @@ Installing starts nothing. Pick this machine's part in the store:
 | `sudo vtmodern-setup off` | Stops starting ViewTouch at boot |
 | `vtmodern-setup status` | Shows what is set up and the newest backup |
 
-- **Screens start full screen at boot** (`vtmodern-kiosk.service`) in the `cage` kiosk on the first console, with no desktop and no mouse pointer. Turn off any desktop login (`sudo systemctl disable gdm`) on a dedicated POS screen. On a desktop, *ViewTouch* is also in the applications menu.
+- **Screens start full screen at boot** (`vtmodern-kiosk.service`) in the `cage` kiosk on the first console, with no desktop and no mouse pointer. To leave it, a manager uses **Manager → Close ViewTouch** (touch it twice). The kiosk then stays closed until the next boot and the screen switches to the second console: your desktop, or a text login on a dedicated register. A technician can also switch consoles with Ctrl+Alt+F2 (add Fn on keyboards whose F-keys need it). Turn off any desktop login (`sudo systemctl disable gdm`) on a dedicated POS screen. On a desktop, *ViewTouch* is also in the applications menu.
 - **The server** (`vtmodern.service`) runs sandboxed as the `viewtouch` account and restarts if it stops. Open port 7719 (TCP and UDP) in the firewall for the terminals.
 - **Settings** live in `/etc/viewtouch/kiosk.conf` and `/etc/viewtouch/server.conf`: any `vtmodern --help` option, written `option = value`. Restart the service after a change.
 - **Data** lives in `/var/lib/viewtouch` and is kept when the package is removed. Only one ViewTouch can use a database at a time; a second one is refused and told to `--connect` instead.
@@ -225,9 +225,9 @@ Manager widgets:
 
 ## Editing pages
 
-**Tables** are zones like buttons. On the Tables page press F1, then *+ Panel ▾ → table* to add one, or select a table and *Duplicate* (T7 becomes T8, Bar 3 becomes Bar 4). Drag and resize them, pick a shape (circle, octagon…) and colors, and set *Table name* and *Seats* in the inspector. Every table needs its own name: the name is what checks and kitchen tickets show. Floor plans saved before tables became zones (a single *tableMap* panel) turn into separate table zones when loaded, each in the same place.
+**Tables** are zones like buttons. On the Tables page press F1 (or Ctrl+E), then *+ Panel ▾ → table* to add one, or select a table and *Duplicate* (T7 becomes T8, Bar 3 becomes Bar 4). Drag and resize them, pick a shape (circle, octagon…) and colors, and set *Table name* and *Seats* in the inspector. Every table needs its own name: the name is what checks and kitchen tickets show. Floor plans saved before tables became zones (a single *tableMap* panel) turn into separate table zones when loaded, each in the same place.
 
-Press **F1**, or touch **Manager → Edit Pages**. Changes go into a draft. The running app keeps the saved pages until you press **Save**, which writes to the database in one transaction. **Done** asks whether to save or discard.
+Press **F1** or **Ctrl+E** (no Fn needed), or touch **Manager → Edit Pages**. Changes go into a draft. The running app keeps the saved pages until you press **Save**, which writes to the database in one transaction. **Done** asks whether to save or discard.
 
 **Mouse**
 - Click a zone to select it. Shift- or Ctrl-click adds it to the selection or removes it.
@@ -289,7 +289,7 @@ ctest --test-dir modern/build
 ./modern/build/vtmodern                   # data in ~/.local/share/ViewTouch/ViewTouch/
 ./modern/build/vtmodern --reset-layout    # back to the starter pages
 ./modern/build/vtmodern --data-dir /tmp/t # use another data folder (database, backups, printouts)
-./modern/build/vtmodern --windowed        # in a window (it starts full screen; F11 switches)
+./modern/build/vtmodern --windowed        # in a window (it starts full screen; F11 or Ctrl+Shift+F switches)
 ./modern/build/vtmodern --kiosk           # full screen, no mouse pointer, F11 off
 ./modern/build/vtmodern --login 1234      # start logged in (testing)
 ```

@@ -276,7 +276,7 @@ QJsonArray actionTypes()
                             {"openAdmin", "Admin screen"}, {"editMode", "Edit pages"},
                             {"addTip", "Add tip (args.percent)"}, {"gratuity", "Gratuity (args.percent)"},
                             {"payout", "Pay out of drawer"}, {"paidIn", "Pay into drawer"},
-                            {"cashOutTips", "Cash out my tips"}, {"clearText", "Clear typed text"}, {"recallTicket", "Recall kitchen ticket"},
+                            {"cashOutTips", "Cash out my tips"}, {"closeApp", "Close ViewTouch (manager; leaves a kiosk)"}, {"clearText", "Clear typed text"}, {"recallTicket", "Recall kitchen ticket"},
                             {"startDelivery", "Start delivery"}}))}),
     };
 }

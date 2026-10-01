@@ -357,10 +357,13 @@ for i, (text, panel) in enumerate(admin):
     mgr.append(zone(f"admin-{panel}", 160 + col * 408, 160 + row * 180, 384, 160, text,
                     actions=[command("openAdmin", panel=panel)]))
 mgr += [
-    # grid slots 11 (row 2), 12 and 15 (row 3)
+    # grid slots 11 (row 2), 12, 14 and 15 (row 3)
     zone("kitchen-display", 1384, 520, 384, 160, "Kitchen Display", actions=[jump(page="kitchen")]),
     zone("bar-display", 160, 700, 384, 160, "Bar Display", actions=[jump(page="bar-display")]),
     zone("edit-pages", 1384, 700, 384, 160, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
+    # Touch twice. On a kiosk screen it stays closed until the next boot.
+    zone("close-app", 976, 700, 384, 160, "Close ViewTouch", actions=[command("closeApp")], behavior="double",
+         style=fill(RED)),
     zone("back", 160, 900, 384, 140, "‹ Back", actions=[jump(mode="back")]),
 ]
 page("manager", "Manager", "manager", mgr, role="manager", permission="manager")
@@ -419,6 +422,8 @@ page("library", "Button Library", "library", [
     zone("lib-void", 360, 140, 300, 120, "Void", actions=[command("voidItem")], behavior="double",
          style=fill(RED)),
     zone("lib-pay", 680, 140, 300, 120, "Pay", actions=[jump(role="settle")], style=fill(BLUE)),
+    zone("lib-close", 1320, 140, 300, 120, "Close ViewTouch", actions=[command("closeApp")], behavior="double",
+         style=fill(RED)),
     zone("lib-toggle", 1000, 140, 300, 120, "Toggle", behavior="toggle"),
     zone("lib-diamond", 40, 300, 240, 240, "Diamond", shape="diamond"),
     zone("lib-hexagon", 320, 300, 300, 240, "Hexagon", shape="hexagon"),

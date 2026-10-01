@@ -131,7 +131,8 @@ ApplicationWindow {
     // Delete/arrows in the inspector edit text instead of zones.
 
     Shortcut {
-        sequence: "F1"
+        // Ctrl+E works on keyboards whose F-keys need Fn (Macs, many laptops).
+        sequences: ["F1", "Ctrl+E"]
         // Entering checks the layout.edit permission (a manager must be logged in).
         onActivated: root.editing ? root.requestLeaveEdit() : root.controller.requestEditMode()
     }
@@ -143,7 +144,7 @@ ApplicationWindow {
     }
     Shortcut {
         enabled: !root.kiosk
-        sequences: [StandardKey.FullScreen, "F11"]
+        sequences: [StandardKey.FullScreen, "F11", "Ctrl+Shift+F"]
         onActivated: root.visibility === Window.FullScreen ? root.showNormal() : root.showFullScreen()
     }
     Shortcut { enabled: root.editing; sequences: [StandardKey.Save]; onActivated: root.controller.saveEdits() }

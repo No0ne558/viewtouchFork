@@ -260,8 +260,17 @@ void present(QQuickWindow *window, const Args &cli, const Options &o)
 
 // Startup page/edit options, then the window. Returns the engine (null when
 // the window could not be created).
+// Exit status of a kiosk a manager closed: vtmodern-kiosk.service does not
+// restart on it (RestartPreventExitStatus).
+constexpr int kKioskClosed = 64;
+
 std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o, LayoutController &controller)
 {
+    const bool kiosk = cli.isSet(o.kiosk);
+    QObject::connect(&controller, &LayoutController::closeRequested, qApp, [kiosk] {
+        qInfo("Closed by a manager");
+        QCoreApplication::exit(kiosk ? kKioskClosed : 0);
+    });
 #ifdef Q_OS_ANDROID
     controller.setAutoFormFactor(true);
     QObject::connect(&controller, &LayoutController::formFactorChanged, &controller,

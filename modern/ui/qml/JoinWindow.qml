@@ -34,7 +34,7 @@ ApplicationWindow {
 
     Shortcut {
         enabled: !root.kiosk
-        sequences: [StandardKey.FullScreen, "F11"]
+        sequences: [StandardKey.FullScreen, "F11", "Ctrl+Shift+F"]
         onActivated: root.visibility === Window.FullScreen ? root.showNormal() : root.showFullScreen()
     }
 

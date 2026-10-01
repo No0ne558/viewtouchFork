@@ -618,6 +618,18 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
     if (name == u"editMode")
         return done(requestEditMode());
 
+    // Close ViewTouch: a manager's way off a kiosk screen (it then stays
+    // closed until the next boot; see vtmodern-kiosk.service).
+    if (name == u"closeApp") {
+        if (pos_ && !pos_->can(QString::fromLatin1(vt::core::perm::Manager))) {
+            setStatus(tr("Closing ViewTouch needs a manager."));
+            return done(false);
+        }
+        done(true);
+        emit closeRequested();
+        return;
+    }
+
     // Manager screens are pages ("admin-menu", "reports"...). Kept as a
     // command so buttons made before those pages existed still work.
     if (name == u"openAdmin") {
