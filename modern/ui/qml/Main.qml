@@ -267,6 +267,7 @@ ApplicationWindow {
 
     Rectangle {
         id: toastBox
+        objectName: "toast"
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 24

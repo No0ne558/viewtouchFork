@@ -137,6 +137,12 @@ struct Demo {
             if (t.value(u"checkId"_s).toLongLong() == checkId)
                 pos.bumpTicket(checkId, t.value(u"sentAt"_s).toLongLong());
         }
+        clock += (1 + pick(3)) * kMinute;   // the expediter runs it out
+        for (const QVariant &tv : pos.expoTickets()) {
+            const QVariantMap t = tv.toMap();
+            if (t.value(u"checkId"_s).toLongLong() == checkId)
+                pos.expoBump(checkId, t.value(u"sentAt"_s).toLongLong());
+        }
         clock += (takeout ? 3 : 25 + pick(35)) * kMinute;
         if (chance(3))
             pos.tender(u"discount"_s);

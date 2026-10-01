@@ -192,10 +192,12 @@ struct Screen : Session {
     QQmlApplicationEngine engine;
     QQuickWindow *window = nullptr;
 
-    explicit Screen(bool touchKeyboard = false)
+    explicit Screen(bool touchKeyboard = false, int width = 1600, int height = 900, const QString &formFactor = {})
     {
+        if (!formFactor.isEmpty())
+            c.setFormFactorOverride(formFactor);
         engine.setInitialProperties({{u"controller"_s, QVariant::fromValue(&c)},
-                                     {u"width"_s, 1600}, {u"height"_s, 900}, {u"touchKeyboard"_s, touchKeyboard}});
+                                     {u"width"_s, width}, {u"height"_s, height}, {u"touchKeyboard"_s, touchKeyboard}});
         engine.loadFromModule("ViewTouch", "Main");
         REQUIRE_FALSE(engine.rootObjects().isEmpty());
         window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
@@ -635,4 +637,263 @@ TEST_CASE("UI: the expo screen - kitchen names, what's made, ready in blue", "[f
     QTest::qWait(60);
     s.shot("18-expo");
     CHECK(Screen::findBy(s.window->contentItem(), "text", u"READY"_s));
+}
+
+// --- the user manual's screenshots (hidden: run with "[.manual]" and VTM_SHOTS) ---------------
+
+#include "app/pos_demo.hh"
+#include "app/pos_json.hh"
+
+TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
+{
+    Screen s;
+    // A lived-in store: two months of demo service, promotions and texting on.
+    s.pos.shared()->settings.promotions =
+        app::settingsFromJson(test::readSeed("pos/settings.json").object()).promotions;
+    s.pos.shared()->settings.textWebhook = "https://example.invalid/sms";
+    s.pos.shared()->sendText = [](const QString &, const QString &) {};
+    // Without the screen watching: it would redraw after every one of thousands of changes.
+    s.c.setPos(nullptr);
+    REQUIRE(app::fillDemoData(s.pos, QDateTime::currentMSecsSinceEpoch()).startsWith(u"Added"_s));
+    s.c.setPos(&s.pos);
+    // Reports over a range read back what was saved (here: what the sink recorded).
+    s.pos.shared()->history = [&s](std::int64_t from, std::int64_t to) {
+        std::vector<core::Check> out;
+        for (const auto &[id, c] : s.sink.checks)
+            if (c.status == core::CheckStatus::Closed && c.closedAt >= from && c.closedAt < to)
+                out.push_back(c);
+        return out;
+    };
+    // A clean picture: no passing message on top.
+    const auto snap = [&](const char *name) {
+        if (QObject *toast = s.window->findChild<QObject *>(u"toast"_s))
+            toast->setProperty("opacity", 0);
+        QTest::qWait(450);                                      // it fades out
+        s.shot(name);
+    };
+    const auto go = [&](const char *page, const char *name) {
+        s.c.jumpTo(QString::fromLatin1(page));
+        QTest::qWait(120);
+        snap(name);
+    };
+    const auto chooseRequired = [&] {
+        for (const QVariant &g : s.pos.choosingInfo()[u"groups"_s].toList())
+            if (!g.toMap()[u"done"_s].toBool())
+                s.pos.chooseOption(g.toMap()[u"id"_s].toString(), 0);
+        s.pos.finishChoosing();
+    };
+
+    // Logging in, the floor.
+    s.pos.logout();
+    go("login", "m01-login");
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));                     // Sam, a server
+    s.pos.clockIn();
+    for (const char *table : {"T2", "T5"}) {                    // a couple of tables already going
+        REQUIRE(s.pos.selectTable(QString::fromLatin1(table)) == app::PosService::TableNeedsGuests);
+        s.pos.entryKey(u"4"_s);
+        REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+        s.pos.addItem(u"cobb"_s);
+        s.pos.addItem(u"classic-burger"_s);
+        s.pos.addItem(u"medium"_s);
+        s.pos.sendOrder();
+        s.pos.releaseCheck();
+    }
+    go("tables", "m02-tables");
+    REQUIRE(s.pos.selectTable(u"T3"_s) == app::PosService::TableNeedsGuests);
+    go("guest-count", "m03-guest-count");
+    s.pos.entryKey(u"3"_s);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    go("index-lunch", "m04-menu-index");
+    s.pos.addItem(u"bacon-burger"_s);
+    s.pos.addItem(u"medium-rare"_s);
+    s.pos.addItem(u"fries"_s);
+    go("items-burgers", "m05-items");
+    s.c.activate(u"item-1"_s);                                  // Classic Burger -> its modifier pages
+    QTest::qWait(120);
+    snap("m06-modifier-page");
+    s.c.jumpTo(u"items-salads"_s);
+    s.pos.addItem(u"house-salad"_s);
+    s.c.jumpTo(u"modifiers"_s);
+    QTest::qWait(120);
+    snap("m07-choose");
+    chooseRequired();
+    s.pos.setSeat(2);
+    s.pos.setCourse(2);
+    s.pos.addItem(u"caesar"_s);
+    s.pos.setCourse(1);
+    go("items-drinks", "m08-order-seats-courses");
+    go("note", "m09-note");
+    go("check-options", "m10-check-options");
+    go("transfer", "m11-transfer");
+    go("move-table", "m12-move-table");
+    go("merge", "m13-merge");
+    s.pos.sendOrder();
+    go("split", "m14-split");
+
+    // A gift card with money on it (the demo ones are spent by now).
+    s.pos.releaseCheck();
+    REQUIRE(s.pos.sellGiftCard(u"6000 2026 1001"_s, 5000));
+    REQUIRE(s.pos.tender(u"cash"_s, 5000));
+    REQUIRE(s.pos.closeCheck());
+
+    // Takeout, customers, gift cards.
+    s.pos.releaseCheck();
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    go("customer", "m15-takeout-customer");
+    s.pos.findCustomers(u"Dana"_s);
+    const QVariantList found = s.pos.customerResults();
+    if (!found.isEmpty())
+        s.pos.selectCustomer(found.first().toMap()[u"id"_s].toString());
+    s.pos.useCustomer();
+    go("customers", "m16-customers");
+    s.pos.lookupGiftCard(u"600020261001"_s);
+    go("gift-card", "m17-gift-card");
+    s.pos.addItem(u"cobb"_s);
+    s.pos.addItem(u"soda"_s);
+    chooseRequired();
+    go("settle", "m18-settle");
+    s.pos.releaseCheck();
+
+    // Drinks for the bar.
+    REQUIRE(s.pos.selectTable(u"Bar 1"_s) == app::PosService::TableNeedsGuests);
+    s.pos.entryKey(u"2"_s);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    for (const char *drink : {"draft-beer", "house-wine", "soda"}) {
+        s.pos.addItem(QString::fromLatin1(drink));
+        chooseRequired();
+    }
+    s.pos.sendOrder();
+    s.pos.releaseCheck();
+
+    // The host stand and the kitchen.
+    go("host", "m19-host-stand");
+    go("kitchen", "m20-kitchen");
+    s.tapKey(u"All Day"_s);
+    QTest::qWait(60);
+    snap("m21-kitchen-all-day");
+    go("bar-display", "m22-bar-display");
+    go("expo", "m23-expo");
+    go("logout", "m24-logout");
+
+    // Manager.
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.clockIn();
+    go("manager", "m30-manager");
+    const auto admin = [&](const char *page, const char *name, bool pickFirst) {
+        s.c.jumpTo(QString::fromLatin1(page));
+        QTest::qWait(120);
+        if (pickFirst) {
+            s.tapCanvas(16 + 60 * 1.6, 112 + 30 * 1.6);         // the first record
+            QTest::qWait(80);
+        }
+        snap(name);
+    };
+    admin("admin-menu", "m31-menu-items", true);
+    admin("admin-modifier-groups", "m32-modifier-groups", true);
+    admin("admin-employees", "m33-employees", true);
+    admin("admin-store", "m34-store-settings", false);
+    admin("admin-taxes", "m35-taxes", false);
+    admin("admin-tenders", "m36-payment-types", true);
+    admin("admin-printers", "m37-printers", true);
+    admin("admin-terminals", "m38-terminals", false);
+    admin("admin-meal-periods", "m39-meal-periods", true);
+    admin("admin-inventory", "m40-inventory", true);
+    admin("admin-promotions", "m41-promotions", true);
+    go("admin-schedule", "m42-schedule");
+    go("sold-out", "m43-sold-out");
+    go("drawer", "m44-drawer");
+    go("end-of-day", "m45-end-of-day");
+    go("reports", "m46-report-sales");
+    s.tapKey(u"Items"_s);
+    s.tapKey(u"Last Month"_s);                                  // both years have the whole month
+    s.tapKey(u"vs Last Year"_s);
+    for (int i = 0; i < 200 && s.pos.rangeReport()[u"loading"_s].toBool(); ++i)
+        QTest::qWait(20);
+    QTest::qWait(80);
+    snap("m47-report-month-vs-last-year");
+    s.tapKey(u"Day"_s);
+    for (const char *r : {"Labor", "Kitchen", "Food Cost", "Tips", "Gift Cards"}) {
+        s.tapKey(QString::fromLatin1(r));
+        QTest::qWait(80);
+        snap(QString(u"m48-report-%1"_s).arg(QString::fromLatin1(r).toLower().replace(u' ', u'-')).toLatin1().constData());
+    }
+    go("closed-checks", "m49-closed-checks");
+    go("factory-reset", "m50-factory-reset");
+
+    // Editing pages.
+    s.c.jumpTo(u"tables"_s);
+    REQUIRE(s.c.requestEditMode());
+    QTest::qWait(150);
+    snap("m51-edit-mode");
+}
+
+TEST_CASE("Manual: the phone screens", "[.manual]")
+{
+    Screen s(false, 540, 1080, u"phone"_s);
+    QTest::qWait(300);
+    const auto snap = [&](const char *page, const char *name) {
+        s.c.jumpTo(QString::fromLatin1(page));
+        QTest::qWait(200);
+        if (QObject *toast = s.window->findChild<QObject *>(u"toast"_s))
+            toast->setProperty("opacity", 0);
+        QTest::qWait(450);                                      // it fades out
+        s.shot(name);
+    };
+    s.pos.logout();
+    snap("login", "m60-phone-login");
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    for (const char *table : {"T2", "T5"}) {
+        REQUIRE(s.pos.selectTable(QString::fromLatin1(table)) == app::PosService::TableNeedsGuests);
+        s.pos.entryKey(u"2"_s);
+        REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+        s.pos.addItem(u"cobb"_s);
+        s.pos.sendOrder();
+        s.pos.releaseCheck();
+    }
+    snap("tables", "m61-phone-tables");
+    REQUIRE(s.pos.selectTable(u"T7"_s) == app::PosService::TableNeedsGuests);
+    s.pos.entryKey(u"2"_s);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    s.pos.addItem(u"cobb"_s);
+    s.pos.addItem(u"caesar"_s);
+    snap("index-lunch", "m62-phone-order");
+    snap("settle", "m63-phone-settle");
+}
+
+TEST_CASE("Memory: a screen through a long service stays flat", "[.memory]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.entryKey(u"10000"_s);
+    REQUIRE(s.pos.openDrawerSession());
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    const auto rss = [] {
+        QFile f(u"/proc/self/status"_s);
+        f.open(QIODevice::ReadOnly);
+        for (const QByteArray &line : f.readAll().split('\n'))
+            if (line.startsWith("VmRSS:"))
+                return line.mid(6).trimmed().split(' ').first().toLong();
+        return 0L;
+    };
+    const auto serve = [&](int n) {
+        for (int i = 0; i < n; ++i) {
+            REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+            s.pos.addItem(u"cobb"_s);
+            s.pos.addItem(u"water"_s);
+            s.pos.sendOrder();
+            s.pos.tender(u"cash"_s);
+            REQUIRE(s.pos.closeCheck());
+            if (i % 10 == 0)
+                QTest::qWait(1);   // let the screen redraw, as it would
+        }
+    };
+    serve(100);
+    QTest::qWait(200);
+    const long after100 = rss();
+    serve(300);
+    QTest::qWait(200);
+    const long after400 = rss();
+    WARN("RSS after 100 checks " << after100 << " kB, after 400 " << after400 << " kB, per check "
+         << (after400 - after100) / 300.0 << " kB");
 }
