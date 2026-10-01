@@ -92,9 +92,9 @@ Money qualifiedPrice(Money unit, Qualifier q)
 std::set<std::string> permissionsForRole(const std::string &role)
 {
     if (role == "admin" || role == "manager")
-        return {perm::Order, perm::Settle, perm::Void, perm::Manager, perm::EditLayout};
+        return {perm::Order, perm::Settle, perm::Discount, perm::Void, perm::Manager, perm::EditLayout};
     if (role == "cashier" || role == "server")
-        return {perm::Order, perm::Settle};
+        return {perm::Order, perm::Settle, perm::Discount};
     return {};
 }
 

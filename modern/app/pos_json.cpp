@@ -235,12 +235,23 @@ std::string hashPin(const QString &pin, const std::string &salt)
     return h.result().toHex().toStdString();
 }
 
+namespace {
+QJsonArray strings(const std::set<std::string> &set)
+{
+    QJsonArray out;
+    for (const std::string &s : set)
+        out.append(qs(s));
+    return out;
+}
+} // namespace
+
 QJsonObject toJson(const Employee &e)
 {
     return {
         {u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
         {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active},
         {u"cashMode"_s, qs(e.cashMode)}, {u"checkout"_s, qs(e.checkout)},
+        {u"allow"_s, strings(e.allow)}, {u"deny"_s, strings(e.deny)},
     };
 }
 
@@ -253,6 +264,10 @@ Employee employeeFromJson(const QJsonObject &o)
     e.active = o.value(u"active").toBool(true);
     e.cashMode = ss(o.value(u"cashMode").toString());
     e.checkout = ss(o.value(u"checkout").toString());
+    for (const QJsonValue &v : o.value(u"allow").toArray())
+        e.allow.insert(ss(v.toString()));
+    for (const QJsonValue &v : o.value(u"deny").toArray())
+        e.deny.insert(ss(v.toString()));
     if (o.contains(u"pin")) {
         e.pinSalt = newSalt();
         e.pinHash = hashPin(o.value(u"pin").toString(), e.pinSalt);

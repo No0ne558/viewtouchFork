@@ -13,7 +13,12 @@ inline constexpr const char *Settle = "check.settle";    // take payments, close
 inline constexpr const char *Void = "order.void";        // void items already sent
 inline constexpr const char *Manager = "manager";        // manager pages
 inline constexpr const char *EditLayout = "layout.edit"; // edit pages
+inline constexpr const char *Discount = "check.discount"; // discounts and comps
 } // namespace perm
+
+// Every permission, for the per-person settings.
+inline constexpr const char *AllPermissions[] = {perm::Order, perm::Settle, perm::Discount, perm::Void,
+                                                 perm::Manager, perm::EditLayout};
 
 // Built-in roles. M4 makes these editable.
 std::set<std::string> permissionsForRole(const std::string &role);
@@ -33,7 +38,19 @@ struct Employee {
     // "anyTime" (allowed), or empty for the store's setting.
     std::string checkout;
 
-    bool can(const std::string &permission) const { return permissionsForRole(role).contains(permission); }
+    // Per-person changes to the role's permissions.
+    std::set<std::string> allow;
+    std::set<std::string> deny;
+
+    std::set<std::string> permissions() const
+    {
+        std::set<std::string> out = permissionsForRole(role);
+        out.insert(allow.begin(), allow.end());
+        for (const std::string &p : deny)
+            out.erase(p);
+        return out;
+    }
+    bool can(const std::string &permission) const { return permissions().contains(permission); }
     bool operator==(const Employee &) const = default;
 };
 

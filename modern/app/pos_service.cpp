@@ -658,6 +658,8 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
         if (t->kind == TenderKind::Card && amount > before.balance)
             amount = before.balance;
     }
+    if (t->kind == TenderKind::Discount && !require(perm::Discount, tr("Discounts and comps")))
+        return false;
     c->addPayment(*t, amount);
     if (t->kind == TenderKind::Discount)   // for the audit trail
         noteEvent(*c, tr("Discount: %1").arg(qs(t->name)), "discount");
@@ -886,7 +888,7 @@ QStringList PosService::permissions() const
 {
     QStringList out;
     if (const Employee *e = user()) {
-        for (const std::string &p : permissionsForRole(e->role))
+        for (const std::string &p : e->permissions())
             out << qs(p);
     }
     return out;

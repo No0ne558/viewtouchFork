@@ -195,7 +195,8 @@ Log in with a demo PIN: **1234** (manager), **1111** (server) or **2222** (cashi
 - A counter that doesn't need seats or courses hides the row with the order list's `props.controls: false`.
 
 **Manager** (PIN 1234 → Manager):
-- **Menu, Employees, Payments (Tenders), Printers, Taxes, Settings, Terminals, Meal Periods:** edit and Save. Staff are deactivated rather than deleted. PINs must be unique, and you can't lock yourself out.
+- **Menu, Employees, Payments (Tenders), Printers, Taxes, Settings, Terminals, Meal Periods, Modifier Groups:** edit and Save.
+- **Permissions per person** (Manager → Employees): the role (server, cashier, manager, admin) sets the defaults. Each permission can then be set to *As the role*, *Yes* or *No* for one person: take orders, take payments, give discounts and comps, void sent items, manager screens, edit pages. For example, a lead server who may void, or a manager who doesn't edit pages. Staff are deactivated rather than deleted. PINs must be unique, and you can't lock yourself out.
 - **Reports:** Sales, Items, Categories (with each one's share), By Hour, Servers, Tips, Labor, Drawer and **Audit** (every void, discount, reopened, moved, transferred and merged check, with who and when), for today (live) or any closed day (◀ ▶). **Print** sends a report to the receipt printer. **CSV** and **PDF** save it to `exports/` in the data folder, or the folder given with `--export-dir` (e.g. a USB stick).
 - **Drawers:** start with a bank, then count at the end of the shift to see over or short. No Sale opens the drawer.
 - **End of Day:** once every check is settled and the drawer is counted, this saves the day's reports and starts a new day.

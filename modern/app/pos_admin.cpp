@@ -68,6 +68,14 @@ QString uniqueId(const QString &wanted, const Container &items, IdOf idOf, int s
     return id;
 }
 
+// "As the role" / "Yes" / "No" for one permission of one person.
+QVariantMap permField(const char *permission, const QString &label)
+{
+    return with(with(field(u"perm:"_s + QString::fromLatin1(permission), label, u"enum"_s, u"Permissions"_s),
+                     u"options"_s, options({{"", "As the role"}, {"allow", "Yes"}, {"deny", "No"}})),
+                u"hint"_s, QString());
+}
+
 double number(const QVariantMap &r, const char16_t *key)
 {
     return r.value(QString::fromUtf16(key)).toString().toDouble();
@@ -113,6 +121,12 @@ QVariantList PosService::adminFields(const QString &panel)
                            .arg(s_->settings.cashMode == CashMode::ServerBank ? tr("server bank") : tr("terminal drawer"))),
                  u"options"_s, options({{"", "Store setting"}, {"serverBank", "Own bank (carries their cash)"},
                                         {"drawer", "Terminal's cash drawer"}})),
+            permField(perm::Order, tr("Take orders")),
+            permField(perm::Settle, tr("Take payments and close checks")),
+            permField(perm::Discount, tr("Give discounts and comps")),
+            permField(perm::Void, tr("Void items already sent")),
+            permField(perm::Manager, tr("Manager screens (reports, settings, staff…)")),
+            permField(perm::EditLayout, tr("Edit pages")),
             with(field(u"checkout"_s, tr("Checking out with open checks"), u"enum"_s,
                        tr("Store setting: %1.").arg(s_->settings.checkoutNeedsClosedChecks
                                                          ? tr("close all checks first") : tr("allowed"))),
@@ -237,6 +251,9 @@ QVariantList PosService::adminRecords(const QString &panel)
             QVariantMap r{{u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
                           {u"active"_s, e.active}, {u"pin"_s, QString()}, {u"cashMode"_s, qs(e.cashMode)},
                           {u"checkout"_s, qs(e.checkout)}};
+            for (const char *p : AllPermissions)
+                r.insert(u"perm:"_s + QString::fromLatin1(p),
+                         e.allow.contains(p) ? u"allow"_s : e.deny.contains(p) ? u"deny"_s : QString());
             const QString cash = e.cashMode == "serverBank" ? tr(" · own bank")
                                  : e.cashMode == "drawer"   ? tr(" · drawer") : QString();
             add(r, qs(e.name), qs(e.role) + cash + (e.active ? QString() : tr(" · inactive")));
@@ -307,7 +324,9 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"modifierGroups"_s, QString()}, {u"periodPrices"_s, QString()}};
     if (panel == u"employees")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
-                {u"active"_s, true}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()}};
+                {u"active"_s, true}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()},
+                {u"perm:order"_s, QString()}, {u"perm:check.settle"_s, QString()}, {u"perm:check.discount"_s, QString()},
+                {u"perm:order.void"_s, QString()}, {u"perm:manager"_s, QString()}, {u"perm:layout.edit"_s, QString()}};
     if (panel == u"tenders")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"kind"_s, u"card"_s}, {u"percent"_s, 0.0}};
     if (panel == u"terminals")
@@ -487,8 +506,20 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
                 return fail(tr("Someone else already uses that PIN."));
         }
     }
+    std::set<std::string> allow, deny;
+    for (const char *p : AllPermissions) {
+        const QString v = record.value(u"perm:"_s + QString::fromLatin1(p)).toString();
+        if (v == u"allow")
+            allow.insert(p);
+        else if (v == u"deny")
+            deny.insert(p);
+    }
+    Employee check;
+    check.role = ss(role);
+    check.allow = allow;
+    check.deny = deny;
     const bool isSelf = index >= 0 && user() && s_->employees[index].id == user()->id;
-    if (isSelf && (!active || !permissionsForRole(ss(role)).contains(perm::Manager)))
+    if (isSelf && (!active || !check.can(perm::Manager)))
         return fail(tr("You cannot lock yourself out. Ask another manager."));
 
     const QString cashMode = record.value(u"cashMode"_s).toString();
@@ -500,6 +531,8 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     Employee e = index >= 0 ? s_->employees[index] : Employee{};
     e.cashMode = ss(cashMode);
     e.checkout = ss(checkout);
+    e.allow = allow;
+    e.deny = deny;
     e.name = ss(name);
     e.role = ss(role);
     e.active = active;
