@@ -6,6 +6,8 @@
 #include "storage/async_writer.hh"
 #include "storage/pos_store.hh"
 
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QTemporaryDir>
 
 using namespace Qt::StringLiterals;
@@ -284,4 +286,20 @@ TEST_CASE("Customer display: the guest chooses a tip; it goes on their card", "[
     CHECK_FALSE(pos.totals()[u"hasTips"_s].toBool());
     REQUIRE(pos.closeCheck());
     CHECK_FALSE(pos.customerPrompt()[u"tipChosen"_s].toBool());   // the next check starts clean
+}
+
+TEST_CASE("Older stores: the gift tender becomes a gift card tender, House Account is added, once", "[customers][upgrade]")
+{
+    QJsonObject old{{u"tenders"_s, QJsonArray{QJsonObject{{u"id"_s, u"cash"_s}, {u"name"_s, u"Cash"_s}, {u"kind"_s, u"cash"_s}},
+                                               QJsonObject{{u"id"_s, u"gift"_s}, {u"name"_s, u"Gift Card"_s}, {u"kind"_s, u"card"_s}}}}};
+    core::PosSettings s = app::settingsFromJson(old);
+    REQUIRE(s.tender("gift"));
+    CHECK(s.tender("gift")->kind == core::TenderKind::GiftCard);
+    REQUIRE(s.tender("house"));
+    CHECK(s.tender("house")->kind == core::TenderKind::HouseAccount);
+
+    // Saved once, a manager's later choices stand (House Account removed).
+    s.tenders.pop_back();
+    const core::PosSettings again = app::settingsFromJson(app::toJson(s));
+    CHECK_FALSE(again.tender("house"));
 }
