@@ -36,6 +36,11 @@ struct MenuItem {
     // (autoSoldOut) until restocked.
     std::vector<RecipeLine> recipe;
     bool autoSoldOut = false;
+    // On the kitchen screen and kitchen tickets: a shorter name, a highlight
+    // color, or nothing at all.
+    std::string kitchenName;
+    std::string kitchenColor;
+    bool kitchenHide = false;
 
     Money priceDuring(const std::string &mealPeriod) const
     {
@@ -49,6 +54,8 @@ struct MenuItem {
 struct ModifierOption {
     std::string name;
     Money price;
+    std::string kitchenName;   // what the kitchen sees instead
+    bool kitchenHide = false;  // "No dressing": nothing for the kitchen
 
     bool operator==(const ModifierOption &) const = default;
 };

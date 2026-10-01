@@ -9,6 +9,7 @@
     "periodPrices": {
       "dinner": 12.5
     },
+    "kitchenColor": "orange",
     "recipe": [
       {
         "ingredient": "bun",
@@ -31,6 +32,7 @@
     "family": "burgers",
     "taxClass": "food",
     "printer": "kitchen",
+    "kitchenColor": "orange",
     "recipe": [
       {
         "ingredient": "bun",
@@ -60,6 +62,8 @@
     "periodPrices": {
       "dinner": 14.5
     },
+    "kitchenName": "BCN BGR",
+    "kitchenColor": "orange",
     "recipe": [
       {
         "ingredient": "bun",
@@ -86,6 +90,8 @@
     "family": "burgers",
     "taxClass": "food",
     "printer": "kitchen",
+    "kitchenName": "MUSH SWS",
+    "kitchenColor": "orange",
     "recipe": [
       {
         "ingredient": "bun",
@@ -112,6 +118,7 @@
     "family": "burgers",
     "taxClass": "food",
     "printer": "kitchen",
+    "kitchenColor": "orange",
     "recipe": [
       {
         "ingredient": "bun",
@@ -138,6 +145,8 @@
       "kids-side",
       "kids-drink"
     ],
+    "kitchenColor": "blue",
+    "kitchenName": "KIDS BGR",
     "recipe": [
       {
         "ingredient": "bun",
@@ -156,6 +165,8 @@
     "family": "burgers",
     "taxClass": "food",
     "printer": "kitchen",
+    "kitchenName": "BOTD",
+    "kitchenColor": "orange",
     "recipe": [
       {
         "ingredient": "bun",
@@ -313,7 +324,8 @@
     "price": 0.0,
     "family": "drinks",
     "taxClass": "food",
-    "printer": "bar"
+    "printer": "bar",
+    "kitchenHide": true
   },
   {
     "id": "lemonade",
@@ -445,7 +457,8 @@
     "family": "temperature",
     "taxClass": "food",
     "printer": "kitchen",
-    "modifier": true
+    "modifier": true,
+    "kitchenName": "R"
   },
   {
     "id": "medium-rare",
@@ -454,7 +467,8 @@
     "family": "temperature",
     "taxClass": "food",
     "printer": "kitchen",
-    "modifier": true
+    "modifier": true,
+    "kitchenName": "MR"
   },
   {
     "id": "medium",
@@ -463,7 +477,8 @@
     "family": "temperature",
     "taxClass": "food",
     "printer": "kitchen",
-    "modifier": true
+    "modifier": true,
+    "kitchenName": "M"
   },
   {
     "id": "medium-well",
@@ -472,7 +487,8 @@
     "family": "temperature",
     "taxClass": "food",
     "printer": "kitchen",
-    "modifier": true
+    "modifier": true,
+    "kitchenName": "MW"
   },
   {
     "id": "well-done",
@@ -481,7 +497,8 @@
     "family": "temperature",
     "taxClass": "food",
     "printer": "kitchen",
-    "modifier": true
+    "modifier": true,
+    "kitchenName": "WD"
   },
   {
     "id": "fries",
@@ -530,6 +547,7 @@
     "taxClass": "food",
     "printer": "kitchen",
     "modifier": true,
+    "kitchenName": "SWT FRY",
     "recipe": [
       {
         "ingredient": "potatoes",
@@ -544,6 +562,7 @@
     "family": "sides",
     "taxClass": "food",
     "printer": "kitchen",
-    "modifier": true
+    "modifier": true,
+    "kitchenHide": true
   }
 ]

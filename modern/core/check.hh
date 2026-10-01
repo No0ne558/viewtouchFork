@@ -18,9 +18,12 @@ struct Modifier {
     Money unitPrice;
     Qualifier qualifier = Qualifier::None;
     std::string group;   // the ModifierGroup it was chosen from, if any
+    std::string kitchenName;   // what the kitchen sees instead of the name
+    bool kitchenHide = false;  // not shown in the kitchen at all
 
     Money price() const { return qualifiedPrice(unitPrice, qualifier); }
     std::string displayName() const { return qualifierPrefix(qualifier) + name; }
+    std::string kitchenText() const { return qualifierPrefix(qualifier) + (kitchenName.empty() ? name : kitchenName); }
     bool operator==(const Modifier &) const = default;
 };
 
@@ -42,8 +45,17 @@ struct OrderLine {
     std::int64_t madeAt = 0;
     int seat = 0;                // 0: not for a seat in particular
     int course = 1;              // later courses wait until they are fired
+    // How the kitchen sees it (copied from the menu item when ordered).
+    std::string kitchenName;     // instead of the name ("BCN BGR")
+    std::string kitchenColor;    // highlight on the kitchen screen: red, orange...
+    bool kitchenHide = false;    // nothing for the kitchen (water, merchandise)
+    bool served = false;         // the expediter sent it out (after it was made)
+    std::int64_t servedAt = 0;
 
     bool isComment() const { return itemId.empty(); }
+    std::string kitchenText() const { return qualifierPrefix(qualifier) + (kitchenName.empty() ? name : kitchenName); }
+    // Something the kitchen sees (not a gift card or a hidden item).
+    bool forKitchen() const { return !kitchenHide && !itemId.starts_with("giftcard:"); }
     // Selling or reloading gift card <number>: no kitchen, no tax.
     bool isGiftCard() const { return itemId.starts_with("giftcard:"); }
     std::string giftCardNumber() const { return isGiftCard() ? itemId.substr(9) : std::string(); }

@@ -1000,7 +1000,7 @@ QVariantList PosService::kitchenTickets() const
     auto collect = [&](const Check &c) {
         std::map<std::int64_t, std::vector<const OrderLine *>> bySend;
         for (const OrderLine &l : c.lines) {
-            if (l.sent && !l.made && !l.voided && !l.isGiftCard())
+            if (l.sent && !l.made && !l.voided && (l.isComment() || l.forKitchen()))
                 bySend[l.sentAt].push_back(&l);
         }
         for (auto &[sentAt, lines] : bySend)
@@ -1020,9 +1020,12 @@ QVariantList PosService::kitchenTickets() const
         QVariantList lines;
         for (const OrderLine *l : t.lines) {
             QStringList mods;
-            for (const Modifier &m : l->modifiers)
-                mods << qs(m.displayName());
-            lines.append(QVariantMap{{u"name"_s, qs(l->displayName())}, {u"quantity"_s, l->quantity},
+            for (const Modifier &m : l->modifiers) {
+                if (!m.kitchenHide)
+                    mods << qs(m.kitchenText());
+            }
+            lines.append(QVariantMap{{u"name"_s, qs(l->isComment() ? l->name : l->kitchenText())},
+                                     {u"color"_s, qs(l->kitchenColor)}, {u"quantity"_s, l->quantity},
                                      {u"modifiers"_s, mods}, {u"comment"_s, l->isComment()},
                                      {u"printer"_s, qs(l->printer.empty() ? std::string("kitchen") : l->printer)},
                                      {u"seat"_s, l->seat}, {u"course"_s, l->course}});
@@ -1081,6 +1084,110 @@ bool PosService::bumpTicket(qint64 checkId, qint64 sentAt, const QString &statio
         s_->sink->saveCheck(*c);
     emit s_->checksChanged();
     return true;
+}
+
+// --- the expediter -------------------------------------------------------------------------
+
+QVariantList PosService::expoTickets() const
+{
+    // Everything sent and not yet run to the table, a ticket per send, with
+    // what each station has made.
+    struct Ticket { const Check *check; std::int64_t sentAt; std::vector<const OrderLine *> lines; };
+    std::vector<Ticket> tickets;
+    const auto collect = [&](const Check &c) {
+        std::map<std::int64_t, std::vector<const OrderLine *>> bySend;
+        for (const OrderLine &l : c.lines) {
+            if (l.sent && !l.voided && !l.served && !l.isComment() && l.forKitchen())
+                bySend[l.sentAt].push_back(&l);
+        }
+        for (auto &[sentAt, lines] : bySend)
+            tickets.push_back({&c, sentAt, std::move(lines)});
+    };
+    for (const auto &[id, c] : s_->open)
+        collect(c);
+    for (const Check &c : s_->closedToday)
+        collect(c);
+    std::ranges::sort(tickets, [](const Ticket &a, const Ticket &b) {
+        return a.check->rush != b.check->rush ? a.check->rush : a.sentAt < b.sentAt;
+    });
+    QVariantList out;
+    for (const Ticket &t : tickets) {
+        QVariantList lines;
+        QStringList waitingOn;
+        bool ready = true;
+        for (const OrderLine *l : t.lines) {
+            const QString station = qs(l->printer.empty() ? std::string("kitchen") : l->printer);
+            QStringList mods;
+            for (const Modifier &m : l->modifiers)
+                if (!m.kitchenHide)
+                    mods << qs(m.kitchenText());
+            lines.append(QVariantMap{{u"name"_s, qs(l->kitchenText())}, {u"quantity"_s, l->quantity},
+                                     {u"modifiers"_s, mods}, {u"station"_s, station}, {u"made"_s, l->made},
+                                     {u"seat"_s, l->seat}, {u"color"_s, qs(l->kitchenColor)}});
+            if (!l->made) {
+                ready = false;
+                if (!waitingOn.contains(station))
+                    waitingOn << station;
+            }
+        }
+        out.append(QVariantMap{
+            {u"checkId"_s, qint64(t.check->id)}, {u"sentAt"_s, qint64(t.sentAt)}, {u"label"_s, qs(t.check->label)},
+            {u"server"_s, qs(t.check->serverName)}, {u"type"_s, qs(toString(t.check->type))},
+            {u"customer"_s, qs(t.check->customer.name)}, {u"lines"_s, lines}, {u"ready"_s, ready},
+            {u"waitingOn"_s, waitingOn}, {u"rush"_s, t.check->rush}, {u"vip"_s, t.check->vip},
+            {u"warnMinutes"_s, s_->settings.kitchenWarnMinutes}, {u"lateMinutes"_s, s_->settings.kitchenLateMinutes},
+        });
+    }
+    return out;
+}
+
+bool PosService::expoBump(qint64 checkId, qint64 sentAt)
+{
+    Check *c = findAnyCheck(s_, checkId);
+    if (!c)
+        return fail(tr("That ticket is gone."));
+    int n = 0;
+    for (OrderLine &l : c->lines) {
+        if (l.sent && !l.voided && !l.served && l.sentAt == sentAt && l.forKitchen() && !l.isComment()) {
+            if (!l.made) {   // run before the station bumped it: it's made
+                l.made = true;
+                l.madeAt = now();
+            }
+            l.served = true;
+            l.servedAt = now();
+            ++n;
+        }
+    }
+    if (n == 0)
+        return fail(tr("That ticket is already out."));
+    s_->served.push_back({checkId, sentAt, {}});
+    if (s_->sink)
+        s_->sink->saveCheck(*c);
+    emit s_->checksChanged();
+    return true;
+}
+
+bool PosService::expoRecall()
+{
+    while (!s_->served.empty()) {
+        const PosShared::Bump b = s_->served.back();
+        s_->served.pop_back();
+        Check *c = findAnyCheck(s_, b.checkId);
+        if (!c)
+            continue;
+        for (OrderLine &l : c->lines) {
+            if (l.sentAt == b.sentAt && l.served) {
+                l.served = false;
+                l.servedAt = 0;
+            }
+        }
+        if (s_->sink)
+            s_->sink->saveCheck(*c);
+        emit s_->checksChanged();
+        emit notice(tr("Recalled %1").arg(qs(c->label)));
+        return true;
+    }
+    return fail(tr("Nothing to recall."));
 }
 
 bool PosService::recallTicket()
@@ -1148,6 +1255,9 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"bumpTicket"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.bumpTicket(a.value(0).toLongLong(), a.value(1).toLongLong(), a.value(2).toString())); }},
         {u"recallTicket"_s, [](PosService &p, const QVariantList &) { return QVariant(p.recallTicket()); }},
+        {u"expoBump"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.expoBump(a.value(0).toLongLong(), a.value(1).toLongLong())); }},
+        {u"expoRecall"_s, [](PosService &p, const QVariantList &) { return QVariant(p.expoRecall()); }},
         {u"addTip"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addTip(a.value(0).toLongLong())); }},
         {u"setGratuity"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setGratuity(a.value(0).toLongLong())); }},
         {u"payout"_s, [](PosService &p, const QVariantList &a) {

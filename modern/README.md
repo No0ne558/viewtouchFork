@@ -164,6 +164,9 @@ Reports have a row of periods: *Day* (one business day, as before), *This Week*,
 - Tickets turn yellow after *Kitchen: ticket turns yellow after* minutes and red when late (Store Settings; 8 and 15 to start).
 - **Rush** and **VIP** (order screen → Check…): a rush ticket goes to the front with a red frame, VIP gets a gold one, and both are printed on kitchen tickets.
 - **All Day** on the kitchen screen counts everything still to make there ("3 Cobb, 2 Caesar"), for batching.
+- **How things look in the kitchen** (Manager → Menu): *Kitchen name* (what the kitchen screen and kitchen tickets show instead, e.g. "BCN BGR"), *Kitchen highlight* (a color on the kitchen screen), *Don't show in the kitchen* (water, "No side"). Modifier group options take a kitchen name after `|` (`Ranch | RNCH`), or `| -` to leave it off. Checks and receipts keep the real names.
+- **Rush:** on the order screen, Check… → **Rush** (again to turn it off).
+- **Expo Display** (Manager → Expo Display, or a screen started on the `expo` page): every ticket across the stations, each line ticked when its station bumps it, "Waiting on: bar", and blue READY when all of it is made. Touch a ready ticket when it goes out (a ticket not ready yet needs a second touch); Recall brings the last one back.
 - **Reports → Kitchen:** tickets per station from sent to bumped, with the average, the longest, how many were late, and the five slowest.
 
 ## Customer display

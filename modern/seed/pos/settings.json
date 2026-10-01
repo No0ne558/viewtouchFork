@@ -88,23 +88,28 @@
       "options": [
         {
           "name": "Ranch",
-          "price": 0
+          "price": 0,
+          "kitchenName": "RNCH"
         },
         {
           "name": "Blue Cheese",
-          "price": 0
+          "price": 0,
+          "kitchenName": "BLU CHZ"
         },
         {
           "name": "Balsamic",
-          "price": 0
+          "price": 0,
+          "kitchenName": "BALS"
         },
         {
           "name": "Caesar",
-          "price": 0
+          "price": 0,
+          "kitchenName": "CAES"
         },
         {
           "name": "Oil & Vinegar",
-          "price": 0
+          "price": 0,
+          "kitchenName": "O&V"
         }
       ]
     },

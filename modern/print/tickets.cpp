@@ -139,9 +139,13 @@ Document kitchenTicket(const Check &check, const std::vector<OrderLine> &lines, 
             d.text(seat + "** " + l.name + " **", Document::Align::Left, true);
             continue;
         }
-        d.text(seat + std::to_string(l.quantity) + " " + l.displayName(), Document::Align::Left, true, true);
-        for (const Modifier &m : l.modifiers)
-            d.text("   > " + m.displayName(), Document::Align::Left, true);
+        if (!l.forKitchen())
+            continue;
+        d.text(seat + std::to_string(l.quantity) + " " + l.kitchenText(), Document::Align::Left, true, true);
+        for (const Modifier &m : l.modifiers) {
+            if (!m.kitchenHide)
+                d.text("   > " + m.kitchenText(), Document::Align::Left, true);
+        }
     }
     d.rule();
     return d;

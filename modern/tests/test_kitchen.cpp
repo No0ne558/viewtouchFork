@@ -117,3 +117,101 @@ TEST_CASE("Kitchen times: average, longest and late tickets by station", "[kitch
     CHECK(cellsOf(report, QString::fromStdString("T2 #" + std::to_string(b) + " (kitchen)")).size() == 5);
     Q_UNUSED(c)
 }
+
+TEST_CASE("How items look in the kitchen: kitchen names, colors, hidden items and modifiers", "[kitchen][display]")
+{
+    PosService pos(test::seedPosData(true), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    // A dressing the kitchen calls RNCH; "No dressing" left off the ticket.
+    int groupIndex = 0;
+    for (int i = 0; i < int(pos.shared()->settings.modifierGroups.size()); ++i)
+        if (pos.shared()->settings.modifierGroups[i].id == "dressing") groupIndex = i;
+    QVariantMap g = pos.adminRecords(u"modifierGroups"_s)[groupIndex].toMap();
+    CHECK(g[u"options"_s].toString().startsWith(u"Ranch | RNCH"_s));
+    g[u"options"_s] = g[u"options"_s].toString() + u"\nNo dressing | -"_s;
+    REQUIRE(pos.adminSave(u"modifierGroups"_s, groupIndex, g));
+    CHECK(pos.shared()->settings.modifierGroups[groupIndex].options.back().kitchenHide);
+
+    REQUIRE(pos.selectTable(u"T1"_s) == PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    pos.addItem(u"bacon-burger"_s);                 // kitchen name BCN BGR, orange
+    pos.addItem(u"medium-rare"_s);                  // MR
+    pos.addItem(u"no-side"_s);                      // hidden modifier
+    pos.addItem(u"water"_s);                        // hidden item
+    pos.addItem(u"house-salad"_s);
+    const int last = int(pos.shared()->settings.modifierGroups[groupIndex].options.size()) - 1;
+    REQUIRE(pos.chooseOption(u"dressing"_s, last));  // No dressing
+    REQUIRE(pos.finishChoosing());
+    // The check and receipt keep the real names.
+    CHECK(pos.lines().first().toMap()[u"name"_s] == u"Bacon Burger"_s);
+    REQUIRE(pos.sendOrder());
+
+    const QVariantList tickets = pos.kitchenTickets();
+    REQUIRE(tickets.size() == 1);
+    const QVariantList lines = tickets.first().toMap()[u"lines"_s].toList();
+    REQUIRE(lines.size() == 2);                       // no water
+    CHECK(lines[0].toMap()[u"name"_s] == u"BCN BGR"_s);
+    CHECK(lines[0].toMap()[u"color"_s] == u"orange"_s);
+    CHECK(lines[0].toMap()[u"modifiers"_s].toStringList() == QStringList{u"MR"_s});   // no "No Side"
+    CHECK(lines[1].toMap()[u"modifiers"_s].toStringList().isEmpty());              // no "No dressing"
+
+    const core::Check &c = pos.shared()->open.begin()->second;
+    print::TicketContext ctx{pos.shared()->settings, [](std::int64_t) { return std::string("1/1"); },
+                             [](std::int64_t) { return std::string("12:00"); }, 0};
+    const std::string ticket = print::renderText(print::kitchenTicket(c, c.lines, "Kitchen", false, ctx), 42);
+    CHECK(ticket.find("BCN BGR") != std::string::npos);
+    CHECK(ticket.find("Water") == std::string::npos);
+    CHECK(ticket.find("No dressing") == std::string::npos);
+    CHECK(app::checkFromJson(app::toJson(c))->lines[0].kitchenName == "BCN BGR");
+
+    // Set from Manager -> Menu.
+    int water = 0;
+    for (int i = 0; i < int(pos.shared()->menu.size()); ++i)
+        if (pos.shared()->menu[i].id == "water") water = i;
+    QVariantMap w = pos.adminRecords(u"menu"_s)[water].toMap();
+    CHECK(w[u"kitchenHide"_s].toBool());
+    w[u"kitchenHide"_s] = false;
+    w[u"kitchenName"_s] = u"H2O"_s;
+    REQUIRE(pos.adminSave(u"menu"_s, water, w));
+    CHECK(pos.shared()->menu[water].kitchenName == "H2O");
+}
+
+TEST_CASE("Expediter: every station's ticket, ready when all made, run out, recall", "[kitchen][expo]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    REQUIRE(pos.selectTable(u"T2"_s) == PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    pos.addItem(u"cobb"_s);                         // kitchen
+    pos.addItem(u"draft-beer"_s);                   // bar
+    pos.addItem(u"water"_s);                        // nothing to make
+    REQUIRE(pos.sendOrder());
+    const qint64 id = pos.checkInfo()[u"id"_s].toLongLong();
+
+    QVariantMap t = pos.expoTickets().first().toMap();
+    CHECK_FALSE(t[u"ready"_s].toBool());
+    CHECK(t[u"lines"_s].toList().size() == 2);
+    CHECK(t[u"waitingOn"_s].toStringList() == QStringList{u"kitchen"_s, u"bar"_s});   // in order on the ticket
+    const qint64 sentAt = t[u"sentAt"_s].toLongLong();
+
+    REQUIRE(pos.bumpTicket(id, sentAt, u"kitchen"_s));   // the kitchen is done
+    t = pos.expoTickets().first().toMap();
+    CHECK(t[u"waitingOn"_s].toStringList() == QStringList{u"bar"_s});
+    REQUIRE(pos.bumpTicket(id, sentAt, u"bar"_s));
+    CHECK(pos.expoTickets().first().toMap()[u"ready"_s].toBool());
+    CHECK(pos.kitchenTickets().isEmpty());               // the stations are clear
+
+    REQUIRE(pos.expoBump(id, sentAt));
+    CHECK(pos.expoTickets().isEmpty());
+    CHECK_FALSE(pos.expoBump(id, sentAt));
+    REQUIRE(pos.expoRecall());
+    CHECK(pos.expoTickets().size() == 1);
+
+    // Sent out before a station bumped it: it counts as made.
+    pos.addItem(u"caesar"_s);
+    REQUIRE(pos.sendOrder());
+    const QVariantList all = pos.expoTickets();
+    const QVariantMap second = all.last().toMap();
+    REQUIRE(pos.expoBump(id, second[u"sentAt"_s].toLongLong()));
+    CHECK(pos.kitchenTickets().isEmpty());
+}

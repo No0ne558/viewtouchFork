@@ -107,6 +107,13 @@ QVariantList PosService::adminFields(const QString &panel)
                       .arg(groupIds().join(u", "))),
             field(u"periodPrices"_s, tr("Prices by meal period"), u"text"_s,
                   tr("One per line, e.g. \"dinner = 14.50\". Meal periods: %1").arg(periodIds().join(u", "))),
+            field(u"kitchenName"_s, tr("Kitchen name"), u"string"_s,
+                  tr("What the kitchen screen and tickets show instead, e.g. \"BCN BGR\". Empty: the name.")),
+            with(field(u"kitchenColor"_s, tr("Kitchen highlight"), u"enum"_s), u"options"_s,
+                 options({{"", "None"}, {"red", "Red"}, {"orange", "Orange"}, {"yellow", "Yellow"}, {"green", "Green"},
+                          {"blue", "Blue"}, {"purple", "Purple"}})),
+            field(u"kitchenHide"_s, tr("Don't show in the kitchen"), u"bool"_s,
+                  tr("Nothing to make (water, a gift card...). As a modifier: left off the kitchen ticket.")),
             field(u"recipe"_s, tr("Recipe (what one uses up)"), u"text"_s,
                   tr("One ingredient per line with the amount, e.g. \"bun 1\" or \"lettuce 0.5\" (Manager -> Inventory)."
                      " Sold out by itself when one runs short.")),
@@ -240,7 +247,8 @@ QVariantList PosService::adminFields(const QString &panel)
             with(with(field(u"max"_s, tr("Most choices allowed"), u"int"_s,
                             tr("1 = pick one (a new choice replaces it), 0 = any number")), u"min"_s, 0), u"max"_s, 20),
             field(u"options"_s, tr("Options"), u"text"_s,
-                  tr("One per line; a price after +, e.g. \"Onion Rings + 1.50\"")),
+                  tr("One per line; a price after +, e.g. \"Onion Rings + 1.50\". After |, what the kitchen sees "
+                     "(\"Ranch | RNCH\"), or - to leave it off the kitchen ticket (\"No dressing | -\").")),
         };
     }
     if (panel == u"mealPeriods") {
@@ -360,7 +368,8 @@ QVariantList PosService::adminRecords(const QString &panel)
         for (const ModifierGroup &g : s_->settings.modifierGroups) {
             QStringList lines;
             for (const ModifierOption &o : g.options)
-                lines << (o.price.cents() ? u"%1 + %2"_s.arg(qs(o.name), qs(o.price.toString())) : qs(o.name));
+                lines << (o.price.cents() ? u"%1 + %2"_s.arg(qs(o.name), qs(o.price.toString())) : qs(o.name))
+                             + (o.kitchenHide ? u" | -"_s : o.kitchenName.empty() ? QString() : u" | "_s + qs(o.kitchenName));
             add({{u"id"_s, qs(g.id)}, {u"name"_s, qs(g.name)}, {u"min"_s, g.min}, {u"max"_s, g.max},
                  {u"options"_s, lines.join(u'\n')}},
                 qs(g.name), tr("%1 options").arg(g.options.size()) + (g.min > 0 ? tr(" · required") : QString()));
@@ -387,7 +396,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"menu")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"price"_s, 0.0}, {u"family"_s, QString()},
                 {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"modifier"_s, false}, {u"available"_s, true},
-                {u"modifierGroups"_s, QString()}, {u"periodPrices"_s, QString()}, {u"recipe"_s, QString()}};
+                {u"modifierGroups"_s, QString()}, {u"periodPrices"_s, QString()}, {u"recipe"_s, QString()},
+                {u"kitchenName"_s, QString()}, {u"kitchenColor"_s, QString()}, {u"kitchenHide"_s, false}};
     if (panel == u"employees")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
                 {u"active"_s, true}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()},
@@ -748,6 +758,9 @@ QVariantMap PosService::menuRecord(const MenuItem &m) const
         recipe << u"%1 %2"_s.arg(qs(line.ingredientId), QString::number(line.quantity, 'g', 8));
     r.insert(u"recipe"_s, recipe.join(u'\n'));
     r.remove(u"autoSoldOut"_s);
+    r.insert(u"kitchenName"_s, qs(m.kitchenName));
+    r.insert(u"kitchenColor"_s, qs(m.kitchenColor));
+    r.insert(u"kitchenHide"_s, m.kitchenHide);
     for (const char16_t *k : {u"family", u"printer"}) {
         if (!r.contains(QString::fromUtf16(k)))
             r.insert(QString::fromUtf16(k), QString());
@@ -787,7 +800,13 @@ bool PosService::saveModifierGroupRecord(int index, const QVariantMap &record)
     g.max = std::max(0, record.value(u"max"_s).toInt());
     if (g.max > 0 && g.min > g.max)
         return fail(tr("It can't require more choices than it allows."));
-    for (const QString &line : record.value(u"options"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
+    for (QString line : record.value(u"options"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
+        // "Ranch + 0.50 | RNCH": the kitchen's name after |, or - for none.
+        QString kitchen;
+        if (const qsizetype bar = line.indexOf(u'|'); bar >= 0) {
+            kitchen = line.mid(bar + 1).trimmed();
+            line = line.left(bar);
+        }
         const qsizetype plus = line.lastIndexOf(u'+');
         QString optName = (plus > 0 ? line.left(plus) : line).trimmed();
         Money price;
@@ -799,7 +818,7 @@ bool PosService::saveModifierGroupRecord(int index, const QVariantMap &record)
             price = Money::fromCents(std::llround(p * 100.0));
         }
         if (!optName.isEmpty())
-            g.options.push_back({ss(optName), price});
+            g.options.push_back({ss(optName), price, kitchen == u"-" ? std::string() : ss(kitchen), kitchen == u"-"});
     }
     if (g.options.empty())
         return fail(tr("Add the options, one per line."));

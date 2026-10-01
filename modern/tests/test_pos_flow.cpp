@@ -493,6 +493,7 @@ TEST_CASE("UI: the kitchen display with a rush ticket and the all-day counts", "
     order(u"T1"_s, {"cobb", "caesar"});
     order(u"T2"_s, {"cobb", "cobb", "water"});
     order(u"T3"_s, {"caesar"}, true);
+    order(u"T4"_s, {"bacon-burger", "medium-rare", "fries", "cheeseburger"});
     REQUIRE(s.c.jumpTo(u"kitchen"_s));
     QTest::qWait(50);
     s.tapKey(u"All Day"_s);
@@ -554,7 +555,7 @@ TEST_CASE("UI: Manager -> Factory Reset asks for RESET before it does anything",
     REQUIRE(s.pos.loginWithPin(u"1234"_s));
     REQUIRE(s.c.jumpTo(u"manager"_s));
     QTest::qWait(30);
-    s.tapCanvas(160 + 1 * 408 + 192, 124 + 5 * 134 + 60);      // slot 22 (row 6, column 2): Factory Reset…
+    s.tapCanvas(160 + 2 * 408 + 192, 124 + 5 * 134 + 60);      // slot 23 (row 6, column 3): Factory Reset…
     QTest::qWait(30);
     REQUIRE(s.c.pageId() == u"factory-reset"_s);
     QQuickItem *button = Screen::findBy(s.window->contentItem(), "text", u"Back Up and Reset Everything"_s);
@@ -568,4 +569,33 @@ TEST_CASE("UI: Manager -> Factory Reset asks for RESET before it does anything",
     s.shot("17-factory-reset");
     s.tapItem(button);
     CHECK(asked == 1);
+}
+
+TEST_CASE("UI: the expo screen - kitchen names, what's made, ready in blue", "[flow][ui][expo]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    const auto order = [&](const QString &table, std::initializer_list<const char *> items) {
+        REQUIRE(s.pos.selectTable(table) == app::PosService::TableNeedsGuests);
+        REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+        for (const char *i : items) {
+            s.pos.addItem(QString::fromLatin1(i));
+            for (const QVariant &g : s.pos.choosingInfo()[u"groups"_s].toList())   // the first of what's required
+                if (!g.toMap()[u"done"_s].toBool())
+                    s.pos.chooseOption(g.toMap()[u"id"_s].toString(), 0);
+            s.pos.finishChoosing();
+        }
+        REQUIRE(s.pos.sendOrder());
+        s.pos.releaseCheck();
+    };
+    order(u"T1"_s, {"bacon-burger", "medium-rare", "fries", "draft-beer"});
+    order(u"T2"_s, {"cobb", "kids-burger"});
+    const QVariantMap t2 = s.pos.expoTickets().last().toMap();
+    REQUIRE(s.pos.bumpTicket(t2[u"checkId"_s].toLongLong(), t2[u"sentAt"_s].toLongLong(), {}));
+    const QVariantMap t1 = s.pos.expoTickets().first().toMap();
+    REQUIRE(s.pos.bumpTicket(t1[u"checkId"_s].toLongLong(), t1[u"sentAt"_s].toLongLong(), u"kitchen"_s));
+    REQUIRE(s.c.jumpTo(u"expo"_s));
+    QTest::qWait(60);
+    s.shot("18-expo");
+    CHECK(Screen::findBy(s.window->contentItem(), "text", u"READY"_s));
 }

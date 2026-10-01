@@ -248,6 +248,9 @@ OrderLine &Check::addItem(const MenuItem &item, Qualifier q)
     l.taxClass = item.taxClass;
     l.qualifier = q;
     l.printer = item.printer;
+    l.kitchenName = item.kitchenName;
+    l.kitchenColor = item.kitchenColor;
+    l.kitchenHide = item.kitchenHide;
     lines.push_back(l);
     return lines.back();
 }
@@ -257,7 +260,7 @@ bool Check::addModifier(std::int64_t lineId, const MenuItem &modifier, Qualifier
     OrderLine *l = line(lineId);
     if (!l || l->sent || l->voided || l->isComment())
         return false;
-    l->modifiers.push_back({modifier.id, modifier.name, modifier.price, q});
+    l->modifiers.push_back({modifier.id, modifier.name, modifier.price, q, {}, modifier.kitchenName, modifier.kitchenHide});
     return true;
 }
 

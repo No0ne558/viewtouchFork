@@ -14,8 +14,20 @@ Item {
     property real now: Date.now()
 
     // Tickets with only this station's lines.
+    // props.mode "expo": the expediter - every station, what each has made,
+    // green when the whole ticket is ready; touching it sends it out.
+    readonly property bool expo: zone && zone.props && zone.props.mode === "expo"
+    property var armed: null   // expo: a ticket touched once while not ready
+
+    // Kitchen highlight colors (Manager -> Menu), readable on the ticket.
+    function inkFor(name) {
+        return ({ red: "#c92a2a", orange: "#d9480f", yellow: "#9c6f00", green: "#2b8a3e",
+                  blue: "#1864ab", purple: "#7048e8" })[name] ?? "#1b1b1b"
+    }
+
     readonly property var tickets: {
         if (!pos) return []
+        if (expo) return pos.expoTickets
         const out = []
         for (const t of pos.kitchenTickets) {
             const lines = station === "" ? t.lines : t.lines.filter(l => l.printer === station || l.comment)
@@ -24,6 +36,8 @@ Item {
         }
         return out
     }
+
+    Timer { id: disarmExpo; interval: 3000; onTriggered: w.armed = null }
 
     Timer {
         interval: 1000
@@ -64,7 +78,7 @@ Item {
             Layout.fillHeight: false   // nested layouts fill by default
             Text {
                 Layout.fillWidth: true
-                text: (w.station === "" ? qsTr("All stations") : w.station.charAt(0).toUpperCase() + w.station.slice(1))
+                text: (w.expo ? qsTr("Expo") : w.station === "" ? qsTr("All stations") : w.station.charAt(0).toUpperCase() + w.station.slice(1))
                       + "  ·  " + (w.tickets.length === 1 ? qsTr("1 order") : qsTr("%1 orders").arg(w.tickets.length))
                 color: "white"
                 font.family: w.face
@@ -83,7 +97,7 @@ Item {
                 Layout.fillHeight: true
                 text: qsTr("Recall")
                 fontScale: 0.4
-                onClicked: w.pos.recallTicket()
+                onClicked: w.expo ? w.pos.expoRecall() : w.pos.recallTicket()
             }
         }
 
@@ -118,7 +132,7 @@ Item {
                         width: parent.width
                         height: 72
                         radius: 10
-                        color: w.ageColor(card.modelData)
+                        color: w.expo && card.modelData.ready ? "#1f6fd6" : w.ageColor(card.modelData)
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 10; color: parent.color }
                         Column {
                             anchors.left: parent.left
@@ -142,7 +156,7 @@ Item {
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.rightMargin: 14
-                            text: w.elapsed(card.modelData.sentAt)
+                            text: w.expo && card.modelData.ready ? qsTr("READY") : w.elapsed(card.modelData.sentAt)
                             color: "white"
                             font.family: w.face
                             font.pixelSize: 30
@@ -169,6 +183,19 @@ Item {
                             font.bold: true
                         }
                         Text {
+                            visible: w.expo && !card.modelData.ready
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            readonly property bool isArmed: w.armed !== null && w.armed.checkId === card.modelData.checkId
+                                                            && w.armed.sentAt === card.modelData.sentAt
+                            text: isArmed ? qsTr("Not all made. Touch again to send it out anyway.")
+                                          : qsTr("Waiting on: %1").arg((card.modelData.waitingOn ?? []).join(", "))
+                            color: isArmed ? "#c92a2a" : "#6b6b6b"
+                            font.family: w.face
+                            font.pixelSize: 20
+                            font.bold: isArmed
+                        }
+                        Text {
                             visible: !!card.modelData.note
                             width: parent.width
                             wrapMode: Text.WordWrap
@@ -193,7 +220,9 @@ Item {
                                           + (line.modelData.comment ? "** " + line.modelData.name + " **"
                                                                     : line.modelData.quantity + "  " + line.modelData.name)
                                           + (line.modelData.course > 1 ? "   (course " + line.modelData.course + ")" : "")
-                                    color: line.modelData.comment ? "#b83232" : "#1b1b1b"
+                                          + (w.expo ? "   " + (line.modelData.made ? "✓" : "· " + line.modelData.station) : "")
+                                    color: line.modelData.comment ? "#b83232"
+                                         : w.expo && line.modelData.made ? "#2b8a3e" : w.inkFor(line.modelData.color)
                                     font.family: w.face
                                     font.pixelSize: 26
                                     font.bold: true
@@ -216,7 +245,18 @@ Item {
 
                     TapHandler {
                         id: tap
-                        onTapped: w.pos.bumpTicket(card.modelData.checkId, card.modelData.sentAt, w.station)
+                        onTapped: {
+                            const t = card.modelData
+                            if (!w.expo) {
+                                w.pos.bumpTicket(t.checkId, t.sentAt, w.station)
+                            } else if (t.ready || (w.armed && w.armed.checkId === t.checkId && w.armed.sentAt === t.sentAt)) {
+                                w.armed = null
+                                w.pos.expoBump(t.checkId, t.sentAt)   // out to the table
+                            } else {
+                                w.armed = { checkId: t.checkId, sentAt: t.sentAt }   // not ready: touch again to send anyway
+                                disarmExpo.restart()
+                            }
+                        }
                     }
                 }
             }

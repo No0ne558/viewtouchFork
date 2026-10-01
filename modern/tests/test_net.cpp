@@ -198,7 +198,7 @@ TEST_CASE("Kitchen display: tickets, bump, recall", "[net][kitchen]")
     const QVariantList lines = first[u"lines"_s].toList();
     REQUIRE(lines.size() == 2);
     CHECK(lines[0].toMap()[u"name"_s].toString() == u"Classic Burger"_s);
-    CHECK(lines[0].toMap()[u"modifiers"_s].toStringList() == QStringList{u"Medium"_s});
+    CHECK(lines[0].toMap()[u"modifiers"_s].toStringList() == QStringList{u"M"_s});
     CHECK(lines[1].toMap()[u"printer"_s].toString() == u"bar"_s);
 
     REQUIRE(pos.bumpTicket(first[u"checkId"_s].toLongLong(), first[u"sentAt"_s].toLongLong()));

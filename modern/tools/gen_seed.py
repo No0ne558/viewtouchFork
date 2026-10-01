@@ -147,6 +147,17 @@ RECIPES = {
     "sweet-potato-fries": [("potatoes", 6)],
     "onion-rings": [("onions", 6)],
 }
+# How some things look in the kitchen (Manager -> Menu -> Kitchen name...).
+for iid, short in (("rare", "R"), ("medium-rare", "MR"), ("medium", "M"), ("medium-well", "MW"),
+                   ("well-done", "WD"), ("sweet-potato-fries", "SWT FRY"), ("bacon-burger", "BCN BGR"),
+                   ("mushroom-swiss", "MUSH SWS"), ("burger-of-the-day", "BOTD")):
+    item(iid)["kitchenName"] = short
+for iid in ("classic-burger", "cheeseburger", "bacon-burger", "mushroom-swiss", "veggie-burger", "burger-of-the-day"):
+    item(iid)["kitchenColor"] = "orange"
+item("kids-burger")["kitchenColor"] = "blue"
+item("kids-burger")["kitchenName"] = "KIDS BGR"
+for iid in ("water", "no-side"):
+    item(iid)["kitchenHide"] = True
 for iid, recipe in RECIPES.items():
     item(iid)["recipe"] = [{"ingredient": g, "qty": q} for g, q in recipe]
 write("pos/menu.json", MENU, versioned=False)
@@ -188,7 +199,9 @@ write("pos/settings.json", {
     "cashMode": "serverBank",
     "modifierGroups": [
         {"id": "dressing", "name": "Dressing", "min": 1, "max": 1,
-         "options": [{"name": n, "price": 0} for n in ("Ranch", "Blue Cheese", "Balsamic", "Caesar", "Oil & Vinegar")]},
+         "options": [{"name": n, "price": 0, "kitchenName": k} for n, k in
+                     (("Ranch", "RNCH"), ("Blue Cheese", "BLU CHZ"), ("Balsamic", "BALS"), ("Caesar", "CAES"),
+                      ("Oil & Vinegar", "O&V"))]},
         {"id": "salad-protein", "name": "Add a Protein", "min": 0, "max": 1,
          "options": [{"name": "Grilled Chicken", "price": 4.00}, {"name": "Shrimp", "price": 5.00},
                      {"name": "Salmon", "price": 6.00}]},
@@ -557,6 +570,7 @@ slots = [zone(f"admin-{panel}", 0, 0, 0, 0, text, actions=[command("openAdmin", 
 slots += [
     zone("kitchen-display", 0, 0, 0, 0, "Kitchen Display", actions=[jump(page="kitchen")]),
     zone("bar-display", 0, 0, 0, 0, "Bar Display", actions=[jump(page="bar-display")]),
+    zone("expo-display", 0, 0, 0, 0, "Expo Display", actions=[jump(page="expo")]),
     zone("edit-pages", 0, 0, 0, 0, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
     zone("customers", 0, 0, 0, 0, "Customers…", actions=[jump(page="customers")]),
     zone("gift-cards", 0, 0, 0, 0, "Gift Cards…", actions=[jump(page="gift-card")]),
@@ -628,6 +642,11 @@ page("kitchen", "Kitchen Display", "kitchen", [
 page("bar-display", "Bar Display", "kitchen", [
     zone("tickets", 0, 0, 1920, 1080, kind="kitchenDisplay", props={"station": "bar"}, style=KDS),
 ], role="bar", permission="public", background={"fill": "#101317"})
+
+# The expediter: every station's tickets; green when all of it is made.
+page("expo", "Expo Display", "kitchen", [
+    zone("tickets", 0, 0, 1920, 1080, kind="kitchenDisplay", props={"mode": "expo"}, style=KDS),
+], role="expo", permission="public", background={"fill": "#101317"})
 
 page("end-of-day", "End of Day", "manager", [
     zone("eod", 460, 40, 1000, 880, kind="endOfDay"),

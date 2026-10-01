@@ -155,6 +155,7 @@ public:
     // Bumped kitchen tickets, newest last, for Recall.
     struct Bump { std::int64_t checkId; std::int64_t sentAt; std::string station; };
     std::vector<Bump> bumped;
+    std::vector<Bump> served;   // expediter bumps, newest last
 
     // A device pairing a manager has started: the code the device must
     // type, until it is used or expires. One at a time.
@@ -323,6 +324,10 @@ public:
     // Mark the lines sent at `sentAt` on the check as made; with a station,
     // only the lines printed there (a bar screen leaves kitchen lines alone).
     bool bumpTicket(qint64 checkId, qint64 sentAt, const QString &station = {});
+    // The expediter: every ticket across the stations until it's run out.
+    QVariantList expoTickets() const override;
+    bool expoBump(qint64 checkId, qint64 sentAt);   // out to the table (made, if a station forgot)
+    bool expoRecall();
     bool recallTicket();   // undo the latest bump
 
     // --- drawer and business day ---------------------------------------------------

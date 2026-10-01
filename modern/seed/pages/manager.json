@@ -373,10 +373,30 @@
       ]
     },
     {
-      "id": "edit-pages",
+      "id": "expo-display",
       "kind": "button",
       "rect": {
         "x": 160,
+        "y": 660,
+        "w": 384,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Expo Display",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "expo"
+        }
+      ]
+    },
+    {
+      "id": "edit-pages",
+      "kind": "button",
+      "rect": {
+        "x": 568,
         "y": 660,
         "w": 384,
         "h": 120
@@ -400,7 +420,7 @@
       "id": "customers",
       "kind": "button",
       "rect": {
-        "x": 568,
+        "x": 976,
         "y": 660,
         "w": 384,
         "h": 120
@@ -420,7 +440,7 @@
       "id": "gift-cards",
       "kind": "button",
       "rect": {
-        "x": 976,
+        "x": 1384,
         "y": 660,
         "w": 384,
         "h": 120
@@ -440,8 +460,8 @@
       "id": "sold-out",
       "kind": "button",
       "rect": {
-        "x": 1384,
-        "y": 660,
+        "x": 160,
+        "y": 794,
         "w": 384,
         "h": 120
       },
@@ -460,7 +480,7 @@
       "id": "close-app",
       "kind": "button",
       "rect": {
-        "x": 160,
+        "x": 568,
         "y": 794,
         "w": 384,
         "h": 120
@@ -484,7 +504,7 @@
       "id": "factory-reset",
       "kind": "button",
       "rect": {
-        "x": 568,
+        "x": 976,
         "y": 794,
         "w": 384,
         "h": 120

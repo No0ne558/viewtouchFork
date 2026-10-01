@@ -114,6 +114,8 @@ bool PosService::chooseOption(const QString &groupId, int index)
         m.name = o.name;
         m.unitPrice = o.price;
         m.group = g->id;
+        m.kitchenName = o.kitchenName;
+        m.kitchenHide = o.kitchenHide;
         // Keep the group's choices together, in the order of the groups.
         l->modifiers.push_back(m);
     }

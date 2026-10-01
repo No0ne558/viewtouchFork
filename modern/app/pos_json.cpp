@@ -39,6 +39,10 @@ QJsonObject toJson(const Check &c)
                 mo.insert(u"qualifier"_s, qs(toString(m.qualifier)));
             if (!m.group.empty())
                 mo.insert(u"group"_s, qs(m.group));
+            if (!m.kitchenName.empty())
+                mo.insert(u"kitchenName"_s, qs(m.kitchenName));
+            if (m.kitchenHide)
+                mo.insert(u"kitchenHide"_s, true);
             mods.append(mo);
         }
         QJsonObject lo{
@@ -61,6 +65,16 @@ QJsonObject toJson(const Check &c)
             lo.insert(u"seat"_s, l.seat);
         if (l.course != 1)
             lo.insert(u"course"_s, l.course);
+        if (!l.kitchenName.empty())
+            lo.insert(u"kitchenName"_s, qs(l.kitchenName));
+        if (!l.kitchenColor.empty())
+            lo.insert(u"kitchenColor"_s, qs(l.kitchenColor));
+        if (l.kitchenHide)
+            lo.insert(u"kitchenHide"_s, true);
+        if (l.served) {
+            lo.insert(u"served"_s, true);
+            lo.insert(u"servedAt"_s, qint64(l.servedAt));
+        }
         lines.append(lo);
     }
     QJsonArray payments;
@@ -124,12 +138,18 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
         l.madeAt = i64(lo.value(u"madeAt"));
         l.seat = lo.value(u"seat").toInt(0);
         l.course = std::max(1, lo.value(u"course").toInt(1));
+        l.kitchenName = ss(lo.value(u"kitchenName").toString());
+        l.kitchenColor = ss(lo.value(u"kitchenColor").toString());
+        l.kitchenHide = lo.value(u"kitchenHide").toBool();
+        l.served = lo.value(u"served").toBool();
+        l.servedAt = i64(lo.value(u"servedAt"));
         for (const QJsonValue &mv : lo.value(u"modifiers").toArray()) {
             const QJsonObject mo = mv.toObject();
             l.modifiers.push_back({ss(mo.value(u"itemId").toString()), ss(mo.value(u"name").toString()),
                                    money(mo.value(u"unitPrice")),
                                    qualifierFromString(ss(mo.value(u"qualifier").toString())),
-                                   ss(mo.value(u"group").toString())});
+                                   ss(mo.value(u"group").toString()), ss(mo.value(u"kitchenName").toString()),
+                                   mo.value(u"kitchenHide").toBool()});
         }
         c.lines.push_back(l);
     }
@@ -199,6 +219,12 @@ QJsonObject toJson(const MenuItem &m)
     }
     if (m.autoSoldOut)
         o.insert(u"autoSoldOut"_s, true);
+    if (!m.kitchenName.empty())
+        o.insert(u"kitchenName"_s, qs(m.kitchenName));
+    if (!m.kitchenColor.empty())
+        o.insert(u"kitchenColor"_s, qs(m.kitchenColor));
+    if (m.kitchenHide)
+        o.insert(u"kitchenHide"_s, true);
     return o;
 }
 
@@ -225,6 +251,9 @@ MenuItem menuItemFromJson(const QJsonObject &o)
         m.recipe.push_back({ss(r.value(u"ingredient").toString()), r.value(u"qty").toDouble(1)});
     }
     m.autoSoldOut = o.value(u"autoSoldOut").toBool();
+    m.kitchenName = ss(o.value(u"kitchenName").toString().trimmed());
+    m.kitchenColor = ss(o.value(u"kitchenColor").toString());
+    m.kitchenHide = o.value(u"kitchenHide").toBool();
     return m;
 }
 
@@ -465,8 +494,14 @@ QJsonArray modifierGroupsToJson(const std::vector<ModifierGroup> &groups)
     QJsonArray out;
     for (const ModifierGroup &g : groups) {
         QJsonArray options;
-        for (const ModifierOption &o : g.options)
-            options.append(QJsonObject{{u"name"_s, qs(o.name)}, {u"price"_s, decimalFromCents(o.price.cents())}});
+        for (const ModifierOption &o : g.options) {
+            QJsonObject opt{{u"name"_s, qs(o.name)}, {u"price"_s, decimalFromCents(o.price.cents())}};
+            if (!o.kitchenName.empty())
+                opt.insert(u"kitchenName"_s, qs(o.kitchenName));
+            if (o.kitchenHide)
+                opt.insert(u"kitchenHide"_s, true);
+            options.append(opt);
+        }
         out.append(QJsonObject{{u"id"_s, qs(g.id)}, {u"name"_s, qs(g.name)}, {u"min"_s, g.min}, {u"max"_s, g.max},
                                {u"options"_s, options}});
     }
@@ -486,7 +521,8 @@ std::vector<ModifierGroup> modifierGroupsFromJson(const QJsonArray &a)
         for (const QJsonValue &ov : o.value(u"options").toArray()) {
             const QJsonObject opt = ov.toObject();
             g.options.push_back({ss(opt.value(u"name").toString()),
-                                 Money::fromCents(centsFromDecimal(opt.value(u"price").toDouble()))});
+                                 Money::fromCents(centsFromDecimal(opt.value(u"price").toDouble())),
+                                 ss(opt.value(u"kitchenName").toString()), opt.value(u"kitchenHide").toBool()});
         }
         out.push_back(std::move(g));
     }

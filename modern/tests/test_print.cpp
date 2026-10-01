@@ -112,7 +112,7 @@ TEST_CASE("Receipt and kitchen ticket contents", "[print]")
     CHECK(contains(k, "KITCHEN"));
     CHECK(contains(k, "T3"));
     CHECK(contains(k, "1 Classic Burger"));
-    CHECK(contains(k, "> Medium Rare"));
+    CHECK(contains(k, "> MR"));
     CHECK(contains(k, "** No pickles **"));
     CHECK_FALSE(contains(k, "$"));             // no prices in the kitchen
     CHECK(contains(renderText(kitchenTicket(c, {c.lines[0]}, "Kitchen", true, ctx(seed.settings)), 42), "*** VOID ***"));

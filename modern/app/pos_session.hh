@@ -79,6 +79,7 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantList checkHistory READ checkHistory NOTIFY checkChanged)
     Q_PROPERTY(QString checkFilter READ checkFilter WRITE setCheckFilter NOTIFY openChecksChanged)
     Q_PROPERTY(QVariantList kitchenTickets READ kitchenTickets NOTIFY kitchenChanged)
+    Q_PROPERTY(QVariantList expoTickets READ expoTickets NOTIFY kitchenChanged)
     Q_PROPERTY(QVariantMap drawer READ drawerInfo NOTIFY drawerChanged)
     Q_PROPERTY(QVariantMap day READ dayInfo NOTIFY dayChanged)
     Q_PROPERTY(QVariantList days READ days NOTIFY dayChanged)
@@ -148,6 +149,7 @@ public:
     virtual QVariantList menuItems() const = 0;
     virtual QString checkFilter() const = 0;
     virtual QVariantList kitchenTickets() const = 0;
+    virtual QVariantList expoTickets() const = 0;
     virtual QVariantMap drawerInfo() const = 0;
     virtual QVariantMap dayInfo() const = 0;
     virtual QVariantList days() const = 0;
@@ -228,6 +230,8 @@ public:
         invoke(QStringLiteral("payWithGiftCard"), {number, amountCents});
     }
     Q_INVOKABLE void askForTip() { invoke(QStringLiteral("askForTip")); }
+    Q_INVOKABLE void expoBump(qint64 checkId, qint64 sentAt) { invoke(QStringLiteral("expoBump"), {checkId, sentAt}); }
+    Q_INVOKABLE void expoRecall() { invoke(QStringLiteral("expoRecall")); }
     Q_INVOKABLE void requestRangeReport(const QString &id, const QString &period, const QString &from = {},
                                         const QString &to = {}, bool compare = false)
     {
