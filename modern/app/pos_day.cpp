@@ -520,6 +520,72 @@ bool PosService::addTip(std::int64_t percentBp)
     return true;
 }
 
+Money PosService::tipFor(const Check &c) const
+{
+    if (tipChoice_.none)
+        return {};
+    if (tipChoice_.percentBp > 0) {
+        const Totals t = c.totals(s_->settings.tax);
+        return (t.subtotal + t.tax).percent(tipChoice_.percentBp);
+    }
+    return tipChoice_.amount;
+}
+
+bool PosService::askForTip()
+{
+    if (!require(perm::Settle, tr("Asking for a tip")))
+        return false;
+    const Check *c = currentCheck();
+    if (!c)
+        return fail(tr("No check is open."));
+    tipChoice_ = {true, false, false, 0, {}, c->id};
+    emit notice(tr("The guest is choosing a tip"));
+    emit checkChanged();
+    return true;
+}
+
+bool PosService::customerTip(const QString &kind, std::int64_t value)
+{
+    Check *c = current();
+    if (!c || !tipChoice_.asked || tipChoice_.checkId != c->id)
+        return fail(tr("No tip was asked for."));
+    tipChoice_.chosen = true;
+    tipChoice_.none = kind == u"none";
+    tipChoice_.percentBp = kind == u"percent" ? std::clamp<std::int64_t>(value, 0, 10000) : 0;
+    tipChoice_.amount = kind == u"amount" ? Money::fromCents(std::clamp<std::int64_t>(value, 0, 1'000'000)) : Money();
+    const Money tip = tipFor(*c);
+    // On the card payment if there is one; else it waits for the card.
+    Payment *card = nullptr;
+    for (Payment &p : c->payments) {
+        if (p.kind == TenderKind::Card)
+            card = &p;
+    }
+    if (card) {
+        card->tip = tip;
+        changed(*c);
+    }
+    emit notice(tipChoice_.none ? tr("The guest chose no tip") : tr("The guest chose a %1 tip").arg(format(tip)));
+    emit checkChanged();
+    return true;
+}
+
+QVariantMap PosService::customerPrompt() const
+{
+    const Check *c = currentCheck();
+    const bool mine = c && tipChoice_.asked && tipChoice_.checkId == c->id;
+    QVariantList choices;
+    if (mine) {
+        const Totals t = c->totals(s_->settings.tax);
+        for (int p : s_->settings.tipPercents)
+            choices.append(QVariantMap{{u"percent"_s, p}, {u"amount"_s, format((t.subtotal + t.tax).percent(p * 100))}});
+    }
+    return {
+        {u"askingTip"_s, mine && !tipChoice_.chosen}, {u"tipChosen"_s, mine && tipChoice_.chosen},
+        {u"tip"_s, mine && tipChoice_.chosen ? format(tipFor(*c)) : QString()},
+        {u"choices"_s, choices},
+    };
+}
+
 bool PosService::setGratuity(std::int64_t percentBp)
 {
     if (!require(perm::Order, tr("Changing gratuity")))

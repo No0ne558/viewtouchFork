@@ -131,6 +131,12 @@ Each backup is a complete SQLite copy. Checks, pages, menu, staff, settings and 
 - **Reservations:** book for today or the next six days at a time. *They're Here* puts them at the front of the line. Reservations more than 15 minutes late are marked; *No-Show* or *Cancel Booking* takes them off.
 - The host stand shows how many parties were seated today, the average wait, and no-shows.
 
+## Customer display
+
+A second monitor facing the guest shows their order as it is rung up, the total, and "Thank you" with their change. On Settle, **Ask Guest for Tip** shows the tip choices (Store Settings → *Tip choices for guests*, 15, 18, 20 and 25 % to start) and *No tip*; the guest's choice goes on their card payment, now or when it is added.
+
+Start with `--customer-display auto` (or `customer-display = auto` in the kiosk's .conf): on a desktop it opens a full-screen window on the other monitor; on a kiosk, whose one window spans both monitors, the POS stays on the left monitor and the guest's side is on the right. With one monitor, `--customer-display split` puts it in the right third, to try it out.
+
 ## On-screen keyboard
 
 Text fields (customer names, Manager forms…) get an on-screen keyboard, docked below the page, on touch screens: on by default with `--kiosk`, or `--touch-keyboard yes|no`. Number fields get a number pad.

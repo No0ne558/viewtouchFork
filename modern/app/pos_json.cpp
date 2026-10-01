@@ -532,7 +532,8 @@ QJsonObject toJson(const PosSettings &s)
         {u"serverId"_s, qs(s.serverId)},
         {u"checkoutNeedsClosedChecks"_s, s.checkoutNeedsClosedChecks},
         {u"backupCopyDir"_s, qs(s.backupCopyDir)},
-        {u"waitMinutesPerParty"_s, s.waitMinutesPerParty}, {u"tableReadyText"_s, qs(s.tableReadyText)},
+        {u"waitMinutesPerParty"_s, s.waitMinutesPerParty},
+        {u"tipPercents"_s, [&] { QJsonArray a; for (int p : s.tipPercents) a.append(p); return a; }()}, {u"tableReadyText"_s, qs(s.tableReadyText)},
         {u"textWebhook"_s, qs(s.textWebhook)},
     };
 }
@@ -574,6 +575,13 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.checkoutNeedsClosedChecks = o.value(u"checkoutNeedsClosedChecks").toBool(true);
     s.backupCopyDir = ss(o.value(u"backupCopyDir").toString());
     s.waitMinutesPerParty = std::clamp(o.value(u"waitMinutesPerParty").toInt(10), 1, 120);
+    if (o.value(u"tipPercents").isArray()) {
+        s.tipPercents.clear();
+        for (const QJsonValue &v : o.value(u"tipPercents").toArray()) {
+            if (v.toInt() > 0 && v.toInt() <= 100 && s.tipPercents.size() < 6)
+                s.tipPercents.push_back(v.toInt());
+        }
+    }
     if (o.contains(u"tableReadyText") && !o.value(u"tableReadyText").toString().trimmed().isEmpty())
         s.tableReadyText = ss(o.value(u"tableReadyText").toString());
     s.textWebhook = ss(o.value(u"textWebhook").toString());

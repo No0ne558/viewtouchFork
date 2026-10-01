@@ -278,6 +278,12 @@ public:
     // Tip on the selected card payment (else the last one): a percentage of
     // the check (bp, e.g. 1800) or, with percentBp 0, the keypad amount.
     bool addTip(std::int64_t percentBp);
+    // The customer display: ask the guest for a tip; their choice (a
+    // percent, an amount in cents, or none) goes on the card payment, now
+    // or when it is added.
+    bool askForTip();
+    bool customerTip(const QString &kind, std::int64_t value);   // "percent" | "amount" | "none"
+    QVariantMap customerPrompt() const override;
     // Gratuity on the current check (bp; 0 removes). Removing an automatic
     // one needs a manager.
     bool setGratuity(std::int64_t percentBp);
@@ -426,6 +432,11 @@ private:
     void applyCloseEffects(const core::Check &c);
     QString reopenBlocked(const core::Check &c) const;
     void undoCloseEffects(const core::Check &c);
+    // The tip the guest chose on the customer display, until a card takes it.
+    struct TipChoice { bool asked = false; bool chosen = false; bool none = false; std::int64_t percentBp = 0;
+                       Money amount; std::int64_t checkId = 0; };
+    TipChoice tipChoice_;
+    Money tipFor(const core::Check &c) const;
     QString customerQuery_;
     std::string selectedCustomer_;
     QString giftCardNumber_;

@@ -471,8 +471,10 @@ settle += [
     zone("receipt", 932, 652, 520, 120, "Print Receipt", actions=[command("printReceipt")]),
     zone("close", 932, 788, 520, 120, "Close Check", actions=[command("closeCheck")], style=fill(GREEN)),
     zone("remove-payment", 932, 924, 520, 120, "Undo Payment", actions=[command("removePayment")]),
-    zone("split", 1468, 660, 436, 110, "Split Check", actions=[jump(page="split")]),
-    zone("drawer", 1468, 786, 436, 110, "Drawer…", actions=[jump(page="drawer")]),
+    zone("split", 1468, 640, 212, 100, "Split", actions=[jump(page="split")]),
+    zone("drawer", 1692, 640, 212, 100, "Drawer…", actions=[jump(page="drawer")]),
+    # On the customer display: the guest picks a tip, which goes on their card.
+    zone("ask-tip", 1468, 756, 436, 100, "Ask Guest for Tip", actions=[command("askForTip")], style=fill(TEAL)),
     zone("done", 1468, 944, 436, 120, "‹ Back to Order", actions=[jump(mode="back")]),
 ]
 page("settle", "Settle", "settle", settle, role="settle", permission="check.settle")

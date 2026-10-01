@@ -424,3 +424,52 @@ TEST_CASE("UI: the host stand seats the next party at the best free table", "[fl
     CHECK(s.pos.tableStatus(u"T3"_s)[u"open"_s].toBool());
     CHECK(s.pos.waitlistInfo()[u"waiting"_s].toList().size() == 1);
 }
+
+TEST_CASE("UI: the customer display shows the order, asks for a tip, says thank you", "[flow][ui][display]")
+{
+    Session s;
+    QQmlApplicationEngine engine;
+    engine.setInitialProperties({{u"pos"_s, QVariant::fromValue(static_cast<app::PosSession *>(&s.pos))}});
+    engine.loadFromModule("ViewTouch", "CustomerDisplayWindow");
+    REQUIRE_FALSE(engine.rootObjects().isEmpty());
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    REQUIRE(window);
+    window->resize(1280, 720);
+    REQUIRE(QTest::qWaitForWindowExposed(window));
+    const QByteArray dir = qgetenv("VTM_SHOTS");
+    const auto shot = [&](const char *name) {
+        QTest::qWait(50);
+        if (!dir.isEmpty())
+            window->grabWindow().save(QString::fromLocal8Bit(dir) + u'/' + QString::fromLatin1(name) + u".png"_s);
+    };
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.entryKey(u"10000"_s);
+    REQUIRE(s.pos.openDrawerSession());
+    shot("10-display-welcome");
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    s.pos.addItem(u"cobb"_s);
+    s.pos.addItem(u"water"_s);
+    s.pos.addItem(u"caesar"_s);                       // needs nothing chosen
+    shot("11-display-order");
+    REQUIRE(s.pos.askForTip());
+    shot("12-display-tip");
+    // The guest touches 20%.
+    auto *contentItem = window->contentItem();
+    std::function<QQuickItem *(QQuickItem *)> find = [&](QQuickItem *root) -> QQuickItem * {
+        for (QQuickItem *i : root->childItems()) {
+            if (i->isVisible() && i->property("text").toString() == u"20%"_s)
+                return i;
+            if (QQuickItem *hit = find(i))
+                return hit;
+        }
+        return nullptr;
+    };
+    QQuickItem *twenty = find(contentItem);
+    REQUIRE(twenty);
+    QTest::mouseClick(window, Qt::LeftButton, {}, twenty->mapToScene(QPointF(twenty->width() / 2, twenty->height() / 2)).toPoint());
+    QTest::qWait(30);
+    CHECK(s.pos.customerPrompt()[u"tipChosen"_s].toBool());
+    REQUIRE(s.pos.tender(u"cash"_s, 4000));
+    REQUIRE(s.pos.closeCheck());
+    shot("13-display-thanks");
+}

@@ -30,6 +30,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSaveFile>
+#include <QScreen>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QQuickWindow>
@@ -85,6 +86,10 @@ struct Options {
     QCommandLineOption size{u"size"_s, u"Window size, e.g. 1280x720."_s, u"WxH"_s, u"1280x720"_s};
     QCommandLineOption screenshot{u"screenshot"_s, u"Render, save a PNG to <file>, and exit."_s, u"file"_s};
     QCommandLineOption kiosk{u"kiosk"_s, u"Full screen with no mouse pointer and no way out (touch screens)."_s};
+    QCommandLineOption customerDisplay{u"customer-display"_s,
+        u"Show the order and total to the guest: window (a full-screen window on the second monitor), split (one "
+         "window across two monitors, as a kiosk has), auto (split with --kiosk, else window) or off."_s,
+        u"mode"_s, u"off"_s};
     QCommandLineOption touchKeyboard{u"touch-keyboard"_s,
         u"Show an on-screen keyboard for text fields: yes or no (default: yes with --kiosk)."_s, u"yes|no"_s};
     QCommandLineOption screen{u"screen"_s,
@@ -301,6 +306,11 @@ std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o,
     const QStringList size = cli.value(o.size).split(u'x');
     const int width = size.value(0).toInt();
     const int height = size.value(1).toInt();
+    // The customer display: a window of its own, or (a kiosk's one window
+    // stretched over two monitors) the second monitor's part of the window.
+    QString display = cli.value(o.customerDisplay);
+    if (display == u"auto")
+        display = cli.isSet(o.kiosk) ? u"split"_s : u"window"_s;
     auto engine = std::make_unique<QQmlApplicationEngine>();
     QObject::connect(engine.get(), &QQmlApplicationEngine::objectCreationFailed,
                      qApp, [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
@@ -308,6 +318,15 @@ std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o,
         {u"controller"_s, QVariant::fromValue(&controller)},
         {u"kiosk"_s, cli.isSet(o.kiosk)},
         {u"touchKeyboard"_s, cli.isSet(o.touchKeyboard) ? cli.value(o.touchKeyboard) != u"no" : cli.isSet(o.kiosk)},
+        {u"customerDisplay"_s, display == u"split"},
+        {u"customerDisplayAt"_s, [] {
+             // The leftmost monitor's width: the POS stays on it.
+             QList<QScreen *> screens = QGuiApplication::screens();
+             if (screens.size() < 2)
+                 return 0;
+             std::ranges::sort(screens, {}, [](QScreen *s) { return s->geometry().x(); });
+             return screens.first()->geometry().width();
+         }()},
         {u"width"_s, width > 0 ? width : 1280},
         {u"height"_s, height > 0 ? height : 720},
     });
@@ -317,6 +336,21 @@ std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o,
     if (!window)
         return nullptr;
     present(window, cli, o);
+    if (display == u"window" && controller.pos()) {
+        engine->setInitialProperties({{u"pos"_s, QVariant::fromValue(controller.pos())}});
+        engine->loadFromModule("ViewTouch", "CustomerDisplayWindow");
+        auto *guest = qobject_cast<QQuickWindow *>(engine->rootObjects().constLast());
+        const QList<QScreen *> screens = QGuiApplication::screens();
+        if (guest && guest != window && screens.size() > 1) {
+            // The monitor the POS isn't on.
+            QScreen *other = screens.at(0) == window->screen() ? screens.at(1) : screens.at(0);
+            guest->setScreen(other);
+            guest->setGeometry(other->geometry());
+            guest->showFullScreen();
+        } else if (!guest) {
+            qWarning("Could not open the customer display");
+        }
+    }
     if (cli.isSet(o.screenshot)) {
         const QString file = cli.value(o.screenshot);
         QTimer::singleShot(1000, window, [window, file] {
@@ -994,7 +1028,7 @@ int main(int argc, char *argv[])
     cli.addHelpOption();
     cli.addVersionOption();
     const QList<QCommandLineOption> all = {o.config, o.dataDir, o.db, o.layout, o.resetLayout, o.resetMenu, o.serve,
-        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.touchKeyboard, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
+        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.touchKeyboard, o.customerDisplay, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
         o.screenshot, o.backupDir, o.backupKeep, o.backupEvery, o.backup, o.restore, o.pairingCode, o.exportDir};
     cli.addOptions(all);
     cli.process(app);

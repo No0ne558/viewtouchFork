@@ -678,7 +678,10 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
     }
     if (t->kind == TenderKind::Discount && !require(perm::Discount, tr("Discounts and comps")))
         return false;
-    c->addPayment(*t, amount);
+    Payment &paid = c->addPayment(*t, amount);
+    // A tip the guest chose on the customer display goes on their card.
+    if (t->kind == TenderKind::Card && tipChoice_.chosen && tipChoice_.checkId == c->id)
+        paid.tip = tipFor(*c);
     if (t->kind == TenderKind::Discount)   // for the audit trail
         noteEvent(*c, tr("Discount: %1").arg(qs(t->name)), "discount");
     entry_.clear();
@@ -1138,6 +1141,9 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
              return QVariant(p.payout(cashMovementKindFromString(ss(a.value(0).toString())))); }},
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
         {u"toggleBreak"_s, [](PosService &p, const QVariantList &) { return QVariant(p.toggleBreak()); }},
+        {u"askForTip"_s, [](PosService &p, const QVariantList &) { return QVariant(p.askForTip()); }},
+        {u"customerTip"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.customerTip(a.value(0).toString(), a.value(1).toLongLong())); }},
         {u"backupNow"_s, [](PosService &p, const QVariantList &) { return QVariant(p.backupNow()); }},
         {u"findCustomers"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.findCustomers(a.value(0).toString())); }},
         {u"selectCustomer"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.selectCustomer(a.value(0).toString())); }},

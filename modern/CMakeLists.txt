@@ -127,6 +127,8 @@ if(Qt6_FOUND)
             ui/qml/WidgetCustomerLookup.qml
             ui/qml/WidgetGiftCard.qml
             ui/qml/WidgetWaitlist.qml
+            ui/qml/CustomerDisplay.qml
+            ui/qml/CustomerDisplayWindow.qml
             ui/qml/WidgetLoginPad.qml
             ui/qml/WidgetNumPad.qml
             ui/qml/WidgetGuestCount.qml

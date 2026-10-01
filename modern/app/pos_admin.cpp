@@ -190,6 +190,8 @@ QVariantList PosService::adminFields(const QString &panel)
             with(field(u"weekStartsOn"_s, tr("Pay week starts on"), u"enum"_s), u"options"_s,
                  options({{"0", "Sunday"}, {"1", "Monday"}, {"2", "Tuesday"}, {"3", "Wednesday"},
                           {"4", "Thursday"}, {"5", "Friday"}, {"6", "Saturday"}})),
+            field(u"tipPercents"_s, tr("Tip choices for guests (%)"), u"text"_s,
+                  tr("Shown on the customer display, e.g. 15, 18, 20, 25 (up to 6).")),
             with(with(field(u"waitMinutesPerParty"_s, tr("Waitlist: minutes per party ahead"), u"int"_s,
                             tr("Wait quotes: (parties ahead + 1) x this, rounded up to 5 minutes.")), u"min"_s, 1), u"max"_s, 120),
             field(u"tableReadyText"_s, tr("Waitlist: table-ready text"), u"text"_s,
@@ -307,6 +309,7 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks},
              {u"backupCopyDir"_s, qs(s_->settings.backupCopyDir)},
              {u"waitMinutesPerParty"_s, s_->settings.waitMinutesPerParty},
+             {u"tipPercents"_s, [&] { QStringList l; for (int p : s_->settings.tipPercents) l << QString::number(p); return l.join(u", "_s); }()},
              {u"tableReadyText"_s, qs(s_->settings.tableReadyText)}, {u"textWebhook"_s, qs(s_->settings.textWebhook)},
              {u"paidBreaks"_s, s_->settings.paidBreaks}, {u"overtimeDailyHours"_s, s_->settings.overtimeDailyHours},
              {u"overtimeWeeklyHours"_s, s_->settings.overtimeWeeklyHours},
@@ -450,6 +453,16 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.weekStartsOn = std::clamp(record.value(u"weekStartsOn"_s).toString().toInt(), 0, 6);
         if (record.contains(u"checkoutNeedsClosedChecks"_s))
             s_->settings.checkoutNeedsClosedChecks = record.value(u"checkoutNeedsClosedChecks"_s).toBool();
+        if (record.contains(u"tipPercents"_s)) {
+            std::vector<int> tips;
+            for (const QString &part : record.value(u"tipPercents"_s).toString().split(u',', Qt::SkipEmptyParts)) {
+                const int v = part.trimmed().remove(u'%').toInt();
+                if (v > 0 && v <= 100 && tips.size() < 6)
+                    tips.push_back(v);
+            }
+            if (!tips.empty())
+                s_->settings.tipPercents = tips;
+        }
         if (record.contains(u"waitMinutesPerParty"_s))
             s_->settings.waitMinutesPerParty = std::clamp(record.value(u"waitMinutesPerParty"_s).toInt(), 1, 120);
         if (record.contains(u"tableReadyText"_s) && !record.value(u"tableReadyText"_s).toString().trimmed().isEmpty())

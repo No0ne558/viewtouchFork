@@ -250,13 +250,13 @@
       "kind": "button",
       "rect": {
         "x": 1468,
-        "y": 660,
-        "w": 436,
-        "h": 110
+        "y": 640,
+        "w": 212,
+        "h": 100
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "Split Check",
+      "label": "Split",
       "actions": [
         {
           "type": "jump",
@@ -269,10 +269,10 @@
       "id": "drawer",
       "kind": "button",
       "rect": {
-        "x": 1468,
-        "y": 786,
-        "w": 436,
-        "h": 110
+        "x": 1692,
+        "y": 640,
+        "w": 212,
+        "h": 100
       },
       "shape": "rect",
       "behavior": "blink",
@@ -284,6 +284,30 @@
           "page": "drawer"
         }
       ]
+    },
+    {
+      "id": "ask-tip",
+      "kind": "button",
+      "rect": {
+        "x": 1468,
+        "y": 756,
+        "w": 436,
+        "h": 100
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Ask Guest for Tip",
+      "actions": [
+        {
+          "type": "command",
+          "name": "askForTip"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
     },
     {
       "id": "done",

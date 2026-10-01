@@ -61,6 +61,8 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantMap giftCard READ giftCardInfo NOTIFY checkChanged)
     // The host stand: {waiting, booked, seatedToday, averageWait, noShows, nextQuote}.
     Q_PROPERTY(QVariantMap waitlist READ waitlistInfo NOTIFY dayChanged)
+    // What the customer display asks the guest: {askingTip, tipChosen, tip, choices}.
+    Q_PROPERTY(QVariantMap customerPrompt READ customerPrompt NOTIFY checkChanged)
     // Modifiers being chosen for the item just ordered: {active, item, groups:
     // [{id, name, rule, chosen, done, options: [{index, name, price, chosen}]}]}.
     Q_PROPERTY(QVariantMap choosing READ choosingInfo NOTIFY checkChanged)
@@ -133,6 +135,7 @@ public:
     virtual QVariantMap customerInfo() const = 0;
     virtual QVariantMap giftCardInfo() const = 0;
     virtual QVariantMap waitlistInfo() const = 0;
+    virtual QVariantMap customerPrompt() const = 0;
     virtual QStringList soldOut() const = 0;
     virtual QVariantList menuItems() const = 0;
     virtual QString checkFilter() const = 0;
@@ -214,6 +217,12 @@ public:
     Q_INVOKABLE void payWithGiftCard(const QString &number = {}, qint64 amountCents = 0)
     {
         invoke(QStringLiteral("payWithGiftCard"), {number, amountCents});
+    }
+    Q_INVOKABLE void askForTip() { invoke(QStringLiteral("askForTip")); }
+    // kind: "percent" (value 1800 = 18%) | "amount" (cents) | "none"
+    Q_INVOKABLE void customerTip(const QString &kind, qint64 value = 0)
+    {
+        invoke(QStringLiteral("customerTip"), {kind, value});
     }
     Q_INVOKABLE void addToWaitlist(const QVariantMap &party) { invoke(QStringLiteral("addToWaitlist"), {party}); }
     Q_INVOKABLE void addReservation(const QVariantMap &party) { invoke(QStringLiteral("addReservation"), {party}); }

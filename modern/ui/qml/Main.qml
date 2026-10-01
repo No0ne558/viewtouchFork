@@ -10,6 +10,15 @@ ApplicationWindow {
     readonly property EditorController editor: controller.editor
     // Kiosk screens stay full screen; elsewhere F11 switches to a window.
     property bool kiosk: false
+    // The customer display in the second monitor's part of this window (a
+    // kiosk's one window spans both monitors). With one screen (trying it
+    // out), the right third.
+    property bool customerDisplay: false
+    // Where the first monitor ends (set from the screens; 0: one screen).
+    property real customerDisplayAt: 0
+    readonly property real posWidth: !customerDisplay ? width
+                                     : customerDisplayAt > 0 ? Math.min(width, customerDisplayAt)
+                                     : Math.round(width * 0.66)
     // An on-screen keyboard for text fields (touch screens with no keyboard).
     property bool touchKeyboard: kiosk
     // The text field being typed in, if any.
@@ -68,8 +77,19 @@ ApplicationWindow {
 
     onEditingChanged: if (!editing) pageView.forceActiveFocus()
 
+    Loader {
+        active: root.customerDisplay
+        x: root.posWidth
+        width: root.width - root.posWidth
+        height: root.height
+        sourceComponent: CustomerDisplay { pos: root.controller.pos as PosService }
+    }
+
     ColumnLayout {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: root.posWidth
         spacing: 0
 
         Loader {

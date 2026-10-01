@@ -249,3 +249,39 @@ TEST_CASE("Customers and gift cards are saved and come back", "[customers][store
     REQUIRE(data->giftCards.size() == 1);
     CHECK(data->giftCards[0].balance == Money::fromCents(3000));
 }
+
+TEST_CASE("Customer display: the guest chooses a tip; it goes on their card", "[customers][display]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    openDrawer(pos);
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(u"cobb"_s);                                   // $12.50 + tax = $13.53
+    CHECK_FALSE(pos.customerTip(u"percent"_s, 2000));         // nobody asked
+    CHECK_FALSE(pos.customerPrompt()[u"askingTip"_s].toBool());
+    REQUIRE(pos.askForTip());
+    QVariantMap prompt = pos.customerPrompt();
+    CHECK(prompt[u"askingTip"_s].toBool());
+    REQUIRE(prompt[u"choices"_s].toList().size() == 4);
+    CHECK(prompt[u"choices"_s].toList()[1].toMap()[u"amount"_s] == u"$2.44"_s);   // 18% of $13.53
+
+    REQUIRE(pos.customerTip(u"percent"_s, 1800));
+    prompt = pos.customerPrompt();
+    CHECK_FALSE(prompt[u"askingTip"_s].toBool());
+    CHECK(prompt[u"tip"_s] == u"$2.44"_s);
+    REQUIRE(pos.tender(u"credit"_s));                         // the card takes it
+    CHECK(pos.totals()[u"tips"_s].toString() == u"$2.44"_s);
+    REQUIRE(pos.closeCheck());
+
+    // A card already there takes the tip right away; "no tip" is fine too.
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(u"coffee"_s);
+    REQUIRE(pos.tender(u"credit"_s));
+    REQUIRE(pos.askForTip());
+    REQUIRE(pos.customerTip(u"amount"_s, 100));
+    CHECK(pos.totals()[u"tips"_s].toString() == u"$1.00"_s);
+    REQUIRE(pos.askForTip());
+    REQUIRE(pos.customerTip(u"none"_s, 0));
+    CHECK_FALSE(pos.totals()[u"hasTips"_s].toBool());
+    REQUIRE(pos.closeCheck());
+    CHECK_FALSE(pos.customerPrompt()[u"tipChosen"_s].toBool());   // the next check starts clean
+}
