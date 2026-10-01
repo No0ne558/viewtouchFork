@@ -849,7 +849,7 @@ QVariantMap PosService::checkInfo() const
         {u"id"_s, qint64(c->id)}, {u"label"_s, qs(c->label)}, {u"guests"_s, c->guests},
         {u"server"_s, qs(c->serverName)}, {u"type"_s, qs(toString(c->type))},
         {u"seat"_s, seat_}, {u"course"_s, course_}, {u"firedCourse"_s, c->firedCourse},
-        {u"heldCount"_s, c->heldCount()},
+        {u"heldCount"_s, c->heldCount()}, {u"rush"_s, c->rush}, {u"vip"_s, c->vip},
         {u"opened"_s, timeOfDay(c->openedAt)},
         {u"customer"_s, QVariantMap{{u"name"_s, qs(c->customer.name)}, {u"phone"_s, qs(c->customer.phone)},
                                     {u"address"_s, qs(c->customer.address)}, {u"note"_s, qs(c->customer.note)}}},
@@ -1002,7 +1002,10 @@ QVariantList PosService::kitchenTickets() const
         collect(c);
     for (const Check &c : s_->closedToday)
         collect(c);
-    std::ranges::sort(tickets, {}, &Ticket::sentAt);
+    // Rush orders first, then the oldest.
+    std::ranges::sort(tickets, [](const Ticket &a, const Ticket &b) {
+        return a.check->rush != b.check->rush ? a.check->rush : a.sentAt < b.sentAt;
+    });
 
     QVariantList out;
     for (const Ticket &t : tickets) {
@@ -1021,6 +1024,8 @@ QVariantList PosService::kitchenTickets() const
             {u"label"_s, qs(t.check->label)}, {u"server"_s, qs(t.check->serverName)},
             {u"type"_s, qs(toString(t.check->type))}, {u"customer"_s, qs(t.check->customer.name)},
             {u"note"_s, qs(t.check->customer.note)}, {u"lines"_s, lines},
+            {u"rush"_s, t.check->rush}, {u"vip"_s, t.check->vip},
+            {u"warnMinutes"_s, s_->settings.kitchenWarnMinutes}, {u"lateMinutes"_s, s_->settings.kitchenLateMinutes},
         });
     }
     return out;
@@ -1142,6 +1147,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
         {u"toggleBreak"_s, [](PosService &p, const QVariantList &) { return QVariant(p.toggleBreak()); }},
         {u"askForTip"_s, [](PosService &p, const QVariantList &) { return QVariant(p.askForTip()); }},
+        {u"toggleFlag"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.toggleFlag(a.value(0).toString())); }},
         {u"customerTip"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.customerTip(a.value(0).toString(), a.value(1).toLongLong())); }},
         {u"backupNow"_s, [](PosService &p, const QVariantList &) { return QVariant(p.backupNow()); }},

@@ -701,6 +701,7 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
         {u"clearText"_s, {u"textKey"_s, {u"clear"_s}}},
         {u"backupNow"_s, {u"backupNow"_s, {}}},
         {u"askForTip"_s, {u"askForTip"_s, {}}},
+        {u"rush"_s, {u"toggleFlag"_s, {u"rush"_s}}}, {u"vip"_s, {u"toggleFlag"_s, {u"vip"_s}}},
         {u"startBreak"_s, {u"toggleBreak"_s, {}}}, {u"toggleBreak"_s, {u"toggleBreak"_s, {}}},
     };
     // Commands that carry arguments.

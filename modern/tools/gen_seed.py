@@ -408,7 +408,9 @@ page("gift-card", "Gift Card", "custom", [
 
 # --- managing a check (from the order screen's Check… tab) ---
 page("check-options", "Check Options", "custom", [
-    label("title", 16, 16, 1888, 80, "This check"),
+    label("title", 16, 16, 900, 80, "This check"),
+    zone("rush", 932, 16, 478, 80, "Rush", actions=[command("rush")], style=fill(RED)),
+    zone("vip", 1426, 16, 478, 80, "VIP", actions=[command("vip")], style=fill(AMBER)),
     zone("history", 16, 112, 900, 952, kind="checkHistory"),
     zone("customer", 932, 112, 972, 104, "Customer…", actions=[jump(page="customers")]),
     zone("gift-card", 932, 230, 972, 104, "Sell / Check a Gift Card…", actions=[jump(page="gift-card")]),

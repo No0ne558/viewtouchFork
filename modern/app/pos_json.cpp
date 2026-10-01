@@ -88,6 +88,7 @@ QJsonObject toJson(const Check &c)
         {u"customer"_s, QJsonObject{{u"name"_s, qs(c.customer.name)}, {u"phone"_s, qs(c.customer.phone)},
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
         {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse}, {u"customerId"_s, qs(c.customerId)},
+        {u"rush"_s, c.rush}, {u"vip"_s, c.vip},
     };
 }
 
@@ -156,6 +157,8 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     c.customer = {ss(cust.value(u"name").toString()), ss(cust.value(u"phone").toString()),
                   ss(cust.value(u"address").toString()), ss(cust.value(u"note").toString())};
     c.customerId = ss(o.value(u"customerId").toString());
+    c.rush = o.value(u"rush").toBool();
+    c.vip = o.value(u"vip").toBool();
     for (const QJsonValue &v : o.value(u"events").toArray()) {
         const QJsonObject e = v.toObject();
         c.events.push_back({i64(e.value(u"at")), ss(e.value(u"who").toString()), ss(e.value(u"what").toString()),
@@ -533,6 +536,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"checkoutNeedsClosedChecks"_s, s.checkoutNeedsClosedChecks},
         {u"backupCopyDir"_s, qs(s.backupCopyDir)},
         {u"waitMinutesPerParty"_s, s.waitMinutesPerParty},
+        {u"kitchenWarnMinutes"_s, s.kitchenWarnMinutes}, {u"kitchenLateMinutes"_s, s.kitchenLateMinutes},
         {u"tipPercents"_s, [&] { QJsonArray a; for (int p : s.tipPercents) a.append(p); return a; }()}, {u"tableReadyText"_s, qs(s.tableReadyText)},
         {u"textWebhook"_s, qs(s.textWebhook)},
     };
@@ -575,6 +579,8 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.checkoutNeedsClosedChecks = o.value(u"checkoutNeedsClosedChecks").toBool(true);
     s.backupCopyDir = ss(o.value(u"backupCopyDir").toString());
     s.waitMinutesPerParty = std::clamp(o.value(u"waitMinutesPerParty").toInt(10), 1, 120);
+    s.kitchenWarnMinutes = std::clamp(o.value(u"kitchenWarnMinutes").toInt(8), 1, 120);
+    s.kitchenLateMinutes = std::clamp(o.value(u"kitchenLateMinutes").toInt(15), s.kitchenWarnMinutes, 240);
     if (o.value(u"tipPercents").isArray()) {
         s.tipPercents.clear();
         for (const QJsonValue &v : o.value(u"tipPercents").toArray()) {

@@ -36,9 +36,21 @@ Item {
         const s = Math.max(0, Math.floor((now - sentAt) / 1000))
         return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0")
     }
-    function ageColor(sentAt) {
-        const minutes = (now - sentAt) / 60000
-        return minutes < 5 ? "#1f8a4c" : minutes < 10 ? "#b7791f" : "#c53030"
+    // Green, then yellow after the store's warn minutes, red when late.
+    function ageColor(ticket) {
+        const minutes = (now - ticket.sentAt) / 60000
+        return minutes < (ticket.warnMinutes ?? 8) ? "#1f8a4c" : minutes < (ticket.lateMinutes ?? 15) ? "#b7791f" : "#c53030"
+    }
+
+    // "All day": everything still to make here, by item, most first.
+    property bool showAllDay: false
+    readonly property var allDay: {
+        const counts = {}
+        for (const t of tickets)
+            for (const l of t.lines)
+                if (!l.comment)
+                    counts[l.name] = (counts[l.name] ?? 0) + l.quantity
+        return Object.keys(counts).map(k => ({ name: k, count: counts[k] })).sort((a, b) => b.count - a.count)
     }
 
     ColumnLayout {
@@ -62,11 +74,23 @@ Item {
             WidgetKey {
                 Layout.preferredWidth: 240
                 Layout.fillHeight: true
+                text: w.showAllDay ? qsTr("Hide All Day") : qsTr("All Day")
+                fontScale: 0.4
+                onClicked: w.showAllDay = !w.showAllDay
+            }
+            WidgetKey {
+                Layout.preferredWidth: 240
+                Layout.fillHeight: true
                 text: qsTr("Recall")
                 fontScale: 0.4
                 onClicked: w.pos.recallTicket()
             }
         }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 12
 
         Flow {
             Layout.fillWidth: true
@@ -80,11 +104,13 @@ Item {
                     id: card
                     required property var modelData
                     width: 360
-                    height: Math.min(parent ? parent.height : 600, body.implicitHeight + 90)
+                    height: Math.min(parent ? parent.height : 600, body.implicitHeight + 72 + 14 + 22)
                     radius: 10
                     color: "#f4f1ea"
-                    border.color: tap.pressed ? "#2f6fd6" : "transparent"
-                    border.width: 4
+                    // Rush tickets wear a red frame, VIP gold.
+                    border.color: tap.pressed ? "#2f6fd6" : card.modelData.rush ? "#ff3b3b"
+                                : card.modelData.vip ? "#d4af37" : "transparent"
+                    border.width: card.modelData.rush || card.modelData.vip ? 8 : 4
                     clip: true
 
                     Rectangle {
@@ -92,7 +118,7 @@ Item {
                         width: parent.width
                         height: 72
                         radius: 10
-                        color: w.ageColor(card.modelData.sentAt)
+                        color: w.ageColor(card.modelData)
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 10; color: parent.color }
                         Column {
                             anchors.left: parent.left
@@ -131,6 +157,17 @@ Item {
                         anchors.right: parent.right
                         anchors.margins: 14
                         spacing: 4
+                        Text {
+                            visible: card.modelData.rush || card.modelData.vip
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            text: [card.modelData.rush ? qsTr("RUSH") : "", card.modelData.vip ? qsTr("VIP") : ""]
+                                  .filter(s => s).join("  ·  ")
+                            color: card.modelData.rush ? "#d62828" : "#9a7b12"
+                            font.family: w.face
+                            font.pixelSize: 28
+                            font.bold: true
+                        }
                         Text {
                             visible: !!card.modelData.note
                             width: parent.width
@@ -183,6 +220,52 @@ Item {
                     }
                 }
             }
+        }
+
+        // All day: the totals to make, for batching (twelve burgers on the grill...).
+        Rectangle {
+            visible: w.showAllDay
+            Layout.preferredWidth: 340
+            Layout.fillHeight: true
+            radius: 10
+            color: "#232933"
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 6
+                Text {
+                    text: qsTr("All day")
+                    color: "white"
+                    font.family: w.face
+                    font.pixelSize: 30
+                    font.bold: true
+                }
+                Repeater {
+                    model: w.allDay
+                    delegate: RowLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Text {
+                            text: modelData.count
+                            color: "#f5b940"
+                            font.family: w.face
+                            font.pixelSize: 30
+                            font.bold: true
+                            Layout.preferredWidth: 60
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: modelData.name
+                            color: "white"
+                            font.family: w.face
+                            font.pixelSize: 24
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+                Item { Layout.fillHeight: true }
+            }
+        }
         }
     }
 

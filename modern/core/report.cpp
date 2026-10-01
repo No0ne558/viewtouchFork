@@ -1,6 +1,8 @@
 #include "core/report.hh"
 
 #include <algorithm>
+#include <cctype>
+#include <tuple>
 #include <cmath>
 #include <map>
 #include <set>
@@ -578,6 +580,86 @@ Report accountsReport(const std::vector<GiftCard> &cards, const std::vector<Cust
                                                              ? "  (at the limit)" : ""),
                 "", ctx.money(c->accountBalance)});
     r.total({"Owed to the store", count(std::int64_t(owing.size())), ctx.money(owed)});
+    return r;
+}
+
+Report kitchenReport(const std::vector<const Check *> &checks, int lateMinutes, const ReportContext &ctx)
+{
+    Report r;
+    r.id = "kitchen";
+    r.title = "Kitchen Times";
+    r.subtitle = ctx.period;
+    r.columns = {"", "Tickets", "Average", "Longest", "Late"};
+
+    // A ticket: one send from one check to one station.
+    struct Ticket { const Check *check; std::int64_t sentAt; std::string station; std::int64_t madeAt = 0; bool done = true; };
+    std::map<std::tuple<std::int64_t, std::int64_t, std::string>, Ticket> tickets;
+    for (const Check *c : checks) {
+        for (const OrderLine &l : c->lines) {
+            if (!l.sent || l.voided || l.isComment() || l.isGiftCard())
+                continue;
+            const std::string station = l.printer.empty() ? "kitchen" : l.printer;
+            Ticket &t = tickets.try_emplace({c->id, l.sentAt, station}, Ticket{c, l.sentAt, station}).first->second;
+            if (l.made)
+                t.madeAt = std::max(t.madeAt, l.madeAt);
+            else
+                t.done = false;
+        }
+    }
+    const auto minutes = [](std::int64_t ms) {
+        const std::int64_t s = ms / 1000;
+        return std::to_string(s / 60) + ":" + (s % 60 < 10 ? "0" : "") + std::to_string(s % 60);
+    };
+    struct Times { std::int64_t count = 0, total = 0, longest = 0, late = 0, waiting = 0; };
+    std::map<std::string, Times> byStation;
+    std::vector<const Ticket *> made;
+    for (const auto &[key, t] : tickets) {
+        Times &s = byStation[t.station];
+        if (!t.done || t.madeAt == 0) {
+            ++s.waiting;
+            continue;
+        }
+        const std::int64_t took = t.madeAt - t.sentAt;
+        ++s.count;
+        s.total += took;
+        s.longest = std::max(s.longest, took);
+        if (took > std::int64_t(lateMinutes) * 60'000)
+            ++s.late;
+        made.push_back(&t);
+    }
+    if (byStation.empty()) {
+        r.note("No orders have gone to the kitchen yet.");
+        return r;
+    }
+    r.section("By station (sent to made)");
+    Times all;
+    for (const auto &[station, s] : byStation) {
+        std::string name = station;
+        if (!name.empty())
+            name[0] = char(std::toupper(static_cast<unsigned char>(name[0])));
+        r.line({name, count(s.count), s.count ? minutes(s.total / s.count) : "-", s.count ? minutes(s.longest) : "-",
+                count(s.late)});
+        all.count += s.count;
+        all.total += s.total;
+        all.longest = std::max(all.longest, s.longest);
+        all.late += s.late;
+        all.waiting += s.waiting;
+    }
+    r.total({"All", count(all.count), all.count ? minutes(all.total / all.count) : "-",
+             all.count ? minutes(all.longest) : "-", count(all.late)});
+    if (all.waiting)
+        r.note(std::to_string(all.waiting) + (all.waiting == 1 ? " ticket is" : " tickets are") + " still being made.");
+    r.note("Late: over " + std::to_string(lateMinutes) + " minutes (Store Settings).");
+
+    std::ranges::sort(made, [](const Ticket *a, const Ticket *b) { return a->madeAt - a->sentAt > b->madeAt - b->sentAt; });
+    if (!made.empty()) {
+        r.section("Slowest tickets");
+        for (std::size_t i = 0; i < std::min<std::size_t>(5, made.size()); ++i) {
+            const Ticket *t = made[i];
+            r.line({t->check->label + " #" + std::to_string(t->check->id) + " (" + t->station + ")", "",
+                    ctx.clock(t->sentAt), minutes(t->madeAt - t->sentAt), t->check->rush ? "rush" : ""});
+        }
+    }
     return r;
 }
 

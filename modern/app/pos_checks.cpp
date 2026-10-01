@@ -135,6 +135,27 @@ bool PosService::reopenCheck(qint64 checkId)
     return openCheck(id);
 }
 
+// --- rush and VIP --------------------------------------------------------------------
+
+bool PosService::toggleFlag(const QString &flag)
+{
+    if (!require(perm::Order, tr("Rush and VIP")))
+        return false;
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    bool *f = flag == u"rush" ? &c->rush : flag == u"vip" ? &c->vip : nullptr;
+    if (!f)
+        return fail(tr("Unknown flag: %1").arg(flag));
+    *f = !*f;
+    const QString name = flag == u"rush" ? tr("Rush") : tr("VIP");
+    noteEvent(*c, *f ? tr("%1 on").arg(name) : tr("%1 off").arg(name), "flag");
+    emit notice(*f ? tr("%1: the kitchen sees it").arg(name) : tr("%1 off").arg(name));
+    changed(*c);
+    emit s_->checksChanged();   // the kitchen display re-sorts
+    return true;
+}
+
 // --- seats and courses ------------------------------------------------------------
 
 bool PosService::setSeat(int seat)

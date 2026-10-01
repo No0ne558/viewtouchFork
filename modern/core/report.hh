@@ -82,6 +82,9 @@ Report auditReport(const std::vector<const Check *> &checks, const ReportContext
 // the store), and house account charges, payments and balances.
 Report accountsReport(const std::vector<GiftCard> &cards, const std::vector<CustomerRecord> &customers,
                       std::int64_t since, const ReportContext &ctx);
+// Kitchen ticket times by station: from sent to made (bumped) - how many,
+// the average, the longest, how many were late - and the slowest tickets.
+Report kitchenReport(const std::vector<const Check *> &checks, int lateMinutes, const ReportContext &ctx);
 Report tipsReport(const std::vector<Check> &closed, const std::vector<DrawerSession> &drawers,
                   const ReportContext &ctx);
 

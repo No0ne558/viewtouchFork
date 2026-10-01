@@ -5,7 +5,7 @@ if(TARGET vtm_layout)
         test_layout.cpp test_navigator.cpp test_seed.cpp test_controller.cpp
         test_editor.cpp test_store.cpp test_edit_mode.cpp test_editor_ui.cpp
         test_pos_service.cpp test_pos_store.cpp test_pos_flow.cpp
-        test_print.cpp test_pos_m4.cpp test_pages_ui.cpp test_net.cpp test_pos_m6.cpp test_pos_m7.cpp test_server_bank.cpp test_pairing.cpp test_phone.cpp test_checks.cpp test_menu.cpp test_reports.cpp test_staff.cpp test_safety.cpp test_customers.cpp test_waitlist.cpp
+        test_print.cpp test_pos_m4.cpp test_pages_ui.cpp test_net.cpp test_pos_m6.cpp test_pos_m7.cpp test_server_bank.cpp test_pairing.cpp test_phone.cpp test_checks.cpp test_menu.cpp test_reports.cpp test_staff.cpp test_safety.cpp test_customers.cpp test_waitlist.cpp test_kitchen.cpp
     )
 endif()
 

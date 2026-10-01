@@ -114,6 +114,10 @@ Document kitchenTicket(const Check &check, const std::vector<OrderLine> &lines, 
     d.center(upper(station), true);
     if (voids)
         d.center("*** VOID ***", true, true);
+    if (check.rush)
+        d.center("*** RUSH ***", true, true);
+    if (check.vip)
+        d.center("* VIP *", true, true);
     d.text(check.label, Document::Align::Left, true, true);
     d.columns("#" + std::to_string(check.id) + "  " + check.serverName, ctx.time(ctx.now));
     if (check.type != CheckType::DineIn)

@@ -134,6 +134,9 @@ struct PosSettings {
     // a table is ready ({name}, {store}). textWebhook: where texts are sent
     // (a JSON POST of {to, message}; empty: no texting).
     int waitMinutesPerParty = 10;
+    // Kitchen display: a ticket turns yellow after warn minutes, red after late.
+    int kitchenWarnMinutes = 8;
+    int kitchenLateMinutes = 15;
     // Tip choices offered to the guest (percent of the check before gratuity).
     std::vector<int> tipPercents{15, 18, 20, 25};
     std::string tableReadyText = "Hi {name}, your table at {store} is ready! Please come to the host stand.";

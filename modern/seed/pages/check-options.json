@@ -16,12 +16,60 @@
       "rect": {
         "x": 16,
         "y": 16,
-        "w": 1888,
+        "w": 900,
         "h": 80
       },
       "shape": "rect",
       "behavior": "none",
       "label": "This check"
+    },
+    {
+      "id": "rush",
+      "kind": "button",
+      "rect": {
+        "x": 932,
+        "y": 16,
+        "w": 478,
+        "h": 80
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Rush",
+      "actions": [
+        {
+          "type": "command",
+          "name": "rush"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#b83232"
+        }
+      }
+    },
+    {
+      "id": "vip",
+      "kind": "button",
+      "rect": {
+        "x": 1426,
+        "y": 16,
+        "w": 478,
+        "h": 80
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "VIP",
+      "actions": [
+        {
+          "type": "command",
+          "name": "vip"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#a86a12"
+        }
+      }
     },
     {
       "id": "history",

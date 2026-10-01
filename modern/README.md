@@ -131,6 +131,13 @@ Each backup is a complete SQLite copy. Checks, pages, menu, staff, settings and 
 - **Reservations:** book for today or the next six days at a time. *They're Here* puts them at the front of the line. Reservations more than 15 minutes late are marked; *No-Show* or *Cancel Booking* takes them off.
 - The host stand shows how many parties were seated today, the average wait, and no-shows.
 
+## Kitchen display
+
+- Tickets turn yellow after *Kitchen: ticket turns yellow after* minutes and red when late (Store Settings; 8 and 15 to start).
+- **Rush** and **VIP** (order screen → Check…): a rush ticket goes to the front with a red frame, VIP gets a gold one, and both are printed on kitchen tickets.
+- **All Day** on the kitchen screen counts everything still to make there ("3 Cobb, 2 Caesar"), for batching.
+- **Reports → Kitchen:** tickets per station from sent to bumped, with the average, the longest, how many were late, and the five slowest.
+
 ## Customer display
 
 A second monitor facing the guest shows their order as it is rung up, the total, and "Thank you" with their change. On Settle, **Ask Guest for Tip** shows the tip choices (Store Settings → *Tip choices for guests*, 15, 18, 20 and 25 % to start) and *No tip*; the guest's choice goes on their card payment, now or when it is added.

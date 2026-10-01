@@ -369,6 +369,8 @@ void Check::absorb(Check &other)
     other.lines.clear();
     other.payments.clear();
     guests += other.guests;
+    rush = rush || other.rush;
+    vip = vip || other.vip;
     if (customer.empty())
         customer = other.customer;
 }

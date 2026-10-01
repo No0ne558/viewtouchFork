@@ -473,3 +473,31 @@ TEST_CASE("UI: the customer display shows the order, asks for a tip, says thank 
     REQUIRE(s.pos.closeCheck());
     shot("13-display-thanks");
 }
+
+TEST_CASE("UI: the kitchen display with a rush ticket and the all-day counts", "[flow][ui][kitchen]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    const auto order = [&](const QString &table, std::initializer_list<const char *> items, bool rush = false) {
+        REQUIRE(s.pos.selectTable(table) == app::PosService::TableNeedsGuests);
+        REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+        for (const char *i : items) {
+            s.pos.addItem(QString::fromLatin1(i));
+            s.pos.finishChoosing();
+        }
+        if (rush)
+            REQUIRE(s.pos.toggleFlag(u"rush"_s));
+        REQUIRE(s.pos.sendOrder());
+        s.pos.releaseCheck();
+    };
+    order(u"T1"_s, {"cobb", "caesar"});
+    order(u"T2"_s, {"cobb", "cobb", "water"});
+    order(u"T3"_s, {"caesar"}, true);
+    REQUIRE(s.c.jumpTo(u"kitchen"_s));
+    QTest::qWait(50);
+    s.tapKey(u"All Day"_s);
+    QTest::qWait(50);
+    s.shot("14-kitchen");
+    CHECK(Screen::findBy(s.window->contentItem(), "text", u"RUSH"_s));
+    CHECK(Screen::findBy(s.window->contentItem(), "text", u"All day"_s));
+}

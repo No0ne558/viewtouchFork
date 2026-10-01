@@ -259,6 +259,9 @@ public:
     // Start a break, or end the one going on (clocked-in staff).
     bool toggleBreak();
 
+    // Rush ("rush") or VIP ("vip") on the current check, on or off.
+    bool toggleFlag(const QString &flag);
+
     // --- seats and courses --------------------------------------------------------
     // The seat / course new items go to; also changes the selected line.
     bool setSeat(int seat);
