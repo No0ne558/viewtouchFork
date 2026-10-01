@@ -122,6 +122,7 @@ if(Qt6_FOUND)
             ui/qml/WidgetCheckHistory.qml
             ui/qml/WidgetModifierPicker.qml
             ui/qml/WidgetSoldOutList.qml
+            ui/qml/TouchScrollBar.qml
             ui/qml/WidgetLoginPad.qml
             ui/qml/WidgetNumPad.qml
             ui/qml/WidgetGuestCount.qml

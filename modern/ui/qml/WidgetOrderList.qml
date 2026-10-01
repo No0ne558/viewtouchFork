@@ -146,7 +146,7 @@ Item {
 
         ListView {
             id: list
-            ScrollBar.vertical: ScrollBar { policy: list.contentHeight > list.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
+            ScrollBar.vertical: TouchScrollBar { id: listBar }
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
@@ -157,7 +157,7 @@ Item {
             delegate: Rectangle {
                 id: row
                 required property var modelData
-                width: ListView.view.width
+                width: ListView.view.width - listBar.room
                 height: col.implicitHeight + w.unit * 0.4
                 radius: 6
                 color: modelData.selected ? "#2f6fd6" : "transparent"

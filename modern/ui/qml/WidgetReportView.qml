@@ -140,14 +140,14 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            ScrollBar.vertical: ScrollBar { policy: rows.contentHeight > rows.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
+            ScrollBar.vertical: TouchScrollBar { id: rowsBar }
             model: w.report.rows ?? []
             delegate: Item {
                 id: row
                 required property var modelData
                 readonly property bool section: modelData.kind === "section"
                 readonly property bool total: modelData.kind === "total"
-                width: ListView.view.width
+                width: ListView.view.width - rowsBar.room
                 height: (section ? w.unit * 2.4 : w.unit * 1.6)
 
                 Rectangle {

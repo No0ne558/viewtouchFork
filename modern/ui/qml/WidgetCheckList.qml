@@ -44,12 +44,13 @@ Item {
 
     GridView {
         id: grid
-        ScrollBar.vertical: ScrollBar { policy: grid.contentHeight > grid.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
+        ScrollBar.vertical: TouchScrollBar { id: gridBar; needed: Math.ceil(grid.count / grid.columns) * (170) > grid.height }
         anchors.fill: parent
         anchors.margins: 16
         anchors.topMargin: banner.visible ? 96 : 16
         clip: true
-        cellWidth: Math.max(280, width / Math.max(1, Math.floor(width / 320)))
+        readonly property int columns: Math.max(1, Math.floor((width - gridBar.width - 4) / 320))
+        cellWidth: Math.max(280, (width - gridBar.room) / columns)
         cellHeight: 170
         model: w.checks
 

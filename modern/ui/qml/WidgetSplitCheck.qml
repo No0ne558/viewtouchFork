@@ -45,13 +45,13 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                ScrollBar.vertical: ScrollBar { policy: lines1.contentHeight > lines1.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
+                ScrollBar.vertical: TouchScrollBar { id: linesBar }
                 spacing: 4
                 model: w.pos ? w.pos.lines : []
                 delegate: Rectangle {
                     id: line
                     required property var modelData
-                    width: ListView.view.width
+                    width: ListView.view.width - linesBar.room
                     height: w.unit * 2.2
                     radius: 8
                     color: modelData.selected ? "#2f6fd6" : "#2d3440"

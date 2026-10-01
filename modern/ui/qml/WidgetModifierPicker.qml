@@ -32,11 +32,11 @@ Item {
         clip: true
         contentHeight: groups.implicitHeight
         boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar { policy: flick.contentHeight > flick.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
+        ScrollBar.vertical: TouchScrollBar { id: flickBar }
 
         Column {
             id: groups
-            width: flick.width
+            width: flick.width - flickBar.room
             spacing: w.unit * 0.6
             Repeater {
                 model: w.choosing.groups ?? []

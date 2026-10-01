@@ -139,13 +139,12 @@ Item {
                     clip: true
                     model: w.records
                     currentIndex: w.index
-                    // Always show that there is more below (touch screens have no wheel).
-                    ScrollBar.vertical: ScrollBar { policy: list.contentHeight > list.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
+                    ScrollBar.vertical: TouchScrollBar { id: listBar }
                     delegate: ItemDelegate {
                         id: row
                         required property var modelData
                         required property int index
-                        width: ListView.view.width
+                        width: ListView.view.width - listBar.room
                         highlighted: row.index === w.index
                         onClicked: w.choose(row.index)
                         contentItem: ColumnLayout {
@@ -211,11 +210,17 @@ Item {
                     Layout.fillHeight: true
                     contentWidth: availableWidth
                     clip: true
-                    // Always show that there is more below (touch screens have no wheel).
-                    ScrollBar.vertical.policy: contentHeight > availableHeight ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+                    // Finger-wide, shown when the form is longer than the panel.
+                    ScrollBar.vertical: TouchScrollBar {
+                        id: formBar
+                        parent: scroll
+                        x: scroll.width - width
+                        y: scroll.topPadding
+                        height: scroll.availableHeight
+                    }
 
                     ColumnLayout {
-                        width: scroll.availableWidth
+                        width: scroll.availableWidth - formBar.room
                         spacing: 10
                         Repeater {
                             model: w.fields

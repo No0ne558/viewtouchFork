@@ -19,10 +19,11 @@ Item {
         anchors.fill: parent
         anchors.margins: 8
         clip: true
-        cellWidth: width / Math.max(1, Math.floor(width / 300))
+        readonly property int columns: Math.max(1, Math.floor((width - gridBar.width - 4) / 300))
+        cellWidth: (width - gridBar.room) / columns
         cellHeight: 120
         model: w.items
-        ScrollBar.vertical: ScrollBar { policy: grid.contentHeight > grid.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
+        ScrollBar.vertical: TouchScrollBar { id: gridBar; needed: Math.ceil(grid.count / grid.columns) * (120) > grid.height }
         delegate: Item {
             id: cell
             required property var modelData

@@ -17,11 +17,12 @@ Item {
         id: grid
         anchors.fill: parent
         clip: true
-        cellWidth: width / w.columns
+        readonly property int columns: w.columns
+        cellWidth: (width - gridBar.room) / columns
         cellHeight: Math.min(cellWidth * 0.8, 240)
         model: w.tables
         boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar { policy: grid.contentHeight > grid.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
+        ScrollBar.vertical: TouchScrollBar { id: gridBar; needed: Math.ceil(grid.count / grid.columns) * (Math.min((width - gridBar.width - 4) / columns * 0.8, 240)) > grid.height }
 
         delegate: Item {
             id: cell

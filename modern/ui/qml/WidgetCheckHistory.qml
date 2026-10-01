@@ -22,7 +22,7 @@ Item {
     }
     ListView {
         id: history
-        ScrollBar.vertical: ScrollBar { policy: history.contentHeight > history.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
+        ScrollBar.vertical: TouchScrollBar { id: historyBar }
         anchors { left: parent.left; right: parent.right; top: heading.bottom; bottom: parent.bottom; margins: 16 }
         clip: true
         spacing: 8
@@ -30,7 +30,7 @@ Item {
         delegate: Column {
             id: row
             required property var modelData
-            width: ListView.view.width
+            width: ListView.view.width - historyBar.room
             Text {
                 width: parent.width
                 text: row.modelData.what
