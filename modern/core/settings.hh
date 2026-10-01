@@ -146,6 +146,38 @@ struct PosSettings {
         bool operator==(const TipOut &) const = default;
     };
     std::vector<TipOut> tipOuts;
+    // Loyalty: points per dollar spent (after discounts), and what they buy.
+    struct Reward {
+        int points = 0;
+        Money value;
+        bool operator==(const Reward &) const = default;
+    };
+    // The customer display: a logo (an image file), an accent color, and
+    // what it shows between guests (one message per slide; "image:<file>"
+    // for a picture).
+    std::string displayLogo;
+    std::string displayAccent = "#2f6fd6";
+    std::vector<std::string> displaySlides;
+    bool loyaltyEnabled = false;
+    int pointsPerDollar = 1;
+    std::vector<Reward> rewards;
+    // Promotions, applied by themselves while they run: percent off the
+    // matching items, or (buy > 0) "buy `buy`, get `get` at percent off".
+    struct Promotion {
+        std::string id;
+        std::string name;
+        bool active = true;
+        std::vector<std::string> families;   // menu families it covers
+        std::vector<std::string> items;      // and/or menu item ids
+        std::int64_t percentBp = 0;          // 5000 = half off, 10000 = free
+        int buy = 0;
+        int get = 0;
+        int startMinute = 0;                 // start == end: all day
+        int endMinute = 0;
+        int days = 0x7F;                     // bit 0 Sunday ... bit 6 Saturday
+        bool operator==(const Promotion &) const = default;
+    };
+    std::vector<Promotion> promotions;
     int waitMinutesPerParty = 10;
     // Kitchen display: a ticket turns yellow after warn minutes, red after late.
     int kitchenWarnMinutes = 8;

@@ -36,6 +36,9 @@ struct CustomerRecord {
     Money spent;               // their totals, before tips
     std::int64_t lastVisit = 0;
 
+    int points = 0;            // loyalty points to spend
+    int lifetimePoints = 0;
+
     bool houseAccount = false;
     Money accountLimit;        // 0 = no limit
     Money accountBalance;      // what they owe

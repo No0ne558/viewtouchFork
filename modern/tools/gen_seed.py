@@ -173,6 +173,23 @@ write("pos/employees.json", [
 write("pos/settings.json", {
     "storeName": "ViewTouch Café",
     "currencySymbol": "$",
+    # Points for what regulars spend, and what the points buy.
+    "loyalty": {"enabled": True, "pointsPerDollar": 1,
+                "rewards": [{"points": 50, "value": 5.00}, {"points": 120, "value": 15.00},
+                            {"points": 250, "value": 35.00}]},
+    # Applied by themselves while they run (Manager -> Promotions).
+    "promotions": [
+        {"id": "happy-hour", "name": "Happy Hour", "active": True, "items": ["draft-beer", "house-wine"],
+         "families": [], "percent": 50, "buy": 0, "get": 0, "start": 15 * 60, "end": 18 * 60, "days": 0b0111110},
+        {"id": "burger-tuesday", "name": "Burger Tuesday", "active": True, "families": ["burgers"], "items": [],
+         "percent": 50, "buy": 1, "get": 1, "start": 0, "end": 0, "days": 0b0000100},
+    ],
+    # What the customer display shows between guests.
+    "display": {"logo": "", "accent": "#2f6fd6",
+                "slides": ["Happy Hour, weekdays 3 - 6 PM: half-price draft beer and wine",
+                           "Burger Tuesday: the second burger is half off",
+                           "Join our rewards: 1 point for every dollar, $5 off at 50 points",
+                           "Gift cards make great gifts - ask your server"]},
     "tax": {"food": 8.25, "alcohol": 10.0, "merchandise": 8.25, "room": 0, "taxTakeoutFood": True},
     "tenders": [
         {"id": "cash", "name": "Cash", "kind": "cash"},
@@ -563,7 +580,8 @@ page("logout", "Log Out", "logout", [
 admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"), ("Taxes", "taxes"),
          ("Tenders", "tenders"), ("Printers", "printers"), ("Reports", "reports"), ("Banks & Drawers", "drawers"),
          ("End of Day", "endOfDay"), ("Terminals", "terminals"), ("Meal Periods", "mealPeriods"),
-         ("Modifier Groups", "modifierGroups"), ("Inventory", "inventory"), ("Schedule", "schedule")]
+         ("Modifier Groups", "modifierGroups"), ("Inventory", "inventory"), ("Schedule", "schedule"),
+         ("Promotions", "promotions")]
 mgr = [label("title", 160, 24, 1600, 100, "Manager")]
 # Four across, five down: the Manager screens, then the rest.
 slots = [zone(f"admin-{panel}", 0, 0, 0, 0, text, actions=[command("openAdmin", panel=panel)]) for text, panel in admin]
@@ -594,7 +612,8 @@ for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees
                          ("admin-terminals", "Terminals", "terminals"),
                          ("admin-meal-periods", "Meal Periods", "mealPeriods"),
                          ("admin-modifier-groups", "Modifier Groups", "modifierGroups"),
-                         ("admin-inventory", "Inventory", "inventory")]:
+                         ("admin-inventory", "Inventory", "inventory"),
+                         ("admin-promotions", "Promotions", "promotions")]:
     page(pid, name, "manager", [
         label("title", 16, 16, 1888, 80, name),
         zone("editor", 16, 112, 1888, 816, kind="adminPanel", props={"panel": panel}),

@@ -102,7 +102,7 @@ QJsonObject toJson(const Check &c)
         {u"customer"_s, QJsonObject{{u"name"_s, qs(c.customer.name)}, {u"phone"_s, qs(c.customer.phone)},
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
         {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse}, {u"customerId"_s, qs(c.customerId)},
-        {u"rush"_s, c.rush}, {u"vip"_s, c.vip},
+        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"pointsEarned"_s, c.pointsEarned},
     };
 }
 
@@ -179,6 +179,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     c.customerId = ss(o.value(u"customerId").toString());
     c.rush = o.value(u"rush").toBool();
     c.vip = o.value(u"vip").toBool();
+    c.pointsEarned = o.value(u"pointsEarned").toInt();
     for (const QJsonValue &v : o.value(u"events").toArray()) {
         const QJsonObject e = v.toObject();
         c.events.push_back({i64(e.value(u"at")), ss(e.value(u"who").toString()), ss(e.value(u"what").toString()),
@@ -585,6 +586,31 @@ QJsonObject toJson(const PosSettings &s)
         {u"checkoutNeedsClosedChecks"_s, s.checkoutNeedsClosedChecks},
         {u"backupCopyDir"_s, qs(s.backupCopyDir)},
         {u"waitMinutesPerParty"_s, s.waitMinutesPerParty},
+        {u"display"_s, [&] {
+             QJsonArray slides;
+             for (const std::string &sl : s.displaySlides) slides.append(qs(sl));
+             return QJsonObject{{u"logo"_s, qs(s.displayLogo)}, {u"accent"_s, qs(s.displayAccent)}, {u"slides"_s, slides}};
+         }()},
+        {u"loyalty"_s, [&] {
+             QJsonArray rewards;
+             for (const PosSettings::Reward &r : s.rewards)
+                 rewards.append(QJsonObject{{u"points"_s, r.points}, {u"value"_s, decimalFromCents(r.value.cents())}});
+             return QJsonObject{{u"enabled"_s, s.loyaltyEnabled}, {u"pointsPerDollar"_s, s.pointsPerDollar},
+                                {u"rewards"_s, rewards}};
+         }()},
+        {u"promotions"_s, [&] {
+             QJsonArray a;
+             for (const PosSettings::Promotion &p : s.promotions) {
+                 QJsonArray fam, items;
+                 for (const std::string &f : p.families) fam.append(qs(f));
+                 for (const std::string &i : p.items) items.append(qs(i));
+                 a.append(QJsonObject{{u"id"_s, qs(p.id)}, {u"name"_s, qs(p.name)}, {u"active"_s, p.active},
+                                      {u"families"_s, fam}, {u"items"_s, items}, {u"percent"_s, double(p.percentBp) / 100.0},
+                                      {u"buy"_s, p.buy}, {u"get"_s, p.get}, {u"start"_s, p.startMinute},
+                                      {u"end"_s, p.endMinute}, {u"days"_s, p.days}});
+             }
+             return a;
+         }()},
         {u"scheduleRequired"_s, s.scheduleRequired}, {u"clockInEarlyMinutes"_s, s.clockInEarlyMinutes},
         {u"tipOuts"_s, [&] {
              QJsonArray a;
@@ -636,6 +662,36 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.checkoutNeedsClosedChecks = o.value(u"checkoutNeedsClosedChecks").toBool(true);
     s.backupCopyDir = ss(o.value(u"backupCopyDir").toString());
     s.waitMinutesPerParty = std::clamp(o.value(u"waitMinutesPerParty").toInt(10), 1, 120);
+    const QJsonObject display = o.value(u"display").toObject();
+    s.displayLogo = ss(display.value(u"logo").toString());
+    s.displayAccent = ss(display.value(u"accent").toString(u"#2f6fd6"_s));
+    for (const QJsonValue &v : display.value(u"slides").toArray())
+        if (!v.toString().trimmed().isEmpty()) s.displaySlides.push_back(ss(v.toString().trimmed()));
+    const QJsonObject loyalty = o.value(u"loyalty").toObject();
+    s.loyaltyEnabled = loyalty.value(u"enabled").toBool(false);
+    s.pointsPerDollar = std::clamp(loyalty.value(u"pointsPerDollar").toInt(1), 1, 100);
+    for (const QJsonValue &v : loyalty.value(u"rewards").toArray()) {
+        const QJsonObject r = v.toObject();
+        if (r.value(u"points").toInt() > 0)
+            s.rewards.push_back({r.value(u"points").toInt(), Money::fromCents(centsFromDecimal(r.value(u"value").toDouble()))});
+    }
+    for (const QJsonValue &v : o.value(u"promotions").toArray()) {
+        const QJsonObject p = v.toObject();
+        PosSettings::Promotion promo;
+        promo.id = ss(p.value(u"id").toString());
+        promo.name = ss(p.value(u"name").toString());
+        promo.active = p.value(u"active").toBool(true);
+        for (const QJsonValue &f : p.value(u"families").toArray()) promo.families.push_back(ss(f.toString()));
+        for (const QJsonValue &i : p.value(u"items").toArray()) promo.items.push_back(ss(i.toString()));
+        promo.percentBp = std::clamp<std::int64_t>(std::llround(p.value(u"percent").toDouble() * 100.0), 0, 10000);
+        promo.buy = std::max(0, p.value(u"buy").toInt());
+        promo.get = std::max(0, p.value(u"get").toInt());
+        promo.startMinute = std::clamp(p.value(u"start").toInt(), 0, 24 * 60);
+        promo.endMinute = std::clamp(p.value(u"end").toInt(), 0, 24 * 60);
+        promo.days = p.value(u"days").toInt(0x7F) & 0x7F;
+        if (!promo.id.empty())
+            s.promotions.push_back(promo);
+    }
     s.scheduleRequired = o.value(u"scheduleRequired").toBool(false);
     s.clockInEarlyMinutes = std::clamp(o.value(u"clockInEarlyMinutes").toInt(15), 0, 240);
     for (const QJsonValue &v : o.value(u"tipOuts").toArray()) {
@@ -720,6 +776,7 @@ QJsonObject toJson(const CustomerRecord &c)
         {u"visits"_s, c.visits}, {u"spent"_s, qint64(c.spent.cents())}, {u"lastVisit"_s, qint64(c.lastVisit)},
         {u"houseAccount"_s, c.houseAccount}, {u"accountLimit"_s, qint64(c.accountLimit.cents())},
         {u"accountBalance"_s, qint64(c.accountBalance.cents())}, {u"account"_s, ledgerJson(c.account)},
+        {u"points"_s, c.points}, {u"lifetimePoints"_s, c.lifetimePoints},
     };
 }
 
@@ -740,6 +797,8 @@ CustomerRecord customerFromJson(const QJsonObject &o)
     c.accountLimit = money(o.value(u"accountLimit"));
     c.accountBalance = money(o.value(u"accountBalance"));
     c.account = ledgerFromJson(o.value(u"account").toArray());
+    c.points = o.value(u"points").toInt();
+    c.lifetimePoints = o.value(u"lifetimePoints").toInt();
     return c;
 }
 

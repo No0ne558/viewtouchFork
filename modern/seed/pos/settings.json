@@ -2,6 +2,67 @@
   "schemaVersion": 1,
   "storeName": "ViewTouch Caf\u00e9",
   "currencySymbol": "$",
+  "loyalty": {
+    "enabled": true,
+    "pointsPerDollar": 1,
+    "rewards": [
+      {
+        "points": 50,
+        "value": 5.0
+      },
+      {
+        "points": 120,
+        "value": 15.0
+      },
+      {
+        "points": 250,
+        "value": 35.0
+      }
+    ]
+  },
+  "promotions": [
+    {
+      "id": "happy-hour",
+      "name": "Happy Hour",
+      "active": true,
+      "items": [
+        "draft-beer",
+        "house-wine"
+      ],
+      "families": [],
+      "percent": 50,
+      "buy": 0,
+      "get": 0,
+      "start": 900,
+      "end": 1080,
+      "days": 62
+    },
+    {
+      "id": "burger-tuesday",
+      "name": "Burger Tuesday",
+      "active": true,
+      "families": [
+        "burgers"
+      ],
+      "items": [],
+      "percent": 50,
+      "buy": 1,
+      "get": 1,
+      "start": 0,
+      "end": 0,
+      "days": 4
+    }
+  ],
+  "display": {
+    "logo": "",
+    "accent": "#2f6fd6",
+    "slides": [
+      "Happy Hour, weekdays 3 - 6 PM: half-price draft beer and wine",
+      "Burger Tuesday: the second burger is half off",
+      "Join our rewards: 1 point for every dollar, $5 off at 50 points",
+      "Gift cards make great gifts - ask your server"
+    ]
+  },
   "tax": {
     "food": 8.25,
     "alcohol": 10.0,

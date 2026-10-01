@@ -597,10 +597,33 @@ QVariantMap PosService::customerPrompt() const
         for (int p : s_->settings.tipPercents)
             choices.append(QVariantMap{{u"percent"_s, p}, {u"amount"_s, format((t.subtotal + t.tax).percent(p * 100))}});
     }
+    // Loyalty: who is on the check, their points, what this check earns.
+    QVariantMap loyalty{{u"enabled"_s, s_->settings.loyaltyEnabled}};
+    if (s_->settings.loyaltyEnabled && c) {
+        const CustomerRecord *r = s_->customer(c->customerId);
+        loyalty.insert(u"member"_s, r ? qs(r->name.empty() ? r->phone : r->name) : QString());
+        loyalty.insert(u"points"_s, r ? r->points : 0);
+        loyalty.insert(u"earning"_s, pointsFor(*c));
+        QVariantList rewards;
+        for (int i = 0; i < int(s_->settings.rewards.size()); ++i) {
+            const PosSettings::Reward &w = s_->settings.rewards[i];
+            rewards.append(QVariantMap{{u"index"_s, i}, {u"points"_s, w.points}, {u"value"_s, format(w.value)},
+                                       {u"ready"_s, r && r->points >= w.points}});
+        }
+        loyalty.insert(u"rewards"_s, rewards);
+    }
+    QVariantList slides;
+    for (const std::string &sl : s_->settings.displaySlides)
+        slides.append(qs(sl));
+    for (const QVariant &p : promotionsNow())
+        slides.append(tr("Now: %1").arg(p.toString()));
     return {
         {u"askingTip"_s, mine && !tipChoice_.chosen}, {u"tipChosen"_s, mine && tipChoice_.chosen},
         {u"tip"_s, mine && tipChoice_.chosen ? format(tipFor(*c)) : QString()},
-        {u"choices"_s, choices},
+        {u"choices"_s, choices}, {u"loyalty"_s, loyalty}, {u"slides"_s, slides},
+        {u"logo"_s, qs(s_->settings.displayLogo)}, {u"accent"_s, qs(s_->settings.displayAccent)},
+        {u"canText"_s, bool(s_->sendText) && !s_->settings.textWebhook.empty()},
+        {u"label"_s, c ? qs(c->label) : QString()}, {u"checkId"_s, c ? qint64(c->id) : 0},
     };
 }
 

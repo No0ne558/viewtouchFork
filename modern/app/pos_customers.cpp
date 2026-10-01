@@ -79,6 +79,7 @@ QVariantMap PosService::customerSummary(const CustomerRecord &c) const
         {u"houseAccount"_s, c.houseAccount}, {u"accountLimit"_s, format(c.accountLimit)},
         {u"accountLimitCents"_s, qint64(c.accountLimit.cents())},
         {u"balance"_s, format(c.accountBalance)}, {u"balanceCents"_s, qint64(c.accountBalance.cents())},
+        {u"points"_s, c.points}, {u"lifetimePoints"_s, c.lifetimePoints},
     };
 }
 
@@ -438,6 +439,11 @@ void PosService::returnPayment(const Check &c, const Payment &p)
             g->post(now(), p.amount, ss(tr("Back from check #%1").arg(c.id)), c.id, "refund");
             saveGiftCardRecord(*g);
         }
+    } else if (p.reference.starts_with("reward:")) {   // the points go back
+        if (CustomerRecord *r = s_->customer(c.customerId)) {
+            r->points += std::stoi(p.reference.substr(7));
+            saveCustomerRecord(*r);
+        }
     } else if (p.kind == TenderKind::HouseAccount) {
         if (CustomerRecord *r = s_->customer(p.reference)) {
             r->post(now(), -p.amount, ss(tr("Charge removed, check #%1").arg(c.id)), c.id, "uncharge");
@@ -446,7 +452,7 @@ void PosService::returnPayment(const Check &c, const Payment &p)
     }
 }
 
-void PosService::applyCloseEffects(const Check &c)
+void PosService::applyCloseEffects(Check &c)
 {
     for (const OrderLine &l : c.lines) {
         if (!l.isGiftCard() || l.voided)
@@ -460,6 +466,7 @@ void PosService::applyCloseEffects(const Check &c)
         g->post(now(), l.total(), ss((fresh ? tr("Sold on check #%1") : tr("Reloaded on check #%1")).arg(c.id)), c.id, "sale");
         saveGiftCardRecord(*g);
     }
+    earnPoints(c);
     if (CustomerRecord *r = s_->customer(c.customerId)) {
         ++r->visits;
         r->spent += c.totals(s_->settings.tax).total;
@@ -481,7 +488,7 @@ QString PosService::reopenBlocked(const Check &c) const
     return {};
 }
 
-void PosService::undoCloseEffects(const Check &c)
+void PosService::undoCloseEffects(Check &c)
 {
     for (const OrderLine &l : c.lines) {
         if (!l.isGiftCard() || l.voided)
@@ -491,6 +498,7 @@ void PosService::undoCloseEffects(const Check &c)
             saveGiftCardRecord(*g);
         }
     }
+    takeBackPoints(c);
     if (CustomerRecord *r = s_->customer(c.customerId)) {
         r->visits = std::max(0, r->visits - 1);
         r->spent -= c.totals(s_->settings.tax).total;

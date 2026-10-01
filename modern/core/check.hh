@@ -84,7 +84,7 @@ struct Payment {
     std::string tenderId;
     std::string tenderName;
     TenderKind kind = TenderKind::Cash;
-    Money amount;                 // Cash/Card: what it pays toward the check
+    Money amount;                 // Cash/Card: what it pays toward the check; Discount: a fixed amount off
     std::int64_t percentBp = 0;   // Discount, applied to the current items total
     Money tip;                    // Card: tip on top of the amount (owed to the server)
     std::string reference;        // GiftCard: the card number; HouseAccount: the customer id
@@ -166,6 +166,7 @@ struct Check {
     bool autoGratuity = false;        // added for a large party (not by hand)
     std::vector<CheckEvent> events;   // oldest first
     int firedCourse = 1;              // courses up to this one go out on Send
+    int pointsEarned = 0;             // loyalty points it gave its customer (taken back on reopen)
     bool rush = false;                // the kitchen does it first
     bool vip = false;                 // the kitchen takes extra care
 

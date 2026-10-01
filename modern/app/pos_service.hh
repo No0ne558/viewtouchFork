@@ -306,6 +306,16 @@ public:
     bool askForTip();
     bool customerTip(const QString &kind, std::int64_t value);   // "percent" | "amount" | "none"
     QVariantMap customerPrompt() const override;
+
+    // --- loyalty and promotions (pos_loyalty.cpp) ---------------------------------
+    // Spend reward `index` (PosSettings::rewards) of the check's customer.
+    bool redeemReward(int index);
+    // The guest types their phone on the customer display: found or signed up.
+    bool customerJoin(const QString &phone);
+    // After paying: "print", "text" (to a phone) or "none".
+    bool sendReceipt(const QString &how, const QString &to = {});
+    // Names of the promotions running now.
+    QVariantList promotionsNow() const;
     // Gratuity on the current check (bp; 0 removes). Removing an automatic
     // one needs a manager.
     bool setGratuity(std::int64_t percentBp);
@@ -494,6 +504,8 @@ private:
     core::Party *party(qint64 id);
     void saveParty(const core::Party &p);
     int quoteFor(int ahead) const;
+    QVariantMap promotionRecord(const core::PosSettings::Promotion &p) const;
+    bool savePromotionRecord(int index, const QVariantMap &record);
     QVariantMap customerSummary(const core::CustomerRecord &c) const;
     void saveCustomerRecord(const core::CustomerRecord &c);
     void saveGiftCardRecord(const core::GiftCard &g);
@@ -503,9 +515,14 @@ private:
     // A removed gift card / house account payment goes back where it came from.
     void returnPayment(const core::Check &c, const core::Payment &p);
     // Closing: gift cards sold go live, the customer's visit counts.
-    void applyCloseEffects(const core::Check &c);
+    void applyCloseEffects(core::Check &c);
     QString reopenBlocked(const core::Check &c) const;
-    void undoCloseEffects(const core::Check &c);
+    void undoCloseEffects(core::Check &c);
+    Money promotionAmount(const core::PosSettings::Promotion &p, const core::Check &c) const;
+    void applyPromotions(core::Check &c);
+    int pointsFor(const core::Check &c) const;
+    void earnPoints(core::Check &c);
+    void takeBackPoints(core::Check &c);
     // The tip the guest chose on the customer display, until a card takes it.
     struct TipChoice { bool asked = false; bool chosen = false; bool none = false; std::int64_t percentBp = 0;
                        Money amount; std::int64_t checkId = 0; };

@@ -417,7 +417,7 @@ Totals Check::totals(const TaxRates &rates) const
     // exceed it.
     for (const Payment &p : payments) {
         if (p.kind == TenderKind::Discount)
-            t.discounts += t.items.percent(p.percentBp);
+            t.discounts += t.items.percent(p.percentBp) + p.amount;   // percent off, or a fixed amount (rewards, promotions)
     }
     if (t.discounts > t.items)
         t.discounts = t.items;

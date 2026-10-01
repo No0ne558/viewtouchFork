@@ -151,6 +151,31 @@ Item {
                         font.bold: true
                         font.pixelSize: 22
                     }
+                    // Loyalty: points, and the rewards they can spend on this check.
+                    RowLayout {
+                        visible: !w.creating && (w.pos ? (w.pos.customerPrompt.loyalty ?? {}).enabled ?? false : false)
+                        spacing: 8
+                        Label {
+                            text: qsTr("%1 points").arg(w.chosen.points ?? 0)
+                            font.pixelSize: 18
+                            font.bold: true
+                            color: "#f5b940"
+                        }
+                        Repeater {
+                            model: w.pos && (w.chosen.onCheck ?? false) ? ((w.pos.customerPrompt.loyalty ?? {}).rewards ?? []) : []
+                            delegate: Button {
+                                required property var modelData
+                                text: qsTr("%1 off (%2 pts)").arg(modelData.value).arg(modelData.points)
+                                enabled: modelData.ready
+                                onClicked: w.pos.redeemReward(modelData.index)
+                            }
+                        }
+                        Label {
+                            visible: !(w.chosen.onCheck ?? false)
+                            text: qsTr("Put them on the check to use rewards")
+                            opacity: 0.6
+                        }
+                    }
                     Label {
                         visible: !w.creating
                         opacity: 0.75

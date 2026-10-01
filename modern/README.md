@@ -175,6 +175,11 @@ A second monitor facing the guest shows their order as it is rung up, the total,
 
 Start with `--customer-display auto` (or `customer-display = auto` in the kiosk's .conf): on a desktop it opens a full-screen window on the other monitor; on a kiosk, whose one window spans both monitors, the POS stays on the left monitor and the guest's side is on the right. With one monitor, `--customer-display split` puts it in the right third, to try it out.
 
+## Loyalty and promotions
+
+- **Loyalty** (Store Settings): customers on a check earn points on what they spend after discounts (1 per dollar to start); reopening a check takes them back. *Rewards*, one per line like `50 = 5.00`, take money off: Customers → the customer on the check → the reward button. Undoing the reward gives the points back. Guests can sign up or be found by typing their phone number on the customer display.
+- **Promotions** (Manager → Promotions): percent off chosen categories or items, or *buy N, get M* (the cheapest at the percent off), on chosen days and times. They apply by themselves while they run, show on the check and receipt by name, and come off again when the time is up or the items go. The demo set has *Happy Hour* (weekdays 3-6 PM, half-price draft beer and wine) and *Burger Tuesday* (the second burger half off).
+
 ## On-screen keyboard
 
 Text fields (customer names, Manager forms…) get an on-screen keyboard, docked below the page, on touch screens: on by default with `--kiosk`, or `--touch-keyboard yes|no`. Number fields get a number pad.

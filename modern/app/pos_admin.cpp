@@ -119,6 +119,27 @@ QVariantList PosService::adminFields(const QString &panel)
                      " Sold out by itself when one runs short.")),
         };
     }
+    if (panel == u"promotions") {
+        QStringList families;
+        for (const MenuItem &m : s_->menu)
+            if (!m.family.empty() && !families.contains(qs(m.family)))
+                families << qs(m.family);
+        return {
+            field(u"name"_s, tr("Name"), u"string"_s, tr("On the check and receipt, e.g. Happy Hour")), readonlyId,
+            field(u"active"_s, tr("On"), u"bool"_s),
+            field(u"families"_s, tr("Categories"), u"string"_s,
+                  tr("Comma separated: %1").arg(families.join(u", "_s))),
+            field(u"items"_s, tr("Items"), u"string"_s, tr("Menu item IDs, comma separated (e.g. draft-beer, house-wine)")),
+            field(u"percent"_s, tr("Percent off"), u"percent"_s, tr("50 = half price, 100 = free")),
+            with(with(field(u"buy"_s, tr("Buy"), u"int"_s,
+                            tr("0 = every matching item is off. Otherwise buy this many...")), u"min"_s, 0), u"max"_s, 20),
+            with(with(field(u"get"_s, tr("…and get this many (the cheapest) at the percent off"), u"int"_s), u"min"_s, 0),
+                 u"max"_s, 20),
+            field(u"start"_s, tr("From"), u"string"_s, tr("24-hour time, e.g. 15:00. From = Until: all day.")),
+            field(u"end"_s, tr("Until"), u"string"_s),
+            field(u"days"_s, tr("Days"), u"string"_s, tr("e.g. Mon-Fri, or Tue, or Sat, Sun. Empty: every day.")),
+        };
+    }
     if (panel == u"inventory") {
         return {
             field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
@@ -223,6 +244,17 @@ QVariantList PosService::adminFields(const QString &panel)
                       u"min"_s, 1), u"max"_s, 120),
             with(with(field(u"kitchenLateMinutes"_s, tr("Kitchen: ticket is late (red) after (minutes)"), u"int"_s,
                             tr("Late tickets are counted in the Kitchen report.")), u"min"_s, 1), u"max"_s, 240),
+            field(u"loyaltyEnabled"_s, tr("Loyalty points"), u"bool"_s,
+                  tr("Customers on a check earn points on what they spend (after discounts).")),
+            with(with(field(u"pointsPerDollar"_s, tr("…points per dollar"), u"int"_s), u"min"_s, 1), u"max"_s, 100),
+            field(u"rewards"_s, tr("Rewards"), u"text"_s,
+                  tr("One per line: points = amount off, e.g. \"50 = 5.00\".")),
+            field(u"displayLogo"_s, tr("Customer display: logo"), u"string"_s,
+                  tr("An image file (PNG, JPG) on the store's computer. Empty: the store name.")),
+            field(u"displayAccent"_s, tr("Customer display: color"), u"color"_s),
+            field(u"displaySlides"_s, tr("Customer display: between guests"), u"text"_s,
+                  tr("One message per line, shown in turn; \"image:/path/to/photo.jpg\" for a picture. Running "
+                     "promotions are added by themselves.")),
             field(u"tipPercents"_s, tr("Tip choices for guests (%)"), u"text"_s,
                   tr("Shown on the customer display, e.g. 15, 18, 20, 25 (up to 6).")),
             with(with(field(u"waitMinutesPerParty"_s, tr("Waitlist: minutes per party ahead"), u"int"_s,
@@ -343,6 +375,20 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks},
              {u"backupCopyDir"_s, qs(s_->settings.backupCopyDir)},
              {u"waitMinutesPerParty"_s, s_->settings.waitMinutesPerParty},
+             {u"loyaltyEnabled"_s, s_->settings.loyaltyEnabled}, {u"pointsPerDollar"_s, s_->settings.pointsPerDollar},
+             {u"rewards"_s, [&] {
+                  QStringList l;
+                  for (const PosSettings::Reward &w : s_->settings.rewards)
+                      l << u"%1 = %2"_s.arg(w.points).arg(qs(w.value.toString()));
+                  return l.join(u'\n');
+              }()},
+             {u"displayLogo"_s, qs(s_->settings.displayLogo)}, {u"displayAccent"_s, qs(s_->settings.displayAccent)},
+             {u"displaySlides"_s, [&] {
+                  QStringList l;
+                  for (const std::string &sl : s_->settings.displaySlides)
+                      l << qs(sl);
+                  return l.join(u'\n');
+              }()},
              {u"scheduleRequired"_s, s_->settings.scheduleRequired},
              {u"clockInEarlyMinutes"_s, s_->settings.clockInEarlyMinutes},
              {u"tipOuts"_s, [&] {
@@ -359,6 +405,13 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"overtimeWeeklyHours"_s, s_->settings.overtimeWeeklyHours},
              {u"weekStartsOn"_s, QString::number(s_->settings.weekStartsOn)}},
             tr("Store"), QString());
+    } else if (panel == u"promotions") {
+        for (const PosSettings::Promotion &p : s_->settings.promotions)
+            add(promotionRecord(p), qs(p.name),
+                (p.buy > 0 ? tr("buy %1 get %2 at %3% off").arg(p.buy).arg(p.get).arg(double(p.percentBp) / 100.0)
+                           : tr("%1% off").arg(double(p.percentBp) / 100.0))
+                    + (p.startMinute != p.endMinute ? u" · "_s + clockText(p.startMinute) + u"-"_s + clockText(p.endMinute) : QString())
+                    + (p.active ? QString() : tr(" · off")));
     } else if (panel == u"inventory") {
         for (const Ingredient &g : s_->ingredients)
             add(toJson(g).toVariantMap(), qs(g.name),
@@ -412,6 +465,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"modifierGroups")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"min"_s, 1}, {u"max"_s, 1}, {u"options"_s, QString()}};
+    if (panel == u"promotions")
+        return promotionRecord({});
     if (panel == u"inventory")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"unit"_s, u"each"_s}, {u"onHand"_s, 0.0},
                 {u"lowAt"_s, 0.0}, {u"cost"_s, 0.0}};
@@ -441,6 +496,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         ok = saveMealPeriodRecord(index, record);
     } else if (panel == u"modifierGroups") {
         ok = saveModifierGroupRecord(index, record);
+    } else if (panel == u"promotions") {
+        ok = savePromotionRecord(index, record);
     } else if (panel == u"inventory") {
         const QString name = record.value(u"name"_s).toString().trimmed();
         if (name.isEmpty())
@@ -544,6 +601,36 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             }
             if (!tips.empty())
                 s_->settings.tipPercents = tips;
+        }
+        if (record.contains(u"loyaltyEnabled"_s))
+            s_->settings.loyaltyEnabled = record.value(u"loyaltyEnabled"_s).toBool();
+        if (record.contains(u"pointsPerDollar"_s))
+            s_->settings.pointsPerDollar = std::clamp(record.value(u"pointsPerDollar"_s).toInt(), 1, 100);
+        if (record.contains(u"rewards"_s)) {
+            std::vector<PosSettings::Reward> rewards;
+            for (const QString &line : record.value(u"rewards"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
+                const QStringList kv = line.split(u'=');
+                bool okPoints = false, okValue = false;
+                const int points = kv.value(0).trimmed().toInt(&okPoints);
+                const double value = kv.value(1).trimmed().remove(qs(s_->settings.currencySymbol)).toDouble(&okValue);
+                if (line.trimmed().isEmpty())
+                    continue;
+                if (kv.size() != 2 || !okPoints || !okValue || points <= 0 || value <= 0)
+                    return fail(tr("Write rewards like \"50 = 5.00\" (points = amount off)."));
+                rewards.push_back({points, Money::fromCents(std::llround(value * 100.0))});
+            }
+            std::ranges::sort(rewards, {}, &PosSettings::Reward::points);
+            s_->settings.rewards = rewards;
+        }
+        if (record.contains(u"displayLogo"_s))
+            s_->settings.displayLogo = ss(record.value(u"displayLogo"_s).toString().trimmed());
+        if (record.contains(u"displayAccent"_s) && !record.value(u"displayAccent"_s).toString().isEmpty())
+            s_->settings.displayAccent = ss(record.value(u"displayAccent"_s).toString());
+        if (record.contains(u"displaySlides"_s)) {
+            s_->settings.displaySlides.clear();
+            for (const QString &line : record.value(u"displaySlides"_s).toString().split(u'\n', Qt::SkipEmptyParts))
+                if (!line.trimmed().isEmpty())
+                    s_->settings.displaySlides.push_back(ss(line.trimmed()));
         }
         if (record.contains(u"scheduleRequired"_s))
             s_->settings.scheduleRequired = record.value(u"scheduleRequired"_s).toBool();
@@ -770,6 +857,113 @@ QVariantMap PosService::menuRecord(const MenuItem &m) const
     return r;
 }
 
+namespace {
+const char *const kDayNames[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
+
+QString daysText(int mask)
+{
+    if ((mask & 0x7F) == 0x7F)
+        return {};
+    QStringList out;
+    for (int d = 0; d < 7; ++d)
+        if (mask & (1 << d))
+            out << QString::fromLatin1(kDayNames[d]).replace(0, 1, QString::fromLatin1(kDayNames[d]).left(1).toUpper());
+    return out.join(u", "_s);
+}
+
+// "Mon-Fri", "Tue", "Sat, Sun"; empty: every day; -1 if not understood.
+int daysFrom(const QString &text)
+{
+    if (text.trimmed().isEmpty())
+        return 0x7F;
+    const auto dayOf = [](QString t) {
+        t = t.trimmed().left(3).toLower();
+        for (int d = 0; d < 7; ++d)
+            if (t == QString::fromLatin1(kDayNames[d]))
+                return d;
+        return -1;
+    };
+    int mask = 0;
+    for (const QString &part : text.split(u',', Qt::SkipEmptyParts)) {
+        const QStringList range = part.split(u'-');
+        const int a = dayOf(range.value(0)), b = range.size() > 1 ? dayOf(range.value(1)) : a;
+        if (a < 0 || b < 0)
+            return -1;
+        for (int d = a;; d = (d + 1) % 7) {
+            mask |= 1 << d;
+            if (d == b)
+                break;
+        }
+    }
+    return mask;
+}
+
+int minuteFrom(const QString &text)
+{
+    const QTime t = QTime::fromString(text.trimmed(), u"H:mm"_s);
+    return t.isValid() ? t.hour() * 60 + t.minute() : -1;
+}
+} // namespace
+
+QVariantMap PosService::promotionRecord(const PosSettings::Promotion &p) const
+{
+    QStringList families, items;
+    for (const std::string &f : p.families) families << qs(f);
+    for (const std::string &i : p.items) items << qs(i);
+    return {{u"id"_s, qs(p.id)}, {u"name"_s, qs(p.name)}, {u"active"_s, p.active}, {u"families"_s, families.join(u", "_s)},
+            {u"items"_s, items.join(u", "_s)}, {u"percent"_s, double(p.percentBp) / 100.0}, {u"buy"_s, p.buy},
+            {u"get"_s, p.get}, {u"start"_s, clockText(p.startMinute)}, {u"end"_s, clockText(p.endMinute)},
+            {u"days"_s, daysText(p.days)}};
+}
+
+bool PosService::savePromotionRecord(int index, const QVariantMap &r)
+{
+    auto &list = s_->settings.promotions;
+    if (index >= int(list.size()))
+        return false;
+    PosSettings::Promotion p;
+    const QString name = r.value(u"name"_s).toString().trimmed();
+    if (name.isEmpty())
+        return fail(tr("The promotion needs a name."));
+    p.name = ss(name);
+    p.active = r.value(u"active"_s, true).toBool();
+    for (QString f : r.value(u"families"_s).toString().split(u',', Qt::SkipEmptyParts))
+        if (!(f = f.trimmed()).isEmpty()) p.families.push_back(ss(f));
+    for (QString i : r.value(u"items"_s).toString().split(u',', Qt::SkipEmptyParts)) {
+        if ((i = i.trimmed()).isEmpty())
+            continue;
+        if (!findItem(i))
+            return fail(tr("There is no menu item '%1'.").arg(i));
+        p.items.push_back(ss(i));
+    }
+    if (p.families.empty() && p.items.empty())
+        return fail(tr("Say which categories or items it covers."));
+    p.percentBp = std::clamp<std::int64_t>(std::llround(r.value(u"percent"_s).toDouble() * 100.0), 0, 10000);
+    if (p.percentBp <= 0)
+        return fail(tr("How much off? (50 = half price)"));
+    p.buy = std::max(0, r.value(u"buy"_s).toInt());
+    p.get = std::max(0, r.value(u"get"_s).toInt());
+    if (p.buy > 0 && p.get <= 0)
+        return fail(tr("Buy %1 and get how many?").arg(p.buy));
+    p.startMinute = minuteFrom(r.value(u"start"_s).toString().isEmpty() ? u"0:00"_s : r.value(u"start"_s).toString());
+    p.endMinute = minuteFrom(r.value(u"end"_s).toString().isEmpty() ? u"0:00"_s : r.value(u"end"_s).toString());
+    if (p.startMinute < 0 || p.endMinute < 0)
+        return fail(tr("Write times like 15:00."));
+    p.days = daysFrom(r.value(u"days"_s).toString());
+    if (p.days <= 0)
+        return fail(tr("Write days like Mon-Fri or Tue, Thu."));
+    if (index >= 0) {
+        p.id = list[index].id;
+        list[index] = p;
+    } else {
+        const QString wanted = r.value(u"id"_s).toString().trimmed();
+        p.id = ss(uniqueId(wanted.isEmpty() ? name : wanted, list, [](const PosSettings::Promotion &x) { return x.id; }, -1));
+        list.push_back(p);
+    }
+    settingsChanged();
+    return true;
+}
+
 QStringList PosService::groupIds() const
 {
     QStringList out;
@@ -940,6 +1134,9 @@ bool PosService::adminDelete(const QString &panel, int index)
         emit s_->staffChanged();
     } else if (panel == u"tenders" && index >= 0 && index < int(s_->settings.tenders.size())) {
         s_->settings.tenders.erase(s_->settings.tenders.begin() + index);
+        settingsChanged();
+    } else if (panel == u"promotions" && index >= 0 && index < int(s_->settings.promotions.size())) {
+        s_->settings.promotions.erase(s_->settings.promotions.begin() + index);
         settingsChanged();
     } else if (panel == u"inventory" && index >= 0 && index < int(s_->ingredients.size())) {
         const std::string id = s_->ingredients[index].id;

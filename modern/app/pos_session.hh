@@ -230,6 +230,12 @@ public:
         invoke(QStringLiteral("payWithGiftCard"), {number, amountCents});
     }
     Q_INVOKABLE void askForTip() { invoke(QStringLiteral("askForTip")); }
+    Q_INVOKABLE void redeemReward(int index) { invoke(QStringLiteral("redeemReward"), {index}); }
+    Q_INVOKABLE void customerJoin(const QString &phone) { invoke(QStringLiteral("customerJoin"), {phone}); }
+    Q_INVOKABLE void sendReceipt(const QString &how, const QString &to = {})
+    {
+        invoke(QStringLiteral("sendReceipt"), {how, to});
+    }
     Q_INVOKABLE void expoBump(qint64 checkId, qint64 sentAt) { invoke(QStringLiteral("expoBump"), {checkId, sentAt}); }
     Q_INVOKABLE void expoRecall() { invoke(QStringLiteral("expoRecall")); }
     Q_INVOKABLE void requestRangeReport(const QString &id, const QString &period, const QString &from = {},

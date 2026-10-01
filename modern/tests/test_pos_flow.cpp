@@ -555,7 +555,7 @@ TEST_CASE("UI: Manager -> Factory Reset asks for RESET before it does anything",
     REQUIRE(s.pos.loginWithPin(u"1234"_s));
     REQUIRE(s.c.jumpTo(u"manager"_s));
     QTest::qWait(30);
-    s.tapCanvas(160 + 2 * 408 + 192, 124 + 5 * 134 + 60);      // slot 23 (row 6, column 3): Factory Reset…
+    s.c.activate(u"factory-reset"_s);                    // Manager -> Factory Reset…
     QTest::qWait(30);
     REQUIRE(s.c.pageId() == u"factory-reset"_s);
     QQuickItem *button = Screen::findBy(s.window->contentItem(), "text", u"Back Up and Reset Everything"_s);

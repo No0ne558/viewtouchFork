@@ -333,10 +333,32 @@
       ]
     },
     {
-      "id": "kitchen-display",
+      "id": "admin-promotions",
       "kind": "button",
       "rect": {
         "x": 976,
+        "y": 526,
+        "w": 384,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Promotions",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "promotions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "kitchen-display",
+      "kind": "button",
+      "rect": {
+        "x": 1384,
         "y": 526,
         "w": 384,
         "h": 120
@@ -356,8 +378,8 @@
       "id": "bar-display",
       "kind": "button",
       "rect": {
-        "x": 1384,
-        "y": 526,
+        "x": 160,
+        "y": 660,
         "w": 384,
         "h": 120
       },
@@ -376,7 +398,7 @@
       "id": "expo-display",
       "kind": "button",
       "rect": {
-        "x": 160,
+        "x": 568,
         "y": 660,
         "w": 384,
         "h": 120
@@ -396,7 +418,7 @@
       "id": "edit-pages",
       "kind": "button",
       "rect": {
-        "x": 568,
+        "x": 976,
         "y": 660,
         "w": 384,
         "h": 120
@@ -420,7 +442,7 @@
       "id": "customers",
       "kind": "button",
       "rect": {
-        "x": 976,
+        "x": 1384,
         "y": 660,
         "w": 384,
         "h": 120
@@ -440,8 +462,8 @@
       "id": "gift-cards",
       "kind": "button",
       "rect": {
-        "x": 1384,
-        "y": 660,
+        "x": 160,
+        "y": 794,
         "w": 384,
         "h": 120
       },
@@ -460,7 +482,7 @@
       "id": "sold-out",
       "kind": "button",
       "rect": {
-        "x": 160,
+        "x": 568,
         "y": 794,
         "w": 384,
         "h": 120
@@ -480,7 +502,7 @@
       "id": "close-app",
       "kind": "button",
       "rect": {
-        "x": 568,
+        "x": 976,
         "y": 794,
         "w": 384,
         "h": 120
@@ -504,7 +526,7 @@
       "id": "factory-reset",
       "kind": "button",
       "rect": {
-        "x": 976,
+        "x": 1384,
         "y": 794,
         "w": 384,
         "h": 120

@@ -207,6 +207,7 @@ QString PosService::format(Money amount) const
 
 void PosService::changed(Check &check)
 {
+    applyPromotions(check);
     if (s_->sink)
         s_->sink->saveCheck(check);
     emit checkChanged();
@@ -929,9 +930,9 @@ QVariantList PosService::payments() const
         return out;
     const Money items = c->totals(s_->settings.tax).items;
     for (const Payment &p : c->payments) {
-        const QString amount = p.kind == TenderKind::Discount
-            ? u"%1 (%2%)"_s.arg(format(-items.percent(p.percentBp))).arg(double(p.percentBp) / 100.0)
-            : format(p.amount);
+        const QString amount = p.kind != TenderKind::Discount ? format(p.amount)
+            : p.percentBp == 0 ? format(-p.amount)   // a fixed amount off (reward, promotion)
+            : u"%1 (%2%)"_s.arg(format(-items.percent(p.percentBp))).arg(double(p.percentBp) / 100.0);
         out.append(QVariantMap{{u"id"_s, qint64(p.id)}, {u"name"_s, qs(p.tenderName)}, {u"amount"_s, amount},
                                {u"tip"_s, p.tip.cents() ? format(p.tip) : QString()},
                                {u"card"_s, p.kind == TenderKind::Card},
@@ -1265,6 +1266,10 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
         {u"toggleBreak"_s, [](PosService &p, const QVariantList &) { return QVariant(p.toggleBreak()); }},
         {u"askForTip"_s, [](PosService &p, const QVariantList &) { return QVariant(p.askForTip()); }},
+        {u"redeemReward"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.redeemReward(a.value(0).toInt())); }},
+        {u"customerJoin"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.customerJoin(a.value(0).toString())); }},
+        {u"sendReceipt"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.sendReceipt(a.value(0).toString(), a.value(1).toString())); }},
         {u"addShift"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addShift(a.value(0).toMap())); }},
         {u"requestRangeReport"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.requestRangeReport(a.value(0).toString(), a.value(1).toString(), a.value(2).toString(),
