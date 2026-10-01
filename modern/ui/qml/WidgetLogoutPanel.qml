@@ -39,9 +39,10 @@ Item {
         Text {
             visible: w.pos && w.pos.loggedIn
             Layout.fillWidth: true
-            text: w.pos && w.pos.clockedIn ? qsTr("On the clock since %1").arg(w.pos.clockedInSince)
-                                           : qsTr("Not clocked in")
-            color: w.pos && w.pos.clockedIn ? "#7ee2a8" : "#f5b940"
+            text: !w.pos || !w.pos.clockedIn ? qsTr("Not clocked in")
+                 : w.pos.onBreakSince ? qsTr("On break since %1").arg(w.pos.onBreakSince)
+                                      : qsTr("On the clock since %1").arg(w.pos.clockedInSince)
+            color: w.pos && w.pos.clockedIn && !w.pos.onBreakSince ? "#7ee2a8" : "#f5b940"
             font.family: w.face
             font.pixelSize: w.unit * 0.8
             wrapMode: Text.WordWrap

@@ -290,14 +290,20 @@ std::vector<Employee> employeesFromJson(const QJsonArray &a)
 
 QJsonObject toJson(const TimePunch &p)
 {
+    QJsonArray breaks;
+    for (const TimePunch::Break &b : p.breaks)
+        breaks.append(QJsonObject{{u"start"_s, qint64(b.start)}, {u"end"_s, qint64(b.end)}});
     return {{u"id"_s, qint64(p.id)}, {u"employeeId"_s, qs(p.employeeId)}, {u"clockIn"_s, qint64(p.clockIn)},
-            {u"clockOut"_s, qint64(p.clockOut)}};
+            {u"clockOut"_s, qint64(p.clockOut)}, {u"breaks"_s, breaks}};
 }
 
 TimePunch punchFromJson(const QJsonObject &o)
 {
-    return {i64(o.value(u"id")), ss(o.value(u"employeeId").toString()), i64(o.value(u"clockIn")),
-            i64(o.value(u"clockOut"))};
+    TimePunch p{i64(o.value(u"id")), ss(o.value(u"employeeId").toString()), i64(o.value(u"clockIn")),
+                i64(o.value(u"clockOut")), {}};
+    for (const QJsonValue &b : o.value(u"breaks").toArray())
+        p.breaks.push_back({i64(b.toObject().value(u"start")), i64(b.toObject().value(u"end"))});
+    return p;
 }
 
 // --- reports and drawers ---------------------------------------------------------------
@@ -517,6 +523,8 @@ QJsonObject toJson(const PosSettings &s)
         {u"terminals"_s, terminals},
         {u"mealPeriods"_s, mealPeriods},
         {u"cashMode"_s, qs(toString(s.cashMode))},
+        {u"labor"_s, QJsonObject{{u"paidBreaks"_s, s.paidBreaks}, {u"overtimeDailyHours"_s, s.overtimeDailyHours},
+                                 {u"overtimeWeeklyHours"_s, s.overtimeWeeklyHours}, {u"weekStartsOn"_s, s.weekStartsOn}}},
         {u"modifierGroups"_s, modifierGroupsToJson(s.modifierGroups)},
         {u"terminalsHaveDrawer"_s, s.terminalsHaveDrawer},
         {u"serverId"_s, qs(s.serverId)},
@@ -550,6 +558,11 @@ PosSettings settingsFromJson(const QJsonObject &o)
                                ss(t.value(u"screen").toString())});
     }
     s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));
+    const QJsonObject labor = o.value(u"labor").toObject();
+    s.paidBreaks = labor.value(u"paidBreaks").toBool(false);
+    s.overtimeDailyHours = std::clamp(labor.value(u"overtimeDailyHours").toInt(0), 0, 24);
+    s.overtimeWeeklyHours = std::clamp(labor.value(u"overtimeWeeklyHours").toInt(40), 0, 168);
+    s.weekStartsOn = std::clamp(labor.value(u"weekStartsOn").toInt(0), 0, 6);
     s.modifierGroups = modifierGroupsFromJson(o.value(u"modifierGroups").toArray());
     s.terminalsHaveDrawer = o.value(u"terminalsHaveDrawer").toBool(true);
     s.serverId = ss(o.value(u"serverId").toString());

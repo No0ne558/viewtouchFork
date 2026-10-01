@@ -117,6 +117,13 @@ struct PosSettings {
     CashMode cashMode = CashMode::TerminalDrawer;
     // Whether terminals have a cash drawer, unless set per terminal.
     bool terminalsHaveDrawer = true;
+    // Time and overtime: paid breaks count as worked time; overtime after
+    // this many hours in a day / in the pay week (0: no such rule); the pay
+    // week starts on this weekday (0 Sunday ... 6 Saturday).
+    bool paidBreaks = false;
+    int overtimeDailyHours = 0;
+    int overtimeWeeklyHours = 40;
+    int weekStartsOn = 0;
     // Whether people must close (or hand over) their checks before they
     // check out their bank, unless set per employee.
     bool checkoutNeedsClosedChecks = true;

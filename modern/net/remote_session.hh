@@ -89,6 +89,7 @@ public:
     QVariantList staff() const override { return v(u"staff").toList(); }
     QVariantList checkHistory() const override { return v(u"checkHistory").toList(); }
     QVariantMap choosingInfo() const override { return v(u"choosing").toMap(); }
+    QString onBreakSince() const override { return v(u"onBreakSince").toString(); }
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }
     int queryRevision() const override { return queryRevision_; }

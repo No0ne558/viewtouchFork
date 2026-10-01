@@ -58,8 +58,14 @@ QString PosService::dayLabel(const BusinessDay &day) const
 
 ReportContext PosService::reportContext(const QString &period) const
 {
+    // The pay week started on the last weekStartsOn day (0 Sunday) at midnight.
+    const QDate today = QDateTime::fromMSecsSinceEpoch(now()).date();
+    const int back = (today.dayOfWeek() % 7 - s_->settings.weekStartsOn + 7) % 7;
+    const std::int64_t weekStart = QDateTime(today.addDays(-back), QTime(0, 0)).toMSecsSinceEpoch();
     return ReportContext{s_->settings, ss(period), [](std::int64_t ms) { return ss(clockText(ms)); }, now(),
-                         [](std::int64_t ms) { return QDateTime::fromMSecsSinceEpoch(ms).time().hour(); }};
+                         [](std::int64_t ms) { return QDateTime::fromMSecsSinceEpoch(ms).time().hour(); },
+                         [](std::int64_t ms) { return int(QDateTime::fromMSecsSinceEpoch(ms).date().toJulianDay()); },
+                         weekStart};
 }
 
 // --- receipts ------------------------------------------------------------------------
@@ -587,7 +593,13 @@ bool PosService::endOfDay()
         s_->printer->printReport(s_->settings, buildReport(u"sales"_s), receiptPrinter());
 
     s_->closedToday.clear();
+    // Finished punches stay a week, for weekly overtime.
+    for (const TimePunch &p : s_->punches) {
+        if (!p.open())
+            s_->earlierPunches.push_back(p);
+    }
     std::erase_if(s_->punches, [](const TimePunch &p) { return !p.open(); });
+    std::erase_if(s_->earlierPunches, [this](const TimePunch &p) { return p.clockIn < now() - 8LL * 24 * 3'600'000; });
     s_->drawers.clear();
     lastClosedId_ = 0;
     const std::int64_t closedId = s_->day.id;
@@ -608,7 +620,7 @@ Report PosService::buildReport(const QString &id) const
     if (id == u"servers")
         return serverSales(s_->closedToday, ctx);
     if (id == u"labor")
-        return laborReport(s_->punches, s_->employees, ctx);
+        return laborReport(s_->punches, s_->employees, ctx, s_->earlierPunches);
     if (id == u"drawer")
         return drawerReport(s_->drawers, s_->closedToday, ctx);
     if (id == u"tips")

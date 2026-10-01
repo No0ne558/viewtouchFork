@@ -44,6 +44,8 @@ struct ReportContext {
     std::function<std::string(std::int64_t)> clock;   // epoch ms -> "10:31 AM"
     std::int64_t now = 0;
     std::function<int(std::int64_t)> hourOf;          // epoch ms -> local hour 0-23
+    std::function<int(std::int64_t)> dayOf;           // epoch ms -> local day (any number per date)
+    std::int64_t weekStart = 0;                       // start of the current pay week
 
     std::string money(Money m) const;
 };
@@ -62,8 +64,11 @@ Money tipsOwed(const std::string &employeeId, const std::vector<Check> &closed,
 Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx);
 Report itemSales(const std::vector<Check> &closed, const std::vector<MenuItem> &menu, const ReportContext &ctx);
 Report serverSales(const std::vector<Check> &closed, const ReportContext &ctx);
+// Today's punches with breaks and worked hours, then each person's hours
+// today and this pay week with overtime (`earlier`: this week's punches
+// from earlier days).
 Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Employee> &employees,
-                   const ReportContext &ctx);
+                   const ReportContext &ctx, const std::vector<TimePunch> &earlier = {});
 Report drawerReport(const std::vector<DrawerSession> &drawers, const std::vector<Check> &closed,
                     const ReportContext &ctx);
 // Net sales by the hour checks closed in.

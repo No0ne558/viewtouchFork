@@ -356,33 +356,70 @@ Report serverSales(const std::vector<Check> &closed, const ReportContext &ctx)
 }
 
 Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Employee> &employees,
-                   const ReportContext &ctx)
+                   const ReportContext &ctx, const std::vector<TimePunch> &earlier)
 {
     Report r;
     r.id = "labor";
     r.title = "Labor";
     r.subtitle = ctx.period;
-    r.columns = {"Employee", "In", "Out", "Hours"};
+    r.columns = {"Employee", "In", "Out", "Breaks", "Hours"};
+    const PosSettings &s = ctx.settings;
 
     std::map<std::string, std::string> names;
     for (const Employee &e : employees)
         names[e.id] = e.name;
+    auto nameOf = [&](const std::string &id) {
+        const auto it = names.find(id);
+        return it == names.end() ? id : it->second;
+    };
 
     std::int64_t totalMs = 0;
     std::vector<TimePunch> sorted = punches;
     std::ranges::sort(sorted, {}, &TimePunch::clockIn);
     for (const TimePunch &p : sorted) {
-        const std::int64_t end = p.open() ? ctx.now : p.clockOut;
-        const std::int64_t ms = std::max<std::int64_t>(0, end - p.clockIn);
+        const std::int64_t ms = p.workedMs(ctx.now, s.paidBreaks);
         totalMs += ms;
-        const auto it = names.find(p.employeeId);
-        r.line({it == names.end() ? p.employeeId : it->second, ctx.clock(p.clockIn),
-                p.open() ? "on clock" : ctx.clock(p.clockOut), hours(ms)});
+        const std::string out = !p.open() ? ctx.clock(p.clockOut) : p.onBreak() ? "on break" : "on clock";
+        r.line({nameOf(p.employeeId), ctx.clock(p.clockIn), out, p.breaks.empty() ? "" : hours(p.breakMs(ctx.now)),
+                hours(ms)});
     }
-    if (sorted.empty())
+    if (sorted.empty()) {
         r.note("Nobody has clocked in.");
-    else
-        r.total({"Total hours", "", "", hours(totalMs)});
+        return r;
+    }
+    r.total({"Total hours", "", "", "", hours(totalMs)});
+
+    // Hours and overtime per person: daily rule per day worked, weekly rule
+    // on the pay week so far; whichever gives more overtime counts.
+    const std::int64_t hourMs = 3'600'000;
+    struct Person { std::map<int, std::int64_t> byDay; std::int64_t today = 0; };
+    std::map<std::string, Person> people;
+    auto dayKey = [&](std::int64_t ms) { return ctx.dayOf ? ctx.dayOf(ms) : int(ms / (24 * hourMs)); };
+    for (const TimePunch &p : sorted) {
+        const std::int64_t ms = p.workedMs(ctx.now, s.paidBreaks);
+        people[p.employeeId].today += ms;
+        people[p.employeeId].byDay[dayKey(p.clockIn)] += ms;
+    }
+    for (const TimePunch &p : earlier) {
+        if (p.clockIn >= ctx.weekStart && people.contains(p.employeeId))
+            people[p.employeeId].byDay[dayKey(p.clockIn)] += p.workedMs(ctx.now, s.paidBreaks);
+    }
+    r.section("Hours and overtime");
+    r.line({"", "Today", "This week", "Regular", "Overtime"});
+    for (const auto &[id, person] : people) {
+        std::int64_t week = 0, dailyOt = 0;
+        for (const auto &[day, ms] : person.byDay) {
+            week += ms;
+            if (s.overtimeDailyHours > 0)
+                dailyOt += std::max<std::int64_t>(0, ms - s.overtimeDailyHours * hourMs);
+        }
+        const std::int64_t weeklyOt = s.overtimeWeeklyHours > 0
+                                          ? std::max<std::int64_t>(0, week - s.overtimeWeeklyHours * hourMs) : 0;
+        const std::int64_t ot = std::max(dailyOt, weeklyOt);
+        r.line({nameOf(id), hours(person.today), hours(week), hours(week - ot), ot > 0 ? hours(ot) : "-"});
+    }
+    if (s.overtimeDailyHours == 0 && s.overtimeWeeklyHours == 0)
+        r.note("No overtime rule is set (Manager -> Settings).");
     return r;
 }
 

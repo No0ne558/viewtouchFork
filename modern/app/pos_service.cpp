@@ -29,6 +29,7 @@ PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
     , menu(std::move(data.menu))
     , employees(std::move(data.employees))
     , punches(std::move(data.punches))
+    , earlierPunches(std::move(data.earlierPunches))
     , lastCheckId(data.lastCheckId)
     , lastPunchId(data.lastPunchId)
     , sink(sink)
@@ -303,9 +304,11 @@ bool PosService::clockOut()
     if (!p)
         return fail(tr("%1 is not clocked in.").arg(qs(e->name)));
     p->clockOut = now();
+    if (p->onBreak())   // clocking out ends a break
+        p->breaks.back().end = p->clockOut;
     if (s_->sink)
         s_->sink->savePunch(*p);
-    const double hours = double(p->clockOut - p->clockIn) / 3'600'000.0;
+    const double hours = double(p->workedMs(p->clockOut, s_->settings.paidBreaks)) / 3'600'000.0;
     emit sessionChanged();
     emit s_->dayChanged();
     emit notice(tr("%1 clocked out (%2 hours)").arg(qs(e->name), QLocale().toString(hours, 'f', 2)));
@@ -753,6 +756,39 @@ bool PosService::clockedIn() const
     return user() && std::ranges::any_of(s_->punches, [&](const TimePunch &p) { return p.employeeId == user()->id && p.open(); });
 }
 
+bool PosService::toggleBreak()
+{
+    const Employee *e = user();
+    if (!e)
+        return fail(tr("Log in first."));
+    TimePunch *p = openPunch(e->id);
+    if (!p)
+        return fail(tr("Clock in first."));
+    if (p->onBreak()) {
+        p->breaks.back().end = now();
+        emit notice(tr("Welcome back, %1").arg(qs(e->name)));
+    } else {
+        p->breaks.push_back({now(), 0});
+        emit notice(tr("%1 is on break").arg(qs(e->name)));
+    }
+    if (s_->sink)
+        s_->sink->savePunch(*p);
+    emit sessionChanged();
+    emit s_->dayChanged();
+    return true;
+}
+
+QString PosService::onBreakSince() const
+{
+    if (!user())
+        return {};
+    for (const TimePunch &p : s_->punches) {
+        if (p.employeeId == user()->id && p.open() && p.onBreak())
+            return timeOfDay(p.breaks.back().start);
+    }
+    return {};
+}
+
 QString PosService::clockedInSince() const
 {
     if (!user())
@@ -1074,6 +1110,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"payout"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.payout(cashMovementKindFromString(ss(a.value(0).toString())))); }},
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
+        {u"toggleBreak"_s, [](PosService &p, const QVariantList &) { return QVariant(p.toggleBreak()); }},
         {u"setSeat"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setSeat(a.value(0).toInt())); }},
         {u"chooseOption"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.chooseOption(a.value(0).toString(), a.value(1).toInt())); }},

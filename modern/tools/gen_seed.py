@@ -418,7 +418,7 @@ page("logout", "Log Out", "logout", [
     zone("tips", 560, 900, 390, 120, "Cash Out My Tips", actions=[command("cashOutTips")], style=fill(GREEN)),
     # Server banks: check out (count your cash); with drawers: this terminal's drawer.
     zone("bank", 970, 900, 390, 120, "My Bank…", actions=[jump(page="drawer")]),
-    zone("break", 970, 580, 390, 140, "Start Break", actions=[command("startBreak")]),
+    zone("break", 970, 580, 390, 140, "Start / End Break", actions=[command("toggleBreak")]),
     zone("logout", 560, 740, 390, 140, "Log Out", actions=[command("logout")], style=fill(RED)),
     zone("cancel", 970, 740, 390, 140, "Cancel", actions=[jump(mode="back")]),
 ], role="logout")
@@ -613,7 +613,7 @@ phone_page("settle", "Settle", "settle", [
 
 logout_buttons, _ = grid_buttons([
     ("clock-out", "Clock Out", [command("clockOut")], {}),
-    ("break", "Start Break", [command("startBreak")], {}),
+    ("break", "Start / End Break", [command("toggleBreak")], {}),
     ("logout", "Log Out", [command("logout")], {"style": fill(RED)}),
     ("cancel", "Cancel", [jump(mode="back")], {}),
     ("tips", "Cash Out My Tips", [command("cashOutTips")], {"style": fill(GREEN)}),

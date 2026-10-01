@@ -196,7 +196,7 @@ TEST_CASE("Labor report counts hours on the clock", "[m4][reports]")
     t.clock += 90 * 60'000;                          // 1.5 hours
     CHECK(t.reportValue(u"labor"_s, "Total hours") == u"1.50"_s);
     const auto sam = t.pos.buildReport(u"labor"_s).find("Sam");
-    REQUIRE(sam.size() == 4);
+    REQUIRE(sam.size() == 5);   // name, in, out, breaks, hours
     CHECK(sam[2] == "on clock");
 }
 

@@ -2,7 +2,9 @@
 
 #include <cstdint>
 #include <set>
+#include <algorithm>
 #include <string>
+#include <vector>
 
 namespace vt::core {
 
@@ -60,8 +62,29 @@ struct TimePunch {
     std::string employeeId;
     std::int64_t clockIn = 0;    // epoch ms
     std::int64_t clockOut = 0;
+    struct Break {
+        std::int64_t start = 0;
+        std::int64_t end = 0;    // 0: still on it
+        bool operator==(const Break &) const = default;
+    };
+    std::vector<Break> breaks;
 
     bool open() const { return clockOut == 0; }
+    bool onBreak() const { return !breaks.empty() && breaks.back().end == 0; }
+    // Time on the clock / on breaks, up to `now` for what is still running.
+    std::int64_t spanMs(std::int64_t now) const { return std::max<std::int64_t>(0, (open() ? now : clockOut) - clockIn); }
+    std::int64_t breakMs(std::int64_t now) const
+    {
+        std::int64_t ms = 0;
+        for (const Break &b : breaks)
+            ms += std::max<std::int64_t>(0, (b.end == 0 ? (open() ? now : clockOut) : b.end) - b.start);
+        return ms;
+    }
+    // Paid time: breaks count only if they are paid.
+    std::int64_t workedMs(std::int64_t now, bool paidBreaks) const
+    {
+        return paidBreaks ? spanMs(now) : std::max<std::int64_t>(0, spanMs(now) - breakMs(now));
+    }
     bool operator==(const TimePunch &) const = default;
 };
 

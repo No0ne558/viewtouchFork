@@ -688,6 +688,7 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
         {u"countDrawer"_s, {u"countDrawer"_s, {}}}, {u"endOfDay"_s, {u"endOfDay"_s, {}}},
         {u"recallTicket"_s, {u"recallTicket"_s, {}}}, {u"cashOutTips"_s, {u"cashOutTips"_s, {}}},
         {u"clearText"_s, {u"textKey"_s, {u"clear"_s}}},
+        {u"startBreak"_s, {u"toggleBreak"_s, {}}}, {u"toggleBreak"_s, {u"toggleBreak"_s, {}}},
     };
     // Commands that carry arguments.
     if (pos_ && name == u"addTip")   // args.percent: 15, 18...; none = keypad amount

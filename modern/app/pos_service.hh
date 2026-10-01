@@ -67,6 +67,7 @@ struct PosData {
     std::vector<core::Employee> employees;
     std::vector<core::Check> openChecks;
     std::vector<core::TimePunch> punches;        // today's, plus any still open
+    std::vector<core::TimePunch> earlierPunches; // finished, from the days before (a week or so)
     std::int64_t lastCheckId = 0;
     std::int64_t lastPunchId = 0;
     std::optional<core::BusinessDay> currentDay;  // none: the service opens one
@@ -96,6 +97,7 @@ public:
     std::vector<core::Employee> employees;
     std::map<std::int64_t, core::Check> open;
     std::vector<core::TimePunch> punches;   // today's, plus any still open
+    std::vector<core::TimePunch> earlierPunches;   // finished, from the last days (weekly overtime)
     std::int64_t lastCheckId = 0;
     std::int64_t lastPunchId = 0;
     PosSink *sink = nullptr;
@@ -221,6 +223,9 @@ public:
     bool setAvailable(const QString &itemId, bool available);
     std::string currentMealPeriod() const;
 
+    // Start a break, or end the one going on (clocked-in staff).
+    bool toggleBreak();
+
     // --- seats and courses --------------------------------------------------------
     // The seat / course new items go to; also changes the selected line.
     bool setSeat(int seat);
@@ -317,6 +322,7 @@ public:
     QVariantList staff() const override;
     QVariantList checkHistory() const override;
     QVariantMap choosingInfo() const override;
+    QString onBreakSince() const override;
     QStringList soldOut() const override;
     QVariantList menuItems() const override;
     QVariantList kitchenTickets() const override;
