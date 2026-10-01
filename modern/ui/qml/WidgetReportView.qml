@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Fusion
 import QtQuick.Layouts
 
 // Reports on screen: pick a report and a day (today is live; closed days
@@ -135,9 +136,11 @@ Item {
         }
 
         ListView {
+            id: rows
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+            ScrollBar.vertical: ScrollBar { policy: rows.contentHeight > rows.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
             model: w.report.rows ?? []
             delegate: Item {
                 id: row

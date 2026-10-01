@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Fusion
 import QtQuick.Layouts
 
 // The current check: header, seat / course controls, order lines with
@@ -145,6 +146,7 @@ Item {
 
         ListView {
             id: list
+            ScrollBar.vertical: ScrollBar { policy: list.contentHeight > list.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true

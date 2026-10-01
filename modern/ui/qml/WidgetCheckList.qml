@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Fusion
 
 // Every open check as a card; touch one to work on it. props.mode:
 //   (none)  open it
@@ -43,6 +44,7 @@ Item {
 
     GridView {
         id: grid
+        ScrollBar.vertical: ScrollBar { policy: grid.contentHeight > grid.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
         anchors.fill: parent
         anchors.margins: 16
         anchors.topMargin: banner.visible ? 96 : 16

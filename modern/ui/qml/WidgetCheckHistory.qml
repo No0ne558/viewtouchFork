@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Fusion
 
 // What has been done to the check you are on: transfers, moves, merges,
 // reopening, voids, discounts - with who and when.
@@ -20,6 +21,8 @@ Item {
         font.bold: true
     }
     ListView {
+        id: history
+        ScrollBar.vertical: ScrollBar { policy: history.contentHeight > history.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
         anchors { left: parent.left; right: parent.right; top: heading.bottom; bottom: parent.bottom; margins: 16 }
         clip: true
         spacing: 8
@@ -44,7 +47,7 @@ Item {
             }
         }
         Text {
-            visible: parent.count === 0
+            visible: history.count === 0
             text: qsTr("Nothing yet.")
             color: "#8a94a6"
             font.family: w.face

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Fusion
 import QtQuick.Layouts
 
 // Split check: touch an item on the left, then the check to move it to on
@@ -40,9 +41,11 @@ Item {
                 font.pixelSize: w.unit * 0.8
             }
             ListView {
+                id: lines1
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
+                ScrollBar.vertical: ScrollBar { policy: lines1.contentHeight > lines1.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
                 spacing: 4
                 model: w.pos ? w.pos.lines : []
                 delegate: Rectangle {

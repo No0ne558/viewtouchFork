@@ -139,7 +139,8 @@ Item {
                     clip: true
                     model: w.records
                     currentIndex: w.index
-                    ScrollBar.vertical: ScrollBar {}
+                    // Always show that there is more below (touch screens have no wheel).
+                    ScrollBar.vertical: ScrollBar { policy: list.contentHeight > list.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
                     delegate: ItemDelegate {
                         id: row
                         required property var modelData
