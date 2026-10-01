@@ -279,6 +279,8 @@ TEST_CASE("Demo data: months of real service, then refuses a store with sales", 
     CHECK(pos.shared()->giftCards.size() == 8);
     CHECK(pos.shared()->shifts.size() > 20);
     CHECK(pos.shared()->open.empty());                              // every check paid
+    for (const core::CustomerRecord &c : pos.shared()->customers)   // accounts are paid weekly
+        if (c.houseAccount) CHECK(c.accountBalance < c.accountLimit);
     // Every past day balanced its banks and closed.
     for (const app::PastDay &d : pos.shared()->pastDays)
         CHECK(d.day.closedAt > d.day.openedAt);

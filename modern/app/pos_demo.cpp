@@ -157,9 +157,10 @@ struct Demo {
             pos.lookupGiftCard(QString::fromStdString(cards[pick(int(cards.size()))]));
             pos.payWithGiftCard();
         } else if (how < 10) {             // the house account, when they have one
-            const CustomerRecord *c = nullptr;
+            std::vector<const CustomerRecord *> open;
             for (const CustomerRecord &r : pos.shared()->customers)
-                if (r.houseAccount && r.accountBalance + Money::fromCents(due) <= r.accountLimit) c = &r;
+                if (r.houseAccount && r.accountBalance + Money::fromCents(due) <= r.accountLimit) open.push_back(&r);
+            const CustomerRecord *c = open.empty() ? nullptr : open[pick(int(open.size()))];
             if (c) {
                 pos.useCustomer(QString::fromStdString(c->id));
                 pos.tender(u"house"_s);
@@ -241,6 +242,16 @@ struct Demo {
             pos.clockIn();
         }
         openDrawer();
+        // Mondays the house accounts pay what they owe (by card).
+        if (day.dayOfWeek() == 1) {
+            as("1234");
+            for (const CustomerRecord &c : std::vector<CustomerRecord>(pos.shared()->customers)) {
+                if (c.houseAccount && c.accountBalance.cents() > 0) {
+                    pos.selectCustomer(QString::fromStdString(c.id));
+                    pos.payOnAccount(u"card"_s);
+                }
+            }
+        }
         const bool weekend = day.dayOfWeek() >= 6;
         const int tables = int(std::lround((weekend ? 34 : 24) * busy)) + pick(8);
         for (int i = 0; i < tables; ++i) {
