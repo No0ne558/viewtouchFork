@@ -179,6 +179,16 @@ Log in with a demo PIN: **1234** (manager), **1111** (server) or **2222** (cashi
 4. **Pay**, then type an amount (or use the balance due) and choose a payment: Cash gives change, card payments are capped at the balance, and 10% Off and Comp are discounts. Then **Close Check**. Cash needs an open drawer: **Drawer…** on the Settle page.
 5. **Split Check** on the Settle page moves items to another check at the same table. Touching a table that has several checks lets you choose one.
 
+**Managing checks** (the order screen's **Check…** tab):
+- **Transfer** a check to another server, **move** it to another table, or **merge** another open check into it (items, payments and guests come along). Servers can do this to their own checks, managers to anyone's.
+- **Reopen** a check closed today (managers). Its cash leaves the drawer or bank until it is closed again. A refund is a reopen: void the item or take off the payment, then close.
+- Every check keeps a **history**: who transferred, moved, merged, reopened, voided or discounted it, and when. It's on the Check Options page.
+
+**Seats and courses** (the row at the top of the check):
+- **Seat − / +** sets the seat for the next items. Touch an item first to move it to another seat. Kitchen tickets and the kitchen screen show "S2".
+- **Course 1 2 3** sets the course for the next items (or a touched one). **Send** sends course 1 and anything already fired. Later courses wait, marked **HOLD**, until **Fire Course 2** sends them with a "COURSE 2" ticket. Closing a check sends anything still held.
+- A counter that doesn't need seats or courses hides the row with the order list's `props.controls: false`.
+
 **Manager** (PIN 1234 → Manager):
 - **Menu, Employees, Payments (Tenders), Printers, Taxes, Settings, Terminals, Meal Periods:** edit and Save. Staff are deactivated rather than deleted. PINs must be unique, and you can't lock yourself out.
 - **Reports:** Sales, Items, Servers, Labor and Drawer, for today (live) or any closed day (◀ ▶). Print sends a report to the receipt printer.

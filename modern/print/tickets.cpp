@@ -1,5 +1,6 @@
 #include "print/tickets.hh"
 
+#include <algorithm>
 #include <sstream>
 
 using namespace vt::core;
@@ -122,12 +123,19 @@ Document kitchenTicket(const Check &check, const std::vector<OrderLine> &lines, 
     if (!check.customer.note.empty())
         d.text("NOTE: " + check.customer.note, Document::Align::Left, true);
     d.rule();
+    // A later course says so up front; each line says its seat.
+    int course = 0;
+    for (const OrderLine &l : lines)
+        course = std::max(course, l.course);
+    if (course > 1)
+        d.center("COURSE " + std::to_string(course), true, true);
     for (const OrderLine &l : lines) {
+        const std::string seat = l.seat > 0 ? "S" + std::to_string(l.seat) + " " : std::string();
         if (l.isComment()) {
-            d.text("** " + l.name + " **", Document::Align::Left, true);
+            d.text(seat + "** " + l.name + " **", Document::Align::Left, true);
             continue;
         }
-        d.text(std::to_string(l.quantity) + " " + l.displayName(), Document::Align::Left, true, true);
+        d.text(seat + std::to_string(l.quantity) + " " + l.displayName(), Document::Align::Left, true, true);
         for (const Modifier &m : l.modifiers)
             d.text("   > " + m.displayName(), Document::Align::Left, true);
     }

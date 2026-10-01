@@ -298,3 +298,31 @@ TEST_CASE("UI flow: keypad login, table map, guest pad, menu, pay", "[flow][ui]"
     CHECK(s.c.pageId() == u"tables"_s);
     CHECK(s.sink.checks.begin()->second.status == core::CheckStatus::Closed);
 }
+
+TEST_CASE("UI: seats and courses on the order screen; Fire sends the held course", "[flow][ui][courses]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.selectTable(u"T2"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    REQUIRE(s.c.jumpTo(u"items-salads"_s));
+    QTest::qWait(30);
+
+    s.tapKey(u"+"_s);                                   // seat 1
+    CHECK(s.pos.checkInfo()[u"seat"_s] == 1);
+    s.tapCanvas(592 + 150, 192 + 90);                   // House Salad, seat 1
+    s.tapKey(u"+"_s);                                   // seat 2
+    s.tapKey(u"2"_s);                                   // course 2
+    s.tapCanvas(592 + 444 + 150, 192 + 90);             // Caesar, seat 2, course 2
+    const QVariantList lines = s.pos.lines();
+    REQUIRE(lines.size() == 2);
+    CHECK(lines[0].toMap()[u"seat"_s] == 1);
+    CHECK(lines[1].toMap()[u"seat"_s] == 2);
+    CHECK(lines[1].toMap()[u"held"_s].toBool());
+
+    REQUIRE(s.pos.sendOrder());
+    QTest::qWait(30);
+    s.shot("5-courses");
+    s.tapKey(u"Fire Course 2"_s);
+    CHECK(s.pos.lines()[1].toMap()[u"sent"_s].toBool());
+}

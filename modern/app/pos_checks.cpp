@@ -5,6 +5,7 @@
 #include "app/pos_service.hh"
 
 #include <QDateTime>
+#include <algorithm>
 #include <QLocale>
 
 using namespace Qt::StringLiterals;
@@ -129,6 +130,53 @@ bool PosService::reopenCheck(qint64 checkId)
     emit s_->dayChanged();
     emit s_->drawerChanged();
     return openCheck(id);
+}
+
+// --- seats and courses ------------------------------------------------------------
+
+bool PosService::setSeat(int seat)
+{
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    seat_ = std::clamp(seat, 0, 99);
+    // A line someone touched moves to that seat; otherwise this is the seat
+    // for the next items.
+    if (OrderLine *l = c->line(selectedLine_); l && lineTouched_ && !l->voided)
+        l->seat = seat_;
+    changed(*c);
+    return true;
+}
+
+bool PosService::setCourse(int course)
+{
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    course_ = std::clamp(course, 1, 9);
+    if (OrderLine *l = c->line(selectedLine_); l && lineTouched_ && !l->sent)
+        l->course = course_;
+    changed(*c);
+    return true;
+}
+
+bool PosService::fireCourse()
+{
+    if (!require(perm::Order, tr("Firing courses")))
+        return false;
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    const int course = c->fireNextCourse();
+    if (course == 0)
+        return fail(tr("No course is on hold."));
+    const std::vector<OrderLine> fresh = c->sendable();
+    const int n = c->sendAll(now());
+    if (s_->printer && !fresh.empty())
+        s_->printer->printKitchen(s_->settings, *c, fresh, false);
+    emit notice(tr("Fired course %1 (%2 items)").arg(course).arg(n));
+    changed(*c);
+    return true;
 }
 
 QVariantList PosService::closedChecks() const

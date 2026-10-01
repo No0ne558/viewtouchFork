@@ -446,6 +446,8 @@ bool PosService::openCheck(std::int64_t checkId)
         unlockCheck(currentId_);
     lockCheck(checkId);
     currentId_ = checkId;
+    seat_ = 0;
+    course_ = 1;
     selectedLine_ = 0;
     selectedPayment_ = 0;
     pendingTable_.clear();
@@ -472,6 +474,8 @@ void PosService::releaseCheck()
     }
     unlockCheck(currentId_);
     currentId_ = 0;
+    seat_ = 0;
+    course_ = 1;
     selectedLine_ = 0;
     selectedPayment_ = 0;
     pendingTable_.clear();
@@ -504,7 +508,11 @@ bool PosService::addItem(const QString &idOrName)
             return fail(tr("Order an item before adding %1.").arg(qs(item->name)));
         selectedLine_ = target->id;
     } else {
-        selectedLine_ = c.addItem(*item, q).id;
+        OrderLine &line = c.addItem(*item, q);
+        line.seat = seat_;
+        line.course = course_;
+        selectedLine_ = line.id;
+        lineTouched_ = false;
     }
     if (qualifier_ != Qualifier::None) {
         qualifier_ = Qualifier::None;
@@ -523,6 +531,7 @@ void PosService::setQualifier(const QString &qualifier)
 
 void PosService::selectLine(qint64 lineId)
 {
+    lineTouched_ = lineId != 0;   // seat / course now apply to it
     if (lineId == selectedLine_)
         return;
     selectedLine_ = lineId;
@@ -576,17 +585,16 @@ bool PosService::sendOrder()
     Check *c = current();
     if (!c)
         return fail(tr("No check is open."));
-    std::vector<OrderLine> fresh;
-    for (const OrderLine &l : c->lines) {
-        if (!l.sent)
-            fresh.push_back(l);
-    }
+    const std::vector<OrderLine> fresh = c->sendable();
     const int n = c->sendAll(now());
+    const int held = c->heldCount();
     if (n == 0)
-        return fail(tr("Nothing new to send."));
+        return fail(held > 0 ? tr("The rest is on hold: Fire the next course when it's time.")
+                             : tr("Nothing new to send."));
     if (s_->printer)
         s_->printer->printKitchen(s_->settings, *c, fresh, false);
-    emit notice(n == 1 ? tr("Sent 1 item to the kitchen") : tr("Sent %1 items to the kitchen").arg(n));
+    const QString sent = n == 1 ? tr("Sent 1 item to the kitchen") : tr("Sent %1 items to the kitchen").arg(n);
+    emit notice(held > 0 ? tr("%1; %2 on hold for a later course").arg(sent).arg(held) : sent);
     changed(*c);
     return true;
 }
@@ -601,7 +609,11 @@ bool PosService::addComment()
     if (!current() && !startCheck(CheckType::Quick))
         return false;
     Check &c = *current();
-    selectedLine_ = c.addComment(ss(text)).id;
+    OrderLine &note = c.addComment(ss(text));
+    note.seat = seat_;
+    note.course = course_;
+    selectedLine_ = note.id;
+    lineTouched_ = false;
     text_.clear();
     emit entryChanged();
     changed(c);
@@ -685,12 +697,9 @@ bool PosService::closeCheck()
         return fail(noDrawerMessage());
 
     if (c->unsentCount() > 0) {
-        std::vector<OrderLine> fresh;
-        for (const OrderLine &l : c->lines) {
-            if (!l.sent && !l.voided)
-                fresh.push_back(l);
-        }
-        c->sendAll(now());
+        // Closing sends whatever is left, held courses too.
+        const std::vector<OrderLine> fresh = c->sendable(true);
+        c->sendAll(now(), true);
         if (s_->printer && !fresh.empty())
             s_->printer->printKitchen(s_->settings, *c, fresh, false);
     }
@@ -766,6 +775,8 @@ QVariantMap PosService::checkInfo() const
     return {
         {u"id"_s, qint64(c->id)}, {u"label"_s, qs(c->label)}, {u"guests"_s, c->guests},
         {u"server"_s, qs(c->serverName)}, {u"type"_s, qs(toString(c->type))},
+        {u"seat"_s, seat_}, {u"course"_s, course_}, {u"firedCourse"_s, c->firedCourse},
+        {u"heldCount"_s, c->heldCount()},
         {u"opened"_s, timeOfDay(c->openedAt)},
         {u"customer"_s, QVariantMap{{u"name"_s, qs(c->customer.name)}, {u"phone"_s, qs(c->customer.phone)},
                                     {u"address"_s, qs(c->customer.address)}, {u"note"_s, qs(c->customer.note)}}},
@@ -789,6 +800,7 @@ QVariantList PosService::lines() const
             {u"price"_s, l.isComment() ? QString() : format(l.total())}, {u"comment"_s, l.isComment()},
             {u"sent"_s, l.sent}, {u"voided"_s, l.voided}, {u"modifiers"_s, mods},
             {u"selected"_s, qint64(l.id) == selectedLine_},
+            {u"seat"_s, l.seat}, {u"course"_s, l.course}, {u"held"_s, c->held(l)},
         });
     }
     return out;
@@ -923,7 +935,8 @@ QVariantList PosService::kitchenTickets() const
                 mods << qs(m.displayName());
             lines.append(QVariantMap{{u"name"_s, qs(l->displayName())}, {u"quantity"_s, l->quantity},
                                      {u"modifiers"_s, mods}, {u"comment"_s, l->isComment()},
-                                     {u"printer"_s, qs(l->printer.empty() ? std::string("kitchen") : l->printer)}});
+                                     {u"printer"_s, qs(l->printer.empty() ? std::string("kitchen") : l->printer)},
+                                     {u"seat"_s, l->seat}, {u"course"_s, l->course}});
         }
         out.append(QVariantMap{
             {u"checkId"_s, qint64(t.check->id)}, {u"sentAt"_s, qint64(t.sentAt)},
@@ -1049,6 +1062,9 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"payout"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.payout(cashMovementKindFromString(ss(a.value(0).toString())))); }},
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
+        {u"setSeat"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setSeat(a.value(0).toInt())); }},
+        {u"setCourse"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setCourse(a.value(0).toInt())); }},
+        {u"fireCourse"_s, [](PosService &p, const QVariantList &) { return QVariant(p.fireCourse()); }},
         {u"startPairing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.startPairing()); }},
         {u"transferCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.transferCheck(a.value(0).toString())); }},
         {u"moveCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.moveCheck(a.value(0).toString())); }},

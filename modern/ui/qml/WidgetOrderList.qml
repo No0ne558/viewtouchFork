@@ -1,8 +1,9 @@
 import QtQuick
 import QtQuick.Layouts
 
-// The current check: header, order lines with modifiers, totals.
-// Touch a line to select it (modifiers and Void apply to it).
+// The current check: header, seat / course controls, order lines with
+// modifiers, totals. Touch a line to select it (modifiers, Void, seat and
+// course apply to it). props.controls: false hides the seat / course row.
 Item {
     id: w
     property ZoneItem zone
@@ -13,6 +14,14 @@ Item {
     readonly property var check: pos ? pos.check : ({})
     readonly property var totals: pos ? pos.totals : ({})
     readonly property bool paid: pos !== null && pos.payments.length > 0
+    readonly property bool controls: !(zone && zone.props && zone.props.controls === false)
+    // The course Fire would send next (the lowest one on hold).
+    readonly property int nextCourse: {
+        let next = 0
+        for (const l of (pos ? pos.lines : []))
+            if (l.held && (next === 0 || l.course < next)) next = l.course
+        return next
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -60,6 +69,78 @@ Item {
             Layout.fillWidth: true
             elide: Text.ElideRight
         }
+        // Seat and course for new items (or a touched line); Fire. Sized from
+        // the panel's width so it never pushes the panel wider.
+        Item {
+            id: bar
+            visible: w.controls && w.pos && w.pos.hasCheck
+            Layout.fillWidth: true
+            Layout.preferredHeight: w.unit * 1.6
+            Layout.fillHeight: false
+            readonly property real key: Math.min(w.unit * 1.5, width / 13)
+            Row {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                spacing: bar.key * 0.15
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Seat")
+                    color: "#8a94a6"
+                    font.family: w.face
+                    font.pixelSize: bar.key * 0.45
+                }
+                WidgetKey {
+                    width: bar.key; height: parent.height
+                    text: "−"
+                    onClicked: w.pos.setSeat(Math.max(0, (w.check.seat ?? 0) - 1))
+                }
+                Text {
+                    width: bar.key * 0.8
+                    anchors.verticalCenter: parent.verticalCenter
+                    horizontalAlignment: Text.AlignHCenter
+                    text: (w.check.seat ?? 0) > 0 ? w.check.seat : "–"
+                    color: w.ink
+                    font.family: w.face
+                    font.pixelSize: bar.key * 0.6
+                    font.bold: true
+                }
+                WidgetKey {
+                    width: bar.key; height: parent.height
+                    text: "+"
+                    onClicked: w.pos.setSeat((w.check.seat ?? 0) + 1)
+                }
+                Item { width: bar.key * 0.3; height: 1 }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Course")
+                    color: "#8a94a6"
+                    font.family: w.face
+                    font.pixelSize: bar.key * 0.45
+                }
+                Repeater {
+                    model: [1, 2, 3]
+                    delegate: WidgetKey {
+                        required property int modelData
+                        width: bar.key; height: parent.height
+                        text: modelData
+                        accent: (w.check.course ?? 1) === modelData
+                        onClicked: w.pos.setCourse(modelData)
+                    }
+                }
+            }
+            WidgetKey {
+                visible: w.nextCourse > 0
+                anchors.right: parent.right
+                width: bar.key * 3.4
+                height: parent.height
+                text: qsTr("Fire Course %1").arg(w.nextCourse)
+                baseColor: "#a86a12"
+                fontScale: 0.28
+                onClicked: w.pos.fireCourse()
+            }
+        }
+
         Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: "#3a4250"; visible: w.pos && w.pos.hasCheck }
 
         ListView {
@@ -93,11 +174,23 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true
                         Text {
-                            // ● not yet sent to the kitchen
-                            text: row.modelData.sent ? " " : "●"
+                            // ● not yet sent to the kitchen; ‖ held for a later course
+                            text: row.modelData.held ? "‖" : row.modelData.sent ? " " : "●"
                             color: "#f5b940"
-                            font.pixelSize: w.unit * 0.5
+                            font.pixelSize: row.modelData.held ? w.unit * 0.8 : w.unit * 0.5
+                            font.bold: true
                             Layout.preferredWidth: w.unit * 0.8
+                        }
+                        Text {
+                            // S2 / C2: seat and (later) course
+                            visible: text !== ""
+                            text: (row.modelData.seat > 0 ? "S" + row.modelData.seat : "")
+                                  + (row.modelData.course > 1 ? (row.modelData.seat > 0 ? " " : "") + "C" + row.modelData.course : "")
+                                  + (row.modelData.held ? " " + qsTr("HOLD") : "")
+                            color: row.modelData.held ? "#f5b940" : "#7ec8ff"
+                            font.family: w.face
+                            font.pixelSize: w.unit * 0.65
+                            font.bold: true
                         }
                         Text {
                             Layout.fillWidth: true

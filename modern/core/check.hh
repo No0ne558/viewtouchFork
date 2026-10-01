@@ -39,6 +39,8 @@ struct OrderLine {
     std::int64_t sentAt = 0;
     bool made = false;           // bumped on the kitchen display (legacy ORDER_MADE)
     std::int64_t madeAt = 0;
+    int seat = 0;                // 0: not for a seat in particular
+    int course = 1;              // later courses wait until they are fired
 
     bool isComment() const { return itemId.empty(); }
     std::string displayName() const { return qualifierPrefix(qualifier) + name; }
@@ -142,6 +144,7 @@ struct Check {
     std::int64_t gratuityBp = 0;      // e.g. 1800 = 18% of the subtotal
     bool autoGratuity = false;        // added for a large party (not by hand)
     std::vector<CheckEvent> events;   // oldest first
+    int firedCourse = 1;              // courses up to this one go out on Send
 
     void note(std::int64_t at, const std::string &who, const std::string &what)
     {
@@ -160,10 +163,17 @@ struct Check {
     // Unsent lines are removed; sent lines must be voided instead.
     bool removeLine(std::int64_t lineId);
     bool voidLine(std::int64_t lineId);
-    // Marks every unsent line sent (one ticket: a sentAt later than any
-    // earlier send on this check); returns how many.
-    int sendAll(std::int64_t now);
+    // A line waiting for its course to be fired.
+    bool held(const OrderLine &l) const { return !l.sent && !l.voided && l.course > firedCourse; }
+    // Unsent lines that would go out now: those of fired courses, or all.
+    std::vector<OrderLine> sendable(bool everything = false) const;
+    // Marks those lines sent (one ticket: a sentAt later than any earlier
+    // send on this check); returns how many. `everything` fires all courses.
+    int sendAll(std::int64_t now, bool everything = false);
     int unsentCount() const;
+    int heldCount() const;
+    // Fire the next course that has lines waiting: returns it (0: none).
+    int fireNextCourse();
 
     // Split checks: remove a line (with its modifiers) / add one under a new id.
     std::optional<OrderLine> takeLine(std::int64_t lineId);

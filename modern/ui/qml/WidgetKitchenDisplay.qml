@@ -150,8 +150,12 @@ Item {
                                 Text {
                                     width: parent.width
                                     wrapMode: Text.WordWrap
-                                    text: line.modelData.comment ? "** " + line.modelData.name + " **"
-                                                                 : line.modelData.quantity + "  " + line.modelData.name
+                                    // "S2 1  Cobb Salad", course 2+ marked: the kitchen
+                                    // plates by seat and knows what was fired later.
+                                    text: (line.modelData.seat > 0 ? "S" + line.modelData.seat + "  " : "")
+                                          + (line.modelData.comment ? "** " + line.modelData.name + " **"
+                                                                    : line.modelData.quantity + "  " + line.modelData.name)
+                                          + (line.modelData.course > 1 ? "   (course " + line.modelData.course + ")" : "")
                                     color: line.modelData.comment ? "#b83232" : "#1b1b1b"
                                     font.family: w.face
                                     font.pixelSize: 26

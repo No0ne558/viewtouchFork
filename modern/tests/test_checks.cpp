@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "app/pos_json.hh"
+#include "print/document.hh"
+#include "print/tickets.hh"
 #include "pos_fixture.hh"
 #include "qt_catch.hh"
 
@@ -174,4 +176,77 @@ TEST_CASE("Check history: kept with the check, voids and discounts included", "[
     const auto back = app::checkFromJson(app::toJson(c));
     REQUIRE(back);
     CHECK(back->events == c.events);
+}
+
+TEST_CASE("Seats and courses: later courses wait until they are fired", "[checks][courses]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    REQUIRE(pos.selectTable(u"T2"_s) == PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    REQUIRE(pos.setSeat(1));
+    pos.addItem(u"cobb"_s);
+    REQUIRE(pos.setSeat(2));
+    pos.addItem(u"coffee"_s);
+    REQUIRE(pos.setCourse(2));
+    pos.addItem(u"cobb"_s);                                // seat 2, second course
+
+    QVariantList lines = pos.lines();
+    REQUIRE(lines.size() == 3);
+    CHECK(lines[0].toMap()[u"seat"_s] == 1);
+    CHECK(lines[1].toMap()[u"seat"_s] == 2);
+    CHECK(lines[2].toMap()[u"course"_s] == 2);
+    CHECK(lines[2].toMap()[u"held"_s].toBool());
+    CHECK(pos.checkInfo()[u"heldCount"_s] == 1);
+
+    // Send: the first course goes, the second waits.
+    REQUIRE(pos.sendOrder());
+    lines = pos.lines();
+    CHECK(lines[0].toMap()[u"sent"_s].toBool());
+    CHECK_FALSE(lines[2].toMap()[u"sent"_s].toBool());
+    CHECK_FALSE(pos.sendOrder());                          // nothing more until it's fired
+    CHECK(pos.kitchenTickets().size() == 1);
+    CHECK(pos.kitchenTickets().first().toMap()[u"lines"_s].toList().first().toMap()[u"seat"_s] == 1);
+
+    REQUIRE(pos.fireCourse());
+    lines = pos.lines();
+    CHECK(lines[2].toMap()[u"sent"_s].toBool());
+    CHECK(pos.checkInfo()[u"firedCourse"_s] == 2);
+    CHECK(pos.kitchenTickets().size() == 2);
+    CHECK_FALSE(pos.fireCourse());                         // nothing left on hold
+
+    // Re-seating the selected line.
+    pos.selectLine(lines[0].toMap()[u"id"_s].toLongLong());
+    REQUIRE(pos.setSeat(3));
+    CHECK(pos.lines()[0].toMap()[u"seat"_s] == 3);
+
+    // The kitchen ticket says the seat and the course.
+    const core::Check &c = pos.shared()->open.begin()->second;
+    print::TicketContext ctx{pos.shared()->settings, [](std::int64_t) { return std::string("1/1"); },
+                             [](std::int64_t) { return std::string("12:00"); }, 0};
+    const std::string ticket = print::renderText(print::kitchenTicket(c, {c.lines[2]}, "Kitchen", false, ctx), 42);
+    CHECK(ticket.find("COURSE 2") != std::string::npos);
+    CHECK(ticket.find("S2 1") != std::string::npos);
+
+    // Saved with the check.
+    const auto back = app::checkFromJson(app::toJson(c));
+    REQUIRE(back);
+    CHECK(back->lines[2].course == 2);
+    CHECK(back->firedCourse == 2);
+}
+
+TEST_CASE("Closing a check sends courses still on hold", "[checks][courses]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    pos.entryKey(u"10000"_s);
+    REQUIRE(pos.openDrawerSession());
+    REQUIRE(pos.selectTable(u"T6"_s) == PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    REQUIRE(pos.setCourse(3));
+    pos.addItem(u"coffee"_s);
+    REQUIRE(pos.sendOrder() == false);                     // all of it is on hold
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+    CHECK(pos.kitchenTickets().size() == 1);               // it went out on close
 }

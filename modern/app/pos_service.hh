@@ -211,6 +211,13 @@ public:
     bool noSale();   // open the cash drawer without a sale
     bool setCustomer(const QVariantMap &customer);
 
+    // --- seats and courses --------------------------------------------------------
+    // The seat / course new items go to; also changes the selected line.
+    bool setSeat(int seat);
+    bool setCourse(int course);
+    // Send the next course that is on hold.
+    bool fireCourse();
+
     // --- managing checks (app/pos_checks.cpp) ----------------------------------------
     // On the current check. Servers may do this to their own checks,
     // managers to anyone's; each is kept in the check's history.
@@ -357,6 +364,9 @@ private:
 
     std::string userId_;
     std::int64_t currentId_ = 0;
+    int seat_ = 0;      // seat for new items (0: none)
+    int course_ = 1;    // course for new items
+    bool lineTouched_ = false;   // the selected line was touched (not just added)
     qint64 selectedLine_ = 0;
     qint64 selectedPayment_ = 0;
     core::Qualifier qualifier_ = core::Qualifier::None;

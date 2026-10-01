@@ -258,8 +258,39 @@ bool Check::voidLine(std::int64_t lineId)
     return true;
 }
 
-int Check::sendAll(std::int64_t now)
+std::vector<OrderLine> Check::sendable(bool everything) const
 {
+    std::vector<OrderLine> out;
+    for (const OrderLine &l : lines) {
+        if (!l.sent && (everything || !held(l)))
+            out.push_back(l);
+    }
+    return out;
+}
+
+int Check::heldCount() const
+{
+    return int(std::ranges::count_if(lines, [this](const OrderLine &l) { return held(l); }));
+}
+
+int Check::fireNextCourse()
+{
+    int next = 0;
+    for (const OrderLine &l : lines) {
+        if (held(l) && (next == 0 || l.course < next))
+            next = l.course;
+    }
+    if (next > 0)
+        firedCourse = next;
+    return next;
+}
+
+int Check::sendAll(std::int64_t now, bool everything)
+{
+    if (everything) {
+        for (const OrderLine &l : lines)
+            firedCourse = std::max(firedCourse, l.course);
+    }
     // Each send is one kitchen ticket, told apart by its time: keep them
     // distinct even for two sends within the same millisecond.
     for (const OrderLine &l : lines) {
@@ -268,7 +299,7 @@ int Check::sendAll(std::int64_t now)
     }
     int count = 0;
     for (OrderLine &l : lines) {
-        if (!l.sent) {
+        if (!l.sent && !held(l)) {
             l.sent = true;
             l.sentAt = now;
             ++count;

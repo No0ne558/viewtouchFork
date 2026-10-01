@@ -55,6 +55,10 @@ QJsonObject toJson(const Check &c)
             lo.insert(u"made"_s, true);
             lo.insert(u"madeAt"_s, qint64(l.madeAt));
         }
+        if (l.seat != 0)
+            lo.insert(u"seat"_s, l.seat);
+        if (l.course != 1)
+            lo.insert(u"course"_s, l.course);
         lines.append(lo);
     }
     QJsonArray payments;
@@ -80,7 +84,7 @@ QJsonObject toJson(const Check &c)
         {u"gratuityBp"_s, qint64(c.gratuityBp)}, {u"autoGratuity"_s, c.autoGratuity},
         {u"customer"_s, QJsonObject{{u"name"_s, qs(c.customer.name)}, {u"phone"_s, qs(c.customer.phone)},
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
-        {u"events"_s, events},
+        {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse},
     };
 }
 
@@ -114,6 +118,8 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
         l.sentAt = i64(lo.value(u"sentAt"));
         l.made = lo.value(u"made").toBool();
         l.madeAt = i64(lo.value(u"madeAt"));
+        l.seat = lo.value(u"seat").toInt(0);
+        l.course = std::max(1, lo.value(u"course").toInt(1));
         for (const QJsonValue &mv : lo.value(u"modifiers").toArray()) {
             const QJsonObject mo = mv.toObject();
             l.modifiers.push_back({ss(mo.value(u"itemId").toString()), ss(mo.value(u"name").toString()),
@@ -139,6 +145,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     c.businessDay = i64(o.value(u"businessDay"));
     c.drawerSession = i64(o.value(u"drawerSession"));
     c.gratuityBp = i64(o.value(u"gratuityBp"));
+    c.firedCourse = std::max(1, o.value(u"firedCourse").toInt(1));
     c.autoGratuity = o.value(u"autoGratuity").toBool();
     const QJsonObject cust = o.value(u"customer").toObject();
     c.customer = {ss(cust.value(u"name").toString()), ss(cust.value(u"phone").toString()),
