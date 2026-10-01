@@ -262,3 +262,51 @@ TEST_CASE("A long busy service on four terminals: quick, and nothing lost", "[sa
     CHECK(reloaded == expected);
     CHECK(data->openChecks.empty());
 }
+
+#include "app/pos_demo.hh"
+
+#include <QDateTime>
+#include <QProcess>
+
+TEST_CASE("Demo data: months of real service, then refuses a store with sales", "[demo]")
+{
+    PosService pos(test::seedPosData(true), nullptr);
+    const QString done = app::fillDemoData(pos, QDateTime::currentMSecsSinceEpoch());
+    INFO(done.toStdString());
+    CHECK(done.startsWith(u"Added"_s));
+    CHECK(pos.shared()->pastDays.size() == 120);
+    CHECK(pos.shared()->customers.size() == 12);
+    CHECK(pos.shared()->giftCards.size() == 8);
+    CHECK(pos.shared()->shifts.size() > 20);
+    CHECK(pos.shared()->open.empty());                              // every check paid
+    // Every past day balanced its banks and closed.
+    for (const app::PastDay &d : pos.shared()->pastDays)
+        CHECK(d.day.closedAt > d.day.openedAt);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    CHECK(pos.waitlistInfo()[u"waiting"_s].toList().size() == 3);
+    CHECK(app::fillDemoData(pos, QDateTime::currentMSecsSinceEpoch()).startsWith(u"This store"_s));
+}
+
+TEST_CASE("Factory reset: backed up, then a fresh store", "[demo][backup]")
+{
+    QTemporaryDir dir;
+    const QString exe = QCoreApplication::applicationDirPath() + u"/../vtmodern"_s;
+    if (!QFile::exists(exe))
+        SKIP("vtmodern is not built next to the tests");
+    QProcess p;
+    p.setProcessEnvironment([] { auto e = QProcessEnvironment::systemEnvironment(); e.insert(u"QT_QPA_PLATFORM"_s, u"offscreen"_s); return e; }());
+    p.start(exe, {u"--data-dir"_s, dir.path(), u"--demo-data"_s});
+    REQUIRE(p.waitForFinished(120000));
+    REQUIRE(p.exitCode() == 0);
+    p.start(exe, {u"--data-dir"_s, dir.path(), u"--demo-data"_s});       // already has sales
+    REQUIRE(p.waitForFinished(60000));
+    CHECK(p.exitCode() == 1);
+    p.start(exe, {u"--data-dir"_s, dir.path(), u"--factory-reset"_s});
+    REQUIRE(p.waitForFinished(60000));
+    REQUIRE(p.exitCode() == 0);
+    CHECK_FALSE(QFile::exists(dir.filePath(u"viewtouch.db"_s)));
+    const QStringList backups = storage::listBackups(dir.filePath(u"backups"_s));
+    REQUIRE(backups.size() == 1);
+    CHECK(backups.first().endsWith(u"-before-reset.db"_s));
+    CHECK(storage::verifyDatabase(backups.first()));
+}

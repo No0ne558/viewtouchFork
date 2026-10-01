@@ -9,6 +9,7 @@
 #include "print/spooler.hh"
 #include "print/ticket_printer.hh"
 #include "storage/async_writer.hh"
+#include "app/pos_demo.hh"
 #include "storage/backup.hh"
 #include "storage/layout_store.hh"
 #include "storage/pos_store.hh"
@@ -86,6 +87,13 @@ struct Options {
     QCommandLineOption size{u"size"_s, u"Window size, e.g. 1280x720."_s, u"WxH"_s, u"1280x720"_s};
     QCommandLineOption screenshot{u"screenshot"_s, u"Render, save a PNG to <file>, and exit."_s, u"file"_s};
     QCommandLineOption kiosk{u"kiosk"_s, u"Full screen with no mouse pointer and no way out (touch screens)."_s};
+    QCommandLineOption factoryReset{u"factory-reset"_s,
+        u"Back to a fresh install: back up the database, then delete it (sales, customers, staff, menu, pages, "
+         "settings). The next start begins with the starter set. Backups and saved exports stay. ViewTouch must "
+         "not be running."_s};
+    QCommandLineOption demoData{u"demo-data"_s,
+        u"Fill a store that has no sales yet with demo history (two months, and the same months last year), "
+         "customers, gift cards, a schedule and a waitlist, then exit."_s};
     QCommandLineOption customerDisplay{u"customer-display"_s,
         u"Show the order and total to the guest: window (a full-screen window on the second monitor), split (one "
          "window across two monitors, as a kiosk has), auto (split with --kiosk, else window) or off."_s,
@@ -932,6 +940,86 @@ int runBackup(const Args &cli, const Options &o)
     return 0;
 }
 
+// --- factory reset and demo data -----------------------------------------------------------
+
+int runFactoryReset(const Args &cli, const Options &o)
+{
+    const QString dbPath = dbPathOf(cli, o);
+    QLockFile lock(dbPath + u".lock"_s);
+    lock.setStaleLockTime(0);
+    if (!lock.tryLock(0)) {
+        qCritical().noquote() << u"ViewTouch is running on %1. Stop it first "
+                                 "(installed as a service: sudo systemctl stop vtmodern vtmodern-kiosk)."_s.arg(dbPath);
+        return 1;
+    }
+    if (QFile::exists(dbPath)) {
+        const QString dir = backupDirOf(cli, o);
+        const QString target = QDir(dir).filePath(vt::storage::backupFileName(QDateTime::currentDateTime())
+                                                      .replace(u".db"_s, u"-before-reset.db"_s));
+        QString error;
+        if (!QDir().mkpath(dir) || !vt::storage::backupDatabase(dbPath, target, &error)) {
+            qCritical().noquote() << "Not reset: the backup failed:" << (error.isEmpty() ? dir : error);
+            return 1;
+        }
+        qInfo().noquote() << "Backed up to" << target;
+        for (const QString &suffix : {u""_s, u"-wal"_s, u"-shm"_s})
+            QFile::remove(dbPath + suffix);
+    }
+    QDir(QDir(dataDirOf(cli, o)).filePath(u"printouts"_s)).removeRecursively();
+    qInfo().noquote() << "Factory reset done. The next start begins with the starter pages, menu, staff and settings.";
+    return 0;
+}
+
+int runDemoData(const Args &cli, const Options &o)
+{
+    const QString dbPath = dbPathOf(cli, o);
+    QDir().mkpath(QFileInfo(dbPath).absolutePath());
+    QLockFile lock(dbPath + u".lock"_s);
+    lock.setStaleLockTime(0);
+    if (!lock.tryLock(0)) {
+        qCritical().noquote() << u"ViewTouch is running on %1. Stop it first."_s.arg(dbPath);
+        return 1;
+    }
+    vt::storage::PosStore store(dbPath);
+    QString error;
+    if (!store.open(&error)) {
+        qCritical().noquote() << "Cannot open the database:" << error;
+        return 1;
+    }
+    vt::storage::LayoutStore pages(dbPath);   // so backups and checks see a whole store
+    pages.open();
+    auto readSeed = [](const QString &name) {
+        QFile f(u":/seed/pos/"_s + name);
+        return f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()) : QJsonDocument();
+    };
+    if (!store.hasMenu() || cli.isSet(o.resetMenu)) {
+        if (!store.seed(vt::app::settingsFromJson(readSeed(u"settings.json"_s).object()),
+                        vt::app::menuFromJson(readSeed(u"menu.json"_s).array()),
+                        vt::app::employeesFromJson(readSeed(u"employees.json"_s).array()), &error,
+                        vt::app::ingredientsFromJson(readSeed(u"ingredients.json"_s).array()))) {
+            qCritical().noquote() << "Could not store the starter menu:" << error;
+            return 1;
+        }
+    }
+    auto data = store.load();
+    if (!data) {
+        qCritical("Cannot read the store.");
+        return 1;
+    }
+    vt::storage::AsyncWriter writer(dbPath);
+    vt::storage::SqlPosSink sink(writer);
+    vt::app::PosService pos(std::move(*data), &sink);
+    qInfo("Playing two months of service (and the same months last year)...");
+    const QString result = vt::app::fillDemoData(pos, QDateTime::currentMSecsSinceEpoch());
+    writer.flush();
+    if (result.startsWith(u"This store"_s)) {
+        qCritical().noquote() << result;
+        return 1;
+    }
+    qInfo().noquote() << result;
+    return 0;
+}
+
 int runRestore(const Args &cli, const Options &o)
 {
     const QString dbPath = dbPathOf(cli, o);
@@ -964,6 +1052,7 @@ void prepareEnvironment(int argc, char *argv[])
     for (int i = 1; i < argc; ++i) {
         const QByteArrayView arg(argv[i]);
         const bool command = arg == "--backup" || arg == "--restore" || arg.startsWith("--restore=")
+                             || arg == "--factory-reset" || arg == "--demo-data"
                              || arg == "--pairing-code" || arg == "-h"
                              || arg == "--help" || arg == "--help-all" || arg == "-v" || arg == "--version";
         // One-shot commands answer on the terminal, even through a pipe
@@ -1033,7 +1122,7 @@ int main(int argc, char *argv[])
     cli.addHelpOption();
     cli.addVersionOption();
     const QList<QCommandLineOption> all = {o.config, o.dataDir, o.db, o.layout, o.resetLayout, o.resetMenu, o.serve,
-        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.touchKeyboard, o.customerDisplay, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
+        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.touchKeyboard, o.customerDisplay, o.factoryReset, o.demoData, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
         o.screenshot, o.backupDir, o.backupKeep, o.backupEvery, o.backup, o.restore, o.pairingCode, o.exportDir};
     cli.addOptions(all);
     cli.process(app);
@@ -1054,6 +1143,13 @@ int main(int argc, char *argv[])
     for (const char *font : {":/fonts/DejaVuSans.ttf", ":/fonts/DejaVuSans-Bold.ttf"})
         QFontDatabase::addApplicationFont(QString::fromLatin1(font));
 #endif
+    if (args.isSet(o.factoryReset)) {
+        const int code = runFactoryReset(args, o);
+        if (code != 0 || !args.isSet(o.demoData))
+            return code;
+    }
+    if (args.isSet(o.demoData))
+        return runDemoData(args, o);
     if (args.isSet(o.backup))
         return runBackup(args, o);
     if (args.isSet(o.restore))
