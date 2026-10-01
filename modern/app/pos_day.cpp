@@ -405,7 +405,7 @@ bool PosService::cashOutTips()
     if (!require(perm::Order, tr("Cashing out tips")))
         return false;
     const Employee *e = user();
-    const Money owed = core::tipsOwed(e->id, s_->closedToday, s_->drawers, s_->settings.tax);
+    const Money owed = tipShareFor(e->id).owed();
     if (owed.cents() <= 0)
         return fail(tr("No tips are owed to %1.").arg(qs(e->name)));
     // With server banks the tips come out of the server's own cash.
@@ -436,7 +436,23 @@ QString PosService::tipsOwed() const
     const Employee *e = user();
     if (!e)
         return {};
-    return format(core::tipsOwed(e->id, s_->closedToday, s_->drawers, s_->settings.tax));
+    return format(tipShareFor(e->id).owed());
+}
+
+std::map<std::string, TipShare> PosService::allTipShares() const
+{
+    // Hours worked today, for splitting the tip pools.
+    std::map<std::string, double> hours;
+    for (const TimePunch &p : s_->punches)
+        hours[p.employeeId] += double(p.workedMs(now(), s_->settings.paidBreaks)) / 3'600'000.0;
+    return core::tipShares(s_->closedToday, s_->drawers, s_->settings, s_->employees, hours);
+}
+
+TipShare PosService::tipShareFor(const std::string &employeeId) const
+{
+    const auto shares = allTipShares();
+    const auto it = shares.find(employeeId);
+    return it == shares.end() ? TipShare{} : it->second;
 }
 
 QVariantMap PosService::drawerInfo() const
@@ -691,7 +707,7 @@ Report PosService::buildReport(const QString &id) const
     if (id == u"drawer")
         return drawerReport(s_->drawers, s_->closedToday, ctx);
     if (id == u"tips")
-        return tipsReport(s_->closedToday, s_->drawers, ctx);
+        return tipsReport(allTipShares(), ctx);
     if (id == u"hourly")
         return hourlySales(s_->closedToday, ctx);
     if (id == u"categories")

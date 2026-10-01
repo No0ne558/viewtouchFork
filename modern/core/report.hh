@@ -62,6 +62,19 @@ Money expectedCash(const DrawerSession &drawer, const std::vector<Check> &closed
 Money tipsOwed(const std::string &employeeId, const std::vector<Check> &closed,
                const std::vector<DrawerSession> &drawers, const TaxRates &rates);
 
+// Everyone's tips after tip-outs: what they earned on their checks, what
+// they tipped out (PosSettings::tipOuts), their share of the pools (by
+// hours worked, `hours`: employee id -> hours today), what was paid out.
+struct TipShare {
+    std::string name;
+    Money tips, gratuity;   // card tips and party gratuity on their checks
+    Money earned, tipOut, fromPool, paid;
+    Money owed() const { return earned - tipOut + fromPool - paid; }
+};
+std::map<std::string, TipShare> tipShares(const std::vector<Check> &closed, const std::vector<DrawerSession> &drawers,
+                                          const PosSettings &settings, const std::vector<Employee> &employees,
+                                          const std::map<std::string, double> &hours);
+
 Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx);
 Report itemSales(const std::vector<Check> &closed, const std::vector<MenuItem> &menu, const ReportContext &ctx);
 Report serverSales(const std::vector<Check> &closed, const ReportContext &ctx);
@@ -85,7 +98,6 @@ Report accountsReport(const std::vector<GiftCard> &cards, const std::vector<Cust
 // Kitchen ticket times by station: from sent to made (bumped) - how many,
 // the average, the longest, how many were late - and the slowest tickets.
 Report kitchenReport(const std::vector<const Check *> &checks, int lateMinutes, const ReportContext &ctx);
-Report tipsReport(const std::vector<Check> &closed, const std::vector<DrawerSession> &drawers,
-                  const ReportContext &ctx);
+Report tipsReport(const std::map<std::string, TipShare> &shares, const ReportContext &ctx);
 
 } // namespace vt::core

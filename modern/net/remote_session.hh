@@ -95,6 +95,8 @@ public:
     QVariantMap giftCardInfo() const override { return v(u"giftCard").toMap(); }
     QVariantMap waitlistInfo() const override { return v(u"waitlist").toMap(); }
     QVariantMap customerPrompt() const override { return v(u"customerPrompt").toMap(); }
+    QVariantMap scheduleInfo() const override { return v(u"schedule").toMap(); }
+    QString nextShift() const override { return v(u"nextShift").toString(); }
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }
     int queryRevision() const override { return queryRevision_; }

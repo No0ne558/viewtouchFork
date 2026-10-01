@@ -63,6 +63,9 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantMap waitlist READ waitlistInfo NOTIFY dayChanged)
     // What the customer display asks the guest: {askingTip, tipChosen, tip, choices}.
     Q_PROPERTY(QVariantMap customerPrompt READ customerPrompt NOTIFY checkChanged)
+    // The week's schedule ({title, days, totals, staff}) and your next shift.
+    Q_PROPERTY(QVariantMap schedule READ scheduleInfo NOTIFY sessionChanged)
+    Q_PROPERTY(QString nextShift READ nextShift NOTIFY sessionChanged)
     // Modifiers being chosen for the item just ordered: {active, item, groups:
     // [{id, name, rule, chosen, done, options: [{index, name, price, chosen}]}]}.
     Q_PROPERTY(QVariantMap choosing READ choosingInfo NOTIFY checkChanged)
@@ -136,6 +139,8 @@ public:
     virtual QVariantMap giftCardInfo() const = 0;
     virtual QVariantMap waitlistInfo() const = 0;
     virtual QVariantMap customerPrompt() const = 0;
+    virtual QVariantMap scheduleInfo() const = 0;
+    virtual QString nextShift() const = 0;
     virtual QStringList soldOut() const = 0;
     virtual QVariantList menuItems() const = 0;
     virtual QString checkFilter() const = 0;
@@ -219,6 +224,10 @@ public:
         invoke(QStringLiteral("payWithGiftCard"), {number, amountCents});
     }
     Q_INVOKABLE void askForTip() { invoke(QStringLiteral("askForTip")); }
+    Q_INVOKABLE void addShift(const QVariantMap &shift) { invoke(QStringLiteral("addShift"), {shift}); }
+    Q_INVOKABLE void removeShift(qint64 id) { invoke(QStringLiteral("removeShift"), {id}); }
+    Q_INVOKABLE void clockInEmployee(const QString &employeeId) { invoke(QStringLiteral("clockInEmployee"), {employeeId}); }
+    Q_INVOKABLE void setScheduleWeek(int offset) { invoke(QStringLiteral("setScheduleWeek"), {offset}); }
     // kind: "percent" (value 1800 = 18%) | "amount" (cents) | "none"
     Q_INVOKABLE void customerTip(const QString &kind, qint64 value = 0)
     {

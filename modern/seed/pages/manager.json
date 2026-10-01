@@ -29,9 +29,9 @@
       "kind": "button",
       "rect": {
         "x": 160,
-        "y": 136,
+        "y": 124,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -51,9 +51,9 @@
       "kind": "button",
       "rect": {
         "x": 568,
-        "y": 136,
+        "y": 124,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -73,9 +73,9 @@
       "kind": "button",
       "rect": {
         "x": 976,
-        "y": 136,
+        "y": 124,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -95,9 +95,9 @@
       "kind": "button",
       "rect": {
         "x": 1384,
-        "y": 136,
+        "y": 124,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -117,9 +117,9 @@
       "kind": "button",
       "rect": {
         "x": 160,
-        "y": 288,
+        "y": 258,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -139,9 +139,9 @@
       "kind": "button",
       "rect": {
         "x": 568,
-        "y": 288,
+        "y": 258,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -161,9 +161,9 @@
       "kind": "button",
       "rect": {
         "x": 976,
-        "y": 288,
+        "y": 258,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -183,9 +183,9 @@
       "kind": "button",
       "rect": {
         "x": 1384,
-        "y": 288,
+        "y": 258,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -205,9 +205,9 @@
       "kind": "button",
       "rect": {
         "x": 160,
-        "y": 440,
+        "y": 392,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -227,9 +227,9 @@
       "kind": "button",
       "rect": {
         "x": 568,
-        "y": 440,
+        "y": 392,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -249,9 +249,9 @@
       "kind": "button",
       "rect": {
         "x": 976,
-        "y": 440,
+        "y": 392,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -271,9 +271,9 @@
       "kind": "button",
       "rect": {
         "x": 1384,
-        "y": 440,
+        "y": 392,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -293,9 +293,9 @@
       "kind": "button",
       "rect": {
         "x": 160,
-        "y": 592,
+        "y": 526,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -311,13 +311,35 @@
       ]
     },
     {
-      "id": "kitchen-display",
+      "id": "admin-schedule",
       "kind": "button",
       "rect": {
         "x": 568,
-        "y": 592,
+        "y": 526,
         "w": 384,
-        "h": 136
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Schedule",
+      "actions": [
+        {
+          "type": "command",
+          "name": "openAdmin",
+          "args": {
+            "panel": "schedule"
+          }
+        }
+      ]
+    },
+    {
+      "id": "kitchen-display",
+      "kind": "button",
+      "rect": {
+        "x": 976,
+        "y": 526,
+        "w": 384,
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -334,10 +356,10 @@
       "id": "bar-display",
       "kind": "button",
       "rect": {
-        "x": 976,
-        "y": 592,
+        "x": 1384,
+        "y": 526,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -354,10 +376,10 @@
       "id": "edit-pages",
       "kind": "button",
       "rect": {
-        "x": 1384,
-        "y": 592,
+        "x": 160,
+        "y": 660,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -378,10 +400,10 @@
       "id": "customers",
       "kind": "button",
       "rect": {
-        "x": 160,
-        "y": 744,
+        "x": 568,
+        "y": 660,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -398,10 +420,10 @@
       "id": "gift-cards",
       "kind": "button",
       "rect": {
-        "x": 568,
-        "y": 744,
+        "x": 976,
+        "y": 660,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -418,10 +440,10 @@
       "id": "sold-out",
       "kind": "button",
       "rect": {
-        "x": 976,
-        "y": 744,
+        "x": 1384,
+        "y": 660,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",
@@ -438,10 +460,10 @@
       "id": "close-app",
       "kind": "button",
       "rect": {
-        "x": 1384,
-        "y": 744,
+        "x": 160,
+        "y": 794,
         "w": 384,
-        "h": 136
+        "h": 120
       },
       "shape": "rect",
       "behavior": "double",
@@ -463,9 +485,9 @@
       "kind": "button",
       "rect": {
         "x": 160,
-        "y": 912,
+        "y": 940,
         "w": 384,
-        "h": 140
+        "h": 120
       },
       "shape": "rect",
       "behavior": "blink",

@@ -12,6 +12,18 @@
     "pin": "1111"
   },
   {
+    "id": "riley",
+    "name": "Riley",
+    "role": "busser",
+    "pin": "3333"
+  },
+  {
+    "id": "jo",
+    "name": "Jo",
+    "role": "bartender",
+    "pin": "4444"
+  },
+  {
     "id": "casey",
     "name": "Casey",
     "role": "cashier",

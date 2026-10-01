@@ -125,7 +125,8 @@ QVariantList PosService::adminFields(const QString &panel)
         return {
             field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
             with(field(u"role"_s, tr("Role"), u"enum"_s), u"options"_s,
-                 options({{"server", "Server"}, {"cashier", "Cashier"}, {"manager", "Manager"}, {"admin", "Admin"}})),
+                 options({{"server", "Server"}, {"bartender", "Bartender"}, {"cashier", "Cashier"}, {"host", "Host"},
+                          {"busser", "Busser"}, {"manager", "Manager"}, {"admin", "Admin"}})),
             field(u"pin"_s, tr("New PIN"), u"pin"_s, tr("4 to 8 digits. Leave empty to keep the current PIN.")),
             field(u"active"_s, tr("Active (can log in)"), u"bool"_s),
             with(field(u"cashMode"_s, tr("Cash handling"), u"enum"_s,
@@ -202,6 +203,15 @@ QVariantList PosService::adminFields(const QString &panel)
             with(field(u"weekStartsOn"_s, tr("Pay week starts on"), u"enum"_s), u"options"_s,
                  options({{"0", "Sunday"}, {"1", "Monday"}, {"2", "Tuesday"}, {"3", "Wednesday"},
                           {"4", "Thursday"}, {"5", "Friday"}, {"6", "Saturday"}})),
+            field(u"scheduleRequired"_s, tr("Staff clock in only on their schedule"), u"bool"_s,
+                  tr("From a little before a scheduled shift until it ends. Managers can always clock in, and can clock "
+                     "someone in from Manager → Schedule.")),
+            with(with(field(u"clockInEarlyMinutes"_s, tr("…clock in up to (minutes) early"), u"int"_s), u"min"_s, 0),
+                 u"max"_s, 240),
+            field(u"tipOuts"_s, tr("Tip-outs"), u"text"_s,
+                  tr("One per line: role, percent, tips or sales - e.g. \"busser 15 tips\" or \"bartender 2 sales\". "
+                     "Shared by everyone of that role who worked today, by hours. Roles: busser, bartender, host, "
+                     "server, cashier.")),
             with(with(field(u"kitchenWarnMinutes"_s, tr("Kitchen: ticket turns yellow after (minutes)"), u"int"_s),
                       u"min"_s, 1), u"max"_s, 120),
             with(with(field(u"kitchenLateMinutes"_s, tr("Kitchen: ticket is late (red) after (minutes)"), u"int"_s,
@@ -325,6 +335,14 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks},
              {u"backupCopyDir"_s, qs(s_->settings.backupCopyDir)},
              {u"waitMinutesPerParty"_s, s_->settings.waitMinutesPerParty},
+             {u"scheduleRequired"_s, s_->settings.scheduleRequired},
+             {u"clockInEarlyMinutes"_s, s_->settings.clockInEarlyMinutes},
+             {u"tipOuts"_s, [&] {
+                  QStringList l;
+                  for (const PosSettings::TipOut &t : s_->settings.tipOuts)
+                      l << u"%1 %2 %3"_s.arg(qs(t.role), QString::number(double(t.percentBp) / 100.0), qs(t.basis));
+                  return l.join(u'\n');
+              }()},
              {u"kitchenWarnMinutes"_s, s_->settings.kitchenWarnMinutes},
              {u"kitchenLateMinutes"_s, s_->settings.kitchenLateMinutes},
              {u"tipPercents"_s, [&] { QStringList l; for (int p : s_->settings.tipPercents) l << QString::number(p); return l.join(u", "_s); }()},
@@ -517,6 +535,28 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             if (!tips.empty())
                 s_->settings.tipPercents = tips;
         }
+        if (record.contains(u"scheduleRequired"_s))
+            s_->settings.scheduleRequired = record.value(u"scheduleRequired"_s).toBool();
+        if (record.contains(u"clockInEarlyMinutes"_s))
+            s_->settings.clockInEarlyMinutes = std::clamp(record.value(u"clockInEarlyMinutes"_s).toInt(), 0, 240);
+        if (record.contains(u"tipOuts"_s)) {
+            std::vector<PosSettings::TipOut> outs;
+            for (const QString &line : record.value(u"tipOuts"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
+                const QStringList parts = line.simplified().remove(u'%').split(u' ', Qt::SkipEmptyParts);
+                if (parts.isEmpty())
+                    continue;
+                bool ok = false;
+                const double percent = parts.value(1).toDouble(&ok);
+                const QString role = parts.value(0).toLower();
+                const QString basis = parts.value(2, u"tips"_s).toLower();
+                if (!QStringList{u"busser"_s, u"bartender"_s, u"host"_s, u"server"_s, u"cashier"_s}.contains(role))
+                    return fail(tr("Tip-outs: \"%1\" is not a role (busser, bartender, host, server, cashier).").arg(role));
+                if (!ok || percent <= 0 || percent > 100 || (basis != u"tips" && basis != u"sales"))
+                    return fail(tr("Write tip-outs like \"busser 15 tips\" or \"bartender 2 sales\"."));
+                outs.push_back({ss(role), std::llround(percent * 100.0), ss(basis)});
+            }
+            s_->settings.tipOuts = outs;
+        }
         if (record.contains(u"kitchenWarnMinutes"_s))
             s_->settings.kitchenWarnMinutes = std::clamp(record.value(u"kitchenWarnMinutes"_s).toInt(), 1, 120);
         if (record.contains(u"kitchenLateMinutes"_s))
@@ -629,7 +669,8 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     const bool active = record.value(u"active"_s, true).toBool();
     if (name.isEmpty())
         return fail(tr("The employee needs a name."));
-    if (!QStringList{u"server"_s, u"cashier"_s, u"manager"_s, u"admin"_s}.contains(role))
+    if (!QStringList{u"server"_s, u"bartender"_s, u"cashier"_s, u"host"_s, u"busser"_s, u"manager"_s, u"admin"_s}
+             .contains(role))
         return fail(tr("Choose a role."));
     if (index < 0 && pin.isEmpty())
         return fail(tr("New employees need a PIN."));

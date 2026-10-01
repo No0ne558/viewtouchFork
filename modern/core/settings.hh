@@ -133,6 +133,19 @@ struct PosSettings {
     // Waitlist: quoted minutes for each party ahead, and the text sent when
     // a table is ready ({name}, {store}). textWebhook: where texts are sent
     // (a JSON POST of {to, message}; empty: no texting).
+    // Clock in only near a scheduled shift (managers excepted), from this
+    // many minutes before it starts until it ends.
+    bool scheduleRequired = false;
+    int clockInEarlyMinutes = 15;
+    // Tip-outs: a share of each person's tips ("tips") or sales ("sales")
+    // goes to everyone of `role` who worked today, split by hours.
+    struct TipOut {
+        std::string role;
+        std::int64_t percentBp = 0;
+        std::string basis = "tips";
+        bool operator==(const TipOut &) const = default;
+    };
+    std::vector<TipOut> tipOuts;
     int waitMinutesPerParty = 10;
     // Kitchen display: a ticket turns yellow after warn minutes, red after late.
     int kitchenWarnMinutes = 8;

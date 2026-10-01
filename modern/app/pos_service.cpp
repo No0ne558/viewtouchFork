@@ -35,6 +35,8 @@ PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
     , parties(std::move(data.parties))
     , lastPartyId(data.lastPartyId)
     , ingredients(std::move(data.ingredients))
+    , shifts(std::move(data.shifts))
+    , lastShiftId(data.lastShiftId)
     , lastCheckId(data.lastCheckId)
     , lastPunchId(data.lastPunchId)
     , sink(sink)
@@ -289,6 +291,8 @@ bool PosService::clockIn()
         return fail(tr("Enter your PIN, then Clock In."));
     if (openPunch(e->id))
         return fail(tr("%1 is already clocked in.").arg(qs(e->name)));
+    if (const QString why = scheduleCheck(*e); !why.isEmpty())
+        return fail(why);
     TimePunch p{++s_->lastPunchId, e->id, now(), 0};
     s_->punches.push_back(p);
     if (s_->sink)
@@ -1151,6 +1155,11 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
         {u"toggleBreak"_s, [](PosService &p, const QVariantList &) { return QVariant(p.toggleBreak()); }},
         {u"askForTip"_s, [](PosService &p, const QVariantList &) { return QVariant(p.askForTip()); }},
+        {u"addShift"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addShift(a.value(0).toMap())); }},
+        {u"removeShift"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.removeShift(a.value(0).toLongLong())); }},
+        {u"clockInEmployee"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.clockInEmployee(a.value(0).toString())); }},
+        {u"setScheduleWeek"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setScheduleWeek(a.value(0).toInt())); }},
         {u"toggleFlag"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.toggleFlag(a.value(0).toString())); }},
         {u"customerTip"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.customerTip(a.value(0).toString(), a.value(1).toLongLong())); }},

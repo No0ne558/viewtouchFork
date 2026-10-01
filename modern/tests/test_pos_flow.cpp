@@ -501,3 +501,22 @@ TEST_CASE("UI: the kitchen display with a rush ticket and the all-day counts", "
     CHECK(Screen::findBy(s.window->contentItem(), "text", u"RUSH"_s));
     CHECK(Screen::findBy(s.window->contentItem(), "text", u"All day"_s));
 }
+
+TEST_CASE("UI: the week's schedule; adding a shift by touch", "[flow][ui][schedule]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    const QDate today = QDate::currentDate();
+    const auto day = [&](int d) { return today.addDays(d).toString(u"yyyy-MM-dd"_s); };
+    REQUIRE(s.pos.addShift({{u"employeeId"_s, u"sam"_s}, {u"start"_s, day(0) + u" 16:00"_s}, {u"end"_s, day(0) + u" 22:00"_s}}));
+    REQUIRE(s.pos.addShift({{u"employeeId"_s, u"riley"_s}, {u"start"_s, day(0) + u" 17:00"_s}, {u"end"_s, day(0) + u" 23:30"_s},
+                            {u"note"_s, u"close"_s}}));
+    REQUIRE(s.pos.addShift({{u"employeeId"_s, u"jo"_s}, {u"start"_s, day(1) + u" 18:00"_s}, {u"end"_s, day(1) + u" 01:00"_s}}));
+    REQUIRE(s.c.jumpTo(u"admin-schedule"_s));
+    QTest::qWait(50);
+    const int before = int(s.pos.shared()->shifts.size());
+    s.tapItem(Screen::findBy(s.window->contentItem(), "text", u"Add Shift"_s));
+    CHECK(int(s.pos.shared()->shifts.size()) == before + 1);   // the first person, today, 4 - 10 PM
+    QTest::qWait(50);
+    s.shot("15-schedule");
+}

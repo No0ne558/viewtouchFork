@@ -163,3 +163,120 @@ TEST_CASE("Overtime: daily and weekly rules, the larger counts", "[staff][overti
     CHECK(row(r, "Sam", true)[4] == "-");
     CHECK_FALSE(row(r, "No overtime rule is set (Manager -> Settings).").empty());
 }
+
+namespace {
+QStringList tipRow(PosService &pos, const QString &name)
+{
+    for (const QVariant &v : pos.report(u"tips"_s)[u"rows"_s].toList()) {
+        const QStringList cells = v.toMap()[u"cells"_s].toStringList();
+        if (!cells.isEmpty() && cells.first() == name)
+            return cells;
+    }
+    return {};
+}
+} // namespace
+
+TEST_CASE("Schedule: shifts, next shift, clock in only on the schedule, manager override", "[staff][schedule]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    qint64 clock = todayAt(15);
+    pos.shared()->setClock([&] { return clock; });
+    const QString today = QDate::currentDate().toString(u"yyyy-MM-dd"_s);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.addShift({{u"employeeId"_s, u"sam"_s}, {u"start"_s, today + u" 16:00"_s}, {u"end"_s, today + u" 22:00"_s},
+                          {u"note"_s, u"patio"_s}}));
+    CHECK_FALSE(pos.addShift({{u"employeeId"_s, u"sam"_s}, {u"start"_s, today + u" 20:00"_s},
+                              {u"end"_s, today + u" 23:00"_s}}));            // overlaps
+    CHECK_FALSE(pos.addShift({{u"employeeId"_s, u"nobody"_s}, {u"start"_s, today + u" 9:00"_s}}));
+    // Riley closes: past midnight.
+    REQUIRE(pos.addShift({{u"employeeId"_s, u"riley"_s}, {u"start"_s, today + u" 18:00"_s}, {u"end"_s, today + u" 01:00"_s}}));
+    CHECK(pos.shared()->shifts.back().hours() == 7);
+
+    const QVariantMap week = pos.scheduleInfo();
+    QVariantMap day;
+    for (const QVariant &d : week[u"days"_s].toList())
+        if (d.toMap()[u"today"_s].toBool()) day = d.toMap();
+    REQUIRE(day[u"shifts"_s].toList().size() == 2);
+    CHECK(day[u"shifts"_s].toList()[0].toMap()[u"time"_s] == u"4 PM - 10 PM"_s);
+    CHECK(week[u"totals"_s].toList().size() == 2);
+    pos.logout();
+
+    // Clock in only on the schedule.
+    pos.shared()->settings.scheduleRequired = true;
+    REQUIRE(pos.loginWithPin(u"1111"_s));                                    // Sam
+    CHECK(pos.nextShift() == u"today 4 PM - 10 PM"_s);
+    CHECK_FALSE(pos.clockIn());                                               // 3 PM: too early
+    clock = todayAt(15, 50);                                                  // 10 minutes before
+    REQUIRE(pos.clockIn());
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"2222"_s));                                     // Casey: no shift
+    CHECK_FALSE(pos.clockIn());
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"1234"_s));                                     // managers always can
+    REQUIRE(pos.clockIn());
+    REQUIRE(pos.clockInEmployee(u"casey"_s));                                 // and can clock others in
+    CHECK_FALSE(pos.clockInEmployee(u"casey"_s));
+    const qint64 rileyShift = pos.shared()->shifts.back().id;
+    REQUIRE(pos.removeShift(rileyShift));
+    CHECK_FALSE(pos.removeShift(rileyShift));
+
+    // Saved as it is.
+    const core::Shift &s = pos.shared()->shifts.front();
+    CHECK(app::shiftFromJson(app::toJson(s)) == s);
+}
+
+TEST_CASE("Tip pooling: tip-outs to bussers and bartenders, split by hours", "[staff][tips]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    qint64 clock = todayAt(17);
+    pos.shared()->setClock([&] { return clock; });
+    pos.shared()->settings.tipOuts = {{"busser", 1500, "tips"}, {"bartender", 200, "sales"}};
+    // Riley (busser) and Jo (bartender) work; another busser works half as long.
+    REQUIRE(pos.clockInEmployee(u"riley"_s) == false);                       // nobody logged in
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    pos.entryKey(u"10000"_s);
+    REQUIRE(pos.openDrawerSession());
+    REQUIRE(pos.clockInEmployee(u"riley"_s));
+    REQUIRE(pos.clockInEmployee(u"jo"_s));
+    pos.logout();
+
+    // Sam sells $100 with a $20 card tip.
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    for (int i = 0; i < 8; ++i)
+        pos.addItem(u"cobb"_s);                                              // 8 x $12.50 = $100 subtotal
+    REQUIRE(pos.tender(u"credit"_s));
+    pos.entryKey(u"2000"_s);
+    REQUIRE(pos.addTip(0));
+    REQUIRE(pos.closeCheck());
+    clock += 4 * 3'600'000;
+
+    // Sam: $20 - 15% ($3.00) to bussers - 2% of $100 sales ($2.00) to the bar.
+    QStringList sam = tipRow(pos, u"Sam"_s);
+    REQUIRE(sam.size() == 7);
+    CHECK(sam[1] == u"$20.00"_s);
+    CHECK(sam[3] == u"$5.00"_s);
+    CHECK(sam[6] == u"$15.00"_s);
+    CHECK(pos.tipsOwed() == u"$15.00"_s);
+    CHECK(tipRow(pos, u"Riley"_s)[4] == u"$3.00"_s);
+    CHECK(tipRow(pos, u"Jo"_s)[4] == u"$2.00"_s);
+
+    // Sam cashes out what's left; the busser cashes out the pool share.
+    REQUIRE(pos.cashOutTips());
+    CHECK(tipRow(pos, u"Sam"_s)[6] == u"$0.00"_s);
+    pos.logout();
+
+    // A second busser for half the hours: the pool splits 2:1.
+    core::Employee second = *pos.shared()->employee("riley");
+    second.id = "kai";
+    second.name = "Kai";
+    pos.shared()->employees.push_back(second);
+    pos.shared()->punches.push_back({999, "kai", clock - 2 * 3'600'000, 0, {}});
+    CHECK(tipRow(pos, u"Riley"_s)[4] == u"$2.00"_s);
+    CHECK(tipRow(pos, u"Kai"_s)[4] == u"$1.00"_s);
+
+    // Without tip-out rules, servers keep their tips.
+    pos.shared()->settings.tipOuts.clear();
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    CHECK(pos.tipsOwed() == u"$5.00"_s);                                     // $20 earned, $15 paid
+}

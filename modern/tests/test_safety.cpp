@@ -36,14 +36,7 @@ QString seeded(const QTemporaryDir &dir)
     REQUIRE(pages.open());
     PosStore store(path);
     REQUIRE(store.open());
-    auto staff = seed.employees;
-    core::Employee riley = staff.back();   // a fourth person, for four terminals
-    riley.id = "riley";
-    riley.name = "Riley";
-    riley.pinSalt = "riley-salt";
-    riley.pinHash = app::hashPin(u"4444"_s, riley.pinSalt);
-    staff.push_back(riley);
-    REQUIRE(store.seed(seed.settings, seed.menu, staff));
+    REQUIRE(store.seed(seed.settings, seed.menu, seed.employees));
     return path;
 }
 
@@ -213,7 +206,7 @@ TEST_CASE("A long busy service on four terminals: quick, and nothing lost", "[sa
     std::vector<std::unique_ptr<PosService>> terminals;
     for (int t = 0; t < 4; ++t)
         terminals.push_back(std::make_unique<PosService>(&shared, u"T%1"_s.arg(t)));
-    const QStringList pins{u"1111"_s, u"2222"_s, u"4444"_s, u"1234"_s};
+    const QStringList pins{u"1111"_s, u"2222"_s, u"4444"_s, u"1234"_s};   // Sam, Casey, Jo, Morgan
     for (int t = 0; t < 4; ++t) {
         REQUIRE(terminals[t]->loginWithPin(pins[t]));
         terminals[t]->entryKey(u"10000"_s);

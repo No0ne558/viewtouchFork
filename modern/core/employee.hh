@@ -28,7 +28,7 @@ std::set<std::string> permissionsForRole(const std::string &role);
 struct Employee {
     std::string id;
     std::string name;
-    std::string role = "server";   // server | cashier | manager | admin
+    std::string role = "server";   // server | bartender | cashier | host | busser | manager | admin
     // PINs are stored hashed (see app::hashPin); never the digits.
     std::string pinSalt;
     std::string pinHash;
@@ -86,6 +86,19 @@ struct TimePunch {
         return paidBreaks ? spanMs(now) : std::max<std::int64_t>(0, spanMs(now) - breakMs(now));
     }
     bool operator==(const TimePunch &) const = default;
+};
+
+// A scheduled shift. With PosSettings::scheduleRequired, staff clock in
+// only from a little before a shift until it ends.
+struct Shift {
+    std::int64_t id = 0;
+    std::string employeeId;
+    std::int64_t start = 0;   // epoch ms
+    std::int64_t end = 0;
+    std::string note;         // "patio", "close"...
+
+    double hours() const { return double(end - start) / 3'600'000.0; }
+    bool operator==(const Shift &) const = default;
 };
 
 } // namespace vt::core

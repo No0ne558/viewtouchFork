@@ -468,50 +468,124 @@ Report drawerReport(const std::vector<DrawerSession> &drawers, const std::vector
     return r;
 }
 
-Report tipsReport(const std::vector<Check> &closed, const std::vector<DrawerSession> &drawers,
-                  const ReportContext &ctx)
+Report tipsReport(const std::map<std::string, TipShare> &shares, const ReportContext &ctx)
 {
     Report r;
     r.id = "tips";
     r.title = "Tips";
     r.subtitle = ctx.period;
-    r.columns = {"Server", "Card tips", "Gratuity", "Paid out", "Owed"};
-
-    struct Tally { std::string name; Money tips, gratuity, paid; };
-    std::map<std::string, Tally> byServer;
-    for (const Check &c : closed) {
-        const Totals t = c.totals(ctx.settings.tax);
-        if (t.tips.cents() == 0 && t.gratuity.cents() == 0)
+    const bool pooling = !ctx.settings.tipOuts.empty();
+    r.columns = pooling ? std::vector<std::string>{"Staff", "Card tips", "Gratuity", "Tipped out", "From pool", "Paid out", "Owed"}
+                        : std::vector<std::string>{"Server", "Card tips", "Gratuity", "Paid out", "Owed"};
+    TipShare all;
+    for (const auto &[id, x] : shares) {
+        if (x.earned.cents() == 0 && x.fromPool.cents() == 0 && x.paid.cents() == 0)
             continue;
-        Tally &x = byServer[c.serverId];
-        x.name = c.serverName;
-        x.tips += t.tips;
-        x.gratuity += t.gratuity;
+        if (pooling)
+            r.line({x.name, ctx.money(x.tips), ctx.money(x.gratuity), ctx.money(x.tipOut), ctx.money(x.fromPool),
+                    ctx.money(x.paid), ctx.money(x.owed())});
+        else
+            r.line({x.name, ctx.money(x.tips), ctx.money(x.gratuity), ctx.money(x.paid), ctx.money(x.owed())});
+        all.tips += x.tips;
+        all.gratuity += x.gratuity;
+        all.earned += x.earned;
+        all.tipOut += x.tipOut;
+        all.fromPool += x.fromPool;
+        all.paid += x.paid;
+    }
+    if (all.earned.cents() == 0 && all.paid.cents() == 0) {
+        r.note("No tips yet.");
+        return r;
+    }
+    if (pooling)
+        r.total({"All staff", ctx.money(all.tips), ctx.money(all.gratuity), ctx.money(all.tipOut),
+                 ctx.money(all.fromPool), ctx.money(all.paid), ctx.money(all.owed())});
+    else
+        r.total({"All staff", ctx.money(all.tips), ctx.money(all.gratuity), ctx.money(all.paid), ctx.money(all.owed())});
+    for (const PosSettings::TipOut &t : ctx.settings.tipOuts)
+        r.note("Tip-out: " + std::to_string(t.percentBp / 100) + (t.percentBp % 100 ? "." + std::to_string(t.percentBp % 100) : "")
+               + "% of " + (t.basis == "sales" ? "sales" : "tips") + " to " + t.role + "s, split by hours.");
+    return r;
+}
+
+std::map<std::string, TipShare> tipShares(const std::vector<Check> &closed, const std::vector<DrawerSession> &drawers,
+                                          const PosSettings &settings, const std::vector<Employee> &employees,
+                                          const std::map<std::string, double> &hours)
+{
+    std::map<std::string, TipShare> out;
+    std::map<std::string, Money> sales;
+    for (const Check &c : closed) {
+        const Totals t = c.totals(settings.tax);
+        TipShare &s = out[c.serverId];
+        s.name = c.serverName;
+        s.tips += t.tips;
+        s.gratuity += t.gratuity;
+        s.earned += t.tips + t.gratuity;
+        sales[c.serverId] += t.subtotal;
+    }
+    std::map<std::string, const Employee *> byId;
+    for (const Employee &e : employees) {
+        byId[e.id] = &e;
+        if (out.contains(e.id))
+            out[e.id].name = e.name;
+    }
+    const auto roleOf = [&](const std::string &id) { return byId.contains(id) ? byId[id]->role : std::string(); };
+
+    for (const PosSettings::TipOut &rule : settings.tipOuts) {
+        // Who shares this pool: that role, worked today.
+        std::vector<std::pair<std::string, double>> crew;
+        double crewHours = 0;
+        for (const auto &[id, h] : hours) {
+            if (h > 0 && roleOf(id) == rule.role) {
+                crew.emplace_back(id, h);
+                crewHours += h;
+            }
+        }
+        if (crew.empty())
+            continue;   // nobody to tip out to today
+        Money pool;
+        for (auto &[id, s] : out) {
+            if (roleOf(id) == rule.role)
+                continue;
+            const Money base = rule.basis == "sales" ? sales[id] : s.earned;
+            Money share = base.percent(rule.percentBp);
+            const Money left = s.earned - s.tipOut;
+            if (share > left)
+                share = left;   // never more than they took in
+            if (share.cents() <= 0)
+                continue;
+            s.tipOut += share;
+            pool += share;
+        }
+        // Split by hours; the cents left over go to whoever worked longest.
+        Money given;
+        std::string longest;
+        double most = -1;
+        for (const auto &[id, h] : crew) {
+            const Money part = Money::fromCents(std::int64_t(double(pool.cents()) * h / crewHours));
+            TipShare &s = out[id];
+            if (s.name.empty() && byId.contains(id))
+                s.name = byId[id]->name;
+            s.fromPool += part;
+            given += part;
+            if (h > most) {
+                most = h;
+                longest = id;
+            }
+        }
+        out[longest].fromPool += pool - given;
     }
     for (const DrawerSession &d : drawers) {
         for (const CashMovement &m : d.movements) {
             if (m.kind == CashMovement::Kind::TipPayout) {
-                Tally &x = byServer[m.employeeId];
-                if (x.name.empty())
-                    x.name = m.employeeId;
-                x.paid += m.amount;
+                TipShare &s = out[m.employeeId];
+                if (s.name.empty())
+                    s.name = byId.contains(m.employeeId) ? byId[m.employeeId]->name : m.employeeId;
+                s.paid += m.amount;
             }
         }
     }
-    Tally all;
-    for (const auto &[id, x] : byServer) {
-        r.line({x.name, ctx.money(x.tips), ctx.money(x.gratuity), ctx.money(x.paid),
-                ctx.money(x.tips + x.gratuity - x.paid)});
-        all.tips += x.tips;
-        all.gratuity += x.gratuity;
-        all.paid += x.paid;
-    }
-    if (byServer.empty())
-        r.note("No tips yet.");
-    else
-        r.total({"All staff", ctx.money(all.tips), ctx.money(all.gratuity), ctx.money(all.paid),
-                 ctx.money(all.tips + all.gratuity - all.paid)});
-    return r;
+    return out;
 }
 
 Report accountsReport(const std::vector<GiftCard> &cards, const std::vector<CustomerRecord> &customers,

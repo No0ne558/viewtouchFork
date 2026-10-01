@@ -45,6 +45,8 @@ public:
     virtual void saveParty(const core::Party &) {}
     virtual void saveIngredient(const core::Ingredient &, int position) { Q_UNUSED(position) }
     virtual void deleteIngredient(const std::string &id) { Q_UNUSED(id) }
+    virtual void saveShift(const core::Shift &) {}
+    virtual void deleteShift(std::int64_t id) { Q_UNUSED(id) }
 };
 
 // Where tickets go. Implementations must not block (see print::PrintSpooler).
@@ -81,6 +83,8 @@ struct PosData {
     std::vector<core::Party> parties;
     std::int64_t lastPartyId = 0;
     std::vector<core::Ingredient> ingredients;
+    std::vector<core::Shift> shifts;
+    std::int64_t lastShiftId = 0;
     std::int64_t lastCheckId = 0;
     std::int64_t lastPunchId = 0;
     std::optional<core::BusinessDay> currentDay;  // none: the service opens one
@@ -117,6 +121,8 @@ public:
     std::int64_t lastPartyId = 0;
     std::vector<core::Ingredient> ingredients;
     core::Ingredient *ingredient(const std::string &id);
+    std::vector<core::Shift> shifts;   // from two weeks back on
+    std::int64_t lastShiftId = 0;
     // Texts a guest (set up by main when a texting service is configured).
     std::function<void(const QString &phone, const QString &message)> sendText;
     core::CustomerRecord *customer(const std::string &id);
@@ -429,6 +435,22 @@ public:
     // Ingredients at or below their low mark.
     QVariantList lowStock() const;
     core::Report foodCostReport(const core::ReportContext &ctx) const;
+
+    // --- the schedule (pos_schedule.cpp) ----------------------------------------
+    // {employeeId, start, end (ms or "yyyy-MM-dd HH:mm"; an end before the
+    // start runs past midnight), note}. Managers.
+    bool addShift(const QVariantMap &shift);
+    bool removeShift(qint64 id);
+    // A manager clocks someone in (off the schedule, or forgot).
+    bool clockInEmployee(const QString &employeeId);
+    // The week the schedule shows: 0 this week, 1 next...
+    bool setScheduleWeek(int offset);
+    QVariantMap scheduleInfo() const override;
+    QString nextShift() const override;
+
+    // Tips after tip-outs and pools (see core::tipShares), everyone / one person.
+    std::map<std::string, core::TipShare> allTipShares() const;
+    core::TipShare tipShareFor(const std::string &employeeId) const;
     bool stopPairing();
 
 private:
@@ -436,6 +458,11 @@ private:
     void takeStock(const std::vector<core::OrderLine> &lines, int sign);
     // Sold out by itself when an ingredient runs short; back when restocked.
     void refreshSoldOut();
+    // The shift `employeeId` may clock in for now (see clockInEarlyMinutes).
+    const core::Shift *shiftNow(const std::string &employeeId) const;
+    // Why `e` can't clock in now ("" = they can).
+    QString scheduleCheck(const core::Employee &e) const;
+    int scheduleWeek_ = 0;
     qint64 addParty(const QVariantMap &r, bool reservation);
     core::Party *party(qint64 id);
     void saveParty(const core::Party &p);

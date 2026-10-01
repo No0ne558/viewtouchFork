@@ -154,6 +154,8 @@ write("pos/menu.json", MENU, versioned=False)
 write("pos/employees.json", [
     {"id": "manager", "name": "Morgan (Manager)", "role": "manager", "pin": "1234"},
     {"id": "sam", "name": "Sam", "role": "server", "pin": "1111"},
+    {"id": "riley", "name": "Riley", "role": "busser", "pin": "3333"},
+    {"id": "jo", "name": "Jo", "role": "bartender", "pin": "4444"},
     {"id": "casey", "name": "Casey", "role": "cashier", "pin": "2222"},
 ], versioned=False)
 
@@ -237,7 +239,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist"]
+           "customerLookup", "giftCard", "waitlist", "schedule"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -548,7 +550,7 @@ page("logout", "Log Out", "logout", [
 admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"), ("Taxes", "taxes"),
          ("Tenders", "tenders"), ("Printers", "printers"), ("Reports", "reports"), ("Banks & Drawers", "drawers"),
          ("End of Day", "endOfDay"), ("Terminals", "terminals"), ("Meal Periods", "mealPeriods"),
-         ("Modifier Groups", "modifierGroups"), ("Inventory", "inventory")]
+         ("Modifier Groups", "modifierGroups"), ("Inventory", "inventory"), ("Schedule", "schedule")]
 mgr = [label("title", 160, 24, 1600, 100, "Manager")]
 # Four across, five down: the Manager screens, then the rest.
 slots = [zone(f"admin-{panel}", 0, 0, 0, 0, text, actions=[command("openAdmin", panel=panel)]) for text, panel in admin]
@@ -565,9 +567,9 @@ slots += [
 ]
 for i, z in enumerate(slots):
     col, row = i % 4, i // 4
-    z["rect"] = rect(160 + col * 408, 136 + row * 152, 384, 136)
+    z["rect"] = rect(160 + col * 408, 124 + row * 134, 384, 120)
     mgr.append(z)
-mgr.append(zone("back", 160, 912, 384, 140, "‹ Back", actions=[jump(mode="back")]))
+mgr.append(zone("back", 160, 940, 384, 120, "‹ Back", actions=[jump(mode="back")]))
 page("manager", "Manager", "manager", mgr, role="manager", permission="manager")
 
 # Manager screens (reached through openAdmin from the Manager page)
@@ -583,6 +585,12 @@ for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees
         zone("editor", 16, 112, 1888, 816, kind="adminPanel", props={"panel": panel}),
         zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
     ], permission="manager")
+
+page("admin-schedule", "Schedule", "manager", [
+    label("title", 16, 16, 1888, 80, "Schedule"),
+    zone("schedule", 16, 112, 1888, 816, kind="schedule"),
+    zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
+], permission="manager")
 
 page("reports", "Reports", "manager", [
     zone("report", 16, 16, 1440, 1048, kind="reportView"),

@@ -57,6 +57,9 @@ core::CustomerRecord customerFromJson(const QJsonObject &o);
 QJsonObject toJson(const core::GiftCard &g);
 core::GiftCard giftCardFromJson(const QJsonObject &o);
 
+QJsonObject toJson(const core::Shift &s);
+core::Shift shiftFromJson(const QJsonObject &o);
+
 QJsonObject toJson(const core::Ingredient &i);
 core::Ingredient ingredientFromJson(const QJsonObject &o);
 std::vector<core::Ingredient> ingredientsFromJson(const QJsonArray &a);

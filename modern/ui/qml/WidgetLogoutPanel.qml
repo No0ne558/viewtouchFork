@@ -56,6 +56,15 @@ Item {
             font.family: w.face
             font.pixelSize: w.unit * 0.8
         }
+        Text {
+            visible: w.pos !== null && w.pos.loggedIn && w.pos.nextShift !== ""
+            Layout.fillWidth: true
+            text: qsTr("Next shift: %1").arg(w.pos ? w.pos.nextShift : "")
+            color: "#8fb6ff"
+            font.family: w.face
+            font.pixelSize: w.unit * 0.8
+            elide: Text.ElideRight
+        }
         // Server banks: the cash this person has to turn in.
         Text {
             readonly property var bank: w.pos ? w.pos.drawer : ({})

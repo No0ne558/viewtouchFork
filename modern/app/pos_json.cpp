@@ -549,6 +549,14 @@ QJsonObject toJson(const PosSettings &s)
         {u"checkoutNeedsClosedChecks"_s, s.checkoutNeedsClosedChecks},
         {u"backupCopyDir"_s, qs(s.backupCopyDir)},
         {u"waitMinutesPerParty"_s, s.waitMinutesPerParty},
+        {u"scheduleRequired"_s, s.scheduleRequired}, {u"clockInEarlyMinutes"_s, s.clockInEarlyMinutes},
+        {u"tipOuts"_s, [&] {
+             QJsonArray a;
+             for (const PosSettings::TipOut &t : s.tipOuts)
+                 a.append(QJsonObject{{u"role"_s, qs(t.role)}, {u"percent"_s, double(t.percentBp) / 100.0},
+                                      {u"basis"_s, qs(t.basis)}});
+             return a;
+         }()},
         {u"kitchenWarnMinutes"_s, s.kitchenWarnMinutes}, {u"kitchenLateMinutes"_s, s.kitchenLateMinutes},
         {u"tipPercents"_s, [&] { QJsonArray a; for (int p : s.tipPercents) a.append(p); return a; }()}, {u"tableReadyText"_s, qs(s.tableReadyText)},
         {u"textWebhook"_s, qs(s.textWebhook)},
@@ -592,6 +600,14 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.checkoutNeedsClosedChecks = o.value(u"checkoutNeedsClosedChecks").toBool(true);
     s.backupCopyDir = ss(o.value(u"backupCopyDir").toString());
     s.waitMinutesPerParty = std::clamp(o.value(u"waitMinutesPerParty").toInt(10), 1, 120);
+    s.scheduleRequired = o.value(u"scheduleRequired").toBool(false);
+    s.clockInEarlyMinutes = std::clamp(o.value(u"clockInEarlyMinutes").toInt(15), 0, 240);
+    for (const QJsonValue &v : o.value(u"tipOuts").toArray()) {
+        const QJsonObject t = v.toObject();
+        const std::int64_t bp = std::llround(t.value(u"percent").toDouble() * 100.0);
+        if (!t.value(u"role").toString().isEmpty() && bp > 0 && bp <= 10000)
+            s.tipOuts.push_back({ss(t.value(u"role").toString()), bp, t.value(u"basis").toString() == u"sales" ? "sales" : "tips"});
+    }
     s.kitchenWarnMinutes = std::clamp(o.value(u"kitchenWarnMinutes").toInt(8), 1, 120);
     s.kitchenLateMinutes = std::clamp(o.value(u"kitchenLateMinutes").toInt(15), s.kitchenWarnMinutes, 240);
     if (o.value(u"tipPercents").isArray()) {
@@ -770,6 +786,20 @@ std::vector<Ingredient> ingredientsFromJson(const QJsonArray &a)
     for (const QJsonValue &v : a)
         out.push_back(ingredientFromJson(v.toObject()));
     return out;
+}
+
+// --- schedule ----------------------------------------------------------------------------
+
+QJsonObject toJson(const Shift &s)
+{
+    return {{u"id"_s, qint64(s.id)}, {u"employeeId"_s, qs(s.employeeId)}, {u"start"_s, qint64(s.start)},
+            {u"end"_s, qint64(s.end)}, {u"note"_s, qs(s.note)}};
+}
+
+Shift shiftFromJson(const QJsonObject &o)
+{
+    return {i64(o.value(u"id")), ss(o.value(u"employeeId").toString()), i64(o.value(u"start")), i64(o.value(u"end")),
+            ss(o.value(u"note").toString())};
 }
 
 } // namespace vt::app

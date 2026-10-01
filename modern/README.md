@@ -131,6 +131,14 @@ Each backup is a complete SQLite copy. Checks, pages, menu, staff, settings and 
 - **Reservations:** book for today or the next six days at a time. *They're Here* puts them at the front of the line. Reservations more than 15 minutes late are marked; *No-Show* or *Cancel Booking* takes them off.
 - The host stand shows how many parties were seated today, the average wait, and no-shows.
 
+## Schedule and tip pooling
+
+- **Manager → Schedule:** a week at a time (‹ ›), each day's shifts; touch a day, pick the person and the times, *Add Shift* (an end before the start runs past midnight). Touch a shift to remove it, or *Clock Them In*. Hours for the week are listed underneath, in red over the weekly overtime line.
+- Staff see their **next shift** on the logout screen.
+- **Clock in on schedule** (Store Settings): staff can only clock in from *…minutes early* before a scheduled shift until it ends. Managers always can, and can clock anyone in from the schedule.
+- **Roles:** server, bartender, cashier, host (the waitlist), busser (clocks in, shares tips), manager, admin. The demo staff gained Riley (busser, PIN 3333) and Jo (bartender, PIN 4444).
+- **Tip-outs** (Store Settings): one per line, e.g. `busser 15 tips` or `bartender 2 sales`. That share of each person's tips (or sales) goes into a pool for everyone of that role who worked today, split by hours. With no one of that role on today, servers keep it. *Cash Out My Tips* and Reports → Tips use the result.
+
 ## Inventory and food cost
 
 - **Manager → Inventory:** each ingredient's unit, what's on hand, the low-stock mark and its cost per unit. Count stock or add a delivery by editing *On hand*.

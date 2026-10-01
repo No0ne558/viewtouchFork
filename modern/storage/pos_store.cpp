@@ -5,6 +5,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -182,6 +183,20 @@ bool PosStore::open(QString *error)
             return false;
         }
     }
+    if (version < 7) {   // the staff schedule
+        if (!db.transaction()) {
+            if (error)
+                *error = db.lastError().text();
+            return false;
+        }
+        const bool ok =
+            run(q, u"CREATE TABLE shifts (id INTEGER PRIMARY KEY, start INTEGER NOT NULL, json TEXT NOT NULL)"_s, error)
+            && run(q, u"UPDATE meta SET value = '7' WHERE key = 'pos_schema_version'"_s, error);
+        if (!ok || !db.commit()) {
+            db.rollback();
+            return false;
+        }
+    }
     return true;
 }
 
@@ -301,6 +316,15 @@ std::optional<app::PosData> PosStore::load(QStringList *errors) const
     }
     if (q.exec(u"SELECT COALESCE(MAX(id), 0) FROM parties"_s) && q.next())
         data.lastPartyId = q.value(0).toLongLong();
+    // Shifts from two weeks back on (this week's hours, the weeks ahead).
+    q.prepare(u"SELECT json FROM shifts WHERE start >= ? ORDER BY start"_s);
+    q.addBindValue(QDateTime::currentMSecsSinceEpoch() - 14LL * 24 * 3'600'000);
+    if (q.exec()) {
+        while (q.next())
+            data.shifts.push_back(app::shiftFromJson(parse(q.value(0))));
+    }
+    if (q.exec(u"SELECT COALESCE(MAX(id), 0) FROM shifts"_s) && q.next())
+        data.lastShiftId = q.value(0).toLongLong();
     if (data.currentDay) {
         q.prepare(u"SELECT json FROM checks WHERE status = 'closed' AND business_day = ? ORDER BY id"_s);
         q.addBindValue(qint64(data.currentDay->id));
@@ -441,6 +465,17 @@ void SqlPosSink::saveIngredient(const core::Ingredient &i, int position)
 void SqlPosSink::deleteIngredient(const std::string &id)
 {
     writer_.remove(u"ingredients"_s, u"id"_s, qs(id));
+}
+
+void SqlPosSink::saveShift(const core::Shift &s)
+{
+    writer_.upsert(u"shifts"_s, QString::number(s.id),
+                   {{u"id"_s, qint64(s.id)}, {u"start"_s, qint64(s.start)}, {u"json"_s, compact(app::toJson(s))}});
+}
+
+void SqlPosSink::deleteShift(std::int64_t id)
+{
+    writer_.remove(u"shifts"_s, u"id"_s, QString::number(id));
 }
 
 void SqlPosSink::saveEmployee(const Employee &e)
