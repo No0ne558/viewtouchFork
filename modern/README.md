@@ -114,6 +114,17 @@ Every page is designed on a 1920 × 1080 landscape canvas and scaled to the scre
 
 Each backup is a complete SQLite copy. Checks, pages, menu, staff, settings and past days are all in it.
 
+## Customers, gift cards and house accounts
+
+- **Customers** (Check… → Customer…, or Manager → Customers…): find someone by any part of their phone number or by name, see their visits, what they've spent and their last visit, edit their details and notes, and put them on the check. Takeout and delivery customers go on file by themselves when their check closes, and the customer form suggests regulars as you type.
+- **Gift cards** (Settle → Gift Card…, Check… → Sell / Check a Gift Card…): type or swipe the number to see the balance and history. *Sell* or *Reload* puts the card on the check; it works once that check is paid (no number: one is made up). *Pay the Check from This Card* takes up to what it holds. Undoing that payment, or reopening the check that sold a card, puts the money back where it was. No tax on gift card sales, and nothing goes to the kitchen.
+- **House accounts:** a manager turns one on for a customer (with an optional limit). Put the customer on the check, then **House Account** on Settle charges it. Payments on the account (cash goes in the drawer, or card) are on the Customers page.
+- **Report:** Reports → Gift Cards: cards sold and spent, what is still on cards (owed by the store), and house account charges, payments and balances.
+
+## On-screen keyboard
+
+Text fields (customer names, Manager forms…) get an on-screen keyboard, docked below the page, on touch screens: on by default with `--kiosk`, or `--touch-keyboard yes|no`. Number fields get a number pad.
+
 ## Meal periods
 
 Manager → Meal Periods sets when breakfast, lunch and dinner start (the starter set is 04:00, 11:00 and 16:00). You can add others, such as Late Night. Each period runs until the next one starts, and past midnight until the first one. The Menu button opens the index page whose *Meal period* (page inspector) matches the time. With no page for the current period, it opens an *All day* index page, else the first one.

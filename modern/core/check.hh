@@ -44,13 +44,18 @@ struct OrderLine {
     int course = 1;              // later courses wait until they are fired
 
     bool isComment() const { return itemId.empty(); }
+    // Selling or reloading gift card <number>: no kitchen, no tax.
+    bool isGiftCard() const { return itemId.starts_with("giftcard:"); }
+    std::string giftCardNumber() const { return isGiftCard() ? itemId.substr(9) : std::string(); }
     std::string displayName() const { return qualifierPrefix(qualifier) + name; }
     // (item + modifiers) x quantity; zero once voided.
     Money total() const;
     bool operator==(const OrderLine &) const = default;
 };
 
-enum class TenderKind { Cash, Card, Discount };
+// GiftCard: from a gift card's balance; HouseAccount: charged to a
+// customer's account (both name which one in Payment::reference).
+enum class TenderKind { Cash, Card, Discount, GiftCard, HouseAccount };
 
 // A way to pay or reduce a check, configured in settings.
 struct Tender {
@@ -70,6 +75,7 @@ struct Payment {
     Money amount;                 // Cash/Card: what it pays toward the check
     std::int64_t percentBp = 0;   // Discount, applied to the current items total
     Money tip;                    // Card: tip on top of the amount (owed to the server)
+    std::string reference;        // GiftCard: the card number; HouseAccount: the customer id
 
     bool operator==(const Payment &) const = default;
 };
@@ -143,6 +149,7 @@ struct Check {
     std::int64_t businessDay = 0;     // day the check was closed in
     std::int64_t drawerSession = 0;   // drawer that took its cash
     Customer customer;
+    std::string customerId;           // a saved customer (their visits, house account)
     std::int64_t gratuityBp = 0;      // e.g. 1800 = 18% of the subtotal
     bool autoGratuity = false;        // added for a large party (not by hand)
     std::vector<CheckEvent> events;   // oldest first

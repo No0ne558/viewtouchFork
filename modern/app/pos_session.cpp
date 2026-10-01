@@ -21,6 +21,7 @@ const QStringList &PosSession::stateKeys()
         u"checkFilter"_s, u"kitchenTickets"_s, u"drawer"_s, u"day"_s, u"days"_s, u"adminRevision"_s,
         u"tipsOwed"_s, u"mealPeriods"_s, u"pairing"_s, u"screenMode"_s,
         u"closedChecks"_s, u"staff"_s, u"checkHistory"_s, u"choosing"_s, u"soldOut"_s, u"menuItems"_s, u"onBreakSince"_s,
+        u"customers"_s, u"customer"_s, u"giftCard"_s,
     };
     return keys;
 }
@@ -43,6 +44,7 @@ QVariantMap PosSession::snapshot() const
         {u"closedChecks"_s, closedChecks()}, {u"staff"_s, staff()}, {u"checkHistory"_s, checkHistory()},
         {u"choosing"_s, choosingInfo()}, {u"soldOut"_s, soldOut()}, {u"menuItems"_s, menuItems()},
         {u"onBreakSince"_s, onBreakSince()},
+        {u"customers"_s, customerResults()}, {u"customer"_s, customerInfo()}, {u"giftCard"_s, giftCardInfo()},
     };
 }
 

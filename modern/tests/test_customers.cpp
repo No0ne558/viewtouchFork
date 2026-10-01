@@ -1,0 +1,251 @@
+#include <catch2/catch_test_macros.hpp>
+
+#include "app/pos_json.hh"
+#include "pos_fixture.hh"
+#include "qt_catch.hh"
+#include "storage/async_writer.hh"
+#include "storage/pos_store.hh"
+
+#include <QTemporaryDir>
+
+using namespace Qt::StringLiterals;
+using namespace vt;
+using vt::app::PosService;
+
+// Customers, gift cards and house accounts.
+
+namespace {
+
+void openDrawer(PosService &pos)
+{
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    pos.entryKey(u"10000"_s);
+    REQUIRE(pos.openDrawerSession());
+}
+
+QStringList names(const QVariantList &list)
+{
+    QStringList out;
+    for (const QVariant &v : list)
+        out << v.toMap()[u"name"_s].toString();
+    return out;
+}
+
+QString rowAmount(const QVariantMap &report, const QString &first)
+{
+    for (const QVariant &v : report[u"rows"_s].toList()) {
+        const QStringList cells = v.toMap()[u"cells"_s].toStringList();
+        if (!cells.isEmpty() && cells.first() == first)
+            return cells.last();
+    }
+    return {};
+}
+
+} // namespace
+
+TEST_CASE("Customers: saved, found by phone or name, counted when their checks close", "[customers]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    openDrawer(pos);
+    CHECK_FALSE(pos.saveCustomer({}));                        // a name or a phone
+    REQUIRE(pos.saveCustomer({{u"name"_s, u"Dana Lee"_s}, {u"phone"_s, u"(555) 010-1234"_s},
+                              {u"note"_s, u"no onions"_s}}));
+    REQUIRE(pos.saveCustomer({{u"name"_s, u"Alex Kim"_s}, {u"phone"_s, u"555-777-0000"_s}}));
+    REQUIRE(pos.shared()->customers.size() == 2);
+
+    REQUIRE(pos.findCustomers(u"0101"_s));                     // digits anywhere in the number
+    CHECK(names(pos.customerResults()) == QStringList{u"Dana Lee"_s});
+    REQUIRE(pos.findCustomers(u"kim"_s));
+    CHECK(names(pos.customerResults()) == QStringList{u"Alex Kim"_s});
+    // The same phone written differently is the same person.
+    REQUIRE(pos.saveCustomer({{u"name"_s, u"Dana Lee-Park"_s}, {u"phone"_s, u"555.010.1234"_s}}));
+    CHECK(pos.shared()->customers.size() == 2);
+
+    // A takeout for Dana: picked from the list, counted at close.
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    const QString dana = QString::fromStdString(pos.shared()->customers.front().id);
+    REQUIRE(pos.useCustomer(dana));
+    CHECK(pos.checkInfo()[u"customer"_s].toMap()[u"name"_s] == u"Dana Lee-Park"_s);
+    pos.addItem(u"cobb"_s);
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+    REQUIRE(pos.selectCustomer(dana));
+    CHECK(pos.customerInfo()[u"visits"_s] == 1);
+    CHECK(pos.customerInfo()[u"spent"_s] == u"$13.53"_s);
+
+    // A delivery typed in by hand goes on file too.
+    REQUIRE(pos.startCheck(core::CheckType::Delivery));
+    REQUIRE(pos.setCustomer({{u"name"_s, u"Robin"_s}, {u"phone"_s, u"555 222 3333"_s}, {u"address"_s, u"9 Elm"_s}}));
+    pos.addItem(u"coffee"_s);
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+    REQUIRE(pos.findCustomers(u"5552223333"_s));
+    REQUIRE(pos.customerResults().size() == 1);
+    CHECK(pos.customerResults().first().toMap()[u"address"_s] == u"9 Elm"_s);
+    CHECK(pos.customerResults().first().toMap()[u"visits"_s] == 1);
+
+    // Reopening takes the visit back.
+    REQUIRE(pos.reopenCheck(1));
+    REQUIRE(pos.selectCustomer(dana));
+    CHECK(pos.customerInfo()[u"visits"_s] == 0);
+}
+
+TEST_CASE("Gift cards: sold on a check, live once it's paid, spent, and given back", "[customers][giftcards]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    openDrawer(pos);
+
+    // Sell $50 on card 6000 1111 2222 (no check open: a quick one starts).
+    CHECK_FALSE(pos.sellGiftCard(u"6000 1111 2222"_s, 0));    // no amount
+    REQUIRE(pos.sellGiftCard(u"6000 1111 2222"_s, 5000));
+    CHECK(pos.lines().size() == 1);
+    CHECK(pos.totals()[u"tax"_s].toString() == u"$0.00"_s);              // no tax on gift cards
+    CHECK(pos.kitchenTickets().isEmpty());
+    REQUIRE(pos.lookupGiftCard(u"600011112222"_s));
+    CHECK_FALSE(pos.giftCardInfo()[u"found"_s].toBool());     // not before it's paid
+    REQUIRE(pos.tender(u"cash"_s));
+    pos.sendOrder();                                           // nothing prints, nothing to make
+    REQUIRE(pos.closeCheck());
+    CHECK(pos.kitchenTickets().isEmpty());
+    REQUIRE(pos.lookupGiftCard(u"600011112222"_s));
+    CHECK(pos.giftCardInfo()[u"found"_s].toBool());
+    CHECK(pos.giftCardInfo()[u"balance"_s] == u"$50.00"_s);
+
+    // Spend $13.53 of it on a Cobb.
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(u"cobb"_s);
+    REQUIRE(pos.tender(u"gift"_s));                           // the card looked up
+    CHECK(pos.totals()[u"balance"_s].toString() == u"$0.00"_s);
+    CHECK(pos.giftCardInfo()[u"balance"_s] == u"$36.47"_s);
+    // Undo the payment: the money goes back on the card.
+    REQUIRE(pos.removePayment());
+    CHECK(pos.giftCardInfo()[u"balance"_s] == u"$50.00"_s);
+    REQUIRE(pos.payWithGiftCard({}, 1000));                    // $10 of it
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+    CHECK(pos.giftCardInfo()[u"balance"_s] == u"$40.00"_s);
+
+    // A card can't pay more than it holds, and an unknown one isn't accepted.
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    for (int i = 0; i < 5; ++i)
+        pos.addItem(u"cobb"_s);                                // $67.66
+    REQUIRE(pos.payWithGiftCard(u"600011112222"_s));
+    CHECK(pos.totals()[u"balance"_s].toString() == u"$27.66"_s);
+    CHECK(pos.giftCardInfo()[u"balance"_s] == u"$0.00"_s);
+    CHECK_FALSE(pos.payWithGiftCard(u"600011112222"_s));       // empty now
+    CHECK_FALSE(pos.payWithGiftCard(u"999999"_s));
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+
+    // Reload it; a card sold on a check that's reopened is taken back.
+    REQUIRE(pos.sellGiftCard(u"600011112222"_s, 2500));
+    CHECK(pos.lines().first().toMap()[u"name"_s].toString().contains(u"reload"_s));
+    const qint64 reload = pos.checkInfo()[u"id"_s].toLongLong();
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+    CHECK(pos.giftCardInfo()[u"balance"_s] == u"$25.00"_s);
+    REQUIRE(pos.reopenCheck(reload));
+    CHECK(pos.giftCardInfo()[u"balance"_s] == u"$0.00"_s);
+
+    // A new card with no number gets one.
+    pos.releaseCheck();
+    REQUIRE(pos.sellGiftCard({}, 2000));
+    CHECK(pos.lines().last().toMap()[u"name"_s].toString().startsWith(u"Gift Card"_s));
+
+    // The report: sold, spent, still on cards.
+    const QVariantMap report = pos.report(u"accounts"_s);
+    CHECK(rowAmount(report, u"Sold and reloaded"_s) == u"$50.00"_s);   // $50 + $25 - $25 taken back
+    CHECK(rowAmount(report, u"Spent"_s) == u"$50.00"_s);
+    CHECK(rowAmount(report, u"Still on cards (owed by the store)"_s) == u"$0.00"_s);
+
+    // Saved with their history.
+    const core::GiftCard &card = pos.shared()->giftCards.front();
+    CHECK(app::giftCardFromJson(app::toJson(card)) == card);
+    CHECK(card.history.size() >= 6);
+}
+
+TEST_CASE("House accounts: managers open them, charges stay under the limit, payments", "[customers][house]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1111"_s));                      // Sam, a server
+    REQUIRE(pos.saveCustomer({{u"name"_s, u"Acme Office"_s}, {u"phone"_s, u"5550001111"_s}}));
+    const QString acme = QString::fromStdString(pos.shared()->customers.front().id);
+    CHECK_FALSE(pos.saveCustomer({{u"id"_s, acme}, {u"name"_s, u"Acme Office"_s}, {u"houseAccount"_s, true}}));
+    pos.logout();
+
+    openDrawer(pos);                                           // Morgan, a manager
+    REQUIRE(pos.saveCustomer({{u"id"_s, acme}, {u"name"_s, u"Acme Office"_s}, {u"phone"_s, u"5550001111"_s},
+                              {u"houseAccount"_s, true}, {u"accountLimit"_s, 3000}}));
+
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(u"cobb"_s);
+    CHECK_FALSE(pos.tender(u"house"_s));                       // whose account?
+    REQUIRE(pos.useCustomer(acme));
+    REQUIRE(pos.tender(u"house"_s));                           // $13.53
+    REQUIRE(pos.closeCheck());
+
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(u"cobb"_s);
+    pos.addItem(u"cobb"_s);                                    // $27.06: over the $30 limit
+    REQUIRE(pos.useCustomer(acme));
+    CHECK_FALSE(pos.tender(u"house"_s));
+    REQUIRE(pos.tender(u"house"_s, 1000));                     // part of it fits
+    REQUIRE(pos.removePayment());                              // and comes off again
+    REQUIRE(pos.selectCustomer(acme));
+    CHECK(pos.customerInfo()[u"balance"_s] == u"$13.53"_s);
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+
+    // A manager can't close the account while it's owed.
+    CHECK_FALSE(pos.saveCustomer({{u"id"_s, acme}, {u"name"_s, u"Acme Office"_s}, {u"houseAccount"_s, false}}));
+
+    // Paying: $5 in cash (into the drawer), the rest by card.
+    const QString before = pos.drawerInfo()[u"expected"_s].toString();
+    REQUIRE(pos.payOnAccount(u"cash"_s, 500));
+    CHECK(pos.drawerInfo()[u"expected"_s].toString() != before);
+    CHECK(pos.customerInfo()[u"balance"_s] == u"$8.53"_s);
+    REQUIRE(pos.payOnAccount(u"card"_s));
+    CHECK(pos.customerInfo()[u"balance"_s] == u"$0.00"_s);
+    CHECK_FALSE(pos.payOnAccount(u"card"_s));                  // nothing owed
+    CHECK(pos.customerInfo()[u"account"_s].toList().size() == 5);
+
+    const QVariantMap report = pos.report(u"accounts"_s);
+    CHECK(rowAmount(report, u"Charged"_s) == u"$13.53"_s);
+    CHECK(rowAmount(report, u"Paid"_s) == u"$13.53"_s);
+    CHECK(rowAmount(report, u"Owed to the store"_s) == u"$0.00"_s);
+
+    const core::CustomerRecord &r = pos.shared()->customers.front();
+    CHECK(app::customerFromJson(app::toJson(r)) == r);
+}
+
+TEST_CASE("Customers and gift cards are saved and come back", "[customers][store]")
+{
+    QTemporaryDir dir;
+    const QString path = dir.filePath(u"vt.db"_s);
+    const auto seed = test::seedPosData();
+    {
+        storage::PosStore store(path);
+        REQUIRE(store.open());
+        REQUIRE(store.seed(seed.settings, seed.menu, seed.employees));
+    }
+    {
+        storage::PosStore store(path);
+        REQUIRE(store.open());
+        storage::AsyncWriter writer(path);
+        storage::SqlPosSink sink(writer);
+        PosService pos(*store.load(), &sink);
+        openDrawer(pos);
+        REQUIRE(pos.saveCustomer({{u"name"_s, u"Dana"_s}, {u"phone"_s, u"5550101"_s}}));
+        REQUIRE(pos.sellGiftCard(u"1234567"_s, 3000));
+        REQUIRE(pos.tender(u"cash"_s));
+        REQUIRE(pos.closeCheck());
+    }
+    storage::PosStore store(path);
+    REQUIRE(store.open());
+    const auto data = store.load();
+    REQUIRE(data);
+    REQUIRE(data->customers.size() == 1);
+    CHECK(data->customers[0].name == "Dana");
+    REQUIRE(data->giftCards.size() == 1);
+    CHECK(data->giftCards[0].balance == Money::fromCents(3000));
+}

@@ -23,7 +23,12 @@
     {
       "id": "gift",
       "name": "Gift Card",
-      "kind": "card"
+      "kind": "giftcard"
+    },
+    {
+      "id": "house",
+      "name": "House Account",
+      "kind": "house"
     },
     {
       "id": "discount",

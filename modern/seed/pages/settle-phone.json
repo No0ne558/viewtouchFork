@@ -45,7 +45,7 @@
         "x": 552,
         "y": 932,
         "w": 512,
-        "h": 127
+        "h": 103
       },
       "shape": "rect",
       "behavior": "blink",
@@ -67,9 +67,9 @@
       "kind": "button",
       "rect": {
         "x": 552,
-        "y": 1075,
+        "y": 1051,
         "w": 512,
-        "h": 127
+        "h": 103
       },
       "shape": "rect",
       "behavior": "blink",
@@ -91,17 +91,42 @@
       "kind": "button",
       "rect": {
         "x": 552,
-        "y": 1218,
+        "y": 1170,
         "w": 512,
-        "h": 127
+        "h": 103
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "Gift Card",
+      "label": "Gift Card\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "gift-card"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
+      "id": "tender-house",
+      "kind": "button",
+      "rect": {
+        "x": 552,
+        "y": 1289,
+        "w": 512,
+        "h": 103
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "House Account",
       "actions": [
         {
           "type": "tender",
-          "tender": "gift"
+          "tender": "house"
         }
       ],
       "style": {
@@ -115,9 +140,9 @@
       "kind": "button",
       "rect": {
         "x": 552,
-        "y": 1361,
+        "y": 1408,
         "w": 512,
-        "h": 127
+        "h": 103
       },
       "shape": "rect",
       "behavior": "blink",
@@ -139,9 +164,9 @@
       "kind": "button",
       "rect": {
         "x": 552,
-        "y": 1504,
+        "y": 1527,
         "w": 512,
-        "h": 127
+        "h": 103
       },
       "shape": "rect",
       "behavior": "blink",

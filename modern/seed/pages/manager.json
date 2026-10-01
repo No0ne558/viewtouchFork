@@ -349,6 +349,46 @@
       ]
     },
     {
+      "id": "customers",
+      "kind": "button",
+      "rect": {
+        "x": 568,
+        "y": 880,
+        "w": 384,
+        "h": 160
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Customers\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "customers"
+        }
+      ]
+    },
+    {
+      "id": "gift-cards",
+      "kind": "button",
+      "rect": {
+        "x": 976,
+        "y": 880,
+        "w": 384,
+        "h": 160
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Gift Cards\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "gift-card"
+        }
+      ]
+    },
+    {
       "id": "edit-pages",
       "kind": "button",
       "rect": {

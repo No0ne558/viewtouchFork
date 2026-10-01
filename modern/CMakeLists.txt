@@ -16,7 +16,7 @@ set(VTM_LEGACY_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 # ---------------------------------------------------------------------------
 add_library(vtm_core STATIC
     core/money.hh core/tax.hh core/menu.hh core/employee.hh core/check.hh core/settings.hh
-    core/day.hh core/report.hh
+    core/day.hh core/report.hh core/customer.hh
     core/core.cpp core/report.cpp
 )
 target_include_directories(vtm_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -57,7 +57,7 @@ if(Qt6_FOUND)
         app/pos_json.hh app/pos_json.cpp
         app/pos_session.hh app/pos_session.cpp
         app/pos_service.hh app/pos_service.cpp
-        app/pos_day.cpp app/pos_admin.cpp app/pos_checks.cpp app/pos_menu.cpp
+        app/pos_day.cpp app/pos_admin.cpp app/pos_checks.cpp app/pos_menu.cpp app/pos_customers.cpp
     )
     target_link_libraries(vtm_pos PUBLIC vtm_core Qt6::Core)
     # PosService is exposed to QML via QML_FOREIGN (ui/cpp/posforeign.hh),
@@ -123,6 +123,9 @@ if(Qt6_FOUND)
             ui/qml/WidgetModifierPicker.qml
             ui/qml/WidgetSoldOutList.qml
             ui/qml/TouchScrollBar.qml
+            ui/qml/TouchKeyboard.qml
+            ui/qml/WidgetCustomerLookup.qml
+            ui/qml/WidgetGiftCard.qml
             ui/qml/WidgetLoginPad.qml
             ui/qml/WidgetNumPad.qml
             ui/qml/WidgetGuestCount.qml

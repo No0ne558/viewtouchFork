@@ -10,6 +10,16 @@ ApplicationWindow {
     readonly property EditorController editor: controller.editor
     // Kiosk screens stay full screen; elsewhere F11 switches to a window.
     property bool kiosk: false
+    // An on-screen keyboard for text fields (touch screens with no keyboard).
+    property bool touchKeyboard: kiosk
+    // The text field being typed in, if any.
+    readonly property Item typingIn: {
+        const line = activeFocusItem as TextInput
+        if (line && !line.readOnly)
+            return line
+        const area = activeFocusItem as TextEdit
+        return area && !area.readOnly ? area : null
+    }
 
     // Phones get phone pages (the controller decides; see formFactor).
     onWidthChanged: controller.windowResized(width, height)
@@ -123,6 +133,18 @@ ApplicationWindow {
                     editor: root.editor
                 }
             }
+        }
+
+        // Docked below the page (which shrinks to fit), so the field being
+        // typed in stays in view.
+        TouchKeyboard {
+            id: touchKeys
+            objectName: "touchKeys"
+            Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
+            visible: root.touchKeyboard && root.typingIn !== null
+            target: visible ? root.typingIn : null
+            onDismissed: pageView.forceActiveFocus()
         }
     }
 

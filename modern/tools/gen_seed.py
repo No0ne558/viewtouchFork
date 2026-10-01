@@ -117,7 +117,8 @@ write("pos/settings.json", {
     "tenders": [
         {"id": "cash", "name": "Cash", "kind": "cash"},
         {"id": "credit", "name": "Credit Card", "kind": "card"},
-        {"id": "gift", "name": "Gift Card", "kind": "card"},
+        {"id": "gift", "name": "Gift Card", "kind": "giftcard"},
+        {"id": "house", "name": "House Account", "kind": "house"},
         {"id": "discount", "name": "10% Discount", "kind": "discount", "percent": 10},
         {"id": "comp", "name": "Comp", "kind": "discount", "percent": 100},
     ],
@@ -188,7 +189,8 @@ write("pos/settings.json", {
 # ---------------------------------------------------------------- theme
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
-           "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo"]
+           "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
+           "customerLookup", "giftCard"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -381,15 +383,31 @@ page("sold-out", "Sold Out (86)", "custom", [
     zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
 ], permission="order")
 
+# --- customers and gift cards ---
+page("customers", "Customers", "custom", [
+    label("title", 16, 16, 1888, 80, "Customers"),
+    zone("customers", 16, 112, 1888, 816, kind="customerLookup"),
+    zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+    zone("gift-card", 1472, 944, 432, 120, "Gift Cards…", actions=[jump(page="gift-card")]),
+], permission="order")
+page("gift-card", "Gift Card", "custom", [
+    label("title", 16, 16, 1888, 80, "Gift cards"),
+    zone("card", 16, 112, 1888, 816, kind="giftCard"),
+    zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+    zone("pay", 1472, 944, 432, 120, "Pay ›", actions=[jump(role="settle")], style=fill(BLUE)),
+], permission="order")
+
 # --- managing a check (from the order screen's Check… tab) ---
 page("check-options", "Check Options", "custom", [
     label("title", 16, 16, 1888, 80, "This check"),
     zone("history", 16, 112, 900, 952, kind="checkHistory"),
-    zone("transfer", 932, 112, 972, 150, "Transfer to Another Server…", actions=[jump(page="transfer")]),
-    zone("move", 932, 278, 972, 150, "Move to Another Table…", actions=[jump(page="move-table")]),
-    zone("merge", 932, 444, 972, 150, "Merge Another Check Into This One…", actions=[jump(page="merge")]),
-    zone("reopen", 932, 610, 972, 150, "Reopen a Closed Check… (manager)", actions=[jump(page="closed-checks")]),
-    zone("sold-out", 932, 776, 972, 150, "Sold Out (86)…", actions=[jump(page="sold-out")]),
+    zone("customer", 932, 112, 972, 104, "Customer…", actions=[jump(page="customers")]),
+    zone("gift-card", 932, 230, 972, 104, "Sell / Check a Gift Card…", actions=[jump(page="gift-card")]),
+    zone("transfer", 932, 348, 972, 104, "Transfer to Another Server…", actions=[jump(page="transfer")]),
+    zone("move", 932, 466, 972, 104, "Move to Another Table…", actions=[jump(page="move-table")]),
+    zone("merge", 932, 584, 972, 104, "Merge Another Check Into This One…", actions=[jump(page="merge")]),
+    zone("reopen", 932, 702, 972, 104, "Reopen a Closed Check… (manager)", actions=[jump(page="closed-checks")]),
+    zone("sold-out", 932, 820, 972, 104, "Sold Out (86)…", actions=[jump(page="sold-out")]),
     zone("back", 932, 944, 972, 120, "‹ Back to the Order", actions=[jump(mode="back")]),
 ], permission="order")
 page("transfer", "Transfer Check", "custom", [
@@ -428,13 +446,18 @@ page("guest-count", "Guest Count", "guestCount", [
          style=fill(GREEN)),
 ], role="guestCount")
 
-tenders = [("Cash", "cash", GREEN), ("Credit Card", "credit", BLUE), ("Gift Card", "gift", TEAL),
-           ("10% Off", "discount", AMBER), ("Comp", "comp", PURPLE)]
+# Gift Card opens its page (the card number first); the rest pay right away.
+tenders = [("Cash", "cash", GREEN), ("Credit Card", "credit", BLUE), ("Gift Card…", "gift", TEAL),
+           ("House Account", "house", TEAL), ("10% Off", "discount", AMBER), ("Comp", "comp", PURPLE)]
+
+
+def tender_action(tid):
+    return [jump(page="gift-card")] if tid == "gift" else [{"type": "tender", "tender": tid}]
 settle = [zone("payment", 16, 16, 900, 1048, kind="paymentPanel"),
           zone("pad", 932, 16, 520, 620, kind="numPad", props={"mode": "amount"})]
 for i, (text, tid, color) in enumerate(tenders):
-    settle.append(zone(f"tender-{tid}", 1468, 16 + i * 126, 436, 110, text,
-                       actions=[{"type": "tender", "tender": tid}], style=fill(color)))
+    settle.append(zone(f"tender-{tid}", 1468, 16 + i * 104, 436, 92, text,
+                       actions=tender_action(tid), style=fill(color)))
 settle += [
     zone("receipt", 932, 652, 520, 120, "Print Receipt", actions=[command("printReceipt")]),
     zone("close", 932, 788, 520, 120, "Close Check", actions=[command("closeCheck")], style=fill(GREEN)),
@@ -476,6 +499,8 @@ mgr += [
     zone("kitchen-display", 160, 700, 384, 160, "Kitchen Display", actions=[jump(page="kitchen")]),
     zone("bar-display", 568, 700, 384, 160, "Bar Display", actions=[jump(page="bar-display")]),
     zone("sold-out", 1384, 880, 384, 160, "Sold Out (86)…", actions=[jump(page="sold-out")]),
+    zone("customers", 568, 880, 384, 160, "Customers…", actions=[jump(page="customers")]),
+    zone("gift-cards", 976, 880, 384, 160, "Gift Cards…", actions=[jump(page="gift-card")]),
     zone("edit-pages", 1384, 700, 384, 160, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
     # Touch twice. On a kiosk screen it stays closed until the next boot.
     zone("close-app", 976, 700, 384, 160, "Close ViewTouch", actions=[command("closeApp")], behavior="double",
@@ -637,7 +662,7 @@ tender_zones = []
 th = (700 - 16 * (len(tenders) - 1)) // len(tenders)
 for i, (text, tid, color) in enumerate(tenders):
     tender_zones.append(zone(f"tender-{tid}", 552, 932 + i * (th + 16), 512, th, text,
-                             actions=[{"type": "tender", "tender": tid}], style=fill(color)))
+                             actions=tender_action(tid), style=fill(color)))
 phone_page("settle", "Settle", "settle", [
     zone("payment", 16, 16, 1048, 900, kind="paymentPanel"),
     zone("pad", 16, 932, 520, 700, kind="numPad", props={"mode": "amount"}),

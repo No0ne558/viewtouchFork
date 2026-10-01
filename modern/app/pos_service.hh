@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/check.hh"
+#include "core/customer.hh"
 #include "core/day.hh"
 #include "core/employee.hh"
 #include "core/menu.hh"
@@ -37,6 +38,8 @@ public:
     virtual void saveMenuItem(const core::MenuItem &, int position) { Q_UNUSED(position) }
     virtual void deleteMenuItem(const std::string &id) { Q_UNUSED(id) }
     virtual void saveEmployee(const core::Employee &) {}
+    virtual void saveCustomer(const core::CustomerRecord &) {}
+    virtual void saveGiftCard(const core::GiftCard &) {}
 };
 
 // Where tickets go. Implementations must not block (see print::PrintSpooler).
@@ -68,6 +71,8 @@ struct PosData {
     std::vector<core::Check> openChecks;
     std::vector<core::TimePunch> punches;        // today's, plus any still open
     std::vector<core::TimePunch> earlierPunches; // finished, from the days before (a week or so)
+    std::vector<core::CustomerRecord> customers;
+    std::vector<core::GiftCard> giftCards;
     std::int64_t lastCheckId = 0;
     std::int64_t lastPunchId = 0;
     std::optional<core::BusinessDay> currentDay;  // none: the service opens one
@@ -98,6 +103,10 @@ public:
     std::map<std::int64_t, core::Check> open;
     std::vector<core::TimePunch> punches;   // today's, plus any still open
     std::vector<core::TimePunch> earlierPunches;   // finished, from the last days (weekly overtime)
+    std::vector<core::CustomerRecord> customers;
+    std::vector<core::GiftCard> giftCards;
+    core::CustomerRecord *customer(const std::string &id);
+    core::GiftCard *giftCard(const std::string &number);
     std::int64_t lastCheckId = 0;
     std::int64_t lastPunchId = 0;
     PosSink *sink = nullptr;
@@ -155,6 +164,7 @@ signals:
     void drawerChanged();
     void adminChanged();     // menu, settings, tenders, printers, taxes
     void staffChanged();
+    void customersChanged();   // customers, gift cards, house accounts
 
 private:
     std::function<std::int64_t()> now_;
@@ -355,9 +365,44 @@ public:
     bool startPairing();
     // Back the database up now (managers).
     bool backupNow();
+
+    // --- customers, gift cards, house accounts (pos_customers.cpp) ---------------
+    // Search by phone digits or name ("" = the most recent).
+    bool findCustomers(const QString &query);
+    bool selectCustomer(const QString &id);
+    // Put a customer (default: the selected one) on the open check.
+    bool useCustomer(const QString &id = {});
+    // Add or update (by id, else the same phone number); goes on the open check.
+    bool saveCustomer(const QVariantMap &record);
+    // Sell or reload a card on the check (a Quick check if none is open);
+    // no number: a new one. Amount 0: the keypad. Live once the check is paid.
+    bool sellGiftCard(const QString &number, qint64 amountCents = 0);
+    bool lookupGiftCard(const QString &number);
+    // Pay from a card (default: the looked-up one); 0 = keypad, else as much as it covers.
+    bool payWithGiftCard(const QString &number = {}, qint64 amountCents = 0);
+    // A payment on the selected customer's account: "cash" | "card" (keypad amount, else all).
+    bool payOnAccount(const QString &method, qint64 amountCents = 0);
+    QVariantList customerResults() const override;
+    QVariantMap customerInfo() const override;
+    QVariantMap giftCardInfo() const override;
     bool stopPairing();
 
 private:
+    QVariantMap customerSummary(const core::CustomerRecord &c) const;
+    void saveCustomerRecord(const core::CustomerRecord &c);
+    void saveGiftCardRecord(const core::GiftCard &g);
+    void rememberCustomer(core::Check &c);
+    const core::Tender &tenderOfKind(core::TenderKind kind, const char *id, const QString &name) const;
+    bool chargeHouseAccount(core::Check &c, const core::Tender &t, Money amount);
+    // A removed gift card / house account payment goes back where it came from.
+    void returnPayment(const core::Check &c, const core::Payment &p);
+    // Closing: gift cards sold go live, the customer's visit counts.
+    void applyCloseEffects(const core::Check &c);
+    QString reopenBlocked(const core::Check &c) const;
+    void undoCloseEffects(const core::Check &c);
+    QString customerQuery_;
+    std::string selectedCustomer_;
+    QString giftCardNumber_;
     std::string receiptPrinter() const { return s_->settings.receiptPrinterFor(terminal_.toStdString()); }
     // Cash handling for the logged-in person: their own choice, else the store's.
     bool serverBank() const;

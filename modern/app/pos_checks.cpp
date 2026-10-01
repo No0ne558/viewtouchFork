@@ -114,6 +114,9 @@ bool PosService::reopenCheck(qint64 checkId)
     auto it = std::ranges::find_if(s_->closedToday, [&](const Check &c) { return c.id == checkId; });
     if (it == s_->closedToday.end())
         return fail(tr("Only checks closed today (since the last End of Day) can be reopened."));
+    if (const QString blocked = reopenBlocked(*it); !blocked.isEmpty())
+        return fail(blocked);
+    undoCloseEffects(*it);   // gift cards sold on it, the customer's visit
     // Its cash leaves the drawer or bank it went into until it closes again.
     Check c = *it;
     s_->closedToday.erase(it);

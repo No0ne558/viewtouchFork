@@ -36,13 +36,53 @@
       "behavior": "none"
     },
     {
-      "id": "transfer",
+      "id": "customer",
       "kind": "button",
       "rect": {
         "x": 932,
         "y": 112,
         "w": 972,
-        "h": 150
+        "h": 104
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Customer\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "customers"
+        }
+      ]
+    },
+    {
+      "id": "gift-card",
+      "kind": "button",
+      "rect": {
+        "x": 932,
+        "y": 230,
+        "w": 972,
+        "h": 104
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Sell / Check a Gift Card\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "gift-card"
+        }
+      ]
+    },
+    {
+      "id": "transfer",
+      "kind": "button",
+      "rect": {
+        "x": 932,
+        "y": 348,
+        "w": 972,
+        "h": 104
       },
       "shape": "rect",
       "behavior": "blink",
@@ -60,9 +100,9 @@
       "kind": "button",
       "rect": {
         "x": 932,
-        "y": 278,
+        "y": 466,
         "w": 972,
-        "h": 150
+        "h": 104
       },
       "shape": "rect",
       "behavior": "blink",
@@ -80,9 +120,9 @@
       "kind": "button",
       "rect": {
         "x": 932,
-        "y": 444,
+        "y": 584,
         "w": 972,
-        "h": 150
+        "h": 104
       },
       "shape": "rect",
       "behavior": "blink",
@@ -100,9 +140,9 @@
       "kind": "button",
       "rect": {
         "x": 932,
-        "y": 610,
+        "y": 702,
         "w": 972,
-        "h": 150
+        "h": 104
       },
       "shape": "rect",
       "behavior": "blink",
@@ -120,9 +160,9 @@
       "kind": "button",
       "rect": {
         "x": 932,
-        "y": 776,
+        "y": 820,
         "w": 972,
-        "h": 150
+        "h": 104
       },
       "shape": "rect",
       "behavior": "blink",

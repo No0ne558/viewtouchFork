@@ -30,6 +30,8 @@ PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
     , employees(std::move(data.employees))
     , punches(std::move(data.punches))
     , earlierPunches(std::move(data.earlierPunches))
+    , customers(std::move(data.customers))
+    , giftCards(std::move(data.giftCards))
     , lastCheckId(data.lastCheckId)
     , lastPunchId(data.lastPunchId)
     , sink(sink)
@@ -107,6 +109,7 @@ void PosService::connectShared()
         emit checkChanged();         // tax changes re-total
         emit openChecksChanged();
     });
+    connect(s_, &PosShared::customersChanged, this, &PosSession::checkChanged);
     connect(s_, &PosShared::staffChanged, this, [this] {
         if (!userId_.empty() && !user()) {   // deactivated or removed elsewhere
             userId_.clear();
@@ -645,6 +648,9 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
     const Tender *t = s_->settings.tender(ss(tenderId));
     if (!t)
         return fail(tr("Payment type '%1' is not set up.").arg(tenderId));
+    if (t->kind == TenderKind::GiftCard)   // needs the card: the Gift Card page
+        return giftCardNumber_.isEmpty() ? fail(tr("Open Gift Card and enter or swipe the card first."))
+                                         : payWithGiftCard({}, amountCents.value_or(0));
 
     const Totals before = c->totals(s_->settings.tax);
     Money amount;
@@ -660,8 +666,13 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
         if (amount.cents() <= 0)
             return fail(tr("Enter an amount."));
         // Only cash can be over-tendered (to give change).
-        if (t->kind == TenderKind::Card && amount > before.balance)
+        if (t->kind != TenderKind::Cash && amount > before.balance)
             amount = before.balance;
+    }
+    if (t->kind == TenderKind::HouseAccount) {
+        entry_.clear();
+        emit entryChanged();
+        return chargeHouseAccount(*c, *t, amount);
     }
     if (t->kind == TenderKind::Discount && !require(perm::Discount, tr("Discounts and comps")))
         return false;
@@ -687,8 +698,10 @@ bool PosService::removePayment()
     if (!require(perm::Settle, tr("Removing payments")))
         return false;
     // The selected payment, else the most recent one.
-    if (!c->removePayment(selectedPayment_))
-        c->removePayment(c->payments.back().id);
+    const auto chosen = std::ranges::find_if(c->payments, [&](const Payment &p) { return p.id == selectedPayment_; });
+    const Payment removed = chosen != c->payments.end() ? *chosen : c->payments.back();
+    c->removePayment(removed.id);
+    returnPayment(*c, removed);
     selectedPayment_ = 0;
     emit notice(tr("Payment removed"));
     changed(*c);
@@ -722,9 +735,12 @@ bool PosService::closeCheck()
         if (s_->printer && !fresh.empty())
             s_->printer->printKitchen(s_->settings, *c, fresh, false);
     }
+    if (c->type == CheckType::Takeout || c->type == CheckType::Delivery)
+        rememberCustomer(*c);   // on file for next time
     c->status = CheckStatus::Closed;
     c->closedAt = now();
     c->businessDay = s_->day.id;
+    applyCloseEffects(*c);
     if (cash)
         c->drawerSession = drawer->id;
     if (s_->sink)
@@ -971,7 +987,7 @@ QVariantList PosService::kitchenTickets() const
     auto collect = [&](const Check &c) {
         std::map<std::int64_t, std::vector<const OrderLine *>> bySend;
         for (const OrderLine &l : c.lines) {
-            if (l.sent && !l.made && !l.voided)
+            if (l.sent && !l.made && !l.voided && !l.isGiftCard())
                 bySend[l.sentAt].push_back(&l);
         }
         for (auto &[sentAt, lines] : bySend)
@@ -1121,6 +1137,17 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
         {u"toggleBreak"_s, [](PosService &p, const QVariantList &) { return QVariant(p.toggleBreak()); }},
         {u"backupNow"_s, [](PosService &p, const QVariantList &) { return QVariant(p.backupNow()); }},
+        {u"findCustomers"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.findCustomers(a.value(0).toString())); }},
+        {u"selectCustomer"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.selectCustomer(a.value(0).toString())); }},
+        {u"useCustomer"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.useCustomer(a.value(0).toString())); }},
+        {u"saveCustomer"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.saveCustomer(a.value(0).toMap())); }},
+        {u"sellGiftCard"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.sellGiftCard(a.value(0).toString(), a.value(1).toLongLong())); }},
+        {u"lookupGiftCard"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.lookupGiftCard(a.value(0).toString())); }},
+        {u"payWithGiftCard"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.payWithGiftCard(a.value(0).toString(), a.value(1).toLongLong())); }},
+        {u"payOnAccount"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.payOnAccount(a.value(0).toString(), a.value(1).toLongLong())); }},
         {u"setSeat"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setSeat(a.value(0).toInt())); }},
         {u"chooseOption"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.chooseOption(a.value(0).toString(), a.value(1).toInt())); }},

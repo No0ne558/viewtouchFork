@@ -55,6 +55,10 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantList staff READ staff NOTIFY sessionChanged)
     // When the logged-in person's break began ("" when not on one).
     Q_PROPERTY(QString onBreakSince READ onBreakSince NOTIFY sessionChanged)
+    // Customer search results, the chosen customer, the gift card looked up.
+    Q_PROPERTY(QVariantList customers READ customerResults NOTIFY checkChanged)
+    Q_PROPERTY(QVariantMap customer READ customerInfo NOTIFY checkChanged)
+    Q_PROPERTY(QVariantMap giftCard READ giftCardInfo NOTIFY checkChanged)
     // Modifiers being chosen for the item just ordered: {active, item, groups:
     // [{id, name, rule, chosen, done, options: [{index, name, price, chosen}]}]}.
     Q_PROPERTY(QVariantMap choosing READ choosingInfo NOTIFY checkChanged)
@@ -123,6 +127,9 @@ public:
     virtual QVariantList checkHistory() const = 0;
     virtual QVariantMap choosingInfo() const = 0;
     virtual QString onBreakSince() const = 0;
+    virtual QVariantList customerResults() const = 0;
+    virtual QVariantMap customerInfo() const = 0;
+    virtual QVariantMap giftCardInfo() const = 0;
     virtual QStringList soldOut() const = 0;
     virtual QVariantList menuItems() const = 0;
     virtual QString checkFilter() const = 0;
@@ -192,6 +199,23 @@ public:
     Q_INVOKABLE void finishChoosing() { invoke(QStringLiteral("finishChoosing")); }
     Q_INVOKABLE void cancelChoosing() { invoke(QStringLiteral("cancelChoosing")); }
     Q_INVOKABLE void backupNow() { invoke(QStringLiteral("backupNow")); }
+    Q_INVOKABLE void findCustomers(const QString &query) { invoke(QStringLiteral("findCustomers"), {query}); }
+    Q_INVOKABLE void selectCustomer(const QString &id) { invoke(QStringLiteral("selectCustomer"), {id}); }
+    Q_INVOKABLE void useCustomer(const QString &id = {}) { invoke(QStringLiteral("useCustomer"), {id}); }
+    Q_INVOKABLE void saveCustomer(const QVariantMap &record) { invoke(QStringLiteral("saveCustomer"), {record}); }
+    Q_INVOKABLE void sellGiftCard(const QString &number, qint64 amountCents = 0)
+    {
+        invoke(QStringLiteral("sellGiftCard"), {number, amountCents});
+    }
+    Q_INVOKABLE void lookupGiftCard(const QString &number) { invoke(QStringLiteral("lookupGiftCard"), {number}); }
+    Q_INVOKABLE void payWithGiftCard(const QString &number = {}, qint64 amountCents = 0)
+    {
+        invoke(QStringLiteral("payWithGiftCard"), {number, amountCents});
+    }
+    Q_INVOKABLE void payOnAccount(const QString &method, qint64 amountCents = 0)
+    {
+        invoke(QStringLiteral("payOnAccount"), {method, amountCents});
+    }
     Q_INVOKABLE void chooseLine(qint64 lineId) { invoke(QStringLiteral("chooseLine"), {lineId}); }
     Q_INVOKABLE void setAvailable(const QString &itemId, bool available) { invoke(QStringLiteral("setAvailable"), {itemId, available}); }
     Q_INVOKABLE void transferCheck(const QString &employeeId) { invoke(QStringLiteral("transferCheck"), {employeeId}); }

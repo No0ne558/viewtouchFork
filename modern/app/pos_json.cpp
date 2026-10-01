@@ -68,7 +68,7 @@ QJsonObject toJson(const Check &c)
         payments.append(QJsonObject{
             {u"id"_s, qint64(p.id)}, {u"tenderId"_s, qs(p.tenderId)}, {u"tenderName"_s, qs(p.tenderName)},
             {u"kind"_s, qs(toString(p.kind))}, {u"amount"_s, qint64(p.amount.cents())}, {u"percentBp"_s, qint64(p.percentBp)},
-            {u"tip"_s, qint64(p.tip.cents())},
+            {u"tip"_s, qint64(p.tip.cents())}, {u"reference"_s, qs(p.reference)},
         });
     }
     QJsonArray events;
@@ -87,7 +87,7 @@ QJsonObject toJson(const Check &c)
         {u"gratuityBp"_s, qint64(c.gratuityBp)}, {u"autoGratuity"_s, c.autoGratuity},
         {u"customer"_s, QJsonObject{{u"name"_s, qs(c.customer.name)}, {u"phone"_s, qs(c.customer.phone)},
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
-        {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse},
+        {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse}, {u"customerId"_s, qs(c.customerId)},
     };
 }
 
@@ -142,6 +142,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
         p.amount = money(po.value(u"amount"));
         p.percentBp = i64(po.value(u"percentBp"));
         p.tip = money(po.value(u"tip"));
+        p.reference = ss(po.value(u"reference").toString());
         c.payments.push_back(p);
     }
     c.nextLineId = std::max<std::int64_t>(i64(o.value(u"nextLineId")), 1);
@@ -154,6 +155,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     const QJsonObject cust = o.value(u"customer").toObject();
     c.customer = {ss(cust.value(u"name").toString()), ss(cust.value(u"phone").toString()),
                   ss(cust.value(u"address").toString()), ss(cust.value(u"note").toString())};
+    c.customerId = ss(o.value(u"customerId").toString());
     for (const QJsonValue &v : o.value(u"events").toArray()) {
         const QJsonObject e = v.toObject();
         c.events.push_back({i64(e.value(u"at")), ss(e.value(u"who").toString()), ss(e.value(u"what").toString()),
@@ -515,7 +517,7 @@ QJsonObject toJson(const PosSettings &s)
              {u"food"_s, percentFromPpm(s.tax.foodPpm)}, {u"alcohol"_s, percentFromPpm(s.tax.alcoholPpm)},
              {u"merchandise"_s, percentFromPpm(s.tax.merchandisePpm)}, {u"room"_s, percentFromPpm(s.tax.roomPpm)},
              {u"taxTakeoutFood"_s, s.tax.taxTakeoutFood}}},
-        {u"tenders"_s, tenders},
+        {u"tenders"_s, tenders}, {u"tendersV2"_s, true},
         {u"printers"_s, printers},
         {u"receiptHeader"_s, qs(s.receiptHeader)},
         {u"receiptFooter"_s, qs(s.receiptFooter)},
@@ -586,7 +588,90 @@ PosSettings settingsFromJson(const QJsonObject &o)
         tender.percentBp = std::llround(t.value(u"percent").toDouble() * 100.0);
         s.tenders.push_back(tender);
     }
+    // Settings from before gift cards and house accounts (once; afterwards
+    // the managers' choices stand): the starter "gift" tender was a plain
+    // card tender, and there was no house account tender.
+    if (!o.value(u"tendersV2").toBool() && !s.tenders.empty()) {
+        for (Tender &t : s.tenders) {
+            if (t.id == "gift" && t.kind == TenderKind::Card)
+                t.kind = TenderKind::GiftCard;
+        }
+        if (std::ranges::none_of(s.tenders, [](const Tender &t) { return t.kind == TenderKind::HouseAccount; })
+            && !s.tender("house"))
+            s.tenders.push_back({"house", "House Account", TenderKind::HouseAccount, 0});
+    }
     return s;
+}
+
+// --- customers and gift cards ---------------------------------------------------------
+
+namespace {
+QJsonArray ledgerJson(const std::vector<LedgerEntry> &entries)
+{
+    QJsonArray out;
+    for (const LedgerEntry &e : entries)
+        out.append(QJsonObject{{u"at"_s, qint64(e.at)}, {u"amount"_s, qint64(e.amount.cents())},
+                               {u"what"_s, qs(e.what)}, {u"checkId"_s, qint64(e.checkId)}, {u"kind"_s, qs(e.kind)}});
+    return out;
+}
+
+std::vector<LedgerEntry> ledgerFromJson(const QJsonArray &a)
+{
+    std::vector<LedgerEntry> out;
+    for (const QJsonValue &v : a) {
+        const QJsonObject e = v.toObject();
+        out.push_back({i64(e.value(u"at")), money(e.value(u"amount")), ss(e.value(u"what").toString()),
+                       i64(e.value(u"checkId")), ss(e.value(u"kind").toString())});
+    }
+    return out;
+}
+} // namespace
+
+QJsonObject toJson(const CustomerRecord &c)
+{
+    return {
+        {u"id"_s, qs(c.id)}, {u"name"_s, qs(c.name)}, {u"phone"_s, qs(c.phone)}, {u"email"_s, qs(c.email)},
+        {u"address"_s, qs(c.address)}, {u"note"_s, qs(c.note)}, {u"createdAt"_s, qint64(c.createdAt)},
+        {u"visits"_s, c.visits}, {u"spent"_s, qint64(c.spent.cents())}, {u"lastVisit"_s, qint64(c.lastVisit)},
+        {u"houseAccount"_s, c.houseAccount}, {u"accountLimit"_s, qint64(c.accountLimit.cents())},
+        {u"accountBalance"_s, qint64(c.accountBalance.cents())}, {u"account"_s, ledgerJson(c.account)},
+    };
+}
+
+CustomerRecord customerFromJson(const QJsonObject &o)
+{
+    CustomerRecord c;
+    c.id = ss(o.value(u"id").toString());
+    c.name = ss(o.value(u"name").toString());
+    c.phone = ss(o.value(u"phone").toString());
+    c.email = ss(o.value(u"email").toString());
+    c.address = ss(o.value(u"address").toString());
+    c.note = ss(o.value(u"note").toString());
+    c.createdAt = i64(o.value(u"createdAt"));
+    c.visits = o.value(u"visits").toInt();
+    c.spent = money(o.value(u"spent"));
+    c.lastVisit = i64(o.value(u"lastVisit"));
+    c.houseAccount = o.value(u"houseAccount").toBool();
+    c.accountLimit = money(o.value(u"accountLimit"));
+    c.accountBalance = money(o.value(u"accountBalance"));
+    c.account = ledgerFromJson(o.value(u"account").toArray());
+    return c;
+}
+
+QJsonObject toJson(const GiftCard &g)
+{
+    return {{u"number"_s, qs(g.number)}, {u"balance"_s, qint64(g.balance.cents())},
+            {u"issuedAt"_s, qint64(g.issuedAt)}, {u"history"_s, ledgerJson(g.history)}};
+}
+
+GiftCard giftCardFromJson(const QJsonObject &o)
+{
+    GiftCard g;
+    g.number = ss(o.value(u"number").toString());
+    g.balance = money(o.value(u"balance"));
+    g.issuedAt = i64(o.value(u"issuedAt"));
+    g.history = ledgerFromJson(o.value(u"history").toArray());
+    return g;
 }
 
 } // namespace vt::app

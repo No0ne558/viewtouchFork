@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/check.hh"
+#include "core/customer.hh"
 #include "core/day.hh"
 #include "core/employee.hh"
 #include "core/menu.hh"
@@ -77,6 +78,10 @@ Report hourlySales(const std::vector<Check> &closed, const ReportContext &ctx);
 Report categorySales(const std::vector<Check> &closed, const std::vector<MenuItem> &menu, const ReportContext &ctx);
 // Every void, discount, reopen, transfer, move and merge, with who and when.
 Report auditReport(const std::vector<const Check *> &checks, const ReportContext &ctx);
+// Gift cards sold and spent since `since`, what is still on cards (owed by
+// the store), and house account charges, payments and balances.
+Report accountsReport(const std::vector<GiftCard> &cards, const std::vector<CustomerRecord> &customers,
+                      std::int64_t since, const ReportContext &ctx);
 Report tipsReport(const std::vector<Check> &closed, const std::vector<DrawerSession> &drawers,
                   const ReportContext &ctx);
 

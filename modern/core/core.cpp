@@ -163,6 +163,8 @@ std::string toString(TenderKind k)
     case TenderKind::Cash: return "cash";
     case TenderKind::Card: return "card";
     case TenderKind::Discount: return "discount";
+    case TenderKind::GiftCard: return "giftcard";
+    case TenderKind::HouseAccount: return "house";
     }
     return "cash";
 }
@@ -171,6 +173,8 @@ TenderKind tenderKindFromString(const std::string &s)
 {
     if (s == "card") return TenderKind::Card;
     if (s == "discount") return TenderKind::Discount;
+    if (s == "giftcard") return TenderKind::GiftCard;
+    if (s == "house") return TenderKind::HouseAccount;
     return TenderKind::Cash;
 }
 

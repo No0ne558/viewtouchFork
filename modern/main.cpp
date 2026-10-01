@@ -82,6 +82,8 @@ struct Options {
     QCommandLineOption size{u"size"_s, u"Window size, e.g. 1280x720."_s, u"WxH"_s, u"1280x720"_s};
     QCommandLineOption screenshot{u"screenshot"_s, u"Render, save a PNG to <file>, and exit."_s, u"file"_s};
     QCommandLineOption kiosk{u"kiosk"_s, u"Full screen with no mouse pointer and no way out (touch screens)."_s};
+    QCommandLineOption touchKeyboard{u"touch-keyboard"_s,
+        u"Show an on-screen keyboard for text fields: yes or no (default: yes with --kiosk)."_s, u"yes|no"_s};
     QCommandLineOption screen{u"screen"_s,
         u"Pages for this screen: phone (phone versions, portrait), standard, or auto "
         "(phones get phone pages; the default on Android). Overrides Manager → Terminals."_s, u"mode"_s};
@@ -302,6 +304,7 @@ std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o,
     engine->setInitialProperties({
         {u"controller"_s, QVariant::fromValue(&controller)},
         {u"kiosk"_s, cli.isSet(o.kiosk)},
+        {u"touchKeyboard"_s, cli.isSet(o.touchKeyboard) ? cli.value(o.touchKeyboard) != u"no" : cli.isSet(o.kiosk)},
         {u"width"_s, width > 0 ? width : 1280},
         {u"height"_s, height > 0 ? height : 720},
     });
@@ -969,7 +972,7 @@ int main(int argc, char *argv[])
     cli.addHelpOption();
     cli.addVersionOption();
     const QList<QCommandLineOption> all = {o.config, o.dataDir, o.db, o.layout, o.resetLayout, o.resetMenu, o.serve,
-        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
+        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.touchKeyboard, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
         o.screenshot, o.backupDir, o.backupKeep, o.backupEvery, o.backup, o.restore, o.pairingCode, o.exportDir};
     cli.addOptions(all);
     cli.process(app);

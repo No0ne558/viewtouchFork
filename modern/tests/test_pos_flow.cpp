@@ -191,10 +191,10 @@ struct Screen : Session {
     QQmlApplicationEngine engine;
     QQuickWindow *window = nullptr;
 
-    Screen()
+    explicit Screen(bool touchKeyboard = false)
     {
         engine.setInitialProperties({{u"controller"_s, QVariant::fromValue(&c)},
-                                     {u"width"_s, 1600}, {u"height"_s, 900}});
+                                     {u"width"_s, 1600}, {u"height"_s, 900}, {u"touchKeyboard"_s, touchKeyboard}});
         engine.loadFromModule("ViewTouch", "Main");
         REQUIRE_FALSE(engine.rootObjects().isEmpty());
         window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
@@ -237,6 +237,36 @@ struct Screen : Session {
                 return hit;
         }
         return nullptr;
+    }
+
+    // A visible item whose `property` is `value` (a Text with that text, a
+    // field with that placeholder...).
+    static QQuickItem *findBy(QQuickItem *root, const char *property, const QString &value)
+    {
+        for (QQuickItem *item : root->childItems()) {
+            if (!item->isVisible())
+                continue;
+            if (item->property(property).toString() == value)
+                return item;
+            if (QQuickItem *hit = findBy(item, property, value))
+                return hit;
+        }
+        return nullptr;
+    }
+
+    void tapItem(QQuickItem *item)
+    {
+        REQUIRE(item);
+        const QPointF centre = item->mapToScene(QPointF(item->width() / 2, item->height() / 2));
+        QTest::mouseClick(window, Qt::LeftButton, {}, centre.toPoint());
+        QTest::qWait(30);
+    }
+
+    // Tap on-screen keyboard keys (their labels), one per character.
+    void typeOnScreen(const QString &labels)
+    {
+        for (QChar ch : labels)
+            tapItem(findBy(window->contentItem(), "text", QString(ch)));
     }
 
     // Tap a visible keypad key by its text.
@@ -336,4 +366,38 @@ TEST_CASE("UI: seats and courses on the order screen; Fire sends the held course
     s.shot("5-courses");
     s.tapKey(u"Fire Course 2"_s);
     CHECK(s.pos.lines()[1].toMap()[u"sent"_s].toBool());
+}
+
+TEST_CASE("UI: the on-screen keyboard finds a customer; a gift card by its number", "[flow][ui][customers]")
+{
+    Screen s(true);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.saveCustomer({{u"name"_s, u"Dana Lee"_s}, {u"phone"_s, u"555-010-1234"_s}, {u"note"_s, u"no onions"_s}}));
+    REQUIRE(s.pos.saveCustomer({{u"name"_s, u"Alex Kim"_s}, {u"phone"_s, u"555-777-0000"_s}}));
+    REQUIRE(s.c.jumpTo(u"customers"_s));
+    QTest::qWait(50);
+
+    auto *keyboard = s.window->findChild<QQuickItem *>(u"touchKeys"_s);
+    REQUIRE(keyboard);
+    CHECK_FALSE(keyboard->isVisible());
+    s.tapItem(Screen::findBy(s.window->contentItem(), "placeholderText", u"Phone or name…"_s));
+    CHECK(keyboard->isVisible());                       // a text field is being typed in
+    s.typeOnScreen(u"Dan"_s);                          // capital first, then small letters
+    QTest::qWait(400);
+    REQUIRE(s.pos.customerResults().size() == 1);
+    s.tapItem(Screen::findBy(s.window->contentItem(), "text", u"Dana Lee"_s));
+    QTest::qWait(50);
+    CHECK(s.pos.customerInfo()[u"name"_s] == u"Dana Lee"_s);
+    s.shot("6-customers");
+
+    REQUIRE(s.c.jumpTo(u"gift-card"_s));
+    QTest::qWait(50);
+    s.tapItem(Screen::findBy(s.window->contentItem(), "placeholderText", u"Type or swipe…"_s));
+    REQUIRE(keyboard->isVisible());
+    CHECK(Screen::findBy(keyboard, "text", u"Done"_s));   // number fields get the number pad
+    s.typeOnScreen(u"60012"_s);
+    s.tapItem(Screen::findBy(keyboard, "text", u"Done"_s));   // Enter looks the card up
+    CHECK(s.pos.giftCardInfo()[u"number"_s] == u"60012"_s);
+    CHECK_FALSE(keyboard->isVisible());
+    s.shot("7-gift-card");
 }

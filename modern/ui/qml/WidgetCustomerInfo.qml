@@ -22,6 +22,14 @@ Item {
         dirty = false
     }
     Timer { id: saveTimer; interval: 700; onTriggered: w.commit() }
+
+    // What was last typed in name / phone, to look up regulars.
+    property string searching: ""
+    function suggest(text) {
+        searching = text.trim().length >= 3 ? text.trim() : ""
+        if (searching !== "")
+            pos.findCustomers(searching)
+    }
     Component.onDestruction: commit()
 
     function reload() {
@@ -55,6 +63,8 @@ Item {
                 property alias label: caption.text
                 property string key
                 property bool multiline: false
+                property int hints: Qt.ImhNone
+                signal edited(string text)
                 function edit(text) {
                     const d = Object.assign({}, w.draft)
                     d[entry.key] = text
@@ -70,7 +80,8 @@ Item {
                     Layout.fillWidth: true
                     text: w.draft[entry.key] ?? ""
                     enabled: w.pos !== null && w.pos.hasCheck
-                    onTextEdited: entry.edit(text)
+                    inputMethodHints: entry.hints
+                    onTextEdited: { entry.edit(text); entry.edited(text) }
                 }
                 TextArea {
                     visible: entry.multiline
@@ -82,8 +93,29 @@ Item {
                 }
             }
 
-            Entry { label: qsTr("Name"); key: "name" }
-            Entry { label: qsTr("Phone"); key: "phone" }
+            Entry { label: qsTr("Name"); key: "name"; onEdited: text => w.suggest(text) }
+            Entry { label: qsTr("Phone"); key: "phone"; hints: Qt.ImhDialableCharactersOnly; onEdited: text => w.suggest(text) }
+
+            // Regulars matching what is typed: one touch fills the rest.
+            Flow {
+                Layout.fillWidth: true
+                spacing: 6
+                visible: w.searching !== ""
+                Repeater {
+                    model: w.searching !== "" && w.pos ? w.pos.customers.slice(0, 4) : []
+                    delegate: Button {
+                        required property var modelData
+                        text: (modelData.name || "") + "  " + (modelData.phone || "")
+                              + (modelData.visits ? "  ·  " + qsTr("%n visit(s)", "", modelData.visits) : "")
+                        onClicked: {
+                            w.searching = ""
+                            w.dirty = false
+                            saveTimer.stop()
+                            w.pos.useCustomer(modelData.id)
+                        }
+                    }
+                }
+            }
             Entry { label: qsTr("Address (delivery)"); key: "address"; multiline: true }
             Entry { label: qsTr("Note for the kitchen / driver"); key: "note" }
 

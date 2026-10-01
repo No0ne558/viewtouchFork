@@ -52,6 +52,8 @@ void TicketPrinter::printKitchen(const PosSettings &settings, const Check &check
     // to the kitchen, and nowhere if there is no kitchen printer either.
     std::map<std::string, std::vector<OrderLine>> byStation;
     for (const OrderLine &l : lines) {
+        if (l.isGiftCard())   // sold at the counter, nothing to make
+            continue;
         std::string station = l.printer.empty() ? "kitchen" : l.printer;
         if (!settings.printer(station))
             station = "kitchen";

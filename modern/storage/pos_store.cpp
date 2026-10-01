@@ -137,6 +137,22 @@ bool PosStore::open(QString *error)
             return false;
         }
     }
+    if (version < 4) {   // customers and gift cards
+        if (!db.transaction()) {
+            if (error)
+                *error = db.lastError().text();
+            return false;
+        }
+        const bool ok =
+            run(q, u"CREATE TABLE customers (id TEXT PRIMARY KEY, phone TEXT, json TEXT NOT NULL)"_s, error)
+            && run(q, u"CREATE INDEX customers_phone ON customers (phone)"_s, error)
+            && run(q, u"CREATE TABLE gift_cards (number TEXT PRIMARY KEY, json TEXT NOT NULL)"_s, error)
+            && run(q, u"UPDATE meta SET value = '4' WHERE key = 'pos_schema_version'"_s, error);
+        if (!ok || !db.commit()) {
+            db.rollback();
+            return false;
+        }
+    }
     return true;
 }
 
@@ -209,6 +225,14 @@ std::optional<app::PosData> PosStore::load(QStringList *errors) const
     if (q.exec(u"SELECT json FROM menu_items ORDER BY position"_s)) {
         while (q.next())
             data.menu.push_back(app::menuItemFromJson(parse(q.value(0))));
+    }
+    if (q.exec(u"SELECT json FROM customers"_s)) {
+        while (q.next())
+            data.customers.push_back(app::customerFromJson(parse(q.value(0))));
+    }
+    if (q.exec(u"SELECT json FROM gift_cards"_s)) {
+        while (q.next())
+            data.giftCards.push_back(app::giftCardFromJson(parse(q.value(0))));
     }
     if (q.exec(u"SELECT json FROM employees ORDER BY id"_s)) {
         while (q.next())
@@ -333,6 +357,18 @@ void SqlPosSink::saveMenuItem(const MenuItem &item, int position)
 void SqlPosSink::deleteMenuItem(const std::string &id)
 {
     writer_.remove(u"menu_items"_s, u"id"_s, qs(id));
+}
+
+void SqlPosSink::saveCustomer(const core::CustomerRecord &c)
+{
+    writer_.upsert(u"customers"_s, qs(c.id), {{u"id"_s, qs(c.id)},
+                                             {u"phone"_s, qs(core::CustomerRecord::digits(c.phone))},
+                                             {u"json"_s, compact(app::toJson(c))}});
+}
+
+void SqlPosSink::saveGiftCard(const core::GiftCard &g)
+{
+    writer_.upsert(u"gift_cards"_s, qs(g.number), {{u"number"_s, qs(g.number)}, {u"json"_s, compact(app::toJson(g))}});
 }
 
 void SqlPosSink::saveEmployee(const Employee &e)

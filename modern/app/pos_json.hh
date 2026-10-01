@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/check.hh"
+#include "core/customer.hh"
 #include "core/employee.hh"
 #include "core/day.hh"
 #include "core/menu.hh"
@@ -48,6 +49,11 @@ core::DrawerSession drawerFromJson(const QJsonObject &o);
 
 QJsonObject toJson(const core::PrinterConfig &p);
 core::PrinterConfig printerFromJson(const QJsonObject &o);
+
+QJsonObject toJson(const core::CustomerRecord &c);
+core::CustomerRecord customerFromJson(const QJsonObject &o);
+QJsonObject toJson(const core::GiftCard &g);
+core::GiftCard giftCardFromJson(const QJsonObject &o);
 
 QJsonObject toJson(const core::PosSettings &s);
 core::PosSettings settingsFromJson(const QJsonObject &o);

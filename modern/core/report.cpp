@@ -512,4 +512,73 @@ Report tipsReport(const std::vector<Check> &closed, const std::vector<DrawerSess
     return r;
 }
 
+Report accountsReport(const std::vector<GiftCard> &cards, const std::vector<CustomerRecord> &customers,
+                      std::int64_t since, const ReportContext &ctx)
+{
+    Report r;
+    r.id = "accounts";
+    r.title = "Gift Cards & Accounts";
+    r.subtitle = ctx.period;
+    r.columns = {"", "Count", "Amount"};
+
+    std::int64_t sold = 0, spent = 0, live = 0;
+    Money soldAmount, spentAmount, outstanding;
+    for (const GiftCard &g : cards) {
+        for (const LedgerEntry &e : g.history) {
+            if (e.at < since)
+                continue;
+            if (e.kind == "sale") {
+                ++sold;
+                soldAmount += e.amount;
+            } else if (e.kind == "reopen") {   // a sale taken back
+                --sold;
+                soldAmount += e.amount;
+            } else if (e.kind == "spend") {
+                ++spent;
+                spentAmount -= e.amount;
+            } else if (e.kind == "refund") {   // a card payment removed
+                --spent;
+                spentAmount -= e.amount;
+            }
+        }
+        if (g.balance.cents() > 0) {
+            ++live;
+            outstanding += g.balance;
+        }
+    }
+    r.section("Gift cards");
+    r.line({"Sold and reloaded", count(sold), ctx.money(soldAmount)});
+    r.line({"Spent", count(spent), ctx.money(spentAmount)});
+    r.total({"Still on cards (owed by the store)", count(live), ctx.money(outstanding)});
+
+    r.section("House accounts");
+    Money charged, paid, owed;
+    std::vector<const CustomerRecord *> owing;
+    for (const CustomerRecord &c : customers) {
+        for (const LedgerEntry &e : c.account) {
+            if (e.at < since)
+                continue;
+            if (e.kind == "payment")
+                paid -= e.amount;
+            else
+                charged += e.amount;   // charges, less any taken back
+        }
+        if (c.houseAccount && c.accountBalance.cents() != 0) {
+            owing.push_back(&c);
+            owed += c.accountBalance;
+        }
+    }
+    r.line({"Charged", "", ctx.money(charged)});
+    r.line({"Paid", "", ctx.money(paid)});
+    std::ranges::sort(owing, [](const CustomerRecord *a, const CustomerRecord *b) {
+        return a->accountBalance > b->accountBalance;
+    });
+    for (const CustomerRecord *c : owing)
+        r.line({(c->name.empty() ? c->phone : c->name) + (c->accountLimit.cents() > 0 && c->accountBalance >= c->accountLimit
+                                                             ? "  (at the limit)" : ""),
+                "", ctx.money(c->accountBalance)});
+    r.total({"Owed to the store", count(std::int64_t(owing.size())), ctx.money(owed)});
+    return r;
+}
+
 } // namespace vt::core
