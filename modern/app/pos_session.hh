@@ -59,6 +59,8 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantList customers READ customerResults NOTIFY checkChanged)
     Q_PROPERTY(QVariantMap customer READ customerInfo NOTIFY checkChanged)
     Q_PROPERTY(QVariantMap giftCard READ giftCardInfo NOTIFY checkChanged)
+    // The host stand: {waiting, booked, seatedToday, averageWait, noShows, nextQuote}.
+    Q_PROPERTY(QVariantMap waitlist READ waitlistInfo NOTIFY dayChanged)
     // Modifiers being chosen for the item just ordered: {active, item, groups:
     // [{id, name, rule, chosen, done, options: [{index, name, price, chosen}]}]}.
     Q_PROPERTY(QVariantMap choosing READ choosingInfo NOTIFY checkChanged)
@@ -130,6 +132,7 @@ public:
     virtual QVariantList customerResults() const = 0;
     virtual QVariantMap customerInfo() const = 0;
     virtual QVariantMap giftCardInfo() const = 0;
+    virtual QVariantMap waitlistInfo() const = 0;
     virtual QStringList soldOut() const = 0;
     virtual QVariantList menuItems() const = 0;
     virtual QString checkFilter() const = 0;
@@ -212,6 +215,19 @@ public:
     {
         invoke(QStringLiteral("payWithGiftCard"), {number, amountCents});
     }
+    Q_INVOKABLE void addToWaitlist(const QVariantMap &party) { invoke(QStringLiteral("addToWaitlist"), {party}); }
+    Q_INVOKABLE void addReservation(const QVariantMap &party) { invoke(QStringLiteral("addReservation"), {party}); }
+    Q_INVOKABLE void updateParty(qint64 id, const QVariantMap &changes)
+    {
+        invoke(QStringLiteral("updateParty"), {id, changes});
+    }
+    Q_INVOKABLE void checkInParty(qint64 id) { invoke(QStringLiteral("checkInParty"), {id}); }
+    Q_INVOKABLE void notifyParty(qint64 id) { invoke(QStringLiteral("notifyParty"), {id}); }
+    Q_INVOKABLE void seatParty(qint64 id, const QString &table, const QString &serverId = {})
+    {
+        invoke(QStringLiteral("seatParty"), {id, table, serverId});
+    }
+    Q_INVOKABLE void partyGone(qint64 id, bool noShow = false) { invoke(QStringLiteral("partyGone"), {id, noShow}); }
     Q_INVOKABLE void payOnAccount(const QString &method, qint64 amountCents = 0)
     {
         invoke(QStringLiteral("payOnAccount"), {method, amountCents});

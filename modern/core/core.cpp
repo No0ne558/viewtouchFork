@@ -1,6 +1,7 @@
 // Implementation of the pure-C++ POS domain (tax, menu, employees, checks).
 
 #include "core/check.hh"
+#include "core/waitlist.hh"
 #include "core/day.hh"
 #include "core/employee.hh"
 #include "core/menu.hh"
@@ -167,6 +168,29 @@ std::string toString(TenderKind k)
     case TenderKind::HouseAccount: return "house";
     }
     return "cash";
+}
+
+std::string toString(Party::Status s)
+{
+    switch (s) {
+    case Party::Status::Booked: return "booked";
+    case Party::Status::Waiting: return "waiting";
+    case Party::Status::Notified: return "notified";
+    case Party::Status::Seated: return "seated";
+    case Party::Status::Left: return "left";
+    case Party::Status::NoShow: return "noShow";
+    }
+    return "waiting";
+}
+
+Party::Status partyStatusFromString(const std::string &s)
+{
+    if (s == "booked") return Party::Status::Booked;
+    if (s == "notified") return Party::Status::Notified;
+    if (s == "seated") return Party::Status::Seated;
+    if (s == "left") return Party::Status::Left;
+    if (s == "noShow") return Party::Status::NoShow;
+    return Party::Status::Waiting;
 }
 
 TenderKind tenderKindFromString(const std::string &s)

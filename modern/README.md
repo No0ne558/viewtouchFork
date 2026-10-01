@@ -121,6 +121,16 @@ Each backup is a complete SQLite copy. Checks, pages, menu, staff, settings and 
 - **House accounts:** a manager turns one on for a customer (with an optional limit). Put the customer on the check, then **House Account** on Settle charges it. Payments on the account (cash goes in the drawer, or card) are on the Customers page.
 - **Report:** Reports → Gift Cards: cards sold and spent, what is still on cards (owed by the store), and house account charges, payments and balances.
 
+## Waitlist and reservations
+
+**Waitlist** on the Tables page opens the host stand.
+
+- **Waitlist:** add a party (name, phone, size, a note). The quote is the parties ahead plus one, times *minutes per party ahead* (Store Settings, 10 by default), which the host can change by 5 minutes. The line shows how long each party has waited against what they were told, in red once they are past it.
+- **Table ready:** *Notify* texts the guest when a texting service is set up (Store Settings → *Texting service URL*: a JSON POST of `{"to", "message"}` to your SMS provider or a relay). Otherwise it reminds the host to tell them.
+- **Seating:** *Seat Them…* lists the free tables, the smallest that fits first. Choose the server; the table's check opens for them with the party size and the guest's name.
+- **Reservations:** book for today or the next six days at a time. *They're Here* puts them at the front of the line. Reservations more than 15 minutes late are marked; *No-Show* or *Cancel Booking* takes them off.
+- The host stand shows how many parties were seated today, the average wait, and no-shows.
+
 ## On-screen keyboard
 
 Text fields (customer names, Manager forms…) get an on-screen keyboard, docked below the page, on touch screens: on by default with `--kiosk`, or `--touch-keyboard yes|no`. Number fields get a number pad.

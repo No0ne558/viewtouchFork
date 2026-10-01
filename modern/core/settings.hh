@@ -130,6 +130,12 @@ struct PosSettings {
     // A second folder every backup is also copied to (a USB drive, a
     // network share), so one dead disk can't take the backups with it.
     std::string backupCopyDir;
+    // Waitlist: quoted minutes for each party ahead, and the text sent when
+    // a table is ready ({name}, {store}). textWebhook: where texts are sent
+    // (a JSON POST of {to, message}; empty: no texting).
+    int waitMinutesPerParty = 10;
+    std::string tableReadyText = "Hi {name}, your table at {store} is ready! Please come to the host stand.";
+    std::string textWebhook;
 
     bool hasDrawer(const std::string &terminal) const
     {

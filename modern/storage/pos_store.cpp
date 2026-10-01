@@ -153,6 +153,21 @@ bool PosStore::open(QString *error)
             return false;
         }
     }
+    if (version < 5) {   // the waitlist and reservations
+        if (!db.transaction()) {
+            if (error)
+                *error = db.lastError().text();
+            return false;
+        }
+        const bool ok =
+            run(q, u"CREATE TABLE parties (id INTEGER PRIMARY KEY, day_key INTEGER NOT NULL, status TEXT NOT NULL, "
+                   "json TEXT NOT NULL)"_s, error)
+            && run(q, u"UPDATE meta SET value = '5' WHERE key = 'pos_schema_version'"_s, error);
+        if (!ok || !db.commit()) {
+            db.rollback();
+            return false;
+        }
+    }
     return true;
 }
 
@@ -248,6 +263,16 @@ std::optional<app::PosData> PosStore::load(QStringList *errors) const
     if (q.exec(u"SELECT id, opened_at FROM business_days WHERE closed_at = 0 ORDER BY id DESC LIMIT 1"_s) && q.next())
         data.currentDay = BusinessDay{q.value(0).toLongLong(), q.value(1).toLongLong(), 0};
     const std::int64_t dayStart = data.currentDay ? data.currentDay->openedAt : std::numeric_limits<std::int64_t>::max();
+    // Parties still waiting or booked (from any day), and today's (for the
+    // host's numbers). day_key is when they joined or are booked for.
+    q.prepare(u"SELECT json FROM parties WHERE status IN ('booked', 'waiting', 'notified') OR day_key >= ? ORDER BY id"_s);
+    q.addBindValue(qint64(dayStart));
+    if (q.exec()) {
+        while (q.next())
+            data.parties.push_back(app::partyFromJson(parse(q.value(0))));
+    }
+    if (q.exec(u"SELECT COALESCE(MAX(id), 0) FROM parties"_s) && q.next())
+        data.lastPartyId = q.value(0).toLongLong();
     if (data.currentDay) {
         q.prepare(u"SELECT json FROM checks WHERE status = 'closed' AND business_day = ? ORDER BY id"_s);
         q.addBindValue(qint64(data.currentDay->id));
@@ -369,6 +394,14 @@ void SqlPosSink::saveCustomer(const core::CustomerRecord &c)
 void SqlPosSink::saveGiftCard(const core::GiftCard &g)
 {
     writer_.upsert(u"gift_cards"_s, qs(g.number), {{u"number"_s, qs(g.number)}, {u"json"_s, compact(app::toJson(g))}});
+}
+
+void SqlPosSink::saveParty(const core::Party &party)
+{
+    writer_.upsert(u"parties"_s, QString::number(party.id),
+                   {{u"id"_s, qint64(party.id)}, {u"day_key"_s, qint64(party.reservedFor ? party.reservedFor : party.addedAt)},
+                    {u"status"_s, QString::fromStdString(core::toString(party.status))},
+                    {u"json"_s, compact(app::toJson(party))}});
 }
 
 void SqlPosSink::saveEmployee(const Employee &e)

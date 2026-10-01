@@ -32,6 +32,8 @@ PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
     , earlierPunches(std::move(data.earlierPunches))
     , customers(std::move(data.customers))
     , giftCards(std::move(data.giftCards))
+    , parties(std::move(data.parties))
+    , lastPartyId(data.lastPartyId)
     , lastCheckId(data.lastCheckId)
     , lastPunchId(data.lastPunchId)
     , sink(sink)
@@ -1146,6 +1148,16 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"lookupGiftCard"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.lookupGiftCard(a.value(0).toString())); }},
         {u"payWithGiftCard"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.payWithGiftCard(a.value(0).toString(), a.value(1).toLongLong())); }},
+        {u"addToWaitlist"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addToWaitlist(a.value(0).toMap())); }},
+        {u"addReservation"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addReservation(a.value(0).toMap())); }},
+        {u"updateParty"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.updateParty(a.value(0).toLongLong(), a.value(1).toMap())); }},
+        {u"checkInParty"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.checkInParty(a.value(0).toLongLong())); }},
+        {u"notifyParty"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.notifyParty(a.value(0).toLongLong())); }},
+        {u"seatParty"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.seatParty(a.value(0).toLongLong(), a.value(1).toString(), a.value(2).toString())); }},
+        {u"partyGone"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.partyGone(a.value(0).toLongLong(), a.value(1).toBool())); }},
         {u"payOnAccount"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.payOnAccount(a.value(0).toString(), a.value(1).toLongLong())); }},
         {u"setSeat"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setSeat(a.value(0).toInt())); }},

@@ -190,7 +190,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard"]
+           "customerLookup", "giftCard", "waitlist"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -358,6 +358,7 @@ page("tables", "Tables", "tables", [
     zone("takeout", 1472, 182, 208, 150, "Takeout", actions=[command("startTakeout"), jump(page="customer")]),
     zone("delivery", 1696, 182, 208, 150, "Delivery", actions=[command("startDelivery"), jump(page="customer")]),
     zone("checks", 1472, 348, 432, 150, "Open Checks", actions=[jump(role="checkList")]),
+    zone("host", 1056, 914, 400, 150, "Waitlist", actions=[jump(page="host")], style=fill(TEAL)),
     zone("status", 1472, 514, 432, 218, kind="logoutPanel"),
     zone("manager", 1472, 748, 432, 150, "Manager", actions=[jump(role="manager")]),
     zone("logout", 1472, 914, 432, 150, "Log Out", actions=[jump(role="logout")], style=fill(RED)),
@@ -381,6 +382,14 @@ page("sold-out", "Sold Out (86)", "custom", [
     label("title", 16, 16, 1888, 80, "Touch an item to mark it sold out, or back on"),
     zone("list", 16, 112, 1888, 816, kind="soldOutList"),
     zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+], permission="order")
+
+# --- the host stand ---
+page("host", "Host Stand", "custom", [
+    label("title", 16, 16, 1888, 80, "Waitlist & reservations"),
+    zone("waitlist", 16, 112, 1888, 816, kind="waitlist"),
+    zone("back", 16, 944, 432, 120, "‹ Tables", actions=[jump(role="tables")]),
+    zone("customers", 1472, 944, 432, 120, "Customers…", actions=[jump(page="customers")]),
 ], permission="order")
 
 # --- customers and gift cards ---

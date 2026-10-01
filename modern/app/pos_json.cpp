@@ -532,6 +532,8 @@ QJsonObject toJson(const PosSettings &s)
         {u"serverId"_s, qs(s.serverId)},
         {u"checkoutNeedsClosedChecks"_s, s.checkoutNeedsClosedChecks},
         {u"backupCopyDir"_s, qs(s.backupCopyDir)},
+        {u"waitMinutesPerParty"_s, s.waitMinutesPerParty}, {u"tableReadyText"_s, qs(s.tableReadyText)},
+        {u"textWebhook"_s, qs(s.textWebhook)},
     };
 }
 
@@ -571,6 +573,10 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.serverId = ss(o.value(u"serverId").toString());
     s.checkoutNeedsClosedChecks = o.value(u"checkoutNeedsClosedChecks").toBool(true);
     s.backupCopyDir = ss(o.value(u"backupCopyDir").toString());
+    s.waitMinutesPerParty = std::clamp(o.value(u"waitMinutesPerParty").toInt(10), 1, 120);
+    if (o.contains(u"tableReadyText") && !o.value(u"tableReadyText").toString().trimmed().isEmpty())
+        s.tableReadyText = ss(o.value(u"tableReadyText").toString());
+    s.textWebhook = ss(o.value(u"textWebhook").toString());
     if (o.contains(u"mealPeriods")) {   // older settings keep the defaults
         s.mealPeriods.clear();
         for (const QJsonValue &v : o.value(u"mealPeriods").toArray()) {
@@ -672,6 +678,41 @@ GiftCard giftCardFromJson(const QJsonObject &o)
     g.issuedAt = i64(o.value(u"issuedAt"));
     g.history = ledgerFromJson(o.value(u"history").toArray());
     return g;
+}
+
+// --- waitlist and reservations ---------------------------------------------------------
+
+QJsonObject toJson(const Party &p)
+{
+    return {
+        {u"id"_s, qint64(p.id)}, {u"name"_s, qs(p.name)}, {u"phone"_s, qs(p.phone)}, {u"size"_s, p.size},
+        {u"note"_s, qs(p.note)}, {u"customerId"_s, qs(p.customerId)}, {u"addedAt"_s, qint64(p.addedAt)},
+        {u"reservedFor"_s, qint64(p.reservedFor)}, {u"quotedMinutes"_s, p.quotedMinutes},
+        {u"arrivedAt"_s, qint64(p.arrivedAt)}, {u"notifiedAt"_s, qint64(p.notifiedAt)},
+        {u"seatedAt"_s, qint64(p.seatedAt)}, {u"table"_s, qs(p.table)}, {u"checkId"_s, qint64(p.checkId)},
+        {u"status"_s, qs(toString(p.status))},
+    };
+}
+
+Party partyFromJson(const QJsonObject &o)
+{
+    Party p;
+    p.id = i64(o.value(u"id"));
+    p.name = ss(o.value(u"name").toString());
+    p.phone = ss(o.value(u"phone").toString());
+    p.size = std::max(1, o.value(u"size").toInt(2));
+    p.note = ss(o.value(u"note").toString());
+    p.customerId = ss(o.value(u"customerId").toString());
+    p.addedAt = i64(o.value(u"addedAt"));
+    p.reservedFor = i64(o.value(u"reservedFor"));
+    p.quotedMinutes = o.value(u"quotedMinutes").toInt();
+    p.arrivedAt = i64(o.value(u"arrivedAt"));
+    p.notifiedAt = i64(o.value(u"notifiedAt"));
+    p.seatedAt = i64(o.value(u"seatedAt"));
+    p.table = ss(o.value(u"table").toString());
+    p.checkId = i64(o.value(u"checkId"));
+    p.status = partyStatusFromString(ss(o.value(u"status").toString()));
+    return p;
 }
 
 } // namespace vt::app

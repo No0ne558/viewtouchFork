@@ -7,6 +7,7 @@
 #include <QQmlApplicationEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QDate>
 #include <QTest>
 
 using namespace Qt::StringLiterals;
@@ -400,4 +401,26 @@ TEST_CASE("UI: the on-screen keyboard finds a customer; a gift card by its numbe
     CHECK(s.pos.giftCardInfo()[u"number"_s] == u"60012"_s);
     CHECK_FALSE(keyboard->isVisible());
     s.shot("7-gift-card");
+}
+
+TEST_CASE("UI: the host stand seats the next party at the best free table", "[flow][ui][waitlist]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.addToWaitlist({{u"name"_s, u"Dana"_s}, {u"size"_s, 4}, {u"phone"_s, u"555-0101"_s}}) > 0);
+    REQUIRE(s.pos.addToWaitlist({{u"name"_s, u"Alex"_s}, {u"size"_s, 2}, {u"note"_s, u"booth please"_s}}) > 0);
+    const QString tomorrow = QDate::currentDate().addDays(1).toString(u"yyyy-MM-dd"_s) + u" 19:30"_s;
+    REQUIRE(s.pos.addReservation({{u"name"_s, u"Lee"_s}, {u"size"_s, 6}, {u"at"_s, tomorrow}}) > 0);
+    REQUIRE(s.c.jumpTo(u"host"_s));
+    QTest::qWait(50);
+    s.shot("8-host");
+
+    s.tapItem(Screen::findBy(s.window->contentItem(), "text", u"Dana  ·  4 people"_s));
+    s.tapItem(Screen::findBy(s.window->contentItem(), "text", u"Seat Them…"_s));
+    QTest::qWait(50);
+    s.shot("9-host-seat");
+    // Four people: the smallest free table that fits (T3, 4 seats) comes first.
+    s.tapItem(Screen::findBy(s.window->contentItem(), "text", u"T3\n4 seats"_s));
+    CHECK(s.pos.tableStatus(u"T3"_s)[u"open"_s].toBool());
+    CHECK(s.pos.waitlistInfo()[u"waiting"_s].toList().size() == 1);
 }

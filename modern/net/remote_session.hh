@@ -93,6 +93,7 @@ public:
     QVariantList customerResults() const override { return v(u"customers").toList(); }
     QVariantMap customerInfo() const override { return v(u"customer").toMap(); }
     QVariantMap giftCardInfo() const override { return v(u"giftCard").toMap(); }
+    QVariantMap waitlistInfo() const override { return v(u"waitlist").toMap(); }
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }
     int queryRevision() const override { return queryRevision_; }

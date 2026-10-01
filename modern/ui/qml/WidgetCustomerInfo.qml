@@ -106,7 +106,7 @@ Item {
                     delegate: Button {
                         required property var modelData
                         text: (modelData.name || "") + "  " + (modelData.phone || "")
-                              + (modelData.visits ? "  ·  " + qsTr("%n visit(s)", "", modelData.visits) : "")
+                              + (modelData.visits ? "  ·  " + (modelData.visits === 1 ? qsTr("1 visit") : qsTr("%1 visits").arg(modelData.visits)) : "")
                         onClicked: {
                             w.searching = ""
                             w.dirty = false

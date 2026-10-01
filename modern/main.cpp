@@ -26,6 +26,9 @@
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QLockFile>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QSaveFile>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
@@ -756,6 +759,25 @@ int runStore(const Args &cli, const Options &o)
         });
         backups->start();
     }
+
+    // Texts to guests ("your table is ready") go to the store's texting
+    // service: a JSON POST of {to, message}, never blocking the screen.
+    QNetworkAccessManager texting;
+    shared->sendText = [shared, &texting, &pos](const QString &phone, const QString &message) {
+        const QUrl url(QString::fromStdString(shared->settings.textWebhook));
+        if (!url.isValid() || url.scheme().isEmpty())
+            return;
+        QNetworkRequest request(url);
+        request.setHeader(QNetworkRequest::ContentTypeHeader, u"application/json"_s);
+        request.setTransferTimeout(15000);
+        QNetworkReply *reply = texting.post(request, QJsonDocument(QJsonObject{{u"to"_s, phone}, {u"message"_s, message}})
+                                                         .toJson(QJsonDocument::Compact));
+        QObject::connect(reply, &QNetworkReply::finished, &pos, [reply, phone, &pos] {
+            if (reply->error() != QNetworkReply::NoError)
+                say(pos, QCoreApplication::translate("main", "The text to %1 didn't go out: %2").arg(phone, reply->errorString()));
+            reply->deleteLater();
+        });
+    };
 
     // Every save of the pages goes through the hub, which tells the terminals.
     vt::net::LayoutHub hub(*layout, haveStore ? &store : nullptr);

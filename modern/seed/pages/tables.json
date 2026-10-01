@@ -271,6 +271,31 @@
       ]
     },
     {
+      "id": "host",
+      "kind": "button",
+      "rect": {
+        "x": 1056,
+        "y": 914,
+        "w": 400,
+        "h": 150
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Waitlist",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "host"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
       "id": "status",
       "kind": "logoutPanel",
       "rect": {

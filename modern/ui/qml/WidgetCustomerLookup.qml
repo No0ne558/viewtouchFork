@@ -100,7 +100,7 @@ Item {
                                 elide: Text.ElideRight
                                 opacity: 0.75
                                 text: [row.modelData.phone,
-                                       qsTr("%n visit(s)", "", row.modelData.visits),
+                                       (row.modelData.visits === 1 ? qsTr("1 visit") : qsTr("%1 visits").arg(row.modelData.visits)),
                                        row.modelData.balanceCents > 0 ? qsTr("owes %1").arg(row.modelData.balance) : ""]
                                       .filter(s => s).join("  ·  ")
                             }
@@ -154,7 +154,7 @@ Item {
                     Label {
                         visible: !w.creating
                         opacity: 0.75
-                        text: qsTr("%n visit(s)", "", w.chosen.visits ?? 0) + "  ·  " + qsTr("spent %1").arg(w.chosen.spent ?? "")
+                        text: ((w.chosen.visits ?? 0) === 1 ? qsTr("1 visit") : qsTr("%1 visits").arg(w.chosen.visits ?? 0)) + "  ·  " + qsTr("spent %1").arg(w.chosen.spent ?? "")
                               + (w.chosen.lastVisit ? "  ·  " + qsTr("last %1").arg(w.chosen.lastVisit) : "")
                     }
 

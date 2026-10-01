@@ -7,6 +7,7 @@
 #include "core/menu.hh"
 #include "core/report.hh"
 #include "core/settings.hh"
+#include "core/waitlist.hh"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -54,6 +55,9 @@ QJsonObject toJson(const core::CustomerRecord &c);
 core::CustomerRecord customerFromJson(const QJsonObject &o);
 QJsonObject toJson(const core::GiftCard &g);
 core::GiftCard giftCardFromJson(const QJsonObject &o);
+
+QJsonObject toJson(const core::Party &p);
+core::Party partyFromJson(const QJsonObject &o);
 
 QJsonObject toJson(const core::PosSettings &s);
 core::PosSettings settingsFromJson(const QJsonObject &o);

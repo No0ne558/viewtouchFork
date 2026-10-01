@@ -190,6 +190,12 @@ QVariantList PosService::adminFields(const QString &panel)
             with(field(u"weekStartsOn"_s, tr("Pay week starts on"), u"enum"_s), u"options"_s,
                  options({{"0", "Sunday"}, {"1", "Monday"}, {"2", "Tuesday"}, {"3", "Wednesday"},
                           {"4", "Thursday"}, {"5", "Friday"}, {"6", "Saturday"}})),
+            with(with(field(u"waitMinutesPerParty"_s, tr("Waitlist: minutes per party ahead"), u"int"_s,
+                            tr("Wait quotes: (parties ahead + 1) x this, rounded up to 5 minutes.")), u"min"_s, 1), u"max"_s, 120),
+            field(u"tableReadyText"_s, tr("Waitlist: table-ready text"), u"text"_s,
+                  tr("Sent when the host touches Notify. {name} and {store} are filled in.")),
+            field(u"textWebhook"_s, tr("Texting service URL"), u"text"_s,
+                  tr("Texts are POSTed here as JSON {\"to\", \"message\"} (your SMS provider or a relay). Empty: no texts; the host tells the guest.")),
             field(u"backupCopyDir"_s, tr("Also copy backups to"), u"text"_s,
                   tr("A USB drive or network folder on the server, e.g. /media/usb/viewtouch. Empty = no second copy.")),
             field(u"checkoutNeedsClosedChecks"_s, tr("Close all checks before checking out"), u"bool"_s,
@@ -300,6 +306,8 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"terminalsHaveDrawer"_s, s_->settings.terminalsHaveDrawer},
              {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks},
              {u"backupCopyDir"_s, qs(s_->settings.backupCopyDir)},
+             {u"waitMinutesPerParty"_s, s_->settings.waitMinutesPerParty},
+             {u"tableReadyText"_s, qs(s_->settings.tableReadyText)}, {u"textWebhook"_s, qs(s_->settings.textWebhook)},
              {u"paidBreaks"_s, s_->settings.paidBreaks}, {u"overtimeDailyHours"_s, s_->settings.overtimeDailyHours},
              {u"overtimeWeeklyHours"_s, s_->settings.overtimeWeeklyHours},
              {u"weekStartsOn"_s, QString::number(s_->settings.weekStartsOn)}},
@@ -442,6 +450,12 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.weekStartsOn = std::clamp(record.value(u"weekStartsOn"_s).toString().toInt(), 0, 6);
         if (record.contains(u"checkoutNeedsClosedChecks"_s))
             s_->settings.checkoutNeedsClosedChecks = record.value(u"checkoutNeedsClosedChecks"_s).toBool();
+        if (record.contains(u"waitMinutesPerParty"_s))
+            s_->settings.waitMinutesPerParty = std::clamp(record.value(u"waitMinutesPerParty"_s).toInt(), 1, 120);
+        if (record.contains(u"tableReadyText"_s) && !record.value(u"tableReadyText"_s).toString().trimmed().isEmpty())
+            s_->settings.tableReadyText = ss(record.value(u"tableReadyText"_s).toString().trimmed());
+        if (record.contains(u"textWebhook"_s))
+            s_->settings.textWebhook = ss(record.value(u"textWebhook"_s).toString().trimmed());
         if (record.contains(u"backupCopyDir"_s))
             s_->settings.backupCopyDir = ss(record.value(u"backupCopyDir"_s).toString().trimmed());
         settingsChanged();
