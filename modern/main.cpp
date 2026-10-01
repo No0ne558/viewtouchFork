@@ -717,12 +717,13 @@ int runStore(const Args &cli, const Options &o)
     seedData.settings = vt::app::settingsFromJson(readSeed(u"settings.json"_s).object());
     seedData.menu = vt::app::menuFromJson(readSeed(u"menu.json"_s).array());
     seedData.employees = vt::app::employeesFromJson(readSeed(u"employees.json"_s).array());
+    seedData.ingredients = vt::app::ingredientsFromJson(readSeed(u"ingredients.json"_s).array());
 
     std::optional<vt::app::PosData> posData;
     if (havePosStore) {
         if (!posStore.hasMenu() || cli.isSet(o.resetMenu)) {
             QString error;
-            if (!posStore.seed(seedData.settings, seedData.menu, seedData.employees, &error))
+            if (!posStore.seed(seedData.settings, seedData.menu, seedData.employees, &error, seedData.ingredients))
                 qWarning().noquote() << "Could not store starter menu:" << error;
         }
         QStringList posErrors;

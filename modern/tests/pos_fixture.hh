@@ -30,6 +30,7 @@ inline app::PosData seedPosData(bool requiredChoices = false)
     d.settings = app::settingsFromJson(readSeed("pos/settings.json").object());
     d.menu = app::menuFromJson(readSeed("pos/menu.json").array());
     d.employees = app::employeesFromJson(readSeed("pos/employees.json").array());
+    d.ingredients = app::ingredientsFromJson(readSeed("pos/ingredients.json").array());
     // The drawer tests were written for a cash drawer per terminal; server
     // banks (the starter setting) have tests of their own.
     d.settings.cashMode = core::CashMode::TerminalDrawer;

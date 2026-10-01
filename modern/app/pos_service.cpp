@@ -34,6 +34,7 @@ PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
     , giftCards(std::move(data.giftCards))
     , parties(std::move(data.parties))
     , lastPartyId(data.lastPartyId)
+    , ingredients(std::move(data.ingredients))
     , lastCheckId(data.lastCheckId)
     , lastPunchId(data.lastPunchId)
     , sink(sink)
@@ -588,6 +589,7 @@ bool PosService::voidItem()
         if (!require(perm::Void, tr("Voiding sent items")))
             return false;
         c->voidLine(l->id);
+        takeStock({*l}, -1);   // not made: back on the shelf
         noteEvent(*c, tr("Voided %1 (%2)").arg(name, format(l->unitPrice * l->quantity)), "void");
         if (s_->printer)
             s_->printer->printKitchen(s_->settings, *c, {*l}, true);
@@ -607,6 +609,7 @@ bool PosService::sendOrder()
     if (const QString missing = missingChoice(fresh); !missing.isEmpty())
         return fail(missing);   // the kitchen needs the whole order
     const int n = c->sendAll(now());
+    takeStock(fresh, 1);
     const int held = c->heldCount();
     if (n == 0)
         return fail(held > 0 ? tr("The rest is on hold: Fire the next course when it's time.")
@@ -737,6 +740,7 @@ bool PosService::closeCheck()
         if (const QString missing = missingChoice(fresh); !missing.isEmpty())
             return fail(missing);
         c->sendAll(now(), true);
+        takeStock(fresh, 1);
         if (s_->printer && !fresh.empty())
             s_->printer->printKitchen(s_->settings, *c, fresh, false);
     }

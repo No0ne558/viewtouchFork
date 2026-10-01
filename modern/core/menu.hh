@@ -9,6 +9,13 @@
 
 namespace vt::core {
 
+// What one of an item uses up (see Ingredient).
+struct RecipeLine {
+    std::string ingredientId;
+    double quantity = 1;
+    bool operator==(const RecipeLine &) const = default;
+};
+
 // Something that can be sold. Modifiers ("Medium Rare", "Onion Rings") are
 // menu items too; they attach to the order line they modify.
 struct MenuItem {
@@ -25,6 +32,10 @@ struct MenuItem {
     // A different price during a meal period (meal period id -> price),
     // e.g. dinner portions, or a Happy Hour period.
     std::map<std::string, Money> periodPrices;
+    // What one uses up; when the stock runs short it is sold out by itself
+    // (autoSoldOut) until restocked.
+    std::vector<RecipeLine> recipe;
+    bool autoSoldOut = false;
 
     Money priceDuring(const std::string &mealPeriod) const
     {

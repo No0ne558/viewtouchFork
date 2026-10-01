@@ -107,6 +107,18 @@ QVariantList PosService::adminFields(const QString &panel)
                       .arg(groupIds().join(u", "))),
             field(u"periodPrices"_s, tr("Prices by meal period"), u"text"_s,
                   tr("One per line, e.g. \"dinner = 14.50\". Meal periods: %1").arg(periodIds().join(u", "))),
+            field(u"recipe"_s, tr("Recipe (what one uses up)"), u"text"_s,
+                  tr("One ingredient per line with the amount, e.g. \"bun 1\" or \"lettuce 0.5\" (Manager -> Inventory)."
+                     " Sold out by itself when one runs short.")),
+        };
+    }
+    if (panel == u"inventory") {
+        return {
+            field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
+            field(u"unit"_s, tr("Unit"), u"string"_s, tr("each, oz, lb, slice…")),
+            field(u"onHand"_s, tr("On hand"), u"number"_s, tr("Count it, or add what was delivered.")),
+            field(u"lowAt"_s, tr("Low at"), u"number"_s, tr("Warn when it gets down to this.")),
+            field(u"cost"_s, tr("Cost per unit"), u"money"_s, tr("For the Food Cost report.")),
         };
     }
     if (panel == u"employees") {
@@ -321,6 +333,11 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"overtimeWeeklyHours"_s, s_->settings.overtimeWeeklyHours},
              {u"weekStartsOn"_s, QString::number(s_->settings.weekStartsOn)}},
             tr("Store"), QString());
+    } else if (panel == u"inventory") {
+        for (const Ingredient &g : s_->ingredients)
+            add(toJson(g).toVariantMap(), qs(g.name),
+                QString::number(g.onHand, 'g', 8) + u' ' + qs(g.unit)
+                    + (g.onHand <= 0 ? tr(" · OUT") : g.low() ? tr(" · LOW") : QString()));
     } else if (panel == u"modifierGroups") {
         for (const ModifierGroup &g : s_->settings.modifierGroups) {
             QStringList lines;
@@ -352,7 +369,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"menu")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"price"_s, 0.0}, {u"family"_s, QString()},
                 {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"modifier"_s, false}, {u"available"_s, true},
-                {u"modifierGroups"_s, QString()}, {u"periodPrices"_s, QString()}};
+                {u"modifierGroups"_s, QString()}, {u"periodPrices"_s, QString()}, {u"recipe"_s, QString()}};
     if (panel == u"employees")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
                 {u"active"_s, true}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()},
@@ -367,6 +384,9 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"modifierGroups")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"min"_s, 1}, {u"max"_s, 1}, {u"options"_s, QString()}};
+    if (panel == u"inventory")
+        return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"unit"_s, u"each"_s}, {u"onHand"_s, 0.0},
+                {u"lowAt"_s, 0.0}, {u"cost"_s, 0.0}};
     if (panel == u"printers")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"type"_s, u"network"_s}, {u"host"_s, QString()},
                 {u"port"_s, 9100}, {u"path"_s, QString()}, {u"format"_s, QString()}, {u"width"_s, 42},
@@ -381,6 +401,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
     bool ok = false;
     if (panel == u"menu") {
         ok = saveMenuRecord(index, record);
+        if (ok)
+            refreshSoldOut();
     } else if (panel == u"employees") {
         ok = saveEmployeeRecord(index, record);
     } else if (panel == u"tenders") {
@@ -391,6 +413,32 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         ok = saveMealPeriodRecord(index, record);
     } else if (panel == u"modifierGroups") {
         ok = saveModifierGroupRecord(index, record);
+    } else if (panel == u"inventory") {
+        const QString name = record.value(u"name"_s).toString().trimmed();
+        if (name.isEmpty())
+            return fail(tr("The ingredient needs a name."));
+        if (index >= int(s_->ingredients.size()))
+            return false;
+        Ingredient g = ingredientFromJson(QJsonObject::fromVariantMap(record));
+        g.name = ss(name);
+        if (g.unit.empty())
+            g.unit = "each";
+        if (g.lowAt < 0)
+            return fail(tr("Low at can't be negative."));
+        if (index >= 0) {
+            g.id = s_->ingredients[index].id;
+            s_->ingredients[index] = g;
+        } else {
+            const QString wanted = record.value(u"id"_s).toString().trimmed();
+            g.id = ss(uniqueId(wanted.isEmpty() ? name : wanted, s_->ingredients,
+                               [](const Ingredient &i) { return i.id; }, -1));
+            s_->ingredients.push_back(g);
+            index = int(s_->ingredients.size()) - 1;
+        }
+        if (s_->sink)
+            s_->sink->saveIngredient(s_->ingredients[index], index);
+        refreshSoldOut();   // restocked items come back, short ones go
+        ok = true;
     } else if (panel == u"terminals") {
         const QString name = record.value(u"name"_s).toString().trimmed();
         if (name.isEmpty())
@@ -529,6 +577,32 @@ bool PosService::saveMenuRecord(int index, const QVariantMap &record)
         prices.insert(period, price);
     }
     data.insert(u"periodPrices"_s, prices);
+    // "bun 1" / "Burger Buns 1" / "lettuce 0.5": an ingredient (id or name), then the amount.
+    QVariantList recipe;
+    for (const QString &line : record.value(u"recipe"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
+        QString text = line.trimmed();
+        if (text.isEmpty())
+            continue;
+        bool ok = false;
+        const qsizetype space = text.lastIndexOf(u' ');
+        double qty = space > 0 ? text.mid(space + 1).toDouble(&ok) : 0;
+        QString what = ok ? text.left(space).trimmed() : text;
+        if (!ok)
+            qty = 1;
+        if (qty <= 0)
+            return fail(tr("Recipe amounts must be more than zero: \"%1\".").arg(text));
+        const Ingredient *g = s_->ingredient(ss(what));
+        if (!g) {
+            for (const Ingredient &i : s_->ingredients)
+                if (QString::compare(qs(i.name), what, Qt::CaseInsensitive) == 0)
+                    g = &i;
+        }
+        if (!g)
+            return fail(tr("There is no ingredient '%1' (see Manager → Inventory).").arg(what));
+        recipe.append(QVariantMap{{u"ingredient"_s, qs(g->id)}, {u"qty"_s, qty}});
+    }
+    data.insert(u"recipe"_s, recipe);
+    data.remove(u"autoSoldOut"_s);
     MenuItem item = menuItemFromJson(QJsonObject::fromVariantMap(data));
     item.name = ss(name);
     if (index >= 0) {
@@ -628,6 +702,11 @@ QVariantMap PosService::menuRecord(const MenuItem &m) const
     for (const auto &[period, price] : m.periodPrices)
         prices << u"%1 = %2"_s.arg(qs(period), qs(price.toString()));
     r.insert(u"periodPrices"_s, prices.join(u'\n'));
+    QStringList recipe;
+    for (const RecipeLine &line : m.recipe)
+        recipe << u"%1 %2"_s.arg(qs(line.ingredientId), QString::number(line.quantity, 'g', 8));
+    r.insert(u"recipe"_s, recipe.join(u'\n'));
+    r.remove(u"autoSoldOut"_s);
     for (const char16_t *k : {u"family", u"printer"}) {
         if (!r.contains(QString::fromUtf16(k)))
             r.insert(QString::fromUtf16(k), QString());
@@ -802,6 +881,15 @@ bool PosService::adminDelete(const QString &panel, int index)
     } else if (panel == u"tenders" && index >= 0 && index < int(s_->settings.tenders.size())) {
         s_->settings.tenders.erase(s_->settings.tenders.begin() + index);
         settingsChanged();
+    } else if (panel == u"inventory" && index >= 0 && index < int(s_->ingredients.size())) {
+        const std::string id = s_->ingredients[index].id;
+        s_->ingredients.erase(s_->ingredients.begin() + index);
+        if (s_->sink) {
+            s_->sink->deleteIngredient(id);
+            for (int i = index; i < int(s_->ingredients.size()); ++i)
+                s_->sink->saveIngredient(s_->ingredients[i], i);
+        }
+        refreshSoldOut();
     } else if (panel == u"modifierGroups" && index >= 0 && index < int(s_->settings.modifierGroups.size())) {
         s_->settings.modifierGroups.erase(s_->settings.modifierGroups.begin() + index);
         settingsChanged();

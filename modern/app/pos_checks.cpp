@@ -204,6 +204,7 @@ bool PosService::fireCourse()
     }
     if (const QString missing = missingChoice(course_lines); !missing.isEmpty())
         return fail(missing);
+    takeStock(course_lines, 1);
     const int course = c->fireNextCourse();
     if (course == 0)
         return fail(tr("No course is on hold."));

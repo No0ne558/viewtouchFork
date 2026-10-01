@@ -191,6 +191,14 @@ QJsonObject toJson(const MenuItem &m)
             prices.insert(qs(period), decimalFromCents(price.cents()));
         o.insert(u"periodPrices"_s, prices);
     }
+    if (!m.recipe.empty()) {
+        QJsonArray recipe;
+        for (const RecipeLine &r : m.recipe)
+            recipe.append(QJsonObject{{u"ingredient"_s, qs(r.ingredientId)}, {u"qty"_s, r.quantity}});
+        o.insert(u"recipe"_s, recipe);
+    }
+    if (m.autoSoldOut)
+        o.insert(u"autoSoldOut"_s, true);
     return o;
 }
 
@@ -212,6 +220,11 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     const QJsonObject prices = o.value(u"periodPrices").toObject();
     for (auto it = prices.begin(); it != prices.end(); ++it)
         m.periodPrices[ss(it.key())] = Money::fromCents(centsFromDecimal(it.value().toDouble()));
+    for (const QJsonValue &v : o.value(u"recipe").toArray()) {
+        const QJsonObject r = v.toObject();
+        m.recipe.push_back({ss(r.value(u"ingredient").toString()), r.value(u"qty").toDouble(1)});
+    }
+    m.autoSoldOut = o.value(u"autoSoldOut").toBool();
     return m;
 }
 
@@ -727,6 +740,36 @@ Party partyFromJson(const QJsonObject &o)
     p.checkId = i64(o.value(u"checkId"));
     p.status = partyStatusFromString(ss(o.value(u"status").toString()));
     return p;
+}
+
+// --- inventory ---------------------------------------------------------------------------
+
+QJsonObject toJson(const Ingredient &i)
+{
+    return {{u"id"_s, qs(i.id)}, {u"name"_s, qs(i.name)}, {u"unit"_s, qs(i.unit)}, {u"onHand"_s, i.onHand},
+            {u"lowAt"_s, i.lowAt}, {u"cost"_s, decimalFromCents(i.cost.cents())}};
+}
+
+Ingredient ingredientFromJson(const QJsonObject &o)
+{
+    Ingredient i;
+    i.id = ss(o.value(u"id").toString());
+    i.name = ss(o.value(u"name").toString());
+    if (i.name.empty())
+        i.name = i.id;
+    i.unit = ss(o.value(u"unit").toString(u"each"_s));
+    i.onHand = o.value(u"onHand").toDouble();
+    i.lowAt = o.value(u"lowAt").toDouble();
+    i.cost = Money::fromCents(centsFromDecimal(o.value(u"cost").toDouble()));
+    return i;
+}
+
+std::vector<Ingredient> ingredientsFromJson(const QJsonArray &a)
+{
+    std::vector<Ingredient> out;
+    for (const QJsonValue &v : a)
+        out.push_back(ingredientFromJson(v.toObject()));
+    return out;
 }
 
 } // namespace vt::app

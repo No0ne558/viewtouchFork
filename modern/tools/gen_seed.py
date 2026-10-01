@@ -102,6 +102,53 @@ for bid, price in (("classic-burger", 12.50), ("bacon-burger", 14.50), ("house-w
     item(bid)["periodPrices"] = {"dinner": price}
 for n in TEMPS: menu(n, 0.00, "temperature", modifier=True)
 for n, p in SIDES: menu(n, p, "sides", modifier=True)
+
+# Inventory: what's on the shelf (Manager -> Inventory), and what each item
+# uses up. Items sell out by themselves when an ingredient runs short.
+INGREDIENTS = [
+    # id, name, unit, on hand, low at, cost per unit
+    ("bun", "Burger Buns", "each", 48, 12, 0.35),
+    ("patty", "Beef Patties", "each", 40, 10, 1.60),
+    ("veggie-patty", "Veggie Patties", "each", 12, 4, 1.40),
+    ("cheese", "Cheese Slices", "slice", 80, 20, 0.18),
+    ("swiss", "Swiss Slices", "slice", 30, 8, 0.22),
+    ("bacon", "Bacon", "strip", 60, 15, 0.30),
+    ("mushrooms", "Mushrooms", "oz", 64, 16, 0.25),
+    ("lettuce", "Lettuce", "oz", 160, 40, 0.12),
+    ("romaine", "Romaine", "oz", 120, 30, 0.14),
+    ("chicken", "Chicken Breast", "each", 24, 6, 2.10),
+    ("eggs", "Eggs", "each", 120, 30, 0.25),
+    ("bread", "Bread", "slice", 60, 16, 0.12),
+    ("batter", "Pancake Batter", "oz", 240, 60, 0.06),
+    ("coffee-beans", "Coffee", "oz", 80, 20, 0.40),
+    ("potatoes", "Fries (potatoes)", "oz", 400, 80, 0.05),
+    ("onions", "Onion Rings", "each", 120, 30, 0.08),
+]
+write("pos/ingredients.json", [{"id": i, "name": n, "unit": u, "onHand": h, "lowAt": lo, "cost": c}
+                               for i, n, u, h, lo, c in INGREDIENTS], versioned=False)
+RECIPES = {
+    "classic-burger": [("bun", 1), ("patty", 1), ("lettuce", 0.5)],
+    "cheeseburger": [("bun", 1), ("patty", 1), ("cheese", 2), ("lettuce", 0.5)],
+    "bacon-burger": [("bun", 1), ("patty", 1), ("cheese", 1), ("bacon", 2)],
+    "mushroom-swiss": [("bun", 1), ("patty", 1), ("swiss", 2), ("mushrooms", 2)],
+    "veggie-burger": [("bun", 1), ("veggie-patty", 1), ("lettuce", 0.5)],
+    "kids-burger": [("bun", 1), ("patty", 1)],
+    "burger-of-the-day": [("bun", 1), ("patty", 1), ("bacon", 1), ("cheese", 1)],
+    "house-salad": [("lettuce", 4)],
+    "caesar": [("romaine", 5)],
+    "cobb": [("lettuce", 4), ("chicken", 1), ("bacon", 2), ("eggs", 1)],
+    "greek": [("lettuce", 4)],
+    "two-eggs": [("eggs", 2), ("bread", 2)],
+    "omelette": [("eggs", 3), ("bread", 2)],
+    "pancakes": [("batter", 8)],
+    "french-toast": [("bread", 3), ("eggs", 1)],
+    "coffee": [("coffee-beans", 0.5)],
+    "fries": [("potatoes", 6)],
+    "sweet-potato-fries": [("potatoes", 6)],
+    "onion-rings": [("onions", 6)],
+}
+for iid, recipe in RECIPES.items():
+    item(iid)["recipe"] = [{"ingredient": g, "qty": q} for g, q in recipe]
 write("pos/menu.json", MENU, versioned=False)
 
 write("pos/employees.json", [
@@ -501,25 +548,26 @@ page("logout", "Log Out", "logout", [
 admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"), ("Taxes", "taxes"),
          ("Tenders", "tenders"), ("Printers", "printers"), ("Reports", "reports"), ("Banks & Drawers", "drawers"),
          ("End of Day", "endOfDay"), ("Terminals", "terminals"), ("Meal Periods", "mealPeriods"),
-         ("Modifier Groups", "modifierGroups")]
-mgr = [label("title", 160, 40, 1600, 100, "Manager")]
-for i, (text, panel) in enumerate(admin):
-    col, row = i % 4, i // 4
-    mgr.append(zone(f"admin-{panel}", 160 + col * 408, 160 + row * 180, 384, 160, text,
-                    actions=[command("openAdmin", panel=panel)]))
-mgr += [
-    # grid slots 12 and 13 (row 3), then 14 and 15
-    zone("kitchen-display", 160, 700, 384, 160, "Kitchen Display", actions=[jump(page="kitchen")]),
-    zone("bar-display", 568, 700, 384, 160, "Bar Display", actions=[jump(page="bar-display")]),
-    zone("sold-out", 1384, 880, 384, 160, "Sold Out (86)…", actions=[jump(page="sold-out")]),
-    zone("customers", 568, 880, 384, 160, "Customers…", actions=[jump(page="customers")]),
-    zone("gift-cards", 976, 880, 384, 160, "Gift Cards…", actions=[jump(page="gift-card")]),
-    zone("edit-pages", 1384, 700, 384, 160, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
+         ("Modifier Groups", "modifierGroups"), ("Inventory", "inventory")]
+mgr = [label("title", 160, 24, 1600, 100, "Manager")]
+# Four across, five down: the Manager screens, then the rest.
+slots = [zone(f"admin-{panel}", 0, 0, 0, 0, text, actions=[command("openAdmin", panel=panel)]) for text, panel in admin]
+slots += [
+    zone("kitchen-display", 0, 0, 0, 0, "Kitchen Display", actions=[jump(page="kitchen")]),
+    zone("bar-display", 0, 0, 0, 0, "Bar Display", actions=[jump(page="bar-display")]),
+    zone("edit-pages", 0, 0, 0, 0, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
+    zone("customers", 0, 0, 0, 0, "Customers…", actions=[jump(page="customers")]),
+    zone("gift-cards", 0, 0, 0, 0, "Gift Cards…", actions=[jump(page="gift-card")]),
+    zone("sold-out", 0, 0, 0, 0, "Sold Out (86)…", actions=[jump(page="sold-out")]),
     # Touch twice. On a kiosk screen it stays closed until the next boot.
-    zone("close-app", 976, 700, 384, 160, "Close ViewTouch", actions=[command("closeApp")], behavior="double",
+    zone("close-app", 0, 0, 0, 0, "Close ViewTouch", actions=[command("closeApp")], behavior="double",
          style=fill(RED)),
-    zone("back", 160, 900, 384, 140, "‹ Back", actions=[jump(mode="back")]),
 ]
+for i, z in enumerate(slots):
+    col, row = i % 4, i // 4
+    z["rect"] = rect(160 + col * 408, 136 + row * 152, 384, 136)
+    mgr.append(z)
+mgr.append(zone("back", 160, 912, 384, 140, "‹ Back", actions=[jump(mode="back")]))
 page("manager", "Manager", "manager", mgr, role="manager", permission="manager")
 
 # Manager screens (reached through openAdmin from the Manager page)
@@ -528,7 +576,8 @@ for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees
                          ("admin-taxes", "Taxes", "taxes"), ("admin-store", "Store Settings", "store"),
                          ("admin-terminals", "Terminals", "terminals"),
                          ("admin-meal-periods", "Meal Periods", "mealPeriods"),
-                         ("admin-modifier-groups", "Modifier Groups", "modifierGroups")]:
+                         ("admin-modifier-groups", "Modifier Groups", "modifierGroups"),
+                         ("admin-inventory", "Inventory", "inventory")]:
     page(pid, name, "manager", [
         label("title", 16, 16, 1888, 80, name),
         zone("editor", 16, 112, 1888, 816, kind="adminPanel", props={"panel": panel}),

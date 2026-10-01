@@ -20,6 +20,7 @@ Item {
         { id: "drawer", label: qsTr("Drawer") }, { id: "audit", label: qsTr("Audit") },
         { id: "accounts", label: qsTr("Gift Cards") },
         { id: "kitchen", label: qsTr("Kitchen") },
+        { id: "foodcost", label: qsTr("Food Cost") },
     ]
     property string reportId: zone && zone.props && zone.props.report ? zone.props.report : "sales"
     property int dayIndex: 0

@@ -3,6 +3,7 @@
 #include "core/check.hh"
 #include "core/customer.hh"
 #include "core/employee.hh"
+#include "core/inventory.hh"
 #include "core/day.hh"
 #include "core/menu.hh"
 #include "core/report.hh"
@@ -55,6 +56,10 @@ QJsonObject toJson(const core::CustomerRecord &c);
 core::CustomerRecord customerFromJson(const QJsonObject &o);
 QJsonObject toJson(const core::GiftCard &g);
 core::GiftCard giftCardFromJson(const QJsonObject &o);
+
+QJsonObject toJson(const core::Ingredient &i);
+core::Ingredient ingredientFromJson(const QJsonObject &o);
+std::vector<core::Ingredient> ingredientsFromJson(const QJsonArray &a);
 
 QJsonObject toJson(const core::Party &p);
 core::Party partyFromJson(const QJsonObject &o);

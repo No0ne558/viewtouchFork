@@ -131,6 +131,15 @@ Each backup is a complete SQLite copy. Checks, pages, menu, staff, settings and 
 - **Reservations:** book for today or the next six days at a time. *They're Here* puts them at the front of the line. Reservations more than 15 minutes late are marked; *No-Show* or *Cancel Booking* takes them off.
 - The host stand shows how many parties were seated today, the average wait, and no-shows.
 
+## Inventory and food cost
+
+- **Manager → Inventory:** each ingredient's unit, what's on hand, the low-stock mark and its cost per unit. Count stock or add a delivery by editing *On hand*.
+- **Recipes** (Manager → Menu → *Recipe*): one ingredient per line with the amount, e.g. `bun 1` or `lettuce 0.5`. Modifiers that are menu items (sides) have recipes too; *No* on a modifier uses none, *Extra* twice as much, *Lite* half.
+- Stock goes down when an order is sent to the kitchen (or fired, or closed), and comes back when a sent item is voided.
+- An item whose ingredients run short is **sold out by itself**, and comes back when restocked. An item a person 86'd stays sold out until they bring it back. Crossing the low mark shows *Running low: …*.
+- **Reports → Food Cost:** each item sold today with its sales, recipe cost and cost %, then every ingredient's stock (low and out marked).
+- New stores start with demo stock and recipes for the burgers, salads, breakfast, coffee and sides. An existing store starts with an empty inventory (or `--reset-menu` for the demo set).
+
 ## Kitchen display
 
 - Tickets turn yellow after *Kitchen: ticket turns yellow after* minutes and red when late (Store Settings; 8 and 15 to start).

@@ -168,6 +168,20 @@ bool PosStore::open(QString *error)
             return false;
         }
     }
+    if (version < 6) {   // inventory
+        if (!db.transaction()) {
+            if (error)
+                *error = db.lastError().text();
+            return false;
+        }
+        const bool ok =
+            run(q, u"CREATE TABLE ingredients (id TEXT PRIMARY KEY, position INTEGER NOT NULL, json TEXT NOT NULL)"_s, error)
+            && run(q, u"UPDATE meta SET value = '6' WHERE key = 'pos_schema_version'"_s, error);
+        if (!ok || !db.commit()) {
+            db.rollback();
+            return false;
+        }
+    }
     return true;
 }
 
@@ -178,7 +192,8 @@ bool PosStore::hasMenu() const
 }
 
 bool PosStore::seed(const PosSettings &settings, const std::vector<MenuItem> &menu,
-                    const std::vector<Employee> &employees, QString *error)
+                    const std::vector<Employee> &employees, QString *error,
+                    const std::vector<core::Ingredient> &ingredients)
 {
     QSqlDatabase db = QSqlDatabase::database(connection_);
     if (!db.transaction()) {
@@ -198,8 +213,17 @@ bool PosStore::seed(const PosSettings &settings, const std::vector<MenuItem> &me
     q.addBindValue(compact(app::toJson(settings)));
     if (!q.exec())
         return fail();
-    if (!q.exec(u"DELETE FROM menu_items"_s) || !q.exec(u"DELETE FROM employees"_s))
+    if (!q.exec(u"DELETE FROM menu_items"_s) || !q.exec(u"DELETE FROM employees"_s)
+        || !q.exec(u"DELETE FROM ingredients"_s))
         return fail();
+    q.prepare(u"INSERT INTO ingredients (id, position, json) VALUES (?, ?, ?)"_s);
+    for (int i = 0; i < int(ingredients.size()); ++i) {
+        q.addBindValue(qs(ingredients[i].id));
+        q.addBindValue(i);
+        q.addBindValue(compact(app::toJson(ingredients[i])));
+        if (!q.exec())
+            return fail();
+    }
     q.prepare(u"INSERT INTO menu_items (id, position, json) VALUES (?, ?, ?)"_s);
     int position = 0;
     for (const MenuItem &m : menu) {
@@ -240,6 +264,10 @@ std::optional<app::PosData> PosStore::load(QStringList *errors) const
     if (q.exec(u"SELECT json FROM menu_items ORDER BY position"_s)) {
         while (q.next())
             data.menu.push_back(app::menuItemFromJson(parse(q.value(0))));
+    }
+    if (q.exec(u"SELECT json FROM ingredients ORDER BY position"_s)) {
+        while (q.next())
+            data.ingredients.push_back(app::ingredientFromJson(parse(q.value(0))));
     }
     if (q.exec(u"SELECT json FROM customers"_s)) {
         while (q.next())
@@ -402,6 +430,17 @@ void SqlPosSink::saveParty(const core::Party &party)
                    {{u"id"_s, qint64(party.id)}, {u"day_key"_s, qint64(party.reservedFor ? party.reservedFor : party.addedAt)},
                     {u"status"_s, QString::fromStdString(core::toString(party.status))},
                     {u"json"_s, compact(app::toJson(party))}});
+}
+
+void SqlPosSink::saveIngredient(const core::Ingredient &i, int position)
+{
+    writer_.upsert(u"ingredients"_s, qs(i.id), {{u"id"_s, qs(i.id)}, {u"position"_s, position},
+                                               {u"json"_s, compact(app::toJson(i))}});
+}
+
+void SqlPosSink::deleteIngredient(const std::string &id)
+{
+    writer_.remove(u"ingredients"_s, u"id"_s, qs(id));
 }
 
 void SqlPosSink::saveEmployee(const Employee &e)

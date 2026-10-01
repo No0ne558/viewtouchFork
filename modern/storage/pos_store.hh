@@ -18,7 +18,7 @@ class AsyncWriter;
 // service go through AsyncWriter via SqlPosSink.
 class PosStore {
 public:
-    static constexpr int DbSchemaVersion = 5;
+    static constexpr int DbSchemaVersion = 6;
 
     explicit PosStore(QString databasePath);
     ~PosStore();
@@ -29,9 +29,11 @@ public:
     QString path() const { return path_; }
 
     bool hasMenu() const;
-    // First-run setup (one transaction). Replaces settings, menu, employees.
+    // First-run setup (one transaction). Replaces settings, menu, employees
+    // and the inventory.
     bool seed(const core::PosSettings &settings, const std::vector<core::MenuItem> &menu,
-              const std::vector<core::Employee> &employees, QString *error = nullptr);
+              const std::vector<core::Employee> &employees, QString *error = nullptr,
+              const std::vector<core::Ingredient> &ingredients = {});
 
     // Settings, menu, employees, open checks, open punches, and id counters.
     std::optional<app::PosData> load(QStringList *errors = nullptr) const;
@@ -59,6 +61,8 @@ public:
     void saveCustomer(const core::CustomerRecord &customer) override;
     void saveGiftCard(const core::GiftCard &card) override;
     void saveParty(const core::Party &party) override;
+    void saveIngredient(const core::Ingredient &ingredient, int position) override;
+    void deleteIngredient(const std::string &id) override;
 
 private:
     AsyncWriter &writer_;

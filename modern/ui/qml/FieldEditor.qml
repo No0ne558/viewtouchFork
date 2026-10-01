@@ -76,6 +76,7 @@ ColumnLayout {
             case "pageList": return pageList
             case "money": return numberField
             case "percent": return numberField
+            case "number": return numberField
             case "pin": return pinField
             default: return textField
             }

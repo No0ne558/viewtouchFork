@@ -4,6 +4,7 @@
 #include "core/customer.hh"
 #include "core/day.hh"
 #include "core/employee.hh"
+#include "core/inventory.hh"
 #include "core/menu.hh"
 #include "core/report.hh"
 #include "core/settings.hh"
@@ -42,6 +43,8 @@ public:
     virtual void saveCustomer(const core::CustomerRecord &) {}
     virtual void saveGiftCard(const core::GiftCard &) {}
     virtual void saveParty(const core::Party &) {}
+    virtual void saveIngredient(const core::Ingredient &, int position) { Q_UNUSED(position) }
+    virtual void deleteIngredient(const std::string &id) { Q_UNUSED(id) }
 };
 
 // Where tickets go. Implementations must not block (see print::PrintSpooler).
@@ -77,6 +80,7 @@ struct PosData {
     std::vector<core::GiftCard> giftCards;
     std::vector<core::Party> parties;
     std::int64_t lastPartyId = 0;
+    std::vector<core::Ingredient> ingredients;
     std::int64_t lastCheckId = 0;
     std::int64_t lastPunchId = 0;
     std::optional<core::BusinessDay> currentDay;  // none: the service opens one
@@ -111,6 +115,8 @@ public:
     std::vector<core::GiftCard> giftCards;
     std::vector<core::Party> parties;   // waiting, booked, and today's
     std::int64_t lastPartyId = 0;
+    std::vector<core::Ingredient> ingredients;
+    core::Ingredient *ingredient(const std::string &id);
     // Texts a guest (set up by main when a texting service is configured).
     std::function<void(const QString &phone, const QString &message)> sendText;
     core::CustomerRecord *customer(const std::string &id);
@@ -416,9 +422,20 @@ public:
     // Left the line, or (a reservation) never came.
     bool partyGone(qint64 id, bool noShow = false);
     QVariantMap waitlistInfo() const override;
+
+    // --- inventory (pos_inventory.cpp) ------------------------------------------
+    // What a line uses up (ingredient id -> amount).
+    std::map<std::string, double> stockUse(const core::OrderLine &line) const;
+    // Ingredients at or below their low mark.
+    QVariantList lowStock() const;
+    core::Report foodCostReport(const core::ReportContext &ctx) const;
     bool stopPairing();
 
 private:
+    // Stock out (sign 1) or back (-1) for these lines; then sold-out marks.
+    void takeStock(const std::vector<core::OrderLine> &lines, int sign);
+    // Sold out by itself when an ingredient runs short; back when restocked.
+    void refreshSoldOut();
     qint64 addParty(const QVariantMap &r, bool reservation);
     core::Party *party(qint64 id);
     void saveParty(const core::Party &p);
