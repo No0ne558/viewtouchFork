@@ -99,6 +99,8 @@ Every page is designed on a 1920 × 1080 landscape canvas and scaled to the scre
 ## Backups
 
 - **Automatic:** the machine that keeps the data backs up when it starts, every 24 hours and after every End of Day, keeping the newest 30. Backups go to `backups/` next to the database (`/var/lib/viewtouch/backups` when installed). A USB stick or network share is safer: set `backup-dir` in the .conf file. `backup-every` and `backup-keep` change the timing and count.
+- **A second copy:** Manager → Store Settings → *Also copy backups to* (for example `/media/usb/viewtouch`). Every backup is also copied there and checked, keeping as many. If the drive is missing, the backup still runs and the Manager is told.
+- **Status:** Manager → End of Day shows when the last backup ran, whether the second copy worked, and a **Back Up Now** button.
 - **By hand:** `vtmodern --backup` (add `--data-dir /var/lib/viewtouch` for an installed store). It is safe while ViewTouch runs.
 - **Restore:**
   ```sh
@@ -107,6 +109,8 @@ Every page is designed on a 1920 × 1080 landscape canvas and scaled to the scre
   sudo systemctl start vtmodern      # or vtmodern-kiosk
   ```
   The backup is checked first. The database it replaces is kept beside it as `viewtouch.db.before-restore-<time>`.
+
+**Power cuts and damage.** Each sale is synced to disk as soon as it is saved, on a background thread, so a power cut loses nothing that was already on the screen. At start ViewTouch checks the database. If it is damaged, ViewTouch won't run on it: it names the newest good backup and the command to restore it. The tests cover a power cut in the middle of a check, and a busy service of 1,000 checks on four terminals (every step under a millisecond, nothing lost).
 
 Each backup is a complete SQLite copy. Checks, pages, menu, staff, settings and past days are all in it.
 

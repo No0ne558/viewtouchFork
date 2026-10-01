@@ -190,6 +190,8 @@ QVariantList PosService::adminFields(const QString &panel)
             with(field(u"weekStartsOn"_s, tr("Pay week starts on"), u"enum"_s), u"options"_s,
                  options({{"0", "Sunday"}, {"1", "Monday"}, {"2", "Tuesday"}, {"3", "Wednesday"},
                           {"4", "Thursday"}, {"5", "Friday"}, {"6", "Saturday"}})),
+            field(u"backupCopyDir"_s, tr("Also copy backups to"), u"text"_s,
+                  tr("A USB drive or network folder on the server, e.g. /media/usb/viewtouch. Empty = no second copy.")),
             field(u"checkoutNeedsClosedChecks"_s, tr("Close all checks before checking out"), u"bool"_s,
                   tr("Servers must close or hand over their checks before they check out their bank. "
                      "Can be set per employee.")),
@@ -297,6 +299,7 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"cashMode"_s, qs(toString(s_->settings.cashMode))},
              {u"terminalsHaveDrawer"_s, s_->settings.terminalsHaveDrawer},
              {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks},
+             {u"backupCopyDir"_s, qs(s_->settings.backupCopyDir)},
              {u"paidBreaks"_s, s_->settings.paidBreaks}, {u"overtimeDailyHours"_s, s_->settings.overtimeDailyHours},
              {u"overtimeWeeklyHours"_s, s_->settings.overtimeWeeklyHours},
              {u"weekStartsOn"_s, QString::number(s_->settings.weekStartsOn)}},
@@ -439,6 +442,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.weekStartsOn = std::clamp(record.value(u"weekStartsOn"_s).toString().toInt(), 0, 6);
         if (record.contains(u"checkoutNeedsClosedChecks"_s))
             s_->settings.checkoutNeedsClosedChecks = record.value(u"checkoutNeedsClosedChecks"_s).toBool();
+        if (record.contains(u"backupCopyDir"_s))
+            s_->settings.backupCopyDir = ss(record.value(u"backupCopyDir"_s).toString().trimmed());
         settingsChanged();
         ok = true;
     }
@@ -820,6 +825,16 @@ QString PosShared::startPairing()
         }
     });
     return pairing->code;
+}
+
+bool PosService::backupNow()
+{
+    if (!require(perm::Manager, tr("Backups")))
+        return false;
+    if (!s_->requestBackup || !s_->requestBackup())
+        return fail(tr("Backups aren't set up on this store, or one is already running."));
+    emit notice(tr("Backing up..."));
+    return true;
 }
 
 bool PosService::startPairing()

@@ -8,6 +8,7 @@ Item {
     property ZoneItem zone
     readonly property PosService pos: zone ? zone.pos : null
     readonly property var day: pos ? pos.day : ({})
+    readonly property var backup: day.backup ?? ({})
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     readonly property color ink: zone.st.textColor ?? "white"
     readonly property real unit: Math.max(14, Math.min(30, w.width * 0.04))
@@ -61,6 +62,31 @@ Item {
         }
 
         Item { Layout.fillHeight: true }
+
+        // The last backup, and its second copy when one is set up.
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: w.unit * 0.5
+            Text {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                readonly property var b: w.backup
+                text: !b.at ? qsTr("No backup yet this session.")
+                     : b.ok ? qsTr("Backed up at %1.").arg(b.at) + (b.copy ? "  " + b.copy : "")
+                            : qsTr("Backup failed at %1: %2").arg(b.at).arg(b.error)
+                color: !b.at ? "#8a94a6" : (b.ok && b.copyOk !== false) ? "#7ee2a8" : "#ff9a9e"
+                font.family: w.face
+                font.pixelSize: w.unit * 0.75
+            }
+            WidgetKey {
+                Layout.preferredWidth: w.unit * 8
+                Layout.preferredHeight: w.unit * 2
+                text: qsTr("Back Up Now")
+                baseColor: "#343c49"
+                fontScale: 0.3
+                onClicked: w.pos.backupNow()
+            }
+        }
 
         Text {
             Layout.fillWidth: true

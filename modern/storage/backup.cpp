@@ -80,6 +80,27 @@ void takeOwnership(const QString &file, const QString &like)
 
 } // namespace
 
+bool copyBackup(const QString &backup, const QString &dir, QString *note)
+{
+    const QString target = QDir(dir).filePath(QFileInfo(backup).fileName());
+    const QString part = target + u".part"_s;
+    QString error;
+    if (!QDir().mkpath(dir))
+        error = u"cannot create %1 (is the drive plugged in?)"_s.arg(dir);
+    else if (QFile::remove(part), !QFile::copy(backup, part))
+        error = u"cannot write to %1"_s.arg(dir);
+    else if (!verifyDatabase(part, &error) || !QFile::rename(part, target))
+        QFile::remove(part);
+    else {
+        if (note)
+            *note = u"Copied to %1."_s.arg(dir);
+        return true;
+    }
+    if (note)
+        *note = u"Second copy failed: %1."_s.arg(error.isEmpty() ? u"cannot rename the copy"_s : error);
+    return false;
+}
+
 QString backupFileName(const QDateTime &when)
 {
     return u"viewtouch-%1.db"_s.arg(when.toString(u"yyyyMMdd-HHmmss"_s));
@@ -113,6 +134,21 @@ bool backupDatabase(const QString &db, const QString &target, QString *error)
         return false;
     }
     return true;
+}
+
+bool databaseIntact(const QString &file, QString *error)
+{
+    return withConnection(file, false, error, [&](QSqlQuery &q) {
+        if (!q.exec(u"PRAGMA quick_check"_s) || !q.next()) {
+            setError(error, q.lastError().text().isEmpty() ? u"not a database"_s : q.lastError().text());
+            return false;
+        }
+        if (q.value(0).toString() != u"ok") {
+            setError(error, q.value(0).toString());
+            return false;
+        }
+        return true;
+    });
 }
 
 bool verifyDatabase(const QString &file, QString *error)
@@ -230,7 +266,7 @@ void BackupScheduler::backupNow()
     if (running_)
         return;
     running_ = true;
-    pool_.start([this, db = db_, dir = dir_, keep = keep_] {
+    pool_.start([this, db = db_, dir = dir_, copyDir = copyDir_, keep = keep_] {
         QString error;
         QString target;
         bool ok = QDir().mkpath(dir);
@@ -245,13 +281,22 @@ void BackupScheduler::backupNow()
             if (ok)
                 pruneBackups(dir, keep);
         }
-        QMetaObject::invokeMethod(this, [this, ok, target, error] {
+        QString copy;
+        bool copyOk = true;
+        if (ok && !copyDir.isEmpty()) {
+            copyOk = copyBackup(target, copyDir, &copy);
+            if (copyOk)
+                pruneBackups(copyDir, keep);
+        }
+        QMetaObject::invokeMethod(this, [this, ok, target, error, copy, copyOk] {
             running_ = false;
             if (ok)
                 qCInfo(lcBackup).noquote() << "Backed up the database to" << target;
             else
                 qCWarning(lcBackup).noquote() << "Backup failed:" << error;
-            emit finished(ok, target, error);
+            if (!copyOk)
+                qCWarning(lcBackup).noquote() << copy;
+            emit finished(ok, target, error, copy, copyOk);
         }, Qt::QueuedConnection);
     });
 }

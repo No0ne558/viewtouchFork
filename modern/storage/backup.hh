@@ -17,6 +17,9 @@ namespace vt::storage {
 // is written beside the target and renamed into place when complete.
 bool backupDatabase(const QString &db, const QString &target, QString *error = nullptr);
 
+// SQLite's quick check of the database in use (WAL included); `error`
+// says what is wrong.
+bool databaseIntact(const QString &file, QString *error = nullptr);
 // Whether `file` is a ViewTouch database that SQLite can read in full.
 bool verifyDatabase(const QString &file, QString *error = nullptr);
 
@@ -25,6 +28,9 @@ bool verifyDatabase(const QString &file, QString *error = nullptr);
 // Only while no ViewTouch has the database open (main.cpp holds a lock file).
 bool restoreDatabase(const QString &backup, const QString &db, QString *keptAs = nullptr, QString *error = nullptr);
 
+// Copy `backup` into `dir` as well (written aside, checked, then renamed).
+// `note` says where it went or why it couldn't.
+bool copyBackup(const QString &backup, const QString &dir, QString *note = nullptr);
 // Backups in `dir`, newest first.
 QStringList listBackups(const QString &dir);
 // Remove all but the newest `keep` backups in `dir`; returns what was removed.
@@ -44,6 +50,8 @@ public:
     ~BackupScheduler() override;   // waits for a running backup
 
     QString directory() const { return dir_; }
+    // Also copy each backup to `dir` (empty: no second copy), keeping as many.
+    void setCopyDirectory(const QString &dir) { copyDir_ = dir; }
     // Begin the hourly checks (and check now).
     void start();
     // Take a backup now unless one is already running.
@@ -51,13 +59,15 @@ public:
     bool running() const { return running_; }
 
 signals:
-    void finished(bool ok, const QString &file, const QString &error);
+    // copy: what happened to the second copy ("" when there is none).
+    void finished(bool ok, const QString &file, const QString &error, const QString &copy, bool copyOk);
 
 private:
     void check();
 
     QString db_;
     QString dir_;
+    QString copyDir_;
     int keep_;
     int everyHours_;
     QTimer timer_;

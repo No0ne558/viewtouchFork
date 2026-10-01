@@ -514,6 +514,66 @@ int runTerminal(const Args &cli, const Options &o)
     }
 }
 
+// A damaged database: say so (and which backup to restore) instead of
+// running on it. On screen when there is one; the kiosk then stays closed.
+int refuseDamagedDatabase(const Args &cli, const Options &o, const QString &db, const QString &problem)
+{
+    const QStringList backups = vt::storage::listBackups(backupDirOf(cli, o));
+    QString newest;
+    for (const QString &b : backups) {
+        if (vt::storage::verifyDatabase(b)) {
+            newest = b;
+            break;
+        }
+    }
+    // SQLite's findings go to the log; the screen says what to do.
+    qCritical().noquote() << "The database" << db << "is damaged:" << problem;
+    const QString text = newest.isEmpty()
+        ? u"The database is damaged:\n%1\n\nThere is no good backup in %2. Keep the file and get help."_s
+              .arg(db, backupDirOf(cli, o))
+        : u"The database is damaged:\n%1\n\nThe newest good backup is:\n%2\n\nTo go back to it (sales made since "
+          "then will be missing), close this and run:\n    vtmodern %3--restore %2\n\nThe damaged file is kept beside it, "
+          "and the details are in the log."_s.arg(db, newest,
+              cli.isSet(o.dataDir) ? u"--data-dir %1 "_s.arg(cli.value(o.dataDir)) : QString());
+    qCritical().noquote() << text;
+    if (cli.isSet(o.headless))
+        return 1;
+    QQmlApplicationEngine engine;
+    engine.setInitialProperties({{u"message"_s, text}});
+    engine.loadData(R"(
+import QtQuick
+import QtQuick.Controls.Fusion
+import QtQuick.Layouts
+ApplicationWindow {
+    required property string message
+    width: 1024; height: 640; visible: true
+    title: "ViewTouch - database problem"
+    color: "#1b1e24"
+    ColumnLayout {
+        anchors.fill: parent; anchors.margins: 32; spacing: 20
+        Label { text: "ViewTouch can't open its database"; color: "#ff9a9e"; font.pixelSize: 30; font.bold: true }
+        Label { Layout.fillWidth: true; Layout.fillHeight: true; text: message; color: "white"
+                font.pixelSize: 18; wrapMode: Text.WrapAnywhere; textFormat: Text.PlainText; clip: true }
+        Button { text: "Close"; font.pixelSize: 22; implicitHeight: 64; implicitWidth: 200
+                 onClicked: Qt.exit(0) }
+    }
+}
+)");
+    auto *window = engine.rootObjects().isEmpty() ? nullptr : qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    if (!window)
+        return 1;
+    present(window, cli, o);
+    if (cli.isSet(o.screenshot)) {
+        const QString file = cli.value(o.screenshot);
+        QTimer::singleShot(800, window, [window, file] {
+            window->grabWindow().save(file);
+            QCoreApplication::exit(0);
+        });
+    }
+    QCoreApplication::exec();
+    return cli.isSet(o.kiosk) ? kKioskClosed : 1;   // a kiosk must not restart into it
+}
+
 // --- this machine holds the data (standalone, or serving terminals) -----------------------
 
 int runStore(const Args &cli, const Options &o)
@@ -531,6 +591,13 @@ int runStore(const Args &cli, const Options &o)
         qCritical().noquote() << u"The database %1 is already in use by another ViewTouch (process %2). "
                                  "Join it as a terminal with --connect instead."_s.arg(dbPath).arg(pid);
         return 1;
+    }
+
+    // A damaged database would lose more with every sale: check it first.
+    if (QFileInfo(dbPath).size() > 0) {
+        QString problem;
+        if (!vt::storage::databaseIntact(dbPath, &problem))
+            return refuseDamagedDatabase(cli, o, dbPath, problem);
     }
 
     vt::storage::LayoutStore store(dbPath);
@@ -655,11 +722,27 @@ int runStore(const Args &cli, const Options &o)
     if (havePosStore) {
         backups = std::make_unique<vt::storage::BackupScheduler>(
             dbPath, backupDirOf(cli, o), cli.value(o.backupKeep).toInt(), cli.value(o.backupEvery).toInt());
+        backups->setCopyDirectory(QString::fromStdString(shared->settings.backupCopyDir));
+        QObject::connect(shared, &vt::app::PosShared::adminChanged, backups.get(), [shared, &backups] {
+            backups->setCopyDirectory(QString::fromStdString(shared->settings.backupCopyDir));
+        });
         QObject::connect(backups.get(), &vt::storage::BackupScheduler::finished, &pos,
-                         [&pos](bool ok, const QString &, const QString &error) {
+                         [&pos, shared](bool ok, const QString &, const QString &error, const QString &copy, bool copyOk) {
+            shared->setBackupStatus({{u"at"_s, QTime::currentTime().toString(u"h:mm AP"_s)}, {u"ok"_s, ok},
+                                     {u"error"_s, error}, {u"copy"_s, copy}, {u"copyOk"_s, copyOk}});
             if (!ok)
                 say(pos, QCoreApplication::translate("main", "The database backup failed: %1").arg(error));
+            else if (!copyOk)
+                say(pos, QCoreApplication::translate("main", "The backup worked, but %1").arg(copy));
         });
+        shared->requestBackup = [&backups, &writer] {
+            if (backups->running())
+                return false;
+            if (writer)
+                writer->flush();
+            backups->backupNow();
+            return true;
+        };
         QObject::connect(shared, &vt::app::PosShared::dayChanged, backups.get(),
                          [shared, &backups, &writer, closedDays = shared->pastDays.size()]() mutable {
             if (shared->pastDays.size() > closedDays) {

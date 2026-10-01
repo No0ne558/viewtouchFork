@@ -36,7 +36,10 @@ public:
         }
         QSqlQuery q(db);
         q.exec(u"PRAGMA journal_mode=WAL"_s);
-        q.exec(u"PRAGMA synchronous=NORMAL"_s);
+        // FULL: a sale is on disk once its commit returns, even if the
+        // power goes out right after (NORMAL could roll the last ones back).
+        // This runs on the writer's thread, so the screen never waits for it.
+        q.exec(u"PRAGMA synchronous=FULL"_s);
         q.exec(u"PRAGMA busy_timeout=5000"_s);
         return db;
     }

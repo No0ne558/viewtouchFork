@@ -127,6 +127,9 @@ struct PosSettings {
     // Whether people must close (or hand over) their checks before they
     // check out their bank, unless set per employee.
     bool checkoutNeedsClosedChecks = true;
+    // A second folder every backup is also copied to (a USB drive, a
+    // network share), so one dead disk can't take the backups with it.
+    std::string backupCopyDir;
 
     bool hasDrawer(const std::string &terminal) const
     {

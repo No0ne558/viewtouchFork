@@ -139,6 +139,16 @@ public:
 
     void startDay();
 
+    // Backups (set up by main on the store server): take one now, and how
+    // the last one went - {at, ok, error, copy, copyOk}.
+    std::function<bool()> requestBackup;
+    QVariantMap backup;
+    void setBackupStatus(QVariantMap status)
+    {
+        backup = std::move(status);
+        emit dayChanged();
+    }
+
 signals:
     void checksChanged();    // any check: open, closed, made
     void dayChanged();
@@ -343,6 +353,8 @@ public:
     // --- pairing devices (manager) -------------------------------------------------
     // Start a pairing: a 10-character code, good for 10 minutes and one device.
     bool startPairing();
+    // Back the database up now (managers).
+    bool backupNow();
     bool stopPairing();
 
 private:

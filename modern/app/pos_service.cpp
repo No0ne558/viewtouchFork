@@ -1120,6 +1120,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
              return QVariant(p.payout(cashMovementKindFromString(ss(a.value(0).toString())))); }},
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
         {u"toggleBreak"_s, [](PosService &p, const QVariantList &) { return QVariant(p.toggleBreak()); }},
+        {u"backupNow"_s, [](PosService &p, const QVariantList &) { return QVariant(p.backupNow()); }},
         {u"setSeat"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setSeat(a.value(0).toInt())); }},
         {u"chooseOption"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.chooseOption(a.value(0).toString(), a.value(1).toInt())); }},

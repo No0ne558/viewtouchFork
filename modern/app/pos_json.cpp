@@ -529,6 +529,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"terminalsHaveDrawer"_s, s.terminalsHaveDrawer},
         {u"serverId"_s, qs(s.serverId)},
         {u"checkoutNeedsClosedChecks"_s, s.checkoutNeedsClosedChecks},
+        {u"backupCopyDir"_s, qs(s.backupCopyDir)},
     };
 }
 
@@ -567,6 +568,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.terminalsHaveDrawer = o.value(u"terminalsHaveDrawer").toBool(true);
     s.serverId = ss(o.value(u"serverId").toString());
     s.checkoutNeedsClosedChecks = o.value(u"checkoutNeedsClosedChecks").toBool(true);
+    s.backupCopyDir = ss(o.value(u"backupCopyDir").toString());
     if (o.contains(u"mealPeriods")) {   // older settings keep the defaults
         s.mealPeriods.clear();
         for (const QJsonValue &v : o.value(u"mealPeriods").toArray()) {

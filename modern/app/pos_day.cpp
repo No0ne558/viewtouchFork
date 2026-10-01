@@ -559,6 +559,7 @@ QVariantMap PosService::dayInfo() const
         {u"openChecks"_s, int(s_->open.size())}, {u"closedChecks"_s, int(s_->closedToday.size())},
         {u"netSales"_s, format(net)}, {u"drawerOpen"_s, anyOpen},
         {u"blockers"_s, blockers}, {u"ready"_s, blockers.isEmpty()},
+        {u"backup"_s, s_->backup},
     };
 }
 
