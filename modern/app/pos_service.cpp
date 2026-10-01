@@ -599,6 +599,8 @@ bool PosService::sendOrder()
     if (!c)
         return fail(tr("No check is open."));
     const std::vector<OrderLine> fresh = c->sendable();
+    if (const QString missing = missingChoice(fresh); !missing.isEmpty())
+        return fail(missing);   // the kitchen needs the whole order
     const int n = c->sendAll(now());
     const int held = c->heldCount();
     if (n == 0)
@@ -714,6 +716,8 @@ bool PosService::closeCheck()
     if (c->unsentCount() > 0) {
         // Closing sends whatever is left, held courses too.
         const std::vector<OrderLine> fresh = c->sendable(true);
+        if (const QString missing = missingChoice(fresh); !missing.isEmpty())
+            return fail(missing);
         c->sendAll(now(), true);
         if (s_->printer && !fresh.empty())
             s_->printer->printKitchen(s_->settings, *c, fresh, false);
@@ -849,6 +853,11 @@ QVariantList PosService::lines() const
             {u"sent"_s, l.sent}, {u"voided"_s, l.voided}, {u"modifiers"_s, mods},
             {u"selected"_s, qint64(l.id) == selectedLine_},
             {u"seat"_s, l.seat}, {u"course"_s, l.course}, {u"held"_s, c->held(l)},
+            // Its modifier groups can still be changed / a required one is missing.
+            {u"choices"_s, !l.sent && !l.isComment() && [&] {
+                 const MenuItem *m = findItem(qs(l.itemId));
+                 return m && !m->modifierGroups.empty(); }()},
+            {u"needsChoice"_s, !l.sent && !missingChoice({l}).isEmpty()},
         });
     }
     return out;
@@ -1116,6 +1125,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
              return QVariant(p.chooseOption(a.value(0).toString(), a.value(1).toInt())); }},
         {u"finishChoosing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.finishChoosing()); }},
         {u"cancelChoosing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cancelChoosing()); }},
+        {u"chooseLine"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.chooseLine(a.value(0).toLongLong())); }},
         {u"setAvailable"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.setAvailable(a.value(0).toString(), a.value(1).toBool())); }},
         {u"setCourse"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setCourse(a.value(0).toInt())); }},

@@ -219,6 +219,11 @@ public:
     bool chooseOption(const QString &groupId, int index);
     bool finishChoosing();
     bool cancelChoosing();
+    // Choose again for an unsent item already on the check.
+    bool chooseLine(qint64 lineId);
+    // "House Salad needs a Dressing..." for the first of `lines` missing a
+    // required choice; empty when they are complete.
+    QString missingChoice(const std::vector<core::OrderLine> &lines) const;
     // 86 / un-86 an item (anyone taking orders).
     bool setAvailable(const QString &itemId, bool available);
     std::string currentMealPeriod() const;

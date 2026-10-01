@@ -191,6 +191,7 @@ public:
     Q_INVOKABLE void chooseOption(const QString &groupId, int index) { invoke(QStringLiteral("chooseOption"), {groupId, index}); }
     Q_INVOKABLE void finishChoosing() { invoke(QStringLiteral("finishChoosing")); }
     Q_INVOKABLE void cancelChoosing() { invoke(QStringLiteral("cancelChoosing")); }
+    Q_INVOKABLE void chooseLine(qint64 lineId) { invoke(QStringLiteral("chooseLine"), {lineId}); }
     Q_INVOKABLE void setAvailable(const QString &itemId, bool available) { invoke(QStringLiteral("setAvailable"), {itemId, available}); }
     Q_INVOKABLE void transferCheck(const QString &employeeId) { invoke(QStringLiteral("transferCheck"), {employeeId}); }
     Q_INVOKABLE void moveCheck(const QString &table) { invoke(QStringLiteral("moveCheck"), {table}); }

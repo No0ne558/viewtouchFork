@@ -61,6 +61,36 @@ QVariantMap PosService::choosingInfo() const
             {u"groups"_s, groups}};
 }
 
+QString PosService::missingChoice(const std::vector<OrderLine> &lines) const
+{
+    for (const OrderLine &l : lines) {
+        const MenuItem *item = l.isComment() || l.voided ? nullptr : findItem(qs(l.itemId));
+        if (!item)
+            continue;
+        for (const std::string &gid : item->modifierGroups) {
+            const ModifierGroup *g = s_->settings.modifierGroup(gid);
+            if (g && g->min > 0 && chosenIn(l, g->id) < g->min)
+                return tr("%1 needs a %2. Touch it, then choose.").arg(qs(l.displayName()), qs(g->name));
+        }
+    }
+    return {};
+}
+
+bool PosService::chooseLine(qint64 lineId)
+{
+    Check *c = current();
+    const OrderLine *l = c ? c->line(lineId) : nullptr;
+    if (!l || l->sent)
+        return fail(tr("Only items not yet sent can be changed."));
+    const MenuItem *item = findItem(qs(l->itemId));
+    if (!item || item->modifierGroups.empty())
+        return fail(tr("%1 has no choices.").arg(qs(l->displayName())));
+    choosingLine_ = l->id;
+    selectedLine_ = l->id;
+    emit checkChanged();
+    return true;
+}
+
 bool PosService::chooseOption(const QString &groupId, int index)
 {
     Check *c = current();

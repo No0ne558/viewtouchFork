@@ -202,6 +202,16 @@ Item {
                             font.strikeout: row.modelData.voided
                             elide: Text.ElideRight
                         }
+                        // Choices for an unsent item: amber while a required one is missing.
+                        WidgetKey {
+                            visible: row.modelData.choices
+                            Layout.preferredWidth: w.unit * 3.4
+                            Layout.preferredHeight: w.unit * 1.4
+                            text: qsTr("Choose")
+                            baseColor: row.modelData.needsChoice ? "#a86a12" : "#343c49"
+                            fontScale: 0.5
+                            onClicked: w.zone.controller.chooseLine(row.modelData.id)
+                        }
                         Text {
                             text: row.modelData.voided ? qsTr("VOID") : row.modelData.price
                             color: row.modelData.voided ? "#ff6369" : w.ink

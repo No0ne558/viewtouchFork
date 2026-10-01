@@ -21,7 +21,10 @@ inline QJsonDocument readSeed(const char *relative)
     return QJsonDocument::fromJson(f.readAll());
 }
 
-inline app::PosData seedPosData()
+// The starter data. Modifier choices are optional here unless
+// `requiredChoices`: tests about other things can send and close without
+// picking a beer; the modifier tests ask for the store's real rules.
+inline app::PosData seedPosData(bool requiredChoices = false)
 {
     app::PosData d;
     d.settings = app::settingsFromJson(readSeed("pos/settings.json").object());
@@ -34,6 +37,10 @@ inline app::PosData seedPosData()
     // have tests of their own, with a fixed clock.
     for (core::MenuItem &m : d.menu)
         m.periodPrices.clear();
+    if (!requiredChoices) {
+        for (core::ModifierGroup &g : d.settings.modifierGroups)
+            g.min = 0;
+    }
     return d;
 }
 

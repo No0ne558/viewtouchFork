@@ -152,6 +152,258 @@
       ]
     },
     {
+      "id": "toast",
+      "name": "Toast",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "name": "White",
+          "price": 0
+        },
+        {
+          "name": "Wheat",
+          "price": 0
+        },
+        {
+          "name": "Sourdough",
+          "price": 0
+        },
+        {
+          "name": "Rye",
+          "price": 0
+        },
+        {
+          "name": "English Muffin",
+          "price": 0
+        }
+      ]
+    },
+    {
+      "id": "syrup",
+      "name": "Syrup",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "name": "Maple",
+          "price": 0
+        },
+        {
+          "name": "Blueberry",
+          "price": 0
+        },
+        {
+          "name": "Strawberry",
+          "price": 0
+        },
+        {
+          "name": "Real Maple",
+          "price": 1.5
+        }
+      ]
+    },
+    {
+      "id": "breakfast-add-ons",
+      "name": "Add-ons",
+      "min": 0,
+      "max": 0,
+      "options": [
+        {
+          "name": "Bacon",
+          "price": 3.0
+        },
+        {
+          "name": "Sausage",
+          "price": 3.0
+        },
+        {
+          "name": "Fruit Cup",
+          "price": 2.5
+        },
+        {
+          "name": "Hash Browns",
+          "price": 2.75
+        },
+        {
+          "name": "Whipped Cream",
+          "price": 0.75
+        }
+      ]
+    },
+    {
+      "id": "kids-side",
+      "name": "Kids Side",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "name": "Fries",
+          "price": 0
+        },
+        {
+          "name": "Apple Slices",
+          "price": 0
+        },
+        {
+          "name": "Fruit Cup",
+          "price": 0
+        },
+        {
+          "name": "Carrot Sticks",
+          "price": 0
+        }
+      ]
+    },
+    {
+      "id": "kids-drink",
+      "name": "Kids Drink",
+      "min": 0,
+      "max": 1,
+      "options": [
+        {
+          "name": "Milk",
+          "price": 0
+        },
+        {
+          "name": "Apple Juice",
+          "price": 0
+        },
+        {
+          "name": "Chocolate Milk",
+          "price": 0.5
+        }
+      ]
+    },
+    {
+      "id": "drink-size",
+      "name": "Size",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "name": "Small",
+          "price": 0
+        },
+        {
+          "name": "Medium",
+          "price": 0.5
+        },
+        {
+          "name": "Large",
+          "price": 1.0
+        }
+      ]
+    },
+    {
+      "id": "coffee-extras",
+      "name": "Coffee",
+      "min": 0,
+      "max": 0,
+      "options": [
+        {
+          "name": "Cream",
+          "price": 0
+        },
+        {
+          "name": "Oat Milk",
+          "price": 0.75
+        },
+        {
+          "name": "Sugar",
+          "price": 0
+        },
+        {
+          "name": "Sweetener",
+          "price": 0
+        },
+        {
+          "name": "Extra Shot",
+          "price": 1.25
+        },
+        {
+          "name": "Decaf",
+          "price": 0
+        }
+      ]
+    },
+    {
+      "id": "hot-or-iced",
+      "name": "Hot or Iced",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "name": "Hot",
+          "price": 0
+        },
+        {
+          "name": "Iced",
+          "price": 0
+        }
+      ]
+    },
+    {
+      "id": "draft",
+      "name": "Draft",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "name": "IPA",
+          "price": 0
+        },
+        {
+          "name": "Lager",
+          "price": 0
+        },
+        {
+          "name": "Stout",
+          "price": 0
+        },
+        {
+          "name": "Seasonal",
+          "price": 1.0
+        }
+      ]
+    },
+    {
+      "id": "wine",
+      "name": "Wine",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "name": "Red",
+          "price": 0
+        },
+        {
+          "name": "White",
+          "price": 0
+        },
+        {
+          "name": "Ros\u00e9",
+          "price": 0
+        }
+      ]
+    },
+    {
+      "id": "wine-pour",
+      "name": "Pour",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "name": "Glass",
+          "price": 0
+        },
+        {
+          "name": "Bottle",
+          "price": 22.0
+        }
+      ]
+    },
+    {
       "id": "omelette-fillings",
       "name": "Fillings",
       "min": 0,

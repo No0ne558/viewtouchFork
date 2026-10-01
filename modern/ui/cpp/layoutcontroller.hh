@@ -110,6 +110,8 @@ public:
     Q_INVOKABLE void exportReport(const QVariantMap &report, const QString &format);
     void setExportDirectory(const QString &dir) { exportDir_ = dir; }
 
+    // Change the choices of an unsent item: opens the Choose page for it.
+    Q_INVOKABLE void chooseLine(qint64 lineId);
     // Modifier choices done: back to the menu once the required ones are made.
     Q_INVOKABLE void finishChoosing();
 

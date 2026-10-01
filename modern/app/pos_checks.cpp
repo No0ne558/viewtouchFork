@@ -167,6 +167,19 @@ bool PosService::fireCourse()
     Check *c = current();
     if (!c)
         return fail(tr("No check is open."));
+    // The course about to go out must be complete.
+    int next = 0;
+    for (const OrderLine &l : c->lines) {
+        if (c->held(l) && (next == 0 || l.course < next))
+            next = l.course;
+    }
+    std::vector<OrderLine> course_lines;
+    for (const OrderLine &l : c->lines) {
+        if (c->held(l) && l.course == next)
+            course_lines.push_back(l);
+    }
+    if (const QString missing = missingChoice(course_lines); !missing.isEmpty())
+        return fail(missing);
     const int course = c->fireNextCourse();
     if (course == 0)
         return fail(tr("No course is on hold."));

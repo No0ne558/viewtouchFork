@@ -51,7 +51,11 @@
     "price": 7.5,
     "family": "burgers",
     "taxClass": "food",
-    "printer": "kitchen"
+    "printer": "kitchen",
+    "modifierGroups": [
+      "kids-side",
+      "kids-drink"
+    ]
   },
   {
     "id": "burger-of-the-day",
@@ -113,7 +117,10 @@
     "price": 2.75,
     "family": "drinks",
     "taxClass": "food",
-    "printer": "bar"
+    "printer": "bar",
+    "modifierGroups": [
+      "coffee-extras"
+    ]
   },
   {
     "id": "tea",
@@ -121,7 +128,10 @@
     "price": 2.5,
     "family": "drinks",
     "taxClass": "food",
-    "printer": "bar"
+    "printer": "bar",
+    "modifierGroups": [
+      "hot-or-iced"
+    ]
   },
   {
     "id": "soda",
@@ -129,7 +139,10 @@
     "price": 2.95,
     "family": "drinks",
     "taxClass": "food",
-    "printer": "bar"
+    "printer": "bar",
+    "modifierGroups": [
+      "drink-size"
+    ]
   },
   {
     "id": "juice",
@@ -137,7 +150,10 @@
     "price": 3.5,
     "family": "drinks",
     "taxClass": "food",
-    "printer": "bar"
+    "printer": "bar",
+    "modifierGroups": [
+      "drink-size"
+    ]
   },
   {
     "id": "water",
@@ -153,7 +169,10 @@
     "price": 3.25,
     "family": "drinks",
     "taxClass": "food",
-    "printer": "bar"
+    "printer": "bar",
+    "modifierGroups": [
+      "drink-size"
+    ]
   },
   {
     "id": "draft-beer",
@@ -161,7 +180,10 @@
     "price": 6.0,
     "family": "drinks",
     "taxClass": "alcohol",
-    "printer": "bar"
+    "printer": "bar",
+    "modifierGroups": [
+      "draft"
+    ]
   },
   {
     "id": "house-wine",
@@ -170,6 +192,10 @@
     "family": "drinks",
     "taxClass": "alcohol",
     "printer": "bar",
+    "modifierGroups": [
+      "wine",
+      "wine-pour"
+    ],
     "periodPrices": {
       "dinner": 9.0
     }
@@ -182,7 +208,9 @@
     "taxClass": "food",
     "printer": "kitchen",
     "modifierGroups": [
-      "eggs"
+      "eggs",
+      "toast",
+      "breakfast-add-ons"
     ]
   },
   {
@@ -191,7 +219,11 @@
     "price": 9.5,
     "family": "breakfast",
     "taxClass": "food",
-    "printer": "kitchen"
+    "printer": "kitchen",
+    "modifierGroups": [
+      "syrup",
+      "breakfast-add-ons"
+    ]
   },
   {
     "id": "french-toast",
@@ -199,7 +231,11 @@
     "price": 9.75,
     "family": "breakfast",
     "taxClass": "food",
-    "printer": "kitchen"
+    "printer": "kitchen",
+    "modifierGroups": [
+      "syrup",
+      "breakfast-add-ons"
+    ]
   },
   {
     "id": "omelette",
@@ -209,7 +245,9 @@
     "taxClass": "food",
     "printer": "kitchen",
     "modifierGroups": [
-      "omelette-fillings"
+      "omelette-fillings",
+      "toast",
+      "breakfast-add-ons"
     ]
   },
   {

@@ -383,6 +383,17 @@ void LayoutController::exportReport(const QVariantMap &report, const QString &fo
     setStatus(file.isEmpty() ? tr("Could not save the report: %1").arg(error) : tr("Saved to %1").arg(file));
 }
 
+void LayoutController::chooseLine(qint64 lineId)
+{
+    if (!pos_ || busy())
+        return;
+    call(u"chooseLine"_s, {lineId}, [this](const QVariant &ok) {
+        const QString page = rolePage(u"modifiers"_s);
+        if (ok.toBool() && !page.isEmpty() && nav_.current() != page)
+            navigate(Navigator::Mode::Push, page);
+    });
+}
+
 void LayoutController::finishChoosing()
 {
     if (!pos_ || busy())

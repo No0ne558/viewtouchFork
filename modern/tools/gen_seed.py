@@ -86,8 +86,17 @@ for sid in ("house-salad", "greek"):
     item(sid)["modifierGroups"] = ["dressing", "salad-protein"]
 for sid in ("caesar", "cobb"):
     item(sid)["modifierGroups"] = ["salad-protein"]
-item("two-eggs")["modifierGroups"] = ["eggs"]
-item("omelette")["modifierGroups"] = ["omelette-fillings"]
+item("two-eggs")["modifierGroups"] = ["eggs", "toast", "breakfast-add-ons"]
+item("omelette")["modifierGroups"] = ["omelette-fillings", "toast", "breakfast-add-ons"]
+for bid in ("pancakes", "french-toast"):
+    item(bid)["modifierGroups"] = ["syrup", "breakfast-add-ons"]
+item("kids-burger")["modifierGroups"] = ["kids-side", "kids-drink"]
+for did in ("soda", "lemonade", "juice"):
+    item(did)["modifierGroups"] = ["drink-size"]
+item("coffee")["modifierGroups"] = ["coffee-extras"]
+item("tea")["modifierGroups"] = ["hot-or-iced"]
+item("draft-beer")["modifierGroups"] = ["draft"]
+item("house-wine")["modifierGroups"] = ["wine", "wine-pour"]
 # Dinner portions and the evening wine price.
 for bid, price in (("classic-burger", 12.50), ("bacon-burger", 14.50), ("house-wine", 9.00)):
     item(bid)["periodPrices"] = {"dinner": price}
@@ -135,6 +144,36 @@ write("pos/settings.json", {
                      {"name": "Salmon", "price": 6.00}]},
         {"id": "eggs", "name": "Eggs", "min": 1, "max": 1,
          "options": [{"name": n, "price": 0} for n in ("Scrambled", "Over Easy", "Over Medium", "Sunny Side Up", "Poached")]},
+        {"id": "toast", "name": "Toast", "min": 1, "max": 1,
+         "options": [{"name": n, "price": 0} for n in ("White", "Wheat", "Sourdough", "Rye", "English Muffin")]},
+        {"id": "syrup", "name": "Syrup", "min": 1, "max": 1,
+         "options": [{"name": "Maple", "price": 0}, {"name": "Blueberry", "price": 0},
+                     {"name": "Strawberry", "price": 0}, {"name": "Real Maple", "price": 1.50}]},
+        {"id": "breakfast-add-ons", "name": "Add-ons", "min": 0, "max": 0,
+         "options": [{"name": "Bacon", "price": 3.00}, {"name": "Sausage", "price": 3.00},
+                     {"name": "Fruit Cup", "price": 2.50}, {"name": "Hash Browns", "price": 2.75},
+                     {"name": "Whipped Cream", "price": 0.75}]},
+        {"id": "kids-side", "name": "Kids Side", "min": 1, "max": 1,
+         "options": [{"name": n, "price": 0} for n in ("Fries", "Apple Slices", "Fruit Cup", "Carrot Sticks")]},
+        {"id": "kids-drink", "name": "Kids Drink", "min": 0, "max": 1,
+         "options": [{"name": "Milk", "price": 0}, {"name": "Apple Juice", "price": 0},
+                     {"name": "Chocolate Milk", "price": 0.50}]},
+        {"id": "drink-size", "name": "Size", "min": 1, "max": 1,
+         "options": [{"name": "Small", "price": 0}, {"name": "Medium", "price": 0.50},
+                     {"name": "Large", "price": 1.00}]},
+        {"id": "coffee-extras", "name": "Coffee", "min": 0, "max": 0,
+         "options": [{"name": "Cream", "price": 0}, {"name": "Oat Milk", "price": 0.75},
+                     {"name": "Sugar", "price": 0}, {"name": "Sweetener", "price": 0},
+                     {"name": "Extra Shot", "price": 1.25}, {"name": "Decaf", "price": 0}]},
+        {"id": "hot-or-iced", "name": "Hot or Iced", "min": 1, "max": 1,
+         "options": [{"name": "Hot", "price": 0}, {"name": "Iced", "price": 0}]},
+        {"id": "draft", "name": "Draft", "min": 1, "max": 1,
+         "options": [{"name": "IPA", "price": 0}, {"name": "Lager", "price": 0}, {"name": "Stout", "price": 0},
+                     {"name": "Seasonal", "price": 1.00}]},
+        {"id": "wine", "name": "Wine", "min": 1, "max": 1,
+         "options": [{"name": n, "price": 0} for n in ("Red", "White", "Rosé")]},
+        {"id": "wine-pour", "name": "Pour", "min": 1, "max": 1,
+         "options": [{"name": "Glass", "price": 0}, {"name": "Bottle", "price": 22.00}]},
         {"id": "omelette-fillings", "name": "Fillings", "min": 0, "max": 3,
          "options": [{"name": "Cheese", "price": 0}, {"name": "Ham", "price": 1.00}, {"name": "Mushrooms", "price": 0},
                      {"name": "Peppers", "price": 0}, {"name": "Onions", "price": 0}, {"name": "Spinach", "price": 0},

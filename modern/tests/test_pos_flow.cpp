@@ -27,7 +27,7 @@ Layout seedLayout()
 
 struct Session {
     test::RecordingSink sink;
-    app::PosService pos{test::seedPosData(), &sink};
+    app::PosService pos{test::seedPosData(true), &sink};
     LayoutController c{seedLayout()};
 
     Session()
