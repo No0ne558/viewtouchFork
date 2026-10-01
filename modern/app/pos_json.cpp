@@ -65,6 +65,9 @@ QJsonObject toJson(const Check &c)
             {u"tip"_s, qint64(p.tip.cents())},
         });
     }
+    QJsonArray events;
+    for (const CheckEvent &e : c.events)
+        events.append(QJsonObject{{u"at"_s, qint64(e.at)}, {u"who"_s, qs(e.who)}, {u"what"_s, qs(e.what)}});
     return {
         {u"schemaVersion"_s, PosSchemaVersion},
         {u"id"_s, qint64(c.id)}, {u"type"_s, qs(toString(c.type))}, {u"status"_s, qs(toString(c.status))},
@@ -77,6 +80,7 @@ QJsonObject toJson(const Check &c)
         {u"gratuityBp"_s, qint64(c.gratuityBp)}, {u"autoGratuity"_s, c.autoGratuity},
         {u"customer"_s, QJsonObject{{u"name"_s, qs(c.customer.name)}, {u"phone"_s, qs(c.customer.phone)},
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
+        {u"events"_s, events},
     };
 }
 
@@ -139,6 +143,10 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     const QJsonObject cust = o.value(u"customer").toObject();
     c.customer = {ss(cust.value(u"name").toString()), ss(cust.value(u"phone").toString()),
                   ss(cust.value(u"address").toString()), ss(cust.value(u"note").toString())};
+    for (const QJsonValue &v : o.value(u"events").toArray()) {
+        const QJsonObject e = v.toObject();
+        c.events.push_back({i64(e.value(u"at")), ss(e.value(u"who").toString()), ss(e.value(u"what").toString())});
+    }
     return c;
 }
 

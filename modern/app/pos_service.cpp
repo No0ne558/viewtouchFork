@@ -561,6 +561,7 @@ bool PosService::voidItem()
         if (!require(perm::Void, tr("Voiding sent items")))
             return false;
         c->voidLine(l->id);
+        noteEvent(*c, tr("Voided %1").arg(name));
         if (s_->printer)
             s_->printer->printKitchen(s_->settings, *c, {*l}, true);
         emit notice(tr("Voided %1").arg(name));
@@ -636,6 +637,8 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
             amount = before.balance;
     }
     c->addPayment(*t, amount);
+    if (t->kind == TenderKind::Discount)   // for the audit trail
+        noteEvent(*c, tr("Discount: %1").arg(qs(t->name)));
     entry_.clear();
     emit entryChanged();
     const Totals after = c->totals(s_->settings.tax);
@@ -1047,6 +1050,10 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
              return QVariant(p.payout(cashMovementKindFromString(ss(a.value(0).toString())))); }},
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
         {u"startPairing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.startPairing()); }},
+        {u"transferCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.transferCheck(a.value(0).toString())); }},
+        {u"moveCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.moveCheck(a.value(0).toString())); }},
+        {u"mergeCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.mergeCheck(a.value(0).toLongLong())); }},
+        {u"reopenCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.reopenCheck(a.value(0).toLongLong())); }},
         {u"stopPairing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.stopPairing()); }},
         {u"openDrawerSession"_s, [](PosService &p, const QVariantList &) { return QVariant(p.openDrawerSession()); }},
         {u"countDrawer"_s, [](PosService &p, const QVariantList &) { return QVariant(p.countDrawer()); }},

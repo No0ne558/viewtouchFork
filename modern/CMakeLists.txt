@@ -57,7 +57,7 @@ if(Qt6_FOUND)
         app/pos_json.hh app/pos_json.cpp
         app/pos_session.hh app/pos_session.cpp
         app/pos_service.hh app/pos_service.cpp
-        app/pos_day.cpp app/pos_admin.cpp
+        app/pos_day.cpp app/pos_admin.cpp app/pos_checks.cpp
     )
     target_link_libraries(vtm_pos PUBLIC vtm_core Qt6::Core)
     # PosService is exposed to QML via QML_FOREIGN (ui/cpp/posforeign.hh),
@@ -118,6 +118,8 @@ if(Qt6_FOUND)
             ui/qml/WidgetKey.qml
             ui/qml/WidgetTable.qml
             ui/qml/WidgetTableGrid.qml
+            ui/qml/WidgetStaffPicker.qml
+            ui/qml/WidgetCheckHistory.qml
             ui/qml/WidgetLoginPad.qml
             ui/qml/WidgetNumPad.qml
             ui/qml/WidgetGuestCount.qml

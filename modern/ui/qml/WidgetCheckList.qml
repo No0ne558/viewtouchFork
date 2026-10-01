@@ -1,11 +1,21 @@
 import QtQuick
 
-// Every open check as a card; touch one to work on it.
+// Every open check as a card; touch one to work on it. props.mode:
+//   (none)  open it
+//   merge   merge it into the check you are on, then go back
+//   closed  checks closed today (managers): reopen one and go to Settle
 Item {
     id: w
     property ZoneItem zone
     readonly property PosService pos: zone ? zone.pos : null
     readonly property string face: zone.st.font ?? "DejaVu Sans"
+    readonly property string mode: zone && zone.props && zone.props.mode ? zone.props.mode : ""
+    readonly property var checks: {
+        if (!pos) return []
+        if (mode === "closed") return pos.closedChecks
+        if (mode === "merge") return pos.openChecks.filter(c => !c.current)
+        return filter === "" ? pos.openChecks : pos.openChecks.filter(c => c.label === filter)
+    }
     // A table with several checks (after a split) shows only its checks.
     readonly property string filter: pos ? pos.checkFilter : ""
 
@@ -39,8 +49,7 @@ Item {
         clip: true
         cellWidth: Math.max(280, width / Math.max(1, Math.floor(width / 320)))
         cellHeight: 170
-        model: !w.pos ? [] : w.filter === "" ? w.pos.openChecks
-                                             : w.pos.openChecks.filter(c => c.label === w.filter)
+        model: w.checks
 
         delegate: Item {
             id: card
@@ -76,7 +85,9 @@ Item {
                 Text {
                     width: parent.width
                     text: (card.modelData.customer ? card.modelData.customer + " · " : "")
-                          + qsTr("%1 · %2 min").arg(card.modelData.server).arg(card.modelData.minutes)
+                          + (w.mode === "closed"
+                             ? qsTr("%1 · closed %2 · #%3").arg(card.modelData.server).arg(card.modelData.closed).arg(card.modelData.id)
+                             : qsTr("%1 · %2 min").arg(card.modelData.server).arg(card.modelData.minutes))
                           + (card.modelData.busyOn ? " · " + qsTr("on %1").arg(card.modelData.busyOn) : "")
                     color: "#b8c0cc"
                     font.family: w.face
@@ -86,14 +97,25 @@ Item {
             }
             TapHandler {
                 id: tap
-                onTapped: w.zone.controller.openCheck(card.modelData.id)
+                onTapped: {
+                    if (w.mode === "merge") {
+                        w.pos.mergeCheck(card.modelData.id)
+                        w.zone.controller.goBack()
+                    } else if (w.mode === "closed") {
+                        w.pos.reopenCheck(card.modelData.id)
+                        w.zone.controller.jumpTo("settle")
+                    } else {
+                        w.zone.controller.openCheck(card.modelData.id)
+                    }
+                }
             }
         }
 
         Text {
             anchors.centerIn: parent
             visible: grid.count === 0
-            text: qsTr("No open checks")
+            text: w.mode === "closed" ? qsTr("No checks closed today")
+                 : w.mode === "merge" ? qsTr("No other open checks") : qsTr("No open checks")
             color: "#8a94a6"
             font.family: w.face
             font.pixelSize: 32

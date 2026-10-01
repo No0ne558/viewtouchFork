@@ -3,7 +3,8 @@ import QtQuick.Controls.Fusion
 
 // Every table in the store as a big button, for phones: the floor plan's
 // tables (wherever they are placed) in a scrolling grid with their status.
-// props.columns: buttons per row (default 3).
+// props.columns: buttons per row (default 3). props.action "move": touching
+// a table moves the check you are on there, then goes back.
 Item {
     id: w
     property ZoneItem zone
@@ -63,7 +64,14 @@ Item {
             }
             TapHandler {
                 id: tap
-                onTapped: w.zone.controller.selectTable(cell.modelData.name)
+                onTapped: {
+                    if ((w.zone.props.action ?? "") === "move") {
+                        w.pos.moveCheck(cell.modelData.name)
+                        w.zone.controller.goBack()
+                    } else {
+                        w.zone.controller.selectTable(cell.modelData.name)
+                    }
+                }
             }
         }
     }

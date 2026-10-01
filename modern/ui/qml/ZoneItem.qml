@@ -43,7 +43,7 @@ Item {
     readonly property bool isWidget: !["button", "label", "image", "comment"].includes(kind)
     // Widgets with a working implementation (Widget<Kind>.qml); the rest
     // show a placeholder until their milestone.
-    readonly property var builtWidgets: ["table", "tableGrid", "orderList", "loginPad", "guestCount", "numPad",
+    readonly property var builtWidgets: ["table", "tableGrid", "staffPicker", "checkHistory", "orderList", "loginPad", "guestCount", "numPad",
         "paymentPanel", "checkList", "keyboard", "clock", "logoutPanel", "statusBar",
         "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "kitchenDisplay", "customerInfo"]
     readonly property bool hasWidget: isWidget && builtWidgets.includes(kind)

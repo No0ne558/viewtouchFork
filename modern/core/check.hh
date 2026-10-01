@@ -83,8 +83,19 @@ struct Customer {
     bool empty() const { return name.empty() && phone.empty() && address.empty() && note.empty(); }
     bool operator==(const Customer &) const = default;
 };
-// Discarded: put away with nothing on it (kept for the serial numbers).
-enum class CheckStatus { Open, Closed, Discarded };
+// Discarded: put away with nothing on it; Merged: moved into another check.
+// Both are kept for the serial numbers and left out of sales.
+enum class CheckStatus { Open, Closed, Discarded, Merged };
+
+// Something done to a check, for its history and the audit report:
+// transferred, moved, merged, reopened, voided, discounted...
+struct CheckEvent {
+    std::int64_t at = 0;
+    std::string who;
+    std::string what;
+
+    bool operator==(const CheckEvent &) const = default;
+};
 
 std::string toString(CheckType t);
 CheckType checkTypeFromString(const std::string &s);
@@ -130,6 +141,12 @@ struct Check {
     Customer customer;
     std::int64_t gratuityBp = 0;      // e.g. 1800 = 18% of the subtotal
     bool autoGratuity = false;        // added for a large party (not by hand)
+    std::vector<CheckEvent> events;   // oldest first
+
+    void note(std::int64_t at, const std::string &who, const std::string &what)
+    {
+        events.push_back({at, who, what});
+    }
 
     OrderLine *line(std::int64_t lineId);
     const OrderLine *line(std::int64_t lineId) const;
@@ -151,6 +168,10 @@ struct Check {
     // Split checks: remove a line (with its modifiers) / add one under a new id.
     std::optional<OrderLine> takeLine(std::int64_t lineId);
     OrderLine &adoptLine(OrderLine line);
+
+    // Merge: everything on `other` (items, payments, guests, customer)
+    // comes onto this check; `other` is left empty.
+    void absorb(Check &other);
 
     Payment &addPayment(const Tender &tender, Money amount);
     bool removePayment(std::int64_t paymentId);

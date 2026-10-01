@@ -23,7 +23,7 @@
       "rect": {
         "x": 16,
         "y": 16,
-        "w": 340,
+        "w": 250,
         "h": 110
       },
       "shape": "rect",
@@ -45,9 +45,9 @@
       "id": "tab-note",
       "kind": "button",
       "rect": {
-        "x": 372,
+        "x": 282,
         "y": 16,
-        "w": 340,
+        "w": 250,
         "h": 110
       },
       "shape": "rect",
@@ -67,12 +67,37 @@
       }
     },
     {
+      "id": "tab-check",
+      "kind": "button",
+      "rect": {
+        "x": 548,
+        "y": 16,
+        "w": 250,
+        "h": 110
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Check\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "check-options"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fontSize": 34
+        }
+      }
+    },
+    {
       "id": "flow-tables",
       "kind": "button",
       "rect": {
-        "x": 728,
+        "x": 814,
         "y": 16,
-        "w": 336,
+        "w": 250,
         "h": 110
       },
       "shape": "rect",

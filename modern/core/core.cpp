@@ -144,6 +144,7 @@ std::string toString(CheckStatus s)
     case CheckStatus::Open: return "open";
     case CheckStatus::Closed: return "closed";
     case CheckStatus::Discarded: return "discarded";
+    case CheckStatus::Merged: return "merged";
     }
     return "open";
 }
@@ -152,6 +153,7 @@ CheckStatus checkStatusFromString(const std::string &s)
 {
     if (s == "closed") return CheckStatus::Closed;
     if (s == "discarded") return CheckStatus::Discarded;
+    if (s == "merged") return CheckStatus::Merged;
     return CheckStatus::Open;
 }
 
@@ -295,6 +297,21 @@ OrderLine &Check::adoptLine(OrderLine line)
     line.id = nextLineId++;
     lines.push_back(std::move(line));
     return lines.back();
+}
+
+void Check::absorb(Check &other)
+{
+    for (OrderLine &l : other.lines)
+        adoptLine(std::move(l));
+    for (Payment &p : other.payments) {
+        p.id = nextPaymentId++;
+        payments.push_back(std::move(p));
+    }
+    other.lines.clear();
+    other.payments.clear();
+    guests += other.guests;
+    if (customer.empty())
+        customer = other.customer;
 }
 
 Payment &Check::addPayment(const Tender &tender, Money amount)

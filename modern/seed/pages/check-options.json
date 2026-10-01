@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "id": "check-options",
+  "name": "Check Options",
+  "kind": "custom",
+  "canvas": {
+    "w": 1920,
+    "h": 1080
+  },
+  "grid": 8,
+  "permission": "order",
+  "zones": [
+    {
+      "id": "title",
+      "kind": "label",
+      "rect": {
+        "x": 16,
+        "y": 16,
+        "w": 1888,
+        "h": 80
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "label": "This check"
+    },
+    {
+      "id": "history",
+      "kind": "checkHistory",
+      "rect": {
+        "x": 16,
+        "y": 112,
+        "w": 900,
+        "h": 952
+      },
+      "shape": "rect",
+      "behavior": "none"
+    },
+    {
+      "id": "transfer",
+      "kind": "button",
+      "rect": {
+        "x": 932,
+        "y": 112,
+        "w": 972,
+        "h": 150
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Transfer to Another Server\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "transfer"
+        }
+      ]
+    },
+    {
+      "id": "move",
+      "kind": "button",
+      "rect": {
+        "x": 932,
+        "y": 278,
+        "w": 972,
+        "h": 150
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Move to Another Table\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "move-table"
+        }
+      ]
+    },
+    {
+      "id": "merge",
+      "kind": "button",
+      "rect": {
+        "x": 932,
+        "y": 444,
+        "w": 972,
+        "h": 150
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Merge Another Check Into This One\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "merge"
+        }
+      ]
+    },
+    {
+      "id": "reopen",
+      "kind": "button",
+      "rect": {
+        "x": 932,
+        "y": 610,
+        "w": 972,
+        "h": 150
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Reopen a Closed Check\u2026 (manager)",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "closed-checks"
+        }
+      ]
+    },
+    {
+      "id": "back",
+      "kind": "button",
+      "rect": {
+        "x": 932,
+        "y": 944,
+        "w": 972,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "\u2039 Back to the Order",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "back"
+        }
+      ]
+    }
+  ]
+}

@@ -49,6 +49,12 @@ class PosSession : public QObject {
     Q_PROPERTY(qint64 selectedLine READ selectedLine WRITE selectLine NOTIFY checkChanged)
     Q_PROPERTY(qint64 selectedPayment READ selectedPayment WRITE selectPayment NOTIFY checkChanged)
     Q_PROPERTY(QVariantList openChecks READ openChecks NOTIFY openChecksChanged)
+    // Checks closed today, newest first (managers, to reopen one).
+    Q_PROPERTY(QVariantList closedChecks READ closedChecks NOTIFY dayChanged)
+    // Active employees [{id, name, role, clockedIn, me}], to transfer checks to.
+    Q_PROPERTY(QVariantList staff READ staff NOTIFY sessionChanged)
+    // The current check's history [{time, who, what}].
+    Q_PROPERTY(QVariantList checkHistory READ checkHistory NOTIFY checkChanged)
     Q_PROPERTY(QString checkFilter READ checkFilter WRITE setCheckFilter NOTIFY openChecksChanged)
     Q_PROPERTY(QVariantList kitchenTickets READ kitchenTickets NOTIFY kitchenChanged)
     Q_PROPERTY(QVariantMap drawer READ drawerInfo NOTIFY drawerChanged)
@@ -103,6 +109,9 @@ public:
     virtual qint64 selectedLine() const = 0;
     virtual qint64 selectedPayment() const = 0;
     virtual QVariantList openChecks() const = 0;
+    virtual QVariantList closedChecks() const = 0;
+    virtual QVariantList staff() const = 0;
+    virtual QVariantList checkHistory() const = 0;
     virtual QString checkFilter() const = 0;
     virtual QVariantList kitchenTickets() const = 0;
     virtual QVariantMap drawerInfo() const = 0;
@@ -163,6 +172,10 @@ public:
     }
     Q_INVOKABLE void recallTicket() { invoke(QStringLiteral("recallTicket")); }
     Q_INVOKABLE void setCustomer(const QVariantMap &customer) { invoke(QStringLiteral("setCustomer"), {customer}); }
+    Q_INVOKABLE void transferCheck(const QString &employeeId) { invoke(QStringLiteral("transferCheck"), {employeeId}); }
+    Q_INVOKABLE void moveCheck(const QString &table) { invoke(QStringLiteral("moveCheck"), {table}); }
+    Q_INVOKABLE void mergeCheck(qint64 otherId) { invoke(QStringLiteral("mergeCheck"), {otherId}); }
+    Q_INVOKABLE void reopenCheck(qint64 checkId) { invoke(QStringLiteral("reopenCheck"), {checkId}); }
     // percent: 15, 18, 20...; 0 = the keypad amount.
     Q_INVOKABLE void addTip(double percent) { invoke(QStringLiteral("addTip"), {qint64(percent * 100 + 0.5)}); }
     Q_INVOKABLE void setGratuity(double percent) { invoke(QStringLiteral("setGratuity"), {qint64(percent * 100 + 0.5)}); }

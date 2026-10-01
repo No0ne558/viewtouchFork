@@ -211,6 +211,14 @@ public:
     bool noSale();   // open the cash drawer without a sale
     bool setCustomer(const QVariantMap &customer);
 
+    // --- managing checks (app/pos_checks.cpp) ----------------------------------------
+    // On the current check. Servers may do this to their own checks,
+    // managers to anyone's; each is kept in the check's history.
+    bool transferCheck(const QString &employeeId);
+    bool moveCheck(const QString &table);
+    bool mergeCheck(qint64 otherId);   // the other open check comes onto this one
+    bool reopenCheck(qint64 checkId);  // manager: a check closed today, made current
+
     // --- tips, gratuity, cash in and out ------------------------------------------
     // Tip on the selected card payment (else the last one): a percentage of
     // the check (bp, e.g. 1800) or, with percentBp 0, the keypad amount.
@@ -288,6 +296,9 @@ public:
     qint64 selectedLine() const override { return selectedLine_; }
     qint64 selectedPayment() const override { return selectedPayment_; }
     QVariantList openChecks() const override;
+    QVariantList closedChecks() const override;
+    QVariantList staff() const override;
+    QVariantList checkHistory() const override;
     QVariantList kitchenTickets() const override;
     QVariantMap drawerInfo() const override;
     QVariantMap dayInfo() const override;
@@ -329,6 +340,8 @@ private:
     bool lockCheck(std::int64_t checkId);   // false: open on another terminal
     void unlockCheck(std::int64_t checkId);
     QString lockHolder(std::int64_t checkId) const;
+    void noteEvent(core::Check &c, const QString &what);
+    bool mayManage(const core::Check &c, const QString &action);
     core::ReportContext reportContext(const QString &period) const;
     QString dayLabel(const core::BusinessDay &day) const;
     bool saveMenuRecord(int index, const QVariantMap &record);

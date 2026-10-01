@@ -85,6 +85,9 @@ public:
     QVariantList mealPeriods() const override { return v(u"mealPeriods").toList(); }
     QVariantMap pairingInfo() const override { return v(u"pairing").toMap(); }
     QString screenMode() const override { return v(u"screenMode").toString(); }
+    QVariantList closedChecks() const override { return v(u"closedChecks").toList(); }
+    QVariantList staff() const override { return v(u"staff").toList(); }
+    QVariantList checkHistory() const override { return v(u"checkHistory").toList(); }
     int queryRevision() const override { return queryRevision_; }
 
     // Answered from a cache; fetched from the server when missing or stale.

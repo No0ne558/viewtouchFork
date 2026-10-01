@@ -202,7 +202,7 @@
       "rect": {
         "x": 592,
         "y": 16,
-        "w": 300,
+        "w": 250,
         "h": 72
       },
       "shape": "rect",
@@ -225,9 +225,9 @@
       "id": "tab-lunch",
       "kind": "button",
       "rect": {
-        "x": 908,
+        "x": 850,
         "y": 16,
-        "w": 300,
+        "w": 250,
         "h": 72
       },
       "shape": "rect",
@@ -250,9 +250,9 @@
       "id": "tab-dinner",
       "kind": "button",
       "rect": {
-        "x": 1224,
+        "x": 1108,
         "y": 16,
-        "w": 300,
+        "w": 250,
         "h": 72
       },
       "shape": "rect",
@@ -275,9 +275,9 @@
       "id": "tab-categories",
       "kind": "button",
       "rect": {
-        "x": 1540,
+        "x": 1374,
         "y": 16,
-        "w": 200,
+        "w": 170,
         "h": 72
       },
       "shape": "rect",
@@ -299,9 +299,9 @@
       "id": "tab-note",
       "kind": "button",
       "rect": {
-        "x": 1756,
+        "x": 1560,
         "y": 16,
-        "w": 148,
+        "w": 160,
         "h": 72
       },
       "shape": "rect",
@@ -312,6 +312,31 @@
           "type": "jump",
           "mode": "push",
           "page": "note"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fontSize": 26
+        }
+      }
+    },
+    {
+      "id": "tab-check",
+      "kind": "button",
+      "rect": {
+        "x": 1736,
+        "y": 16,
+        "w": 168,
+        "h": 72
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Check\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "check-options"
         }
       ],
       "style": {

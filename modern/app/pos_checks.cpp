@@ -1,0 +1,178 @@
+// PosService: managing checks - transfer to another server, move to another
+// table, merge two checks, reopen a closed one; and each check's history.
+
+#include "app/pos_json.hh"
+#include "app/pos_service.hh"
+
+#include <QDateTime>
+#include <QLocale>
+
+using namespace Qt::StringLiterals;
+using namespace vt::core;
+
+namespace vt::app {
+
+namespace {
+QString timeOf(std::int64_t ms)
+{
+    return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
+}
+} // namespace
+
+void PosService::noteEvent(Check &c, const QString &what)
+{
+    c.note(now(), user() ? user()->name : std::string(), ss(what));
+}
+
+// Servers manage their own checks; managers anyone's.
+bool PosService::mayManage(const Check &c, const QString &action)
+{
+    if (!require(perm::Order, action))
+        return false;
+    if (c.serverId == user()->id || user()->can(perm::Manager))
+        return true;
+    return fail(tr("%1 is %2's check: ask them or a manager.").arg(qs(c.label), qs(c.serverName)));
+}
+
+bool PosService::transferCheck(const QString &employeeId)
+{
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    if (!mayManage(*c, tr("Transferring checks")))
+        return false;
+    const Employee *to = s_->employee(ss(employeeId));
+    if (!to || !to->active)
+        return fail(tr("Choose someone who is working."));
+    if (to->id == c->serverId)
+        return fail(tr("%1 is already %2's.").arg(qs(c->label), qs(to->name)));
+    noteEvent(*c, tr("Transferred from %1 to %2").arg(qs(c->serverName), qs(to->name)));
+    c->serverId = to->id;
+    c->serverName = to->name;
+    emit notice(tr("%1 is now %2's").arg(qs(c->label), qs(to->name)));
+    changed(*c);
+    return true;
+}
+
+bool PosService::moveCheck(const QString &table)
+{
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    if (!mayManage(*c, tr("Moving checks")))
+        return false;
+    const QString to = table.trimmed();
+    if (to.isEmpty())
+        return fail(tr("Choose a table."));
+    if (c->type != CheckType::DineIn)
+        return fail(tr("Only table checks move between tables."));
+    if (qs(c->label) == to)
+        return fail(tr("The check is already at %1.").arg(to));
+    noteEvent(*c, tr("Moved from %1 to %2").arg(qs(c->label), to));
+    const QString from = qs(c->label);
+    c->label = ss(to);
+    emit notice(tr("Moved from %1 to %2").arg(from, to));
+    changed(*c);
+    return true;
+}
+
+bool PosService::mergeCheck(qint64 otherId)
+{
+    Check *c = current();
+    if (!c)
+        return fail(tr("Open the check to merge into first."));
+    if (otherId == c->id)
+        return fail(tr("Choose another check."));
+    auto it = s_->open.find(otherId);
+    if (it == s_->open.end())
+        return fail(tr("That check is no longer open."));
+    Check &other = it->second;
+    if (const QString holder = lockHolder(other.id); !holder.isEmpty())
+        return fail(tr("%1 is open on %2.").arg(qs(other.label), holder));
+    if (!mayManage(*c, tr("Merging checks")) || !mayManage(other, tr("Merging checks")))
+        return false;
+
+    const QString what = tr("%1 #%2 merged into %3 #%4").arg(qs(other.label)).arg(other.id).arg(qs(c->label)).arg(c->id);
+    c->absorb(other);
+    noteEvent(*c, what);
+    noteEvent(other, what);
+    other.status = CheckStatus::Merged;
+    other.closedAt = now();
+    if (s_->sink)
+        s_->sink->saveCheck(other);
+    s_->open.erase(it);
+    emit notice(what);
+    changed(*c);
+    return true;
+}
+
+bool PosService::reopenCheck(qint64 checkId)
+{
+    if (!require(perm::Manager, tr("Reopening checks")))
+        return false;
+    auto it = std::ranges::find_if(s_->closedToday, [&](const Check &c) { return c.id == checkId; });
+    if (it == s_->closedToday.end())
+        return fail(tr("Only checks closed today (since the last End of Day) can be reopened."));
+    // Its cash leaves the drawer or bank it went into until it closes again.
+    Check c = *it;
+    s_->closedToday.erase(it);
+    c.status = CheckStatus::Open;
+    c.closedAt = 0;
+    c.businessDay = 0;
+    c.drawerSession = 0;
+    noteEvent(c, tr("Reopened"));
+    const std::int64_t id = c.id;
+    s_->open[id] = std::move(c);
+    if (s_->sink)
+        s_->sink->saveCheck(s_->open[id]);
+    emit notice(tr("%1 #%2 is open again").arg(qs(s_->open[id].label)).arg(id));
+    emit s_->dayChanged();
+    emit s_->drawerChanged();
+    return openCheck(id);
+}
+
+QVariantList PosService::closedChecks() const
+{
+    QVariantList out;
+    if (!can(QString::fromLatin1(perm::Manager)))
+        return out;
+    for (auto it = s_->closedToday.rbegin(); it != s_->closedToday.rend(); ++it) {   // newest first
+        const Check &c = *it;
+        const Totals t = c.totals(s_->settings.tax);
+        out.append(QVariantMap{
+            {u"id"_s, qint64(c.id)}, {u"label"_s, qs(c.label)}, {u"server"_s, qs(c.serverName)},
+            {u"guests"_s, c.guests}, {u"total"_s, format(t.total)}, {u"closed"_s, timeOf(c.closedAt)},
+            {u"type"_s, qs(toString(c.type))}, {u"customer"_s, qs(c.customer.name)},
+        });
+    }
+    return out;
+}
+
+QVariantList PosService::staff() const
+{
+    QVariantList out;
+    if (!user())
+        return out;
+    for (const Employee &e : s_->employees) {
+        if (!e.active)
+            continue;
+        const bool onClock = std::ranges::any_of(s_->punches, [&](const TimePunch &p) {
+            return p.employeeId == e.id && p.clockOut == 0;
+        });
+        out.append(QVariantMap{{u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
+                               {u"clockedIn"_s, onClock}, {u"me"_s, e.id == user()->id}});
+    }
+    return out;
+}
+
+QVariantList PosService::checkHistory() const
+{
+    QVariantList out;
+    if (const Check *c = currentCheck()) {
+        for (const CheckEvent &e : c->events)
+            out.append(QVariantMap{{u"time"_s, timeOf(e.at)}, {u"who"_s, qs(e.who)}, {u"what"_s, qs(e.what)}});
+    }
+    return out;
+}
+
+} // namespace vt::app

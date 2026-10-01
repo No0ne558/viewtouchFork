@@ -165,11 +165,14 @@ for i, (zid, text, acts, kw) in enumerate(flow):
 for i, (zid, text, target) in enumerate([("tab-breakfast", "Breakfast", "index-breakfast"),
                                           ("tab-lunch", "Lunch", "index-lunch"),
                                           ("tab-dinner", "Dinner", "index-dinner")]):
-    tmpl.append(zone(zid, 592 + i * 316, 16, 300, 72, text, actions=[jump(page=target, mode="replace")],
+    tmpl.append(zone(zid, 592 + i * 258, 16, 250, 72, text, actions=[jump(page=target, mode="replace")],
                      style={"normal": {"fontSize": 26}}))
-tmpl.append(zone("tab-categories", 1540, 16, 200, 72, "‹ Menu", actions=[jump(mode="index")],
+tmpl.append(zone("tab-categories", 1374, 16, 170, 72, "‹ Menu", actions=[jump(mode="index")],
                  style={"normal": {"fontSize": 26}}))
-tmpl.append(zone("tab-note", 1756, 16, 148, 72, "Note", actions=[jump(page="note")],
+tmpl.append(zone("tab-note", 1560, 16, 160, 72, "Note", actions=[jump(page="note")],
+                 style={"normal": {"fontSize": 26}}))
+# Transfer, move, merge, reopen, and the check's history.
+tmpl.append(zone("tab-check", 1736, 16, 168, 72, "Check…", actions=[jump(page="check-options")],
                  style={"normal": {"fontSize": 26}}))
 page("order-template", "Order Template", "template", tmpl)
 
@@ -298,6 +301,37 @@ page("customer", "Customer", "custom", [
     zone("cancel", 16, 944, 432, 120, "Cancel", actions=[command("releaseCheck"), jump(mode="back")]),
     zone("menu", 1472, 944, 432, 120, "Continue to Menu ›", actions=[jump(mode="index")], style=fill(GREEN)),
 ])
+
+# --- managing a check (from the order screen's Check… tab) ---
+page("check-options", "Check Options", "custom", [
+    label("title", 16, 16, 1888, 80, "This check"),
+    zone("history", 16, 112, 900, 952, kind="checkHistory"),
+    zone("transfer", 932, 112, 972, 150, "Transfer to Another Server…", actions=[jump(page="transfer")]),
+    zone("move", 932, 278, 972, 150, "Move to Another Table…", actions=[jump(page="move-table")]),
+    zone("merge", 932, 444, 972, 150, "Merge Another Check Into This One…", actions=[jump(page="merge")]),
+    zone("reopen", 932, 610, 972, 150, "Reopen a Closed Check… (manager)", actions=[jump(page="closed-checks")]),
+    zone("back", 932, 944, 972, 120, "‹ Back to the Order", actions=[jump(mode="back")]),
+], permission="order")
+page("transfer", "Transfer Check", "custom", [
+    label("title", 16, 16, 1888, 80, "Give this check to…"),
+    zone("staff", 16, 112, 1888, 816, kind="staffPicker"),
+    zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+], permission="order")
+page("move-table", "Move Check", "custom", [
+    label("title", 16, 16, 1888, 80, "Move this check to table…"),
+    zone("tables", 16, 112, 1888, 816, kind="tableGrid", props={"action": "move", "columns": 6}),
+    zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+], permission="order")
+page("merge", "Merge Checks", "custom", [
+    label("title", 16, 16, 1888, 80, "Merge which check into this one?"),
+    zone("list", 16, 112, 1888, 816, kind="checkList", props={"mode": "merge"}),
+    zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+], permission="order")
+page("closed-checks", "Closed Checks", "custom", [
+    label("title", 16, 16, 1888, 80, "Checks closed today: touch one to reopen it"),
+    zone("list", 16, 112, 1888, 816, kind="checkList", props={"mode": "closed"}),
+    zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+], permission="manager")
 
 page("check-list", "Open Checks", "custom", [
     label("title", 16, 16, 1440, 80, "Open checks"),
@@ -503,11 +537,14 @@ actions, _ = grid_buttons([
     ("flow-send", "Send", [command("sendOrder")], {"style": fill(GREEN)}),
     ("flow-pay", "Pay", [jump(role="settle")], {"style": fill(BLUE)}),
 ], y, 3, 172, x=16, width=PW - 32)
+top_tabs, _ = grid_buttons([
+    ("tab-categories", "‹ Menu", [jump(mode="index")], {"style": TAB}),
+    ("tab-note", "Note", [jump(page="note")], {"style": TAB}),
+    ("tab-check", "Check…", [jump(page="check-options")], {"style": TAB}),
+    ("flow-tables", "Tables", [command("releaseCheck"), jump(role="tables", mode="replace")], {"style": TAB}),
+], 16, 4, 110, x=16, width=PW - 32)
 phone_page("order-template", "Order Template", "template", [
-    zone("tab-categories", 16, 16, 340, 110, "‹ Menu", actions=[jump(mode="index")], style=TAB),
-    zone("tab-note", 372, 16, 340, 110, "Note", actions=[jump(page="note")], style=TAB),
-    zone("flow-tables", 728, 16, 336, 110, "Tables", actions=[command("releaseCheck"), jump(role="tables", mode="replace")],
-         style=TAB),
+    *top_tabs,
     zone("order-list", 16, 142, 1048, 720, kind="orderList"),
     *qualifiers,
     *actions,
