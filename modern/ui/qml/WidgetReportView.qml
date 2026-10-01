@@ -13,9 +13,10 @@ Item {
 
     readonly property var reportIds: [
         { id: "sales", label: qsTr("Sales") }, { id: "items", label: qsTr("Items") },
+        { id: "categories", label: qsTr("Categories") }, { id: "hourly", label: qsTr("By Hour") },
         { id: "servers", label: qsTr("Servers") }, { id: "tips", label: qsTr("Tips") },
         { id: "labor", label: qsTr("Labor") },
-        { id: "drawer", label: qsTr("Drawer") },
+        { id: "drawer", label: qsTr("Drawer") }, { id: "audit", label: qsTr("Audit") },
     ]
     property string reportId: zone && zone.props && zone.props.report ? zone.props.report : "sales"
     property int dayIndex: 0
@@ -82,11 +83,25 @@ Item {
                 onClicked: if (w.dayIndex > 0) w.dayIndex--
             }
             WidgetKey {
-                Layout.preferredWidth: w.unit * 6
+                Layout.preferredWidth: w.unit * 5
                 Layout.fillHeight: true
                 text: qsTr("Print")
                 fontScale: 0.36
                 onClicked: w.pos.printReport(w.reportId, w.day.id)
+            }
+            WidgetKey {
+                Layout.preferredWidth: w.unit * 4
+                Layout.fillHeight: true
+                text: "CSV"
+                fontScale: 0.36
+                onClicked: w.zone.controller.exportReport(w.report, "csv")
+            }
+            WidgetKey {
+                Layout.preferredWidth: w.unit * 4
+                Layout.fillHeight: true
+                text: "PDF"
+                fontScale: 0.36
+                onClicked: w.zone.controller.exportReport(w.report, "pdf")
             }
         }
 

@@ -580,7 +580,7 @@ bool PosService::voidItem()
         if (!require(perm::Void, tr("Voiding sent items")))
             return false;
         c->voidLine(l->id);
-        noteEvent(*c, tr("Voided %1").arg(name));
+        noteEvent(*c, tr("Voided %1 (%2)").arg(name, format(l->unitPrice * l->quantity)), "void");
         if (s_->printer)
             s_->printer->printKitchen(s_->settings, *c, {*l}, true);
         emit notice(tr("Voided %1").arg(name));
@@ -660,7 +660,7 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
     }
     c->addPayment(*t, amount);
     if (t->kind == TenderKind::Discount)   // for the audit trail
-        noteEvent(*c, tr("Discount: %1").arg(qs(t->name)));
+        noteEvent(*c, tr("Discount: %1").arg(qs(t->name)), "discount");
     entry_.clear();
     emit entryChanged();
     const Totals after = c->totals(s_->settings.tax);

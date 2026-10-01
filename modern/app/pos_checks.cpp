@@ -20,9 +20,9 @@ QString timeOf(std::int64_t ms)
 }
 } // namespace
 
-void PosService::noteEvent(Check &c, const QString &what)
+void PosService::noteEvent(Check &c, const QString &what, const char *kind)
 {
-    c.note(now(), user() ? user()->name : std::string(), ss(what));
+    c.note(now(), user() ? user()->name : std::string(), ss(what), kind);
 }
 
 // Servers manage their own checks; managers anyone's.
@@ -47,7 +47,7 @@ bool PosService::transferCheck(const QString &employeeId)
         return fail(tr("Choose someone who is working."));
     if (to->id == c->serverId)
         return fail(tr("%1 is already %2's.").arg(qs(c->label), qs(to->name)));
-    noteEvent(*c, tr("Transferred from %1 to %2").arg(qs(c->serverName), qs(to->name)));
+    noteEvent(*c, tr("Transferred from %1 to %2").arg(qs(c->serverName), qs(to->name)), "transfer");
     c->serverId = to->id;
     c->serverName = to->name;
     emit notice(tr("%1 is now %2's").arg(qs(c->label), qs(to->name)));
@@ -69,7 +69,7 @@ bool PosService::moveCheck(const QString &table)
         return fail(tr("Only table checks move between tables."));
     if (qs(c->label) == to)
         return fail(tr("The check is already at %1.").arg(to));
-    noteEvent(*c, tr("Moved from %1 to %2").arg(qs(c->label), to));
+    noteEvent(*c, tr("Moved from %1 to %2").arg(qs(c->label), to), "move");
     const QString from = qs(c->label);
     c->label = ss(to);
     emit notice(tr("Moved from %1 to %2").arg(from, to));
@@ -95,8 +95,8 @@ bool PosService::mergeCheck(qint64 otherId)
 
     const QString what = tr("%1 #%2 merged into %3 #%4").arg(qs(other.label)).arg(other.id).arg(qs(c->label)).arg(c->id);
     c->absorb(other);
-    noteEvent(*c, what);
-    noteEvent(other, what);
+    noteEvent(*c, what, "merge");
+    noteEvent(other, what, "merge");
     other.status = CheckStatus::Merged;
     other.closedAt = now();
     if (s_->sink)
@@ -121,7 +121,7 @@ bool PosService::reopenCheck(qint64 checkId)
     c.closedAt = 0;
     c.businessDay = 0;
     c.drawerSession = 0;
-    noteEvent(c, tr("Reopened"));
+    noteEvent(c, tr("Reopened"), "reopen");
     const std::int64_t id = c.id;
     s_->open[id] = std::move(c);
     if (s_->sink)

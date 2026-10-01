@@ -43,6 +43,7 @@ struct ReportContext {
     std::string period;                                // "Today", "Tue Sep 29"...
     std::function<std::string(std::int64_t)> clock;   // epoch ms -> "10:31 AM"
     std::int64_t now = 0;
+    std::function<int(std::int64_t)> hourOf;          // epoch ms -> local hour 0-23
 
     std::string money(Money m) const;
 };
@@ -65,6 +66,12 @@ Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Empl
                    const ReportContext &ctx);
 Report drawerReport(const std::vector<DrawerSession> &drawers, const std::vector<Check> &closed,
                     const ReportContext &ctx);
+// Net sales by the hour checks closed in.
+Report hourlySales(const std::vector<Check> &closed, const ReportContext &ctx);
+// Net sales per family (category), with its share of the day.
+Report categorySales(const std::vector<Check> &closed, const std::vector<MenuItem> &menu, const ReportContext &ctx);
+// Every void, discount, reopen, transfer, move and merge, with who and when.
+Report auditReport(const std::vector<const Check *> &checks, const ReportContext &ctx);
 Report tipsReport(const std::vector<Check> &closed, const std::vector<DrawerSession> &drawers,
                   const ReportContext &ctx);
 

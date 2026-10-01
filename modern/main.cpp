@@ -91,6 +91,8 @@ struct Options {
     QCommandLineOption backupKeep{u"backup-keep"_s, u"Backups to keep (default 30; 0 = all)."_s, u"count"_s, u"30"_s};
     QCommandLineOption backupEvery{u"backup-every"_s,
         u"Hours between automatic backups (default 24; 0 = only at End of Day)."_s, u"hours"_s, u"24"_s};
+    QCommandLineOption exportDir{u"export-dir"_s,
+        u"Where reports are saved as CSV / PDF (default: <data dir>/exports)."_s, u"dir"_s};
     QCommandLineOption backup{u"backup"_s, u"Back up the database now (safe while ViewTouch runs) and exit."_s};
     QCommandLineOption pairingCode{u"pairing-code"_s,
         u"Ask the ViewTouch server running on this machine (same --data-dir) for a code to pair a "
@@ -277,6 +279,8 @@ std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o,
                      [&controller] { requestOrientation(controller.formFactor() == u"phone"); });
     requestOrientation(controller.formFactor() == u"phone");
 #endif
+    controller.setExportDirectory(cli.isSet(o.exportDir) ? cli.value(o.exportDir)
+                                                         : QDir(dataDirOf(cli, o)).filePath(u"exports"_s));
     if (cli.isSet(o.screen)) {
         controller.setFormFactorOverride(cli.value(o.screen));
         if (cli.value(o.screen) == u"auto")
@@ -883,7 +887,7 @@ int main(int argc, char *argv[])
     cli.addVersionOption();
     const QList<QCommandLineOption> all = {o.config, o.dataDir, o.db, o.layout, o.resetLayout, o.resetMenu, o.serve,
         o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
-        o.screenshot, o.backupDir, o.backupKeep, o.backupEvery, o.backup, o.restore, o.pairingCode};
+        o.screenshot, o.backupDir, o.backupKeep, o.backupEvery, o.backup, o.restore, o.pairingCode, o.exportDir};
     cli.addOptions(all);
     cli.process(app);
 

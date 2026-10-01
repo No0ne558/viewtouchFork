@@ -96,6 +96,7 @@ struct CheckEvent {
     std::int64_t at = 0;
     std::string who;
     std::string what;
+    std::string kind;   // void | discount | reopen | transfer | move | merge
 
     bool operator==(const CheckEvent &) const = default;
 };
@@ -147,9 +148,9 @@ struct Check {
     std::vector<CheckEvent> events;   // oldest first
     int firedCourse = 1;              // courses up to this one go out on Send
 
-    void note(std::int64_t at, const std::string &who, const std::string &what)
+    void note(std::int64_t at, const std::string &who, const std::string &what, const std::string &kind = {})
     {
-        events.push_back({at, who, what});
+        events.push_back({at, who, what, kind});
     }
 
     OrderLine *line(std::int64_t lineId);

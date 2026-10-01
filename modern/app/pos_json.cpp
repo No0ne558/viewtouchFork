@@ -73,7 +73,8 @@ QJsonObject toJson(const Check &c)
     }
     QJsonArray events;
     for (const CheckEvent &e : c.events)
-        events.append(QJsonObject{{u"at"_s, qint64(e.at)}, {u"who"_s, qs(e.who)}, {u"what"_s, qs(e.what)}});
+        events.append(QJsonObject{{u"at"_s, qint64(e.at)}, {u"who"_s, qs(e.who)}, {u"what"_s, qs(e.what)},
+                                  {u"kind"_s, qs(e.kind)}});
     return {
         {u"schemaVersion"_s, PosSchemaVersion},
         {u"id"_s, qint64(c.id)}, {u"type"_s, qs(toString(c.type))}, {u"status"_s, qs(toString(c.status))},
@@ -155,7 +156,8 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
                   ss(cust.value(u"address").toString()), ss(cust.value(u"note").toString())};
     for (const QJsonValue &v : o.value(u"events").toArray()) {
         const QJsonObject e = v.toObject();
-        c.events.push_back({i64(e.value(u"at")), ss(e.value(u"who").toString()), ss(e.value(u"what").toString())});
+        c.events.push_back({i64(e.value(u"at")), ss(e.value(u"who").toString()), ss(e.value(u"what").toString()),
+                            ss(e.value(u"kind").toString())});
     }
     return c;
 }

@@ -106,6 +106,10 @@ public:
     // Every table in the pages, for the phone table list: [{name, seats}].
     Q_INVOKABLE QVariantList tables() const;
 
+    // Save the report on screen as "csv" or "pdf" in the export folder.
+    Q_INVOKABLE void exportReport(const QVariantMap &report, const QString &format);
+    void setExportDirectory(const QString &dir) { exportDir_ = dir; }
+
     // Modifier choices done: back to the menu once the required ones are made.
     Q_INVOKABLE void finishChoosing();
 
@@ -178,6 +182,7 @@ private:
     QString formFactorOverride_;
     bool autoFormFactor_ = false;
     bool phoneSizedWindow_ = false;
+    QString exportDir_;
 
     vt::layout::Layout layout_;
     vt::app::Navigator nav_;

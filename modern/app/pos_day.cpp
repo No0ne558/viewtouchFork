@@ -38,7 +38,8 @@ QVariantMap toVariant(const Report &r)
             {u"columns"_s, columns}, {u"rows"_s, rows}};
 }
 
-const QStringList kReportIds = {u"sales"_s, u"items"_s, u"servers"_s, u"tips"_s, u"labor"_s, u"drawer"_s};
+const QStringList kReportIds = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s, u"tips"_s,
+                                u"labor"_s, u"drawer"_s, u"audit"_s};
 
 } // namespace
 
@@ -57,7 +58,8 @@ QString PosService::dayLabel(const BusinessDay &day) const
 
 ReportContext PosService::reportContext(const QString &period) const
 {
-    return ReportContext{s_->settings, ss(period), [](std::int64_t ms) { return ss(clockText(ms)); }, now()};
+    return ReportContext{s_->settings, ss(period), [](std::int64_t ms) { return ss(clockText(ms)); }, now(),
+                         [](std::int64_t ms) { return QDateTime::fromMSecsSinceEpoch(ms).time().hour(); }};
 }
 
 // --- receipts ------------------------------------------------------------------------
@@ -611,6 +613,18 @@ Report PosService::buildReport(const QString &id) const
         return drawerReport(s_->drawers, s_->closedToday, ctx);
     if (id == u"tips")
         return tipsReport(s_->closedToday, s_->drawers, ctx);
+    if (id == u"hourly")
+        return hourlySales(s_->closedToday, ctx);
+    if (id == u"categories")
+        return categorySales(s_->closedToday, s_->menu, ctx);
+    if (id == u"audit") {
+        std::vector<const Check *> checks;
+        for (const Check &c : s_->closedToday)
+            checks.push_back(&c);
+        for (const auto &[id, c] : s_->open)
+            checks.push_back(&c);
+        return auditReport(checks, ctx);
+    }
     return salesSummary(s_->closedToday, ctx);
 }
 

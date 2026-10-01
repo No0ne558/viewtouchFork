@@ -360,7 +360,7 @@ private:
     bool lockCheck(std::int64_t checkId);   // false: open on another terminal
     void unlockCheck(std::int64_t checkId);
     QString lockHolder(std::int64_t checkId) const;
-    void noteEvent(core::Check &c, const QString &what);
+    void noteEvent(core::Check &c, const QString &what, const char *kind);
     bool mayManage(const core::Check &c, const QString &action);
     core::ReportContext reportContext(const QString &period) const;
     QString dayLabel(const core::BusinessDay &day) const;

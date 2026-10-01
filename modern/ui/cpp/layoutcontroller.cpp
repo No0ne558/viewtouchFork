@@ -3,10 +3,12 @@
 #include "core/employee.hh"
 #include "core/settings.hh"
 #include "layout/reflow.hh"
+#include "reportexport.hh"
 #include "storage/layout_store.hh"
 
 #include <QPointer>
 
+#include <QDir>
 #include <QJsonArray>
 #include <QLoggingCategory>
 
@@ -371,6 +373,14 @@ void LayoutController::updateFormFactor()
     emit formFactorChanged();
     refresh();
     emit pageChanged();
+}
+
+void LayoutController::exportReport(const QVariantMap &report, const QString &format)
+{
+    const QString dir = exportDir_.isEmpty() ? QDir::home().filePath(u"ViewTouch Exports"_s) : exportDir_;
+    QString error;
+    const QString file = format == u"pdf" ? exportReportPdf(report, dir, &error) : exportReportCsv(report, dir, &error);
+    setStatus(file.isEmpty() ? tr("Could not save the report: %1").arg(error) : tr("Saved to %1").arg(file));
 }
 
 void LayoutController::finishChoosing()

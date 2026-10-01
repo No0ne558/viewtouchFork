@@ -144,6 +144,7 @@ if(Qt6_FOUND)
             ui/cpp/layoutcontroller.hh ui/cpp/layoutcontroller.cpp
             ui/cpp/editorcontroller.hh ui/cpp/editorcontroller.cpp
             ui/cpp/joincontroller.hh ui/cpp/joincontroller.cpp
+            ui/cpp/reportexport.hh ui/cpp/reportexport.cpp
             ui/cpp/posforeign.hh
     )
     target_include_directories(vtm_ui PUBLIC ui/cpp)
