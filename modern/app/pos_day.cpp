@@ -4,6 +4,8 @@
 #include "app/pos_service.hh"
 
 #include <QDateTime>
+#include <QThreadPool>
+#include <QPointer>
 #include <QLocale>
 
 using namespace Qt::StringLiterals;
@@ -713,7 +715,7 @@ Report PosService::buildReport(const QString &id) const
     if (id == u"categories")
         return categorySales(s_->closedToday, s_->menu, ctx);
     if (id == u"foodcost")
-        return foodCostReport(ctx);
+        return foodCostReport(s_->closedToday, ctx);
     if (id == u"kitchen") {
         std::vector<const Check *> checks;
         for (const Check &c : s_->closedToday)
@@ -733,6 +735,114 @@ Report PosService::buildReport(const QString &id) const
         return auditReport(checks, ctx);
     }
     return salesSummary(s_->closedToday, ctx);
+}
+
+// --- reports over a range ---------------------------------------------------------
+
+namespace {
+const QStringList kRangeReports = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s,
+                                   u"kitchen"_s, u"audit"_s, u"foodcost"_s};
+} // namespace
+
+Report PosService::rangeCapableReport(const QString &id, const std::vector<Check> &closed, const ReportContext &ctx) const
+{
+    std::vector<const Check *> ptrs;
+    for (const Check &c : closed)
+        ptrs.push_back(&c);
+    if (id == u"items")
+        return itemSales(closed, s_->menu, ctx);
+    if (id == u"categories")
+        return categorySales(closed, s_->menu, ctx);
+    if (id == u"hourly")
+        return hourlySales(closed, ctx);
+    if (id == u"servers")
+        return serverSales(closed, ctx);
+    if (id == u"kitchen")
+        return kitchenReport(ptrs, s_->settings.kitchenLateMinutes, ctx);
+    if (id == u"audit")
+        return auditReport(ptrs, ctx);
+    if (id == u"foodcost")
+        return foodCostReport(closed, ctx);
+    return salesSummary(closed, ctx);
+}
+
+bool PosService::requestRangeReport(const QString &id, const QString &period, const QString &fromText,
+                                    const QString &toText, bool compare)
+{
+    if (!require(perm::Manager, tr("Reports")))
+        return false;
+    const QDate today = QDateTime::fromMSecsSinceEpoch(now()).date();
+    QDate from, to = today;
+    if (period == u"week") {
+        from = today.addDays(-((today.dayOfWeek() % 7 - s_->settings.weekStartsOn + 7) % 7));
+    } else if (period == u"lastWeek") {
+        to = today.addDays(-((today.dayOfWeek() % 7 - s_->settings.weekStartsOn + 7) % 7) - 1);
+        from = to.addDays(-6);
+    } else if (period == u"month") {
+        from = QDate(today.year(), today.month(), 1);
+    } else if (period == u"lastMonth") {
+        from = QDate(today.year(), today.month(), 1).addMonths(-1);
+        to = QDate(today.year(), today.month(), 1).addDays(-1);
+    } else if (period == u"year") {
+        from = QDate(today.year(), 1, 1);
+    } else {
+        from = QDate::fromString(fromText.trimmed(), u"yyyy-MM-dd"_s);
+        to = QDate::fromString(toText.trimmed(), u"yyyy-MM-dd"_s);
+        if (!from.isValid() || !to.isValid())
+            return fail(tr("Dates are written like 2026-09-01."));
+        if (to < from)
+            std::swap(from, to);
+        if (from.daysTo(to) > 366)
+            return fail(tr("Choose at most a year at a time."));
+    }
+    const auto startOf = [](QDate d) { return QDateTime(d, QTime(0, 0)).toMSecsSinceEpoch(); };
+    const QString label = from == to ? QLocale().toString(from, u"ddd MMM d, yyyy"_s)
+                                     : tr("%1 - %2").arg(QLocale().toString(from, u"MMM d"_s),
+                                                         QLocale().toString(to, u"MMM d, yyyy"_s));
+    const QString beforeLabel = from.addYears(-1).year() == to.addYears(-1).year()
+                                    ? QString::number(from.year() - 1) : tr("A year before");
+    const std::int64_t a = startOf(from), b = startOf(to.addDays(1));
+    const std::int64_t a0 = startOf(from.addYears(-1)), b0 = startOf(to.addDays(1).addYears(-1));
+
+    const int request = ++rangeRequest_;
+    rangeReport_ = {{u"loading"_s, true}, {u"id"_s, id}, {u"period"_s, period}, {u"label"_s, label}};
+    emit sessionChanged();
+
+    // Read the checks away from the screen, then build here.
+    auto history = s_->history;
+    std::vector<Check> today_ = s_->closedToday;
+    QPointer<PosService> self(this);
+    QThreadPool::globalInstance()->start([=, today_ = std::move(today_)]() mutable {
+        std::vector<Check> now = history ? history(a, b) : std::vector<Check>{};
+        std::vector<Check> before = history && compare ? history(a0, b0) : std::vector<Check>{};
+        // Today's closed checks may not be written yet: the ones in memory count.
+        for (Check &c : today_) {
+            if (c.closedAt >= a && c.closedAt < b
+                && std::ranges::none_of(now, [&](const Check &x) { return x.id == c.id; }))
+                now.push_back(std::move(c));
+        }
+        QMetaObject::invokeMethod(self, [self, request, id, label, beforeLabel, compare, now = std::move(now),
+                                         before = std::move(before)] {
+            if (!self || request != self->rangeRequest_)
+                return;   // a newer request replaced it
+            const ReportContext ctx = self->reportContext(label);
+            Report r = self->rangeCapableReport(kRangeReports.contains(id) ? id : u"sales"_s, now, ctx);
+            if (!kRangeReports.contains(id))
+                r.note(tr("That report is one day at a time (pick Day). Showing sales.").toStdString());
+            if (compare) {
+                const ReportContext was = self->reportContext(beforeLabel);
+                r = compareReports(r, self->rangeCapableReport(kRangeReports.contains(id) ? id : u"sales"_s, before, was),
+                                   beforeLabel.toStdString());
+            }
+            QVariantMap out = self->rangeReport_;
+            out.insert(u"loading"_s, false);
+            out.insert(u"report"_s, toVariant(r));
+            out.insert(u"checks"_s, int(now.size()));
+            self->rangeReport_ = out;
+            emit self->sessionChanged();
+        }, Qt::QueuedConnection);
+    });
+    return true;
 }
 
 QVariantMap PosService::report(const QString &id, qint64 dayId)

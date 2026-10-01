@@ -26,8 +26,34 @@ Item {
     property int dayIndex: 0
     readonly property var days: pos ? pos.days : []
     readonly property var day: days[Math.min(dayIndex, days.length - 1)] ?? { id: 0, label: "" }
+    // "day" (one business day, above), or several: week, lastWeek, month,
+    // lastMonth, year, custom - read from the saved checks, maybe beside
+    // the same days a year before.
+    property string period: "day"
+    property bool compare: false
+    property string fromDate: ""
+    property string toDate: ""
+    readonly property var periods: [
+        { id: "day", label: qsTr("Day") }, { id: "week", label: qsTr("This Week") },
+        { id: "lastWeek", label: qsTr("Last Week") }, { id: "month", label: qsTr("This Month") },
+        { id: "lastMonth", label: qsTr("Last Month") }, { id: "year", label: qsTr("This Year") },
+        { id: "custom", label: qsTr("Dates…") },
+    ]
+    readonly property var range: pos ? pos.rangeReport : ({})
+    function refresh() {
+        if (period === "day" || !pos)
+            return
+        if (period === "custom" && (fromDate === "" || toDate === ""))
+            return
+        pos.requestRangeReport(reportId, period, fromDate, toDate, compare)
+    }
+    onReportIdChanged: refresh()
+    onPeriodChanged: refresh()
+    onCompareChanged: refresh()
     readonly property var report: {
         if (!pos) return ({ rows: [] })
+        if (period !== "day")
+            return range.report ?? ({ title: range.loading ? qsTr("Reading the checks…") : "", rows: [] })
         void pos.day          // live: refresh when checks close
         void pos.drawer
         void pos.queryRevision   // remote terminals: the server's answer arrived
@@ -58,12 +84,84 @@ Item {
             }
         }
 
+        // Which days.
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: w.unit * 2.2
+            Layout.fillHeight: false
+            spacing: w.unit * 0.3
+            Repeater {
+                model: w.periods
+                delegate: WidgetKey {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    text: modelData.label
+                    fontScale: 0.34
+                    baseColor: w.period === modelData.id ? "#2f6fd6" : "#343c49"
+                    onClicked: w.period = modelData.id
+                }
+            }
+            WidgetKey {
+                visible: w.period !== "day"
+                Layout.preferredWidth: w.unit * 7
+                Layout.fillHeight: true
+                text: qsTr("vs Last Year")
+                fontScale: 0.34
+                baseColor: w.compare ? "#1f8a4c" : "#343c49"
+                onClicked: w.compare = !w.compare
+            }
+        }
+
+        // Dates… : from and to.
+        RowLayout {
+            visible: w.period === "custom"
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            spacing: w.unit * 0.4
+            Text { text: qsTr("From"); color: w.ink; font.family: w.face; font.pixelSize: w.unit * 0.8 }
+            TextField {
+                implicitWidth: w.unit * 8
+                placeholderText: "2026-09-01"
+                inputMethodHints: Qt.ImhPreferNumbers
+                onTextEdited: w.fromDate = text
+            }
+            Text { text: qsTr("to"); color: w.ink; font.family: w.face; font.pixelSize: w.unit * 0.8 }
+            TextField {
+                implicitWidth: w.unit * 8
+                placeholderText: "2026-09-30"
+                inputMethodHints: Qt.ImhPreferNumbers
+                onTextEdited: w.toDate = text
+                onAccepted: w.refresh()
+            }
+            WidgetKey {
+                Layout.preferredWidth: w.unit * 5
+                Layout.preferredHeight: w.unit * 2
+                text: qsTr("Show")
+                fontScale: 0.34
+                onClicked: w.refresh()
+            }
+            Item { Layout.fillWidth: true }
+        }
+
         RowLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: w.unit * 2.4
             Layout.fillHeight: false
             spacing: w.unit * 0.3
+            Text {
+                visible: w.period !== "day"
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: (w.range.label ?? "") + (w.range.loading ? "  ·  " + qsTr("reading…")
+                                               : w.range.checks !== undefined ? "  ·  " + qsTr("%1 checks").arg(w.range.checks) : "")
+                color: w.ink
+                font.family: w.face
+                font.pixelSize: w.unit
+                elide: Text.ElideRight
+            }
             WidgetKey {
+                visible: w.period === "day"
                 Layout.preferredWidth: w.unit * 3
                 Layout.fillHeight: true
                 text: "◀"
@@ -71,6 +169,7 @@ Item {
                 onClicked: if (w.dayIndex < w.days.length - 1) w.dayIndex++
             }
             Text {
+                visible: w.period === "day"
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 text: w.day.label
@@ -80,6 +179,7 @@ Item {
                 elide: Text.ElideRight
             }
             WidgetKey {
+                visible: w.period === "day"
                 Layout.preferredWidth: w.unit * 3
                 Layout.fillHeight: true
                 text: "▶"
@@ -87,6 +187,7 @@ Item {
                 onClicked: if (w.dayIndex > 0) w.dayIndex--
             }
             WidgetKey {
+                visible: w.period === "day"
                 Layout.preferredWidth: w.unit * 5
                 Layout.fillHeight: true
                 text: qsTr("Print")

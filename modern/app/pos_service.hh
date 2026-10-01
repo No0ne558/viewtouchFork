@@ -121,6 +121,9 @@ public:
     std::int64_t lastPartyId = 0;
     std::vector<core::Ingredient> ingredients;
     core::Ingredient *ingredient(const std::string &id);
+    // Closed checks in [from, to) from the database (set up by main; may run
+    // on a worker thread). Unset: reports over a range use today's only.
+    std::function<std::vector<core::Check>(std::int64_t from, std::int64_t to)> history;
     std::vector<core::Shift> shifts;   // from two weeks back on
     std::int64_t lastShiftId = 0;
     // Texts a guest (set up by main when a texting service is configured).
@@ -434,7 +437,7 @@ public:
     std::map<std::string, double> stockUse(const core::OrderLine &line) const;
     // Ingredients at or below their low mark.
     QVariantList lowStock() const;
-    core::Report foodCostReport(const core::ReportContext &ctx) const;
+    core::Report foodCostReport(const std::vector<core::Check> &closed, const core::ReportContext &ctx) const;
 
     // --- the schedule (pos_schedule.cpp) ----------------------------------------
     // {employeeId, start, end (ms or "yyyy-MM-dd HH:mm"; an end before the
@@ -447,6 +450,14 @@ public:
     bool setScheduleWeek(int offset);
     QVariantMap scheduleInfo() const override;
     QString nextShift() const override;
+
+    // --- reports over a range of days (pos_day.cpp) -------------------------------
+    // period: week | lastWeek | month | lastMonth | year | custom (from / to:
+    // yyyy-MM-dd); compare: beside the same days a year before. The answer
+    // comes in rangeReport ({loading, report}) when the checks are read.
+    bool requestRangeReport(const QString &id, const QString &period, const QString &from = {},
+                            const QString &to = {}, bool compare = false);
+    QVariantMap rangeReport() const override { return rangeReport_; }
 
     // Tips after tip-outs and pools (see core::tipShares), everyone / one person.
     std::map<std::string, core::TipShare> allTipShares() const;
@@ -463,6 +474,11 @@ private:
     // Why `e` can't clock in now ("" = they can).
     QString scheduleCheck(const core::Employee &e) const;
     int scheduleWeek_ = 0;
+    QVariantMap rangeReport_;
+    int rangeRequest_ = 0;
+    // A report that can cover several days, over `closed`.
+    core::Report rangeCapableReport(const QString &id, const std::vector<core::Check> &closed,
+                                    const core::ReportContext &ctx) const;
     qint64 addParty(const QVariantMap &r, bool reservation);
     core::Party *party(qint64 id);
     void saveParty(const core::Party &p);

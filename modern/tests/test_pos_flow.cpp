@@ -520,3 +520,28 @@ TEST_CASE("UI: the week's schedule; adding a shift by touch", "[flow][ui][schedu
     QTest::qWait(50);
     s.shot("15-schedule");
 }
+
+TEST_CASE("UI: a month's report beside last year", "[flow][ui][range]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.entryKey(u"10000"_s);
+    REQUIRE(s.pos.openDrawerSession());
+    for (const char *item : {"cobb", "caesar", "cobb"}) {
+        REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+        s.pos.addItem(QString::fromLatin1(item));
+        REQUIRE(s.pos.tender(u"cash"_s));
+        REQUIRE(s.pos.closeCheck());
+    }
+    REQUIRE(s.c.jumpTo(u"reports"_s));
+    QTest::qWait(50);
+    s.tapKey(u"Items"_s);
+    s.tapKey(u"This Month"_s);
+    s.tapKey(u"vs Last Year"_s);
+    for (int i = 0; i < 100 && s.pos.rangeReport()[u"loading"_s].toBool(); ++i)
+        QTest::qWait(20);
+    QTest::qWait(50);
+    CHECK(s.pos.rangeReport()[u"checks"_s] == 3);
+    CHECK(Screen::findBy(s.window->contentItem(), "text", u"Change"_s));
+    s.shot("16-range-report");
+}

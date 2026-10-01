@@ -5,6 +5,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QAtomicInt>
 #include <QDateTime>
 #include <QJsonDocument>
 #include <QSqlDatabase>
@@ -196,6 +197,11 @@ bool PosStore::open(QString *error)
             db.rollback();
             return false;
         }
+    }
+    if (version < 8) {   // reports over a date range look checks up by when they closed
+        if (!run(q, u"CREATE INDEX IF NOT EXISTS checks_closed ON checks (closed_at)"_s, error)
+            || !run(q, u"UPDATE meta SET value = '8' WHERE key = 'pos_schema_version'"_s, error))
+            return false;
     }
     return true;
 }
@@ -490,6 +496,38 @@ void SqlPosSink::savePunch(const TimePunch &p)
         {u"clock_in"_s, qint64(p.clockIn)}, {u"clock_out"_s, qint64(p.clockOut)},
         {u"breaks"_s, QString::fromUtf8(QJsonDocument(app::toJson(p).value(u"breaks").toArray()).toJson(QJsonDocument::Compact))},
     });
+}
+
+std::vector<Check> closedChecksBetween(const QString &dbPath, std::int64_t from, std::int64_t to, QString *error)
+{
+    static QAtomicInt counter;
+    const QString name = u"vt-history-%1"_s.arg(counter.fetchAndAddRelaxed(1));
+    std::vector<Check> out;
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(u"QSQLITE"_s, name);
+        db.setDatabaseName(dbPath);
+        db.setConnectOptions(u"QSQLITE_BUSY_TIMEOUT=5000"_s);
+        if (!db.open()) {
+            if (error)
+                *error = db.lastError().text();
+        } else {
+            QSqlQuery q(db);
+            q.prepare(u"SELECT json FROM checks WHERE status = 'closed' AND closed_at >= ? AND closed_at < ? ORDER BY closed_at"_s);
+            q.addBindValue(qint64(from));
+            q.addBindValue(qint64(to));
+            if (q.exec()) {
+                while (q.next()) {
+                    if (auto c = app::checkFromJson(QJsonDocument::fromJson(q.value(0).toByteArray()).object()))
+                        out.push_back(std::move(*c));
+                }
+            } else if (error) {
+                *error = q.lastError().text();
+            }
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(name);
+    return out;
 }
 
 } // namespace vt::storage

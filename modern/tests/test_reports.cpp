@@ -139,3 +139,138 @@ TEST_CASE("Saving a report as CSV and PDF", "[reports][export]")
     CHECK(p.read(5) == "%PDF-");
     CHECK(p.size() > 500);
 }
+
+#include "storage/async_writer.hh"
+#include "storage/pos_store.hh"
+
+#include <QSignalSpy>
+#include <QTemporaryDir>
+#include <QTest>
+
+namespace {
+
+// Until the range report has been read (it comes from a worker thread).
+bool waitForRange(const app::PosService &pos)
+{
+    for (int i = 0; i < 500 && pos.rangeReport()[u"loading"_s].toBool(); ++i)
+        QTest::qWait(20);
+    return !pos.rangeReport()[u"loading"_s].toBool();
+}
+
+// A closed check with `count` Cobb salads ($12.50 each), closed at `when`.
+core::Check pastSale(std::int64_t id, std::int64_t when, int count, const app::PosService &pos)
+{
+    core::Check c;
+    c.id = id;
+    c.type = core::CheckType::Takeout;
+    c.status = core::CheckStatus::Closed;
+    c.label = "Takeout";
+    c.serverId = "sam";
+    c.serverName = "Sam";
+    c.openedAt = when - 600'000;
+    c.closedAt = when;
+    for (const core::MenuItem &m : pos.shared()->menu) {
+        if (m.id == "cobb") {
+            core::OrderLine &l = c.addItem(m);
+            l.quantity = count;
+        }
+    }
+    c.addPayment({"credit", "Credit Card", core::TenderKind::Card, 0}, c.totals(pos.shared()->settings.tax).total);
+    return c;
+}
+
+QStringList rangeCells(const QVariantMap &range, const QString &first)
+{
+    for (const QVariant &v : range[u"report"_s].toMap()[u"rows"_s].toList()) {
+        const QStringList cells = v.toMap()[u"cells"_s].toStringList();
+        if (!cells.isEmpty() && cells.first() == first)
+            return cells;
+    }
+    return {};
+}
+
+} // namespace
+
+TEST_CASE("Reports over a range of days, against the same days last year", "[reports][range]")
+{
+    QTemporaryDir dir;
+    const QString path = dir.filePath(u"vt.db"_s);
+    const auto seed = test::seedPosData();
+    {
+        storage::PosStore store(path);
+        REQUIRE(store.open());
+        REQUIRE(store.seed(seed.settings, seed.menu, seed.employees));
+    }
+    storage::PosStore store(path);
+    REQUIRE(store.open());
+    storage::AsyncWriter writer(path);
+    storage::SqlPosSink sink(writer);
+    PosService pos(*store.load(), &sink);
+    pos.shared()->history = [&](std::int64_t from, std::int64_t to) { return storage::closedChecksBetween(path, from, to); };
+
+    // This year: 4 salads on the 3rd, 6 on the 10th of last month; last
+    // year, 5 over the same month; one outside it.
+    const QDate first = QDate(QDate::currentDate().year(), QDate::currentDate().month(), 1).addMonths(-1);
+    const auto at = [](QDate d) { return QDateTime(d, QTime(12, 0)).toMSecsSinceEpoch(); };
+    sink.saveCheck(pastSale(9001, at(first.addDays(2)), 4, pos));
+    sink.saveCheck(pastSale(9002, at(first.addDays(9)), 6, pos));
+    sink.saveCheck(pastSale(9003, at(first.addDays(9).addYears(-1)), 5, pos));
+    sink.saveCheck(pastSale(9004, at(first.addMonths(-2)), 9, pos));
+    writer.flush();
+
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    CHECK_FALSE(pos.requestRangeReport(u"sales"_s, u"lastMonth"_s));       // managers only
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    CHECK_FALSE(pos.requestRangeReport(u"sales"_s, u"custom"_s, u"first"_s, u"last"_s));
+
+    REQUIRE(pos.requestRangeReport(u"items"_s, u"lastMonth"_s, {}, {}, true));
+    CHECK(pos.rangeReport()[u"loading"_s].toBool());
+    REQUIRE(waitForRange(pos));
+    const QVariantMap range = pos.rangeReport();
+    CHECK(range[u"checks"_s] == 2);
+    const QStringList cobb = rangeCells(range, u"Cobb"_s);
+    REQUIRE(cobb.size() >= 4);
+    CHECK(cobb[1] == u"10"_s);                                               // sold this period
+    CHECK(cobb[cobb.size() - 2] == u"$62.50"_s);                             // last year: 5 x $12.50
+    CHECK(cobb.last() == u"+100.0%"_s);                                      // $125.00 vs $62.50
+    CHECK(range[u"report"_s].toMap()[u"columns"_s].toStringList().contains(u"Change"_s));
+
+    // The same dates typed in; a report that's one day at a time says so.
+    const QString a = first.toString(u"yyyy-MM-dd"_s), b = first.addMonths(1).addDays(-1).toString(u"yyyy-MM-dd"_s);
+    REQUIRE(pos.requestRangeReport(u"labor"_s, u"custom"_s, b, a));          // backwards is fine
+    REQUIRE(waitForRange(pos));
+    CHECK(pos.rangeReport()[u"report"_s].toMap()[u"id"_s] == u"sales"_s);
+    CHECK_FALSE(rangeCells(pos.rangeReport(), u"That report is one day at a time (pick Day). Showing sales."_s).isEmpty());
+
+    // Today's checks count even before they are written.
+    REQUIRE(pos.requestRangeReport(u"sales"_s, u"week"_s));
+    REQUIRE(waitForRange(pos));
+    const int before = pos.rangeReport()[u"checks"_s].toInt();
+    pos.entryKey(u"10000"_s);
+    REQUIRE(pos.openDrawerSession());
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(u"coffee"_s);
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+    REQUIRE(pos.requestRangeReport(u"sales"_s, u"week"_s));
+    REQUIRE(waitForRange(pos));
+    CHECK(pos.rangeReport()[u"checks"_s].toInt() == before + 1);
+}
+
+TEST_CASE("Comparing reports: matched rows, changes, new rows", "[reports][range]")
+{
+    core::Report now, before;
+    now.columns = {"Item", "Sold", "Sales"};
+    now.line({"Cobb", "10", "$125.00"});
+    now.line({"Tea", "3", "$7.50"});
+    now.total({"Total", "", "$132.50"});
+    before.line({"Cobb", "5", "$62.50"});
+    before.line({"Tea", "0", "$0.00"});
+    before.total({"Total", "", "$150.00"});
+    const core::Report r = core::compareReports(now, before, "2025");
+    CHECK(r.columns.back() == "Change");
+    CHECK(r.rows[0].cells == std::vector<std::string>{"Cobb", "10", "$125.00", "$62.50", "+100.0%"});
+    CHECK(r.rows[1].cells.back() == "new");
+    CHECK(r.rows[2].cells.back() == "-11.7%");
+}

@@ -1156,6 +1156,9 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"toggleBreak"_s, [](PosService &p, const QVariantList &) { return QVariant(p.toggleBreak()); }},
         {u"askForTip"_s, [](PosService &p, const QVariantList &) { return QVariant(p.askForTip()); }},
         {u"addShift"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addShift(a.value(0).toMap())); }},
+        {u"requestRangeReport"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.requestRangeReport(a.value(0).toString(), a.value(1).toString(), a.value(2).toString(),
+                                                  a.value(3).toString(), a.value(4).toBool())); }},
         {u"removeShift"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.removeShift(a.value(0).toLongLong())); }},
         {u"clockInEmployee"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.clockInEmployee(a.value(0).toString())); }},

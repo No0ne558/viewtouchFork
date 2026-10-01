@@ -5,6 +5,8 @@
 #include <tuple>
 #include <cmath>
 #include <map>
+#include <optional>
+#include <cstdio>
 #include <set>
 
 namespace vt::core {
@@ -734,6 +736,72 @@ Report kitchenReport(const std::vector<const Check *> &checks, int lateMinutes, 
                     ctx.clock(t->sentAt), minutes(t->madeAt - t->sentAt), t->check->rush ? "rush" : ""});
         }
     }
+    return r;
+}
+
+namespace {
+// "$1,234.50", "-$3.00", "12", "70.4%" -> the number; nullopt if none.
+std::optional<double> numberIn(const std::string &text)
+{
+    std::string digits;
+    bool any = false;
+    for (char ch : text) {
+        if ((ch >= '0' && ch <= '9') || ch == '.') {
+            digits += ch;
+            any = any || ch != '.';
+        } else if (ch == '-' && digits.empty()) {
+            digits += ch;
+        }
+    }
+    if (!any)
+        return std::nullopt;
+    try {
+        return std::stod(digits);
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+} // namespace
+
+Report compareReports(const Report &now, const Report &before, const std::string &beforeLabel)
+{
+    Report r = now;
+    if (r.columns.empty())
+        r.columns = {"", "Amount"};
+    r.columns.push_back(beforeLabel);
+    r.columns.push_back("Change");
+    for (ReportRow &row : r.rows) {
+        if (row.kind != ReportRow::Kind::Line && row.kind != ReportRow::Kind::Total)
+            continue;
+        if (row.cells.size() < 2)
+            row.cells.resize(2);
+        std::string was = "-";
+        for (const ReportRow &old : before.rows) {
+            if (old.kind == row.kind && !old.cells.empty() && old.cells.front() == row.cells.front()) {
+                was = old.cells.back();
+                break;
+            }
+        }
+        // Rows line up with the value columns: pad short ones.
+        while (row.cells.size() < now.columns.size())
+            row.cells.push_back("");
+        std::string change;
+        const auto a = numberIn(row.cells.back());
+        const auto b = numberIn(was);
+        if (a && b && *b != 0) {
+            const double pct = (*a - *b) / std::abs(*b) * 100.0;
+            char buf[32];
+            std::snprintf(buf, sizeof buf, "%+.1f%%", pct);
+            change = buf;
+        } else if (a && b && *a == *b) {
+            change = "0.0%";
+        } else if (a && was != "-" && b && *b == 0) {
+            change = "new";
+        }
+        row.cells.push_back(was);
+        row.cells.push_back(change.empty() ? "-" : change);
+    }
+    r.subtitle = now.subtitle + " vs " + beforeLabel;
     return r;
 }
 

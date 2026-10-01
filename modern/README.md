@@ -131,6 +131,10 @@ Each backup is a complete SQLite copy. Checks, pages, menu, staff, settings and 
 - **Reservations:** book for today or the next six days at a time. *They're Here* puts them at the front of the line. Reservations more than 15 minutes late are marked; *No-Show* or *Cancel Booking* takes them off.
 - The host stand shows how many parties were seated today, the average wait, and no-shows.
 
+## Reports over a range
+
+Reports have a row of periods: *Day* (one business day, as before), *This Week*, *Last Week*, *This Month*, *Last Month*, *This Year*, or *Dates…* (any range up to a year). *vs Last Year* adds the same days a year before and the change, row by row. Ranges are read from the saved checks away from the screen, so a busy terminal never waits. Sales, Items, Categories, By Hour, Servers, Kitchen, Audit and Food Cost work over a range; the rest are one day at a time. CSV and PDF save what is shown.
+
 ## Schedule and tip pooling
 
 - **Manager → Schedule:** a week at a time (‹ ›), each day's shifts; touch a day, pick the person and the times, *Add Shift* (an end before the start runs past midnight). Touch a shift to remove it, or *Clock Them In*. Hours for the week are listed underneath, in red over the weekly overtime line.

@@ -127,7 +127,7 @@ void PosService::refreshSoldOut()
     emit s_->adminChanged();
 }
 
-Report PosService::foodCostReport(const ReportContext &ctx) const
+Report PosService::foodCostReport(const std::vector<Check> &closed, const ReportContext &ctx) const
 {
     Report r;
     r.id = "foodcost";
@@ -144,7 +144,7 @@ Report PosService::foodCostReport(const ReportContext &ctx) const
                 cents += q * double(g->cost.cents());
         return Money::fromCents(std::llround(cents));
     };
-    for (const Check &c : s_->closedToday) {
+    for (const Check &c : closed) {
         for (const OrderLine &l : c.lines) {
             if (l.voided || l.isComment() || l.isGiftCard())
                 continue;
@@ -165,9 +165,9 @@ Report PosService::foodCostReport(const ReportContext &ctx) const
     std::ranges::sort(sorted, [](const Row *a, const Row *b) { return a->sales > b->sales; });
     Money sales, cost;
     if (sorted.empty())
-        r.note("Nothing sold yet today.");
+        r.note("Nothing sold.");
     else
-        r.section("Sold today");
+        r.section("Sold");
     for (const Row *row : sorted) {
         r.line({row->name, std::to_string(row->sold), ctx.money(row->sales),
                 row->cost.cents() ? ctx.money(row->cost) : "-", row->cost.cents() ? percent(row->cost, row->sales) : "-"});

@@ -742,6 +742,10 @@ int runStore(const Args &cli, const Options &o)
     }
     vt::app::PosService pos(std::move(*posData), sink.get());
     vt::app::PosShared *shared = pos.shared();
+    if (havePosStore)   // reports over a range read the closed checks back
+        shared->history = [dbPath](std::int64_t from, std::int64_t to) {
+            return vt::storage::closedChecksBetween(dbPath, from, to);
+        };
 
     // Printing: a worker thread delivers tickets; "file" printers write under
     // <app data>/printouts so tickets are visible without hardware.

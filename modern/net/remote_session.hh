@@ -97,6 +97,7 @@ public:
     QVariantMap customerPrompt() const override { return v(u"customerPrompt").toMap(); }
     QVariantMap scheduleInfo() const override { return v(u"schedule").toMap(); }
     QString nextShift() const override { return v(u"nextShift").toString(); }
+    QVariantMap rangeReport() const override { return v(u"rangeReport").toMap(); }
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }
     int queryRevision() const override { return queryRevision_; }

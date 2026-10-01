@@ -18,7 +18,7 @@ class AsyncWriter;
 // service go through AsyncWriter via SqlPosSink.
 class PosStore {
 public:
-    static constexpr int DbSchemaVersion = 7;
+    static constexpr int DbSchemaVersion = 8;
 
     explicit PosStore(QString databasePath);
     ~PosStore();
@@ -69,5 +69,10 @@ public:
 private:
     AsyncWriter &writer_;
 };
+
+// Checks closed in [from, to) (epoch ms), read with a connection of its
+// own: safe on a worker thread while the POS runs. For reports over a range.
+std::vector<core::Check> closedChecksBetween(const QString &dbPath, std::int64_t from, std::int64_t to,
+                                             QString *error = nullptr);
 
 } // namespace vt::storage
