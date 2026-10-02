@@ -1,4 +1,5 @@
 #include "net/remote_session.hh"
+#include "net/standby.hh"
 
 #include "net/protocol.hh"
 
@@ -31,7 +32,7 @@ Group groupOf(const QString &key)
         {u"closedChecks"_s, Group::Day}, {u"staff"_s, Group::Session}, {u"checkHistory"_s, Group::Check},
         {u"choosing"_s, Group::Check}, {u"onBreakSince"_s, Group::Session},
         {u"customers"_s, Group::Check}, {u"customer"_s, Group::Check}, {u"giftCard"_s, Group::Check}, {u"waitlist"_s, Group::Day}, {u"customerPrompt"_s, Group::Check},
-        {u"schedule"_s, Group::Session}, {u"nextShift"_s, Group::Session}, {u"rangeReport"_s, Group::Session}, {u"expoTickets"_s, Group::Kitchen}, {u"approval"_s, Group::Session}, {u"training"_s, Group::Session}, {u"autoLogoutMinutes"_s, Group::Admin}, {u"messages"_s, Group::Day}, {u"soldOut"_s, Group::Admin}, {u"menuItems"_s, Group::Admin},
+        {u"schedule"_s, Group::Session}, {u"nextShift"_s, Group::Session}, {u"rangeReport"_s, Group::Session}, {u"expoTickets"_s, Group::Kitchen}, {u"approval"_s, Group::Session}, {u"training"_s, Group::Session}, {u"autoLogoutMinutes"_s, Group::Admin}, {u"messages"_s, Group::Day}, {u"network"_s, Group::Day}, {u"soldOut"_s, Group::Admin}, {u"menuItems"_s, Group::Admin},
         {u"pinLength"_s, Group::Entry}, {u"entry"_s, Group::Entry}, {u"entryAmount"_s, Group::Entry},
         {u"entryGuests"_s, Group::Entry}, {u"textEntry"_s, Group::Entry},
         {u"pendingQualifier"_s, Group::Qualifier},
@@ -81,6 +82,14 @@ RemoteSession::RemoteSession(QString terminalName, QObject *parent)
             reconnect_.start();
     });
     connect(&finder_, &ServerFinder::found, this, [this](const FoundServer &s) {
+        if (s.role == u"standby") {   // the store's standby: ready to take over
+            if (s.id == credentials_.serverId && !welcomed_ && standbyHost_ != s.host) {
+                standbyHost_ = s.host;
+                standbyPort_ = s.port;
+                emit sessionChanged();
+            }
+            return;
+        }
         // The server answers once per network it hears on: act on the first
         // answer, and not while that attempt is still under way.
         if (welcomed_ || s.id != credentials_.serverId || (s.host == host_ && s.port == port_)
@@ -101,6 +110,25 @@ RemoteSession::RemoteSession(QString terminalName, QObject *parent)
             encrypted_ = false;
             socket_.connectToHostEncrypted(host_, port_);
         }
+    });
+}
+
+void RemoteSession::takeOver(const QString &pin)
+{
+    if (!standbyReady()) {
+        emit notice(tr("No standby server is ready."));
+        return;
+    }
+    auto *request = new TakeOverRequest(credentials_, standbyHost_, standbyPort_, pin, this);
+    connect(request, &TakeOverRequest::finished, this, [this, request](bool ok, const QString &message) {
+        emit notice(message);
+        if (ok) {   // it serves the store from now on: look for it
+            standbyHost_.clear();
+            emit sessionChanged();
+            QTimer::singleShot(1500, this, [this] { finder_.search(discoveryPort_); });
+            QTimer::singleShot(4000, this, [this] { finder_.search(discoveryPort_); });
+        }
+        request->deleteLater();
     });
 }
 

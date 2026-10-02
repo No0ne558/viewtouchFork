@@ -297,6 +297,17 @@
         "fontSize": 28,
         "bold": false
       }
+    },
+    "network": {
+      "normal": {
+        "fill": "#232933",
+        "frame": "flat",
+        "shadow": 0,
+        "radius": 12,
+        "textColor": "#e6e9ef",
+        "fontSize": 28,
+        "bold": false
+      }
     }
   }
 }

@@ -234,6 +234,24 @@ One machine keeps the data; the others connect to it:
 - **Printing.** All printing happens at the server's printers. Each terminal has its own drawer and prints receipts on the printer set for it in Manager → Terminals (default: the "receipt" printer).
 - **Security.** Connections are encrypted (TLS 1.2, ECDHE-PSK with ChaCha20-Poly1305). Each paired device proves itself with its own 256-bit key, and the server with the same key, so no certificates are needed and a stranger's device can't connect or listen in. Pairing codes are stretched (PBKDF2, 600,000 rounds), so they can't be guessed from a recorded pairing. Open port 7719 for TCP and UDP in the server's firewall.
 
+## Keep running if the server fails
+
+A second store computer can be the **standby**: it keeps a live copy of everything and takes over if the main server stops.
+
+```sh
+# On the second computer, once (code from Manager -> Terminals -> Pair a Device):
+./modern/build/vtmodern --standby auto --pair K7QM4-XHP2W     # or --standby 192.168.1.10
+# From then on (as a service):
+./modern/build/vtmodern --standby auto
+```
+
+- **Live copy.** The standby gets the whole database when it connects, then every change as the main server saves it (checks, payments, punches, settings, pages). It connects with the store's own server key, which only a standby pairing receives.
+- **Taking over.** If the standby hears nothing from the main server for 20 seconds, it becomes the main server: same store, same paired screens, same check numbers. The screens show *The standby computer takes over in a few seconds*, find it on the network by the store's id and reconnect by themselves. A manager can also touch **Take Over Now** on a screen that lost the server and type their PIN.
+- **The old main comes back as the standby.** A server that starts and finds the store already served on the network becomes the standby. A main server that was only cut off (a broken cable) sees the newer main on the network and steps down the same way. Either way it first keeps its own data as `backups/…-before-standby.db`, so nothing it took while cut off is lost for good.
+- **Manager → Network** shows whether the standby is in sync, which screens are connected and who is on them, and whether each printer printed or failed last.
+
+Run the main server and the standby as headless services on two computers, both on port 7719.
+
 ## Kitchen display and takeout / delivery
 
 - **Kitchen and bar displays.** Manager → Kitchen Display / Bar Display, or start a terminal with `--page kitchen` or `--page bar-display`. These screens need no login.

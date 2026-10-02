@@ -245,23 +245,41 @@ ApplicationWindow {
     }
 
     // A terminal that lost its server says so until it is back.
+    // With the store's standby ready, it takes over by itself shortly; a
+    // manager can make it take over now.
     Rectangle {
+        id: offline
+        readonly property bool standby: !!root.controller.pos && (root.controller.pos as PosService).standbyReady
         visible: !!root.controller.pos && !root.controller.pos.online
         anchors.top: parent.top
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.topMargin: 12
-        width: offlineText.implicitWidth + 40
-        height: offlineText.implicitHeight + 20
-        radius: height / 2
+        width: offlineRow.implicitWidth + 40
+        height: offlineRow.implicitHeight + 20
+        radius: Math.min(height / 2, 30)
         color: "#e0b83232"
         z: 10
-        Text {
-            id: offlineText
+        RowLayout {
+            id: offlineRow
             anchors.centerIn: parent
-            color: "white"
-            font.pixelSize: 18
-            font.bold: true
-            text: qsTr("Reconnecting to the server…")
+            spacing: 16
+            Text {
+                color: "white"
+                font.pixelSize: 18
+                font.bold: true
+                text: offline.standby ? qsTr("The main server isn't answering.\nThe standby computer takes over in a few seconds.")
+                                      : qsTr("Reconnecting to the server…")
+            }
+            WidgetKey {
+                objectName: "takeOverNow"
+                visible: offline.standby
+                Layout.preferredWidth: 190
+                Layout.preferredHeight: 56
+                text: qsTr("Take Over Now")
+                fontScale: 0.3
+                baseColor: "#343c49"
+                onClicked: approvalPad.takingOver = true
+            }
         }
     }
 
@@ -297,6 +315,7 @@ ApplicationWindow {
 
     // A manager's PIN for something this person may not do on their own.
     ApprovalPad {
+        id: approvalPad
         anchors.fill: parent
         z: 60
         pos: root.controller.pos as PosService

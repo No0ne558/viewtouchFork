@@ -108,6 +108,7 @@ void PosService::connectShared()
         emit dayChanged();
     });
     connect(s_, &PosShared::dayChanged, this, &PosSession::dayChanged);
+    connect(s_, &PosShared::networkChanged, this, &PosSession::dayChanged);
     connect(s_, &PosShared::drawerChanged, this, &PosSession::drawerChanged);
     connect(s_, &PosShared::adminChanged, this, [this] {
         emit adminChanged();
@@ -250,6 +251,15 @@ bool PosService::sendMessage(const QString &to, const QString &text)
     emit notice(tr("Message sent"));
     emit s_->dayChanged();   // every screen looks
     return true;
+}
+
+QVariantMap PosService::networkInfo() const
+{
+    if (!can(u"manager"_s))
+        return {};
+    if (s_->network)
+        return s_->network();
+    return {{u"role"_s, u"single"_s}};
 }
 
 QVariantList PosService::messages() const

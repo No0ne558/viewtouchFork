@@ -4,6 +4,8 @@
 #include <QList>
 #include <QMutex>
 #include <QObject>
+#include <functional>
+#include <QJsonObject>
 #include <QString>
 #include <QThread>
 #include <QVariantMap>
@@ -33,6 +35,9 @@ public:
 
     // Block until everything queued so far has been attempted.
     void flush();
+    // Every change as it is queued ({t: "op", k: "up"|"rm", table, key,
+    // row | column}), for a standby server's copy. On the caller's thread.
+    void setMirror(std::function<void(const QJsonObject &)> mirror) { mirror_ = std::move(mirror); }
     int pending() const;
 
 signals:
@@ -50,6 +55,7 @@ private:
 
     void drain();   // worker thread
 
+    std::function<void(const QJsonObject &)> mirror_;
     QString path_;
     QThread thread_;
     Worker *worker_ = nullptr;

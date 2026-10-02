@@ -80,11 +80,19 @@ AsyncWriter::~AsyncWriter()
 
 void AsyncWriter::upsert(const QString &table, const QString &key, const QVariantMap &row)
 {
+    if (mirror_)
+        mirror_(QJsonObject{{QStringLiteral("t"), QStringLiteral("op")}, {QStringLiteral("k"), QStringLiteral("up")},
+                            {QStringLiteral("table"), table}, {QStringLiteral("key"), key},
+                            {QStringLiteral("row"), QJsonObject::fromVariantMap(row)}});
     queue({table, key, row, QString()});
 }
 
 void AsyncWriter::remove(const QString &table, const QString &keyColumn, const QString &key)
 {
+    if (mirror_)
+        mirror_(QJsonObject{{QStringLiteral("t"), QStringLiteral("op")}, {QStringLiteral("k"), QStringLiteral("rm")},
+                            {QStringLiteral("table"), table}, {QStringLiteral("key"), key},
+                            {QStringLiteral("column"), keyColumn}});
     queue({table, key, {}, keyColumn});
 }
 

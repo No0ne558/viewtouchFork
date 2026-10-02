@@ -4,12 +4,15 @@ import QtQuick.Layouts
 // "Manager approval": a void, a discount or a manager action someone may
 // not do on their own. A manager types their PIN here and it goes through
 // once (and the check's history says who approved it).
+// The same pad asks for a manager's PIN to let the standby server take over
+// (takingOver), when a screen has lost the main server.
 Rectangle {
     id: pad
     property PosService pos
     readonly property var info: pos ? pos.approval : ({})
     property string pin: ""
-    visible: info.needed ?? false
+    property bool takingOver: false
+    visible: takingOver || (info.needed ?? false)
     onVisibleChanged: pin = ""
     color: "#cc0f1318"
 
@@ -33,7 +36,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
-                text: qsTr("Manager approval")
+                text: pad.takingOver ? qsTr("Take over the store") : qsTr("Manager approval")
                 color: "#f5b940"
                 font.pixelSize: 24
                 font.bold: true
@@ -42,7 +45,9 @@ Rectangle {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: qsTr("%1 for %2").arg(pad.info.action ?? "").arg(pad.info.who ?? "")
+                text: pad.takingOver
+                      ? qsTr("The main server isn't answering. The standby computer has a copy of everything and serves the store from now on.")
+                      : qsTr("%1 for %2").arg(pad.info.action ?? "").arg(pad.info.who ?? "")
                 color: "white"
                 font.pixelSize: 16
             }
@@ -69,11 +74,19 @@ Rectangle {
                         baseColor: modelData === "OK" ? "#1f6b40" : modelData === "Cancel" ? "#6b2a2a" : "#343c49"
                         onClicked: {
                             if (modelData === "Cancel") {
-                                pad.pos.cancelApproval()
+                                if (pad.takingOver)
+                                    pad.takingOver = false
+                                else
+                                    pad.pos.cancelApproval()
                             } else if (modelData === "OK") {
                                 const p = pad.pin
                                 pad.pin = ""
-                                pad.pos.approve(p)
+                                if (pad.takingOver) {
+                                    pad.takingOver = false
+                                    pad.pos.takeOver(p)
+                                } else {
+                                    pad.pos.approve(p)
+                                }
                             } else if (pad.pin.length < 8) {
                                 pad.pin += modelData
                             }

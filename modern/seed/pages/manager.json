@@ -565,6 +565,26 @@
           "mode": "back"
         }
       ]
+    },
+    {
+      "id": "network",
+      "kind": "button",
+      "rect": {
+        "x": 568,
+        "y": 940,
+        "w": 384,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Network\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "network"
+        }
+      ]
     }
   ]
 }

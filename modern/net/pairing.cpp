@@ -98,7 +98,7 @@ QJsonObject Credentials::toJson() const
 {
     return {{u"serverId"_s, serverId}, {u"serverName"_s, serverName}, {u"host"_s, host}, {u"port"_s, port},
             {u"terminalId"_s, terminalId}, {u"terminalName"_s, terminalName},
-            {u"key"_s, QString::fromLatin1(key.toBase64())}};
+            {u"key"_s, QString::fromLatin1(key.toBase64())}, {u"replicaKey"_s, QString::fromLatin1(replicaKey.toBase64())}};
 }
 
 Credentials Credentials::fromJson(const QJsonObject &o)
@@ -111,6 +111,7 @@ Credentials Credentials::fromJson(const QJsonObject &o)
     c.terminalId = o.value(u"terminalId").toString();
     c.terminalName = o.value(u"terminalName").toString();
     c.key = QByteArray::fromBase64(o.value(u"key").toString().toLatin1());
+    c.replicaKey = QByteArray::fromBase64(o.value(u"replicaKey").toString().toLatin1());
     return c;
 }
 
@@ -120,7 +121,9 @@ std::optional<Credentials> Credentials::load(const QString &file)
     if (!f.open(QIODevice::ReadOnly))
         return std::nullopt;
     const Credentials c = fromJson(QJsonDocument::fromJson(f.readAll()).object());
-    return c.valid() ? std::optional(c) : std::nullopt;
+    // A terminal's, or a standby server's (the store's server key is enough).
+    const bool standby = !c.host.isEmpty() && !c.serverId.isEmpty() && c.replicaKey.size() >= 32;
+    return c.valid() || standby ? std::optional(c) : std::nullopt;
 }
 
 bool Credentials::save(const QString &file, QString *error) const
@@ -186,7 +189,10 @@ void Pairer::start(const QString &host, quint16 port, const QString &code, const
     });
     connect(socket_.get(), &QSslSocket::encrypted, this, [this] {
         encrypted_ = true;
-        channel_->send({{u"t"_s, u"pair"_s}, {u"name"_s, name_}, {u"protocol"_s, ProtocolVersion}});
+        QJsonObject hello{{u"t"_s, u"pair"_s}, {u"name"_s, name_}, {u"protocol"_s, ProtocolVersion}};
+        if (standby_)
+            hello.insert(u"role"_s, u"standby"_s);
+        channel_->send(hello);
     });
     connect(socket_.get(), &QSslSocket::readyRead, this, [this] {
         for (const QJsonObject &m : channel_->receive()) {
@@ -200,7 +206,9 @@ void Pairer::start(const QString &host, quint16 port, const QString &code, const
                 c.terminalId = m.value(u"id").toString();
                 c.terminalName = m.value(u"name").toString(name_);
                 c.key = QByteArray::fromBase64(m.value(u"key").toString().toLatin1());
-                done(c.valid(), c, c.valid() ? QString() : tr("The server sent an incomplete answer."));
+                c.replicaKey = QByteArray::fromBase64(m.value(u"replicaKey").toString().toLatin1());
+                const bool ok = c.valid() && (!standby_ || c.replicaKey.size() >= 32);
+                done(ok, c, ok ? QString() : tr("The server sent an incomplete answer."));
                 return;
             }
             if (type == u"error") {

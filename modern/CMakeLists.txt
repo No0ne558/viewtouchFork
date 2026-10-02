@@ -90,6 +90,7 @@ if(Qt6_FOUND)
         net/layout_hub.hh net/layout_hub.cpp
         net/pos_server.hh net/pos_server.cpp
         net/remote_session.hh net/remote_session.cpp
+        net/standby.hh net/standby.cpp
     )
     target_link_libraries(vtm_net PUBLIC vtm_pos vtm_layout vtm_storage Qt6::Network)
 
@@ -132,6 +133,7 @@ if(Qt6_FOUND)
             ui/qml/WidgetWaitlist.qml
             ui/qml/WidgetSchedule.qml
             ui/qml/WidgetFactoryReset.qml
+            ui/qml/WidgetNetwork.qml
             ui/qml/CustomerDisplay.qml
             ui/qml/CustomerDisplayWindow.qml
             ui/qml/WidgetLoginPad.qml

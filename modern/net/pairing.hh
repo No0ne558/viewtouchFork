@@ -48,6 +48,7 @@ struct Credentials {
     QString terminalId;
     QString terminalName;
     QByteArray key;
+    QByteArray replicaKey;   // a standby server: the store's key between servers
 
     bool valid() const { return !host.isEmpty() && !terminalId.isEmpty() && key.size() >= 32; }
     QJsonObject toJson() const;
@@ -67,6 +68,8 @@ public:
     ~Pairer() override;
 
     void start(const QString &host, quint16 port, const QString &code, const QString &terminalName);
+    // Pair as the store's standby server (gets the store's server key too).
+    void setStandby(bool standby) { standby_ = standby; }
     bool busy() const { return socket_ != nullptr; }
 
 signals:
@@ -81,6 +84,7 @@ private:
     quint16 port_ = 0;
     QString name_;
     bool encrypted_ = false;
+    bool standby_ = false;
 };
 
 } // namespace vt::net

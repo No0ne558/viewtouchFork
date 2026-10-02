@@ -36,7 +36,7 @@ void DiscoveryResponder::onReadyRead()
         const auto [id, name] = describe_();
         const QJsonObject answer{{u"t"_s, u"viewtouch"_s}, {u"id"_s, id}, {u"name"_s, name},
                                  {u"machine"_s, QSysInfo::machineHostName()}, {u"port"_s, tcpPort_},
-                                 {u"protocol"_s, ProtocolVersion}};
+                                 {u"protocol"_s, ProtocolVersion}, {u"role"_s, role_}, {u"term"_s, term_}};
         socket_.writeDatagram(probe.makeReply(QJsonDocument(answer).toJson(QJsonDocument::Compact)));
     }
 }
@@ -96,8 +96,11 @@ void ServerFinder::onReadyRead()
             from = QHostAddress(ip);
         s.host = from.toString();
         s.port = quint16(o.value(u"port").toInt(DefaultPort));
-        // The same server can answer on several networks: keep one entry each.
-        auto it = std::ranges::find_if(servers_, [&](const FoundServer &x) { return x.id == s.id; });
+        s.role = o.value(u"role").toString(u"main"_s);
+        s.term = o.value(u"term").toInt();
+        // The same server can answer on several networks: keep one entry
+        // each (a store's main and its standby share the id).
+        auto it = std::ranges::find_if(servers_, [&](const FoundServer &x) { return x.id == s.id && x.role == s.role; });
         if (it == servers_.end())
             servers_.append(s);
         else

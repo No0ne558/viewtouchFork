@@ -5,6 +5,7 @@
 #include "net/pairing.hh"
 #include "net/protocol.hh"
 
+#include <QDateTime>
 #include <QJsonArray>
 #include <QLoggingCategory>
 #include <QSslPreSharedKeyAuthenticator>
@@ -23,6 +24,9 @@ struct PosServer::Connection {
     QString pairingCode;  // or: a device pairing with this code
     std::unique_ptr<LineChannel> channel;
     std::unique_ptr<app::PosService> session;   // after hello
+    bool standby = false;                       // the store's standby server (key "r:")
+    bool synced = false;                        // ...has its copy, gets every change
+    qint64 since = 0;
     QVariantMap sent;                           // last state sent
     QList<QJsonObject> events;                  // queued until the next flush
     QStringList notices;
@@ -42,11 +46,22 @@ PosServer::PosServer(app::PosShared *shared, LayoutHub *layouts, QObject *parent
                                        << socket->peerAddress().toString();
     });
     connect(shared_, &app::PosShared::adminChanged, this, &PosServer::dropRevoked);
-    // Terminals find this server again by its id after an address change.
-    if (shared_->settings.serverId.empty()) {
-        shared_->settings.serverId = newDeviceId().toStdString();
+    // Terminals find this server again by its id after an address change;
+    // the standby connects with the store's server key.
+    if (shared_->settings.serverId.empty() || shared_->settings.replicaKey.empty()) {
+        if (shared_->settings.serverId.empty())
+            shared_->settings.serverId = newDeviceId().toStdString();
+        if (shared_->settings.replicaKey.empty())
+            shared_->settings.replicaKey = newDeviceKey().toBase64().toStdString();
         shared_->saveSettings();
     }
+    pingTimer_.setInterval(3'000);
+    connect(&pingTimer_, &QTimer::timeout, this, [this] {
+        for (auto &c : connections_)
+            if (c->standby && c->synced)
+                c->channel->send({{u"t"_s, u"ping"_s}});
+    });
+    pingTimer_.start();
     flushTimer_.setSingleShot(true);
     flushTimer_.setInterval(0);
     connect(&flushTimer_, &QTimer::timeout, this, [this] {
@@ -61,7 +76,7 @@ PosServer::PosServer(app::PosShared *shared, LayoutHub *layouts, QObject *parent
     connect(layouts_, &LayoutHub::layoutChanged, this, [this](const layout::Layout &layout, const void *origin) {
         const QJsonObject msg{{u"t"_s, u"layout"_s}, {u"layout"_s, layout.toJson()}};
         for (auto &c : connections_) {
-            if (c->session && c.get() != origin)
+            if ((c->session && c.get() != origin) || (c->standby && c->synced))
                 c->channel->send(msg);
         }
     });
@@ -94,6 +109,10 @@ void PosServer::onPreSharedKey(QSslSocket *socket, QSslPreSharedKeyAuthenticator
             key = pairingKeys_.value(p->code);
             socket->setProperty("vtPairingCode", p->code);
         }
+    } else if (identity.startsWith("r:")
+               && QString::fromLatin1(identity.mid(2)) == QString::fromStdString(shared_->settings.serverId)) {
+        key = QByteArray::fromBase64(QByteArray::fromStdString(shared_->settings.replicaKey));
+        socket->setProperty("vtStandby", true);
     } else if (identity.startsWith("t:")) {
         const QString id = QString::fromLatin1(identity.mid(2));
         if (const core::TerminalConfig *t = shared_->settings.pairedTerminal(id.toStdString())) {
@@ -117,6 +136,8 @@ void PosServer::onNewConnection()
         c->socket = socket;
         c->terminalId = socket->property("vtTerminalId").toString();
         c->pairingCode = socket->property("vtPairingCode").toString();
+        c->standby = socket->property("vtStandby").toBool();
+        c->since = QDateTime::currentMSecsSinceEpoch();
         c->channel = std::make_unique<LineChannel>(socket);
         Connection *raw = c.get();
         connections_.push_back(std::move(c));
@@ -151,6 +172,22 @@ void PosServer::handle(Connection *c, const QJsonObject &m)
             pair(c, m);
         else
             c->socket->abort();
+        return;
+    }
+
+    if (c->standby) {   // the store's standby: its copy, then every change
+        if (type == u"hello" && !c->synced && snapshot_) {
+            const QByteArray db = snapshot_();
+            constexpr qsizetype chunk = 1 << 20;
+            const int parts = int((db.size() + chunk - 1) / chunk);
+            for (int i = 0; i < parts; ++i)
+                c->channel->send({{u"t"_s, u"snap"_s}, {u"i"_s, i}, {u"n"_s, parts},
+                                  {u"data"_s, QString::fromLatin1(db.mid(i * chunk, chunk).toBase64())}});
+            c->channel->send({{u"t"_s, u"layout"_s}, {u"layout"_s, layouts_->layout().toJson()}});
+            c->synced = true;
+            qCInfo(lcServer) << "standby connected; sent the database," << db.size() << "bytes";
+            emit standbyChanged();
+        }
         return;
     }
 
@@ -252,11 +289,40 @@ void PosServer::pair(Connection *c, const QJsonObject &m)
     pairingKeys_.clear();
     shared_->saveSettings();
 
-    c->channel->send({{u"t"_s, u"paired"_s}, {u"id"_s, id}, {u"key"_s, QString::fromLatin1(key.toBase64())},
-                      {u"name"_s, name}, {u"serverId"_s, QString::fromStdString(shared_->settings.serverId)},
-                      {u"serverName"_s, QString::fromStdString(shared_->settings.storeName)}});
+    QJsonObject paired{{u"t"_s, u"paired"_s}, {u"id"_s, id}, {u"key"_s, QString::fromLatin1(key.toBase64())},
+                       {u"name"_s, name}, {u"serverId"_s, QString::fromStdString(shared_->settings.serverId)},
+                       {u"serverName"_s, QString::fromStdString(shared_->settings.storeName)}};
+    if (m.value(u"role").toString() == u"standby")   // the store's standby server
+        paired.insert(u"replicaKey"_s, QString::fromStdString(shared_->settings.replicaKey));
+    c->channel->send(paired);
     c->socket->disconnectFromHost();
     qCInfo(lcServer).noquote() << "paired a new device:" << name;
+}
+
+void PosServer::replicate(const QJsonObject &op)
+{
+    for (auto &c : connections_)
+        if (c->standby && c->synced)
+            c->channel->send(op);
+}
+
+int PosServer::standbyCount() const
+{
+    return int(std::ranges::count_if(connections_, [](const auto &c) { return c->standby && c->synced; }));
+}
+
+QVariantList PosServer::connections() const
+{
+    QVariantList out;
+    for (const auto &c : connections_) {
+        if (!c->session && !c->standby)
+            continue;
+        out.append(QVariantMap{{u"name"_s, c->standby ? tr("Standby server") : c->session->terminalName()},
+                               {u"address"_s, c->socket->peerAddress().toString().remove(u"::ffff:"_s)},
+                               {u"since"_s, c->since}, {u"standby"_s, c->standby},
+                               {u"user"_s, c->session ? c->session->userName() : QString()}});
+    }
+    return out;
 }
 
 void PosServer::dropRevoked()
@@ -306,6 +372,10 @@ void PosServer::drop(Connection *c)
         return;
     if (c->session)
         qCInfo(lcServer) << "terminal disconnected:" << c->session->terminalName();
+    if (c->standby && c->synced) {
+        qCWarning(lcServer) << "the standby server disconnected";
+        QMetaObject::invokeMethod(this, &PosServer::standbyChanged, Qt::QueuedConnection);
+    }
     c->socket->deleteLater();
     // Destroying the session releases the check it had open; tell the rest.
     const bool hadSession = c->session != nullptr;

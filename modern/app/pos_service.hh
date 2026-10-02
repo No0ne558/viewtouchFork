@@ -182,6 +182,9 @@ public:
     // Factory reset from the Manager page: main backs up, closes, deletes the
     // database and starts again. False: not possible here.
     std::function<bool()> requestFactoryReset;
+    // The store's computers and printers, for Manager -> Network (set by
+    // the app): {role, term, terminals, standby, printers}.
+    std::function<QVariantMap()> network;
     QVariantMap backup;
     void setBackupStatus(QVariantMap status)
     {
@@ -196,6 +199,7 @@ signals:
     void adminChanged();     // menu, settings, tenders, printers, taxes
     void staffChanged();
     void customersChanged();   // customers, gift cards, house accounts
+    void networkChanged();     // a screen or the standby came or went; a printer worked or failed
 
 private:
     std::function<std::int64_t()> now_;
@@ -425,6 +429,7 @@ public:
     // other screen) or a person's name. Needs no login (kitchen screens).
     bool sendMessage(const QString &to, const QString &text);
     QVariantList messages() const override;
+    QVariantMap networkInfo() const override;
 
     // --- manager approval ---------------------------------------------------------
     // A manager's PIN lets the waiting operation (a void, a discount...) through once.

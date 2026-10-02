@@ -586,6 +586,46 @@ TEST_CASE("UI: a month's report beside last year", "[flow][ui][range]")
     s.shot("16-range-report");
 }
 
+TEST_CASE("UI: Manager -> Network shows the standby, the screens and the printers", "[flow][ui][network]")
+{
+    Screen s;
+    QVariant standby;
+    s.pos.shared()->network = [&] {
+        return QVariantMap{{u"role"_s, u"main"_s}, {u"machine"_s, u"office-pc"_s}, {u"standby"_s, standby},
+                           {u"terminals"_s, QVariantList{QVariantMap{{u"name"_s, u"Bar"_s}, {u"address"_s, u"10.0.0.7"_s},
+                                                                     {u"user"_s, u"Sam"_s}, {u"since"_s, qint64(1'700'000'000'000)}}}},
+                           {u"printers"_s, QVariantList{QVariantMap{{u"name"_s, u"Kitchen"_s}, {u"type"_s, u"network"_s},
+                                                                    {u"where"_s, u"10.0.0.50:9100"_s}, {u"status"_s, u"failed"_s},
+                                                                    {u"error"_s, u"No answer"_s}, {u"at"_s, qint64(1'700'000'300'000)}}}}};
+    };
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"manager"_s));
+    QTest::qWait(30);
+    s.c.activate(u"network"_s);                          // Manager -> Network…
+    QTest::qWait(30);
+    REQUIRE(s.c.pageId() == u"network"_s);
+    auto standbyText = [&] {
+        QQuickItem *t = Screen::findBy(s.window->contentItem(), "objectName", u"standbyText"_s);
+        REQUIRE(t);
+        return t->property("text").toString();
+    };
+    CHECK(standbyText().startsWith(u"No standby"_s));
+    CHECK(Screen::findBy(s.window->contentItem(), "text", u"Bar"_s));
+    CHECK(Screen::findBy(s.window->contentItem(), "text", u"Sam is logged in"_s));
+    CHECK(Screen::findBy(s.window->contentItem(), "text", u"Kitchen"_s));
+
+    standby = QVariantMap{{u"address"_s, u"10.0.0.9"_s}, {u"since"_s, qint64(1'700'000'000'000)}, {u"standby"_s, true}};
+    emit s.pos.shared()->networkChanged();
+    QTest::qWait(30);
+    CHECK(standbyText().startsWith(u"In sync: 10.0.0.9"_s));
+    s.shot("18-network");
+
+    // Not for staff without manager pages.
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    CHECK(s.pos.networkInfo().isEmpty());
+}
+
 TEST_CASE("UI: Manager -> Factory Reset asks for RESET before it does anything", "[flow][ui][reset]")
 {
     Screen s;
@@ -801,6 +841,7 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     admin("admin-inventory", "m40-inventory", true);
     admin("admin-promotions", "m41-promotions", true);
     go("admin-schedule", "m42-schedule");
+    go("network", "m42b-network");
     go("sold-out", "m43-sold-out");
     go("drawer", "m44-drawer");
     go("end-of-day", "m45-end-of-day");

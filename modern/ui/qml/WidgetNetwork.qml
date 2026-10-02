@@ -1,0 +1,165 @@
+import QtQuick
+import QtQuick.Controls.Fusion
+import QtQuick.Layouts
+
+// Manager -> Network: is everything on the store's network working? This
+// computer's role, the standby server (the live copy that takes over if
+// the main one stops), the screens connected, and how each printer did.
+Item {
+    id: w
+    property ZoneItem zone
+    readonly property PosService pos: zone ? zone.pos : null
+    readonly property var net: pos ? pos.network : ({})
+    readonly property bool serving: net.role === "main"
+    readonly property var standby: net.standby ?? null
+
+    function time(ms) { return ms ? Qt.formatTime(new Date(ms), "h:mm AP") : "" }
+
+    component Dot: Rectangle {
+        property string state: "unknown"
+        implicitWidth: 22
+        implicitHeight: 22
+        radius: 11
+        color: state === "ok" ? "#2fbf71" : state === "failed" ? "#e04848" : "#7b8494"
+    }
+    component Heading: Label {
+        font.pixelSize: 22
+        font.bold: true
+        Layout.topMargin: 14
+    }
+
+    readonly property real zoom: Math.max(1, Math.min(1.6, width / 1100))
+    Item {
+        width: w.width / w.zoom
+        height: w.height / w.zoom
+        scale: w.zoom
+        transformOrigin: Item.TopLeft
+
+        Flickable {
+            id: flick
+            anchors.fill: parent
+            anchors.margins: 16
+            contentHeight: column.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: TouchScrollBar { id: bar }
+
+            ColumnLayout {
+                id: column
+                width: flick.width - bar.room
+                spacing: 8
+
+                Heading { text: qsTr("This computer"); Layout.topMargin: 0 }
+                RowLayout {
+                    spacing: 12
+                    Dot { state: "ok" }
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 18
+                        text: w.serving
+                              ? qsTr("%1 is the main server: it keeps the store's data and serves the other screens.").arg(w.net.machine ?? "")
+                              : qsTr("This computer runs the store on its own (it doesn't serve other screens).")
+                    }
+                }
+                Label {
+                    visible: (w.net.term ?? 0) > 0
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    font.pixelSize: 16
+                    text: qsTr("It took over from another main server %n time(s).", "", w.net.term ?? 0)
+                }
+
+                Heading { text: qsTr("Standby server"); visible: w.serving }
+                RowLayout {
+                    visible: w.serving
+                    spacing: 12
+                    Dot { objectName: "standbyDot"; state: w.standby ? "ok" : "failed" }
+                    Label {
+                        objectName: "standbyText"
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 18
+                        text: w.standby
+                              ? qsTr("In sync: %1 has a live copy of everything (since %2). If this computer stops, it takes over within about 20 seconds.")
+                                    .arg(w.standby.address).arg(w.time(w.standby.since))
+                              : qsTr("No standby. If this computer stops, the store stops until it is back. "
+                                     + "To keep running, start a second computer with:  vtmodern --standby auto --pair <code from Terminals>")
+                    }
+                }
+
+                Heading { text: qsTr("Screens connected (%1)").arg((w.net.terminals ?? []).length); visible: w.serving }
+                Label {
+                    visible: w.serving && (w.net.terminals ?? []).length === 0
+                    text: qsTr("None right now.")
+                    opacity: 0.6
+                    font.pixelSize: 17
+                }
+                Repeater {
+                    model: w.serving ? (w.net.terminals ?? []) : []
+                    delegate: Rectangle {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        implicitHeight: 54
+                        radius: 8
+                        color: "#232933"
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            spacing: 14
+                            Dot { state: "ok" }
+                            Label { text: modelData.name; font.pixelSize: 18; font.bold: true; Layout.preferredWidth: 260; elide: Text.ElideRight }
+                            Label { text: modelData.address; font.pixelSize: 16; opacity: 0.7; Layout.preferredWidth: 180 }
+                            Label {
+                                Layout.fillWidth: true
+                                font.pixelSize: 16
+                                elide: Text.ElideRight
+                                text: modelData.user ? qsTr("%1 is logged in").arg(modelData.user) : qsTr("Nobody logged in")
+                            }
+                            Label { text: qsTr("since %1").arg(w.time(modelData.since)); font.pixelSize: 16; opacity: 0.6 }
+                        }
+                    }
+                }
+
+                Heading { text: qsTr("Printers") }
+                Label {
+                    visible: (w.net.printers ?? []).length === 0
+                    text: qsTr("No printers set up (Manager → Printers).")
+                    opacity: 0.6
+                    font.pixelSize: 17
+                }
+                Repeater {
+                    model: w.net.printers ?? []
+                    delegate: Rectangle {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        implicitHeight: printerRow.implicitHeight + 20
+                        radius: 8
+                        color: "#232933"
+                        RowLayout {
+                            id: printerRow
+                            anchors.fill: parent
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            spacing: 14
+                            Dot { state: modelData.status }
+                            Label { text: modelData.name; font.pixelSize: 18; font.bold: true; Layout.preferredWidth: 260; elide: Text.ElideRight }
+                            Label { text: modelData.where || modelData.type; font.pixelSize: 16; opacity: 0.7; Layout.preferredWidth: 180; elide: Text.ElideMiddle }
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                font.pixelSize: 16
+                                color: modelData.status === "failed" ? "#ff9a9e" : "white"
+                                text: modelData.status === "ok" ? qsTr("Printed at %1").arg(w.time(modelData.at))
+                                    : modelData.status === "failed" ? qsTr("Failed at %1: %2").arg(w.time(modelData.at)).arg(modelData.error)
+                                    : qsTr("Nothing printed yet since start-up")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

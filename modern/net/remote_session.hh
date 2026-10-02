@@ -103,6 +103,9 @@ public:
     bool training() const override { return v(u"training").toBool(); }
     int autoLogoutMinutes() const override { return v(u"autoLogoutMinutes").toInt(); }
     QVariantList messages() const override { return v(u"messages").toList(); }
+    bool standbyReady() const override { return !welcomed_ && !standbyHost_.isEmpty(); }
+    QVariantMap networkInfo() const override { return v(u"network").toMap(); }
+    void takeOver(const QString &pin) override;
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }
     int queryRevision() const override { return queryRevision_; }
@@ -142,6 +145,8 @@ private:
     int refusals_ = 0;
     int failures_ = 0;       // connection attempts in a row that got nowhere
     ServerFinder finder_;    // to find the server again after an address change
+    QString standbyHost_;    // the store's standby, heard while the server was out of reach
+    quint16 standbyPort_ = 0;
     quint16 discoveryPort_ = DiscoveryPort;
     bool encrypted_ = false;
     std::unique_ptr<LineChannel> channel_;

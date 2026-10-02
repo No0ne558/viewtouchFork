@@ -25,6 +25,8 @@ struct FoundServer {
     QString machine;   // the server's computer name
     QString host;      // the address it answered from
     quint16 port = DefaultPort;
+    QString role = QStringLiteral("main");   // "main", or "standby" (a copy, ready to take over)
+    int term = 0;   // goes up each time a standby takes over: the newest main wins
 };
 
 // Server side: answers probes.
@@ -37,6 +39,9 @@ public:
                        QObject *parent = nullptr);
 
     bool listen(quint16 udpPort = DiscoveryPort);
+    // "main" (serves the store) or "standby".
+    void setRole(const QString &role) { role_ = role; }
+    void setTerm(int term) { term_ = term; }
     quint16 port() const { return socket_.localPort(); }
     QString errorString() const { return socket_.errorString(); }
 
@@ -45,6 +50,8 @@ private:
 
     std::function<std::pair<QString, QString>()> describe_;
     quint16 tcpPort_;
+    QString role_ = QStringLiteral("main");
+    int term_ = 0;
     QUdpSocket socket_;
 };
 

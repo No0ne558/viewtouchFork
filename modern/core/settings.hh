@@ -133,6 +133,10 @@ struct PosSettings {
     // Waitlist: quoted minutes for each party ahead, and the text sent when
     // a table is ready ({name}, {store}). textWebhook: where texts are sent
     // (a JSON POST of {to, message}; empty: no texting).
+    // Between the store's servers (main and standby): the key the standby
+    // replicates with (base64), and how many times a standby took over.
+    std::string replicaKey;
+    int serverTerm = 0;
     // Log a screen out after this many idle minutes (0: never).
     int autoLogoutMinutes = 0;
     // A table seated longer than this is marked on the floor plan.

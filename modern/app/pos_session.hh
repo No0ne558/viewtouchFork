@@ -75,6 +75,11 @@ class PosSession : public QObject {
     Q_PROPERTY(int autoLogoutMinutes READ autoLogoutMinutes NOTIFY adminChanged)
     // Messages between screens, the last hour's, newest first.
     Q_PROPERTY(QVariantList messages READ messages NOTIFY dayChanged)
+    Q_PROPERTY(bool standbyReady READ standbyReady NOTIFY sessionChanged)
+    // Manager -> Network: {role: main|single, term, terminals: [{name,
+    // address, user, since}], standby: {address, since} | null, printers:
+    // [{name, type, where, status: ok|failed|unknown, error, at}]}.
+    Q_PROPERTY(QVariantMap network READ networkInfo NOTIFY dayChanged)
     // Modifiers being chosen for the item just ordered: {active, item, groups:
     // [{id, name, rule, chosen, done, options: [{index, name, price, chosen}]}]}.
     Q_PROPERTY(QVariantMap choosing READ choosingInfo NOTIFY checkChanged)
@@ -155,6 +160,9 @@ public:
     virtual QVariantMap approvalInfo() const = 0;
     virtual int autoLogoutMinutes() const = 0;
     virtual QVariantList messages() const = 0;
+    // A screen that lost its server: the store's standby is there, ready.
+    virtual bool standbyReady() const { return false; }
+    virtual QVariantMap networkInfo() const = 0;
     virtual bool training() const = 0;
     virtual QStringList soldOut() const = 0;
     virtual QVariantList menuItems() const = 0;
@@ -242,6 +250,9 @@ public:
     }
     Q_INVOKABLE void askForTip() { invoke(QStringLiteral("askForTip")); }
     Q_INVOKABLE void approve(const QString &pin) { invoke(QStringLiteral("approve"), {pin}); }
+    // Ask the standby server to take over (a manager's PIN). Only screens
+    // of a remote store have one.
+    Q_INVOKABLE virtual void takeOver(const QString &pin) { Q_UNUSED(pin) }
     Q_INVOKABLE void sendMessage(const QString &to, const QString &text)
     {
         invoke(QStringLiteral("sendMessage"), {to, text});

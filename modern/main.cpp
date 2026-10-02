@@ -4,6 +4,7 @@
 #include "net/discovery.hh"
 #include "net/layout_hub.hh"
 #include "net/pos_server.hh"
+#include "net/standby.hh"
 #include "net/protocol.hh"
 #include "net/remote_session.hh"
 #include "print/spooler.hh"
@@ -39,6 +40,7 @@
 #include <QStandardPaths>
 #include <QSysInfo>
 #include <QTimer>
+#include <QTemporaryDir>
 #include <QtQml/qqmlextensionplugin.h>
 
 #ifdef Q_OS_ANDROID
@@ -88,6 +90,10 @@ struct Options {
     QCommandLineOption size{u"size"_s, u"Window size, e.g. 1280x720."_s, u"WxH"_s, u"1280x720"_s};
     QCommandLineOption screenshot{u"screenshot"_s, u"Render, save a PNG to <file>, and exit."_s, u"file"_s};
     QCommandLineOption kiosk{u"kiosk"_s, u"Full screen with no mouse pointer and no way out (touch screens)."_s};
+    QCommandLineOption standby{u"standby"_s,
+        u"Be the store's standby server: keep a live copy of the main server's data, ready to take over if it "
+         "stops (a manager does it from any screen). <server>: the main server's address, or auto. The first "
+         "time, add --pair with a code from Manager -> Terminals."_s, u"server"_s};
     QCommandLineOption factoryReset{u"factory-reset"_s,
         u"Back to a fresh install: back up the database, then delete it (sales, customers, staff, menu, pages, "
          "settings). The next start begins with the starter set. Backups and saved exports stay. ViewTouch must "
@@ -284,6 +290,15 @@ void present(QQuickWindow *window, const Args &cli, const Options &o)
 // Exit status of a kiosk a manager closed: vtmodern-kiosk.service does not
 // restart on it (RestartPreventExitStatus).
 constexpr int kKioskClosed = 64;
+// A standby that took over serves the store from then on (headless); a
+// server that finds the store already served elsewhere becomes the standby.
+constexpr int kTookOver = 66;
+constexpr int kBecomeStandby = 67;
+bool gServeHeadless = false;
+// The store's main server answering for `storeId` on the network, if any.
+std::optional<vt::net::FoundServer> findMainServer(const QString &storeId, int waitMs, quint16 port);
+// Seconds without word from the main server before the standby takes over.
+constexpr int kTakeOverSeconds = 20;
 // Exit status of a factory reset from the Manager page: main wipes the
 // database and starts again (systemd restarts the services on it).
 constexpr int kFactoryReset = 65;
@@ -442,6 +457,8 @@ int runTerminal(const Args &cli, const Options &o)
     };
 
     std::optional<vt::net::Credentials> creds = vt::net::Credentials::load(credentialFile);
+    if (creds && !creds->valid())   // a terminal needs its own key
+        creds.reset();
 
     // --pair CODE: pair from the command line (setup scripts).
     if (cli.isSet(o.pair)) {
@@ -773,6 +790,15 @@ int runStore(const Args &cli, const Options &o)
     }
     vt::app::PosService pos(std::move(*posData), sink.get());
     vt::app::PosShared *shared = pos.shared();
+    if (QFile::exists(dbPath + u".took-over"_s)) {   // this was the standby until a moment ago
+        QFile marker(dbPath + u".took-over"_s);
+        const QString by = marker.open(QIODevice::ReadOnly) ? QString::fromUtf8(marker.readAll()) : QString();
+        marker.close();
+        marker.remove();
+        ++shared->settings.serverTerm;
+        shared->saveSettings();
+        qWarning().noquote() << "Serving the store as the main server now (taken over for" << by << ")";
+    }
     if (havePosStore)   // reports over a range read the closed checks back
         shared->history = [dbPath](std::int64_t from, std::int64_t to) {
             return vt::storage::closedChecksBetween(dbPath, from, to);
@@ -783,9 +809,21 @@ int runStore(const Args &cli, const Options &o)
     vt::print::PrintSpooler spooler;
     vt::print::TicketPrinter ticketPrinter(spooler, QDir(dataDirOf(cli, o)).filePath(u"printouts"_s));
     pos.setPrinter(&ticketPrinter);
+    // How each printer did last, for Manager -> Network.
+    auto printerStatus = std::make_shared<QHash<QString, QVariantMap>>();
     QObject::connect(&spooler, &vt::print::PrintSpooler::jobFailed, &pos,
-                     [&pos](const QString &printer, const QString &what, const QString &error) {
+                     [&pos, printerStatus, shared](const QString &printer, const QString &what, const QString &error) {
         say(pos, QCoreApplication::translate("main", "%1 did not print on %2: %3").arg(what, printer, error));
+        printerStatus->insert(printer, {{u"status"_s, u"failed"_s}, {u"error"_s, error},
+                                        {u"at"_s, QDateTime::currentMSecsSinceEpoch()}});
+        emit shared->networkChanged();
+    });
+    QObject::connect(&spooler, &vt::print::PrintSpooler::jobPrinted, &pos,
+                     [printerStatus, shared](const QString &printer, const QString &) {
+        const bool was = printerStatus->value(printer).value(u"status"_s) == u"ok"_s;
+        printerStatus->insert(printer, {{u"status"_s, u"ok"_s}, {u"at"_s, QDateTime::currentMSecsSinceEpoch()}});
+        if (!was)
+            emit shared->networkChanged();
     });
     if (writer) {
         QObject::connect(writer.get(), &vt::storage::AsyncWriter::writeFailed, &pos, [&pos](const QString &error) {
@@ -872,8 +910,55 @@ int runStore(const Args &cli, const Options &o)
     std::unique_ptr<vt::net::PosServer> server;
     std::unique_ptr<vt::net::DiscoveryResponder> discovery;
     std::unique_ptr<QLocalServer> control;
-    if (cli.isSet(o.serve) || cli.isSet(o.headless)) {
+    if (cli.isSet(o.serve) || cli.isSet(o.headless) || gServeHeadless) {
+        // Is the store already being served (by the computer that took over
+        // while this one was away)? Then this one becomes the standby.
+        // Hands this store over to `other` and becomes its standby: this
+        // computer's data is kept as a backup, then replaced by the copy.
+        auto stepDown = [&](const vt::net::FoundServer &other) {
+            writer->flush();
+            QString error;
+            QDir().mkpath(backupDirOf(cli, o));
+            const QString kept = QDir(backupDirOf(cli, o)).filePath(
+                vt::storage::backupFileName(QDateTime::currentDateTime()).replace(u".db"_s, u"-before-standby.db"_s));
+            if (!vt::storage::backupDatabase(dbPath, kept, &error))
+                qWarning().noquote() << "Could not keep a copy of this computer's data:" << error;
+            vt::net::Credentials standby;
+            standby.serverId = QString::fromStdString(shared->settings.serverId);
+            standby.serverName = QString::fromStdString(shared->settings.storeName);
+            standby.host = other.host;
+            standby.port = other.port;
+            standby.replicaKey = QByteArray::fromBase64(QByteArray::fromStdString(shared->settings.replicaKey));
+            standby.save(QDir(dataDirOf(cli, o)).filePath(u"standby.json"_s), &error);
+        };
+        // Is the store already being served (by the standby that took over
+        // while this computer was away)? Then this one becomes the standby.
+        if (const auto other = findMainServer(QString::fromStdString(shared->settings.serverId), 1500,
+                                               cli.isSet(o.port) ? quint16(cli.value(o.port).toUInt()) : vt::net::DefaultPort)) {
+            qWarning().noquote() << "The store is already served by" << other->host
+                                 << "- this computer becomes its standby.";
+            stepDown(*other);
+            return kBecomeStandby;
+        }
         server = std::make_unique<vt::net::PosServer>(shared, &hub);
+        // The standby's copy: the whole database when it connects, then
+        // every change the writer saves.
+        if (writer) {
+            server->setSnapshotSource([&writer, dbPath] {
+                writer->flush();
+                QTemporaryDir tmp;
+                const QString file = tmp.filePath(u"copy.db"_s);
+                QString error;
+                if (!vt::storage::backupDatabase(dbPath, file, &error)) {
+                    qWarning().noquote() << "Could not copy the database for the standby:" << error;
+                    return QByteArray();
+                }
+                QFile f(file);
+                return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+            });
+            vt::net::PosServer *raw = server.get();
+            writer->setMirror([raw](const QJsonObject &op) { raw->replicate(op); });
+        }
         const quint16 port = cli.isSet(o.port) ? quint16(cli.value(o.port).toUInt()) : vt::net::DefaultPort;
         const QHostAddress address = cli.isSet(o.listen) ? QHostAddress(cli.value(o.listen)) : QHostAddress::Any;
         if (!server->listen(address, port)) {
@@ -889,6 +974,24 @@ int runStore(const Args &cli, const Options &o)
         if (!discovery->listen(server->port()))
             qWarning().noquote() << "Terminals can't find this server by themselves (UDP port" << server->port()
                                  << "):" << discovery->errorString();
+        discovery->setTerm(shared->settings.serverTerm);
+        // A standby that took over while this server was cut off (a broken
+        // cable) serves a newer term: the newest main serves, this one steps down.
+        auto *watch = new QTimer(server.get());
+        auto *newer = new vt::net::ServerFinder(server.get());
+        QObject::connect(newer, &vt::net::ServerFinder::found, server.get(),
+                         [stepDown, shared](const vt::net::FoundServer &f) {
+            if (f.id != QString::fromStdString(shared->settings.serverId) || f.role != u"main"
+                || f.term <= shared->settings.serverTerm)
+                return;
+            qWarning().noquote() << "The standby at" << f.host << "took over this store;"
+                                 << "this computer steps down and becomes its standby.";
+            stepDown(f);
+            QCoreApplication::exit(kBecomeStandby);
+        });
+        watch->setInterval(15'000);
+        QObject::connect(watch, &QTimer::timeout, newer, [newer, port = server->port()] { newer->search(port); });
+        watch->start();
         // `vtmodern --pairing-code` on this machine: the first terminal of a
         // server without a screen gets paired this way.
         control = std::make_unique<QLocalServer>();
@@ -916,7 +1019,37 @@ int runStore(const Args &cli, const Options &o)
             }
         });
     }
-    if (cli.isSet(o.headless))
+    // Manager -> Network: this computer's role, the screens, the standby, the printers.
+    shared->network = [shared, &server, printerStatus] {
+        QVariantList terminals;
+        QVariant standby;
+        if (server) {
+            for (const QVariant &c : server->connections()) {
+                if (c.toMap().value(u"standby"_s).toBool())
+                    standby = c;
+                else
+                    terminals << c;
+            }
+        }
+        QVariantList printers;
+        for (const vt::core::PrinterConfig &p : shared->settings.printers) {
+            const QString name = QString::fromStdString(p.name);
+            QVariantMap row = printerStatus->value(name, {{u"status"_s, u"unknown"_s}});
+            row[u"name"_s] = name;
+            row[u"type"_s] = QString::fromStdString(p.type);
+            row[u"where"_s] = p.type == "network" ? u"%1:%2"_s.arg(QString::fromStdString(p.host)).arg(p.port)
+                                                  : QString::fromStdString(p.path);
+            printers << row;
+        }
+        return QVariantMap{{u"role"_s, server ? u"main"_s : u"single"_s}, {u"term"_s, shared->settings.serverTerm},
+                           {u"machine"_s, QSysInfo::machineHostName()}, {u"terminals"_s, terminals},
+                           {u"standby"_s, standby}, {u"printers"_s, printers}};
+    };
+    if (server) {
+        QObject::connect(server.get(), &vt::net::PosServer::terminalsChanged, shared, &vt::app::PosShared::networkChanged);
+        QObject::connect(server.get(), &vt::net::PosServer::standbyChanged, shared, &vt::app::PosShared::networkChanged);
+    }
+    if (cli.isSet(o.headless) || gServeHeadless)
         return qApp->exec();
 
     LayoutController controller(*layout);
@@ -979,6 +1112,133 @@ int runBackup(const Args &cli, const Options &o)
     vt::storage::pruneBackups(dir, cli.value(o.backupKeep).toInt());
     qInfo().noquote() << "Backed up to" << target;
     return 0;
+}
+
+// --- the standby server --------------------------------------------------------------------
+
+// The store's main server answering for `storeId` on the network, if any.
+std::optional<vt::net::FoundServer> findMainServer(const QString &storeId, int waitMs, quint16 port)
+{
+    if (storeId.isEmpty())
+        return std::nullopt;
+    vt::net::ServerFinder finder;
+    std::optional<vt::net::FoundServer> found;
+    QEventLoop loop;
+    QObject::connect(&finder, &vt::net::ServerFinder::found, &loop, [&](const vt::net::FoundServer &s) {
+        if (s.id == storeId && s.role == u"main") {
+            found = s;
+            loop.quit();
+        }
+    });
+    QTimer::singleShot(waitMs, &loop, &QEventLoop::quit);
+    finder.search(port);
+    loop.exec();
+    return found;
+}
+
+int runStandby(const Args &cli, const Options &o)
+{
+    const QString dataDir = dataDirOf(cli, o);
+    QDir().mkpath(dataDir);
+    const QString dbPath = dbPathOf(cli, o);
+    QLockFile lock(dbPath + u".lock"_s);
+    lock.setStaleLockTime(0);
+    if (!lock.tryLock(0)) {
+        qCritical().noquote() << u"Another ViewTouch is using %1."_s.arg(dbPath);
+        return 1;
+    }
+    const QString credentialFile = QDir(dataDir).filePath(u"standby.json"_s);
+    std::optional<vt::net::Credentials> creds = vt::net::Credentials::load(credentialFile);
+    QString where = cli.isSet(o.standby) ? cli.value(o.standby) : u"auto"_s;
+    if (cli.isSet(o.pair) || !creds || creds->replicaKey.size() < 32) {
+        if (!cli.isSet(o.pair)) {
+            qCritical().noquote() << "The first time, add --pair <code> (Manager -> Terminals -> Pair a Device).";
+            return 1;
+        }
+        QString host = where;
+        quint16 port = vt::net::DefaultPort;
+        if (where == u"auto") {   // the first store on the network
+            vt::net::ServerFinder finder;
+            QEventLoop loop;
+            QObject::connect(&finder, &vt::net::ServerFinder::found, &loop, [&](const vt::net::FoundServer &s) {
+                if (s.role == u"main") {
+                    host = s.host;
+                    port = s.port;
+                    loop.quit();
+                }
+            });
+            QTimer::singleShot(3000, &loop, &QEventLoop::quit);
+            finder.search();
+            loop.exec();
+            if (host == u"auto") {
+                qCritical().noquote() << "No ViewTouch store answered on the network; give its address.";
+                return 1;
+            }
+        } else if (const qsizetype colon = host.lastIndexOf(u':'); colon > 0) {
+            port = quint16(host.mid(colon + 1).toUInt());
+            host = host.left(colon);
+        }
+        vt::net::Pairer pairer;
+        pairer.setStandby(true);
+        bool ok = false;
+        QString error;
+        QEventLoop loop;
+        QObject::connect(&pairer, &vt::net::Pairer::finished, &loop,
+                         [&](bool success, const vt::net::Credentials &c, const QString &e) {
+            ok = success;
+            error = e;
+            if (success)
+                creds = c;
+            loop.quit();
+        });
+        pairer.start(host, port, cli.value(o.pair), u"Standby (%1)"_s.arg(QSysInfo::machineHostName()));
+        loop.exec();
+        if (!ok) {
+            qCritical().noquote() << "Pairing the standby failed:" << error;
+            return 1;
+        }
+        creds->save(credentialFile, &error);
+        qInfo().noquote() << "This computer is the standby of" << creds->serverName << "at" << creds->host;
+    }
+
+    vt::net::ReplicaClient replica(dbPath, *creds);
+    QObject::connect(&replica, &vt::net::ReplicaClient::credentialsChanged, &replica,
+                     [credentialFile](const vt::net::Credentials &c) { c.save(credentialFile); });
+    const quint16 port = cli.isSet(o.port) ? quint16(cli.value(o.port).toUInt()) : vt::net::DefaultPort;
+    vt::net::StandbyListener listener(dbPath, creds->serverId);
+    if (!listener.listen(port))
+        qWarning().noquote() << "Screens can't ask this standby to take over (port" << port << "):"
+                             << listener.errorString();
+    QObject::connect(&replica, &vt::net::ReplicaClient::synced, &listener, [&listener] { listener.setReady(true); });
+    vt::net::DiscoveryResponder discovery(
+        [&creds] { return std::pair{creds->serverId, creds->serverName}; }, listener.port());
+    discovery.setRole(u"standby"_s);
+    if (!discovery.listen(port))
+        qWarning().noquote() << "Screens can't find this standby by themselves:" << discovery.errorString();
+    bool tookOver = false;
+    QObject::connect(&listener, &vt::net::StandbyListener::takeOverRequested, &replica, [&](const QString &by) {
+        qWarning().noquote() << "Taking over as the main server, for" << by;
+        replica.stop();
+        tookOver = true;
+        QFile marker(dbPath + u".took-over"_s);
+        if (marker.open(QIODevice::WriteOnly))
+            marker.write(by.toUtf8());
+        QTimer::singleShot(300, qApp, [] { QCoreApplication::exit(kTookOver); });
+    });
+    // No word from the main server for a while (it pings every few
+    // seconds): take over by itself, as if a manager had asked.
+    QTimer silence;
+    silence.setInterval(1000);
+    QObject::connect(&silence, &QTimer::timeout, &replica, [&] {
+        const qint64 heard = replica.lastHeard();
+        if (heard > 0 && !replica.inSync() && !tookOver
+            && QDateTime::currentMSecsSinceEpoch() - heard > kTakeOverSeconds * 1000)
+            emit listener.takeOverRequested(u"automatic: the main server stopped answering"_s);
+    });
+    silence.start();
+    replica.start();
+    const int code = QCoreApplication::exec();
+    return tookOver ? kTookOver : code;
 }
 
 // --- factory reset and demo data -----------------------------------------------------------
@@ -1159,7 +1419,7 @@ int main(int argc, char *argv[])
     cli.addHelpOption();
     cli.addVersionOption();
     const QList<QCommandLineOption> all = {o.config, o.dataDir, o.db, o.layout, o.resetLayout, o.resetMenu, o.serve,
-        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.touchKeyboard, o.customerDisplay, o.factoryReset, o.demoData, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
+        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.touchKeyboard, o.customerDisplay, o.factoryReset, o.demoData, o.standby, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
         o.screenshot, o.backupDir, o.backupKeep, o.backupEvery, o.backup, o.restore, o.pairingCode, o.exportDir};
     cli.addOptions(all);
     cli.process(app);
@@ -1195,7 +1455,18 @@ int main(int argc, char *argv[])
         return runPairingCode(args, o);
     if (args.isSet(o.connect))
         return runTerminal(args, o);
-    const int code = runStore(args, o);
+    // The store's servers hand over to each other: a standby that took over
+    // serves from then on; a server that finds the store served elsewhere
+    // becomes the standby.
+    int code = args.isSet(o.standby) ? runStandby(args, o) : runStore(args, o);
+    while (code == kTookOver || code == kBecomeStandby) {
+        if (code == kTookOver) {
+            gServeHeadless = true;
+            code = runStore(args, o);
+        } else {
+            code = runStandby(args, o);
+        }
+    }
     if (code != kFactoryReset)
         return code;
     // The stores are closed now: wipe, then start again - systemd does that

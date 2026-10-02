@@ -6,6 +6,7 @@
 #include <QSslServer>
 #include <QTimer>
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -32,8 +33,18 @@ public:
     QString errorString() const { return error_.isEmpty() ? server_.errorString() : error_; }
     int terminalCount() const;
 
+    // The store's standby: a full copy of the database when it connects
+    // (`snapshot` makes one: the database file's bytes), then every change
+    // (`replicate`, from the database writer's mirror).
+    void setSnapshotSource(std::function<QByteArray()> snapshot) { snapshot_ = std::move(snapshot); }
+    void replicate(const QJsonObject &op);
+    int standbyCount() const;
+    // Who is connected, for the Network screen: [{name, address, since, standby}].
+    QVariantList connections() const;
+
 signals:
     void terminalsChanged();
+    void standbyChanged();
 
 private:
     struct Connection;
@@ -58,6 +69,8 @@ private:
     std::vector<std::unique_ptr<Connection>> connections_;
     QTimer flushTimer_;
     QTimer tickTimer_;   // refresh time-based fields (minutes open)
+    QTimer pingTimer_;   // the standby knows the main is alive
+    std::function<QByteArray()> snapshot_;
 };
 
 } // namespace vt::net

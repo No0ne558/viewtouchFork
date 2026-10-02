@@ -271,7 +271,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -608,6 +608,7 @@ for i, z in enumerate(slots):
     z["rect"] = rect(160 + col * 408, 124 + row * 134, 384, 120)
     mgr.append(z)
 mgr.append(zone("back", 160, 940, 384, 120, "‹ Back", actions=[jump(mode="back")]))
+mgr.append(zone("network", 568, 940, 384, 120, "Network…", actions=[jump(page="network")]))
 page("manager", "Manager", "manager", mgr, role="manager", permission="manager")
 
 # Manager screens (reached through openAdmin from the Manager page)
@@ -628,6 +629,13 @@ for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees
 page("factory-reset", "Factory Reset", "manager", [
     label("title", 16, 16, 1888, 80, "Factory reset"),
     zone("reset", 16, 112, 1888, 816, kind="factoryReset"),
+    zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
+], permission="manager")
+
+# The store's computers and printers: the standby, the screens, printer trouble.
+page("network", "Network", "manager", [
+    label("title", 16, 16, 1888, 80, "Network"),
+    zone("network", 16, 112, 1888, 816, kind="network"),
     zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
 ], permission="manager")
 
