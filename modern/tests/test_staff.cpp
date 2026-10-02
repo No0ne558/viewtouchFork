@@ -280,3 +280,96 @@ TEST_CASE("Tip pooling: tip-outs to bussers and bartenders, split by hours", "[s
     REQUIRE(pos.loginWithPin(u"1111"_s));
     CHECK(pos.tipsOwed() == u"$5.00"_s);                                     // $20 earned, $15 paid
 }
+
+TEST_CASE("Manager approval: a manager's PIN lets one void through, on the spot", "[staff][approval]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1111"_s));                          // Sam: may not void sent items
+    REQUIRE(pos.selectTable(u"T1"_s) == PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    pos.addItem(u"cobb"_s);
+    pos.addItem(u"coffee"_s);
+    REQUIRE(pos.sendOrder());
+
+    // Through invoke (as the screens do): it waits for a manager.
+    QVariant result;
+    pos.invoke(u"voidItem"_s, {}, [&](const QVariant &r) { result = r; });
+    CHECK_FALSE(result.toBool());
+    QVariantMap approval = pos.approvalInfo();
+    REQUIRE(approval[u"needed"_s].toBool());
+    CHECK(approval[u"who"_s].toString().startsWith(u"Sam"_s));
+    CHECK_FALSE(pos.approve(u"2222"_s));                            // a cashier can't approve it
+    CHECK(pos.approvalInfo()[u"needed"_s].toBool());
+    REQUIRE(pos.approve(u"1234"_s));                                // Morgan can
+    CHECK_FALSE(pos.approvalInfo()[u"needed"_s].toBool());
+    CHECK(pos.lines().last().toMap()[u"voided"_s].toBool());        // the coffee is voided
+    const QVariantList history = pos.checkHistory();
+    REQUIRE_FALSE(history.isEmpty());
+    bool approved = false;
+    for (const QVariant &h : history)
+        approved = approved || h.toMap()[u"what"_s].toString().contains(u"approved by Morgan"_s);
+    CHECK(approved);
+
+    // Once only: the next void asks again; Cancel puts it away.
+    pos.selectLine(pos.lines().first().toMap()[u"id"_s].toLongLong());
+    pos.invoke(u"voidItem"_s, {}, {});
+    CHECK(pos.approvalInfo()[u"needed"_s].toBool());
+    REQUIRE(pos.cancelApproval());
+    CHECK_FALSE(pos.approvalInfo()[u"needed"_s].toBool());
+    CHECK_FALSE(pos.lines().first().toMap()[u"voided"_s].toBool());
+    CHECK_FALSE(pos.approve(u"1234"_s));                            // nothing waiting
+}
+
+TEST_CASE("Practice mode: checks that never reach the kitchen, sales, stock or cash", "[staff][training]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    // Riley is in training.
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    int sam = -1;
+    for (int i = 0; i < int(pos.shared()->employees.size()); ++i)
+        if (pos.shared()->employees[i].id == "sam") sam = i;
+    QVariantMap r = pos.adminRecords(u"employees"_s)[sam].toMap();
+    r[u"training"_s] = true;
+    REQUIRE(pos.adminSave(u"employees"_s, sam, r));
+    pos.entryKey(u"10000"_s);
+    REQUIRE(pos.openDrawerSession());
+    const QString drawerBefore = pos.drawerInfo()[u"expected"_s].toString();
+    pos.logout();
+
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    CHECK(pos.training());
+    const double buns = pos.shared()->ingredient("bun")->onHand;
+    REQUIRE(pos.selectTable(u"T1"_s) == PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    CHECK(pos.checkInfo()[u"label"_s] == u"T1 (practice)"_s);
+    CHECK_FALSE(pos.tableStatus(u"T1"_s)[u"open"_s].toBool());      // the real table stays free
+    pos.addItem(u"classic-burger"_s);
+    REQUIRE(pos.sendOrder());
+    CHECK(pos.kitchenTickets().isEmpty());
+    CHECK(pos.expoTickets().isEmpty());
+    CHECK(pos.shared()->ingredient("bun")->onHand == buns);
+    CHECK_FALSE(pos.tender(u"house"_s));                            // no real accounts
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+    CHECK(pos.shared()->closedToday.empty());                       // not a sale
+    CHECK(pos.drawerInfo()[u"expected"_s].toString() == drawerBefore);
+    pos.logout();
+
+    // A manager can switch their own screen to practice; End of Day clears
+    // practice checks left open.
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    CHECK_FALSE(pos.training());
+    REQUIRE(pos.setTraining(true));
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(u"coffee"_s);
+    pos.releaseCheck();
+    REQUIRE(pos.setTraining(false));
+    REQUIRE(pos.countDrawer() == false);                            // (needs a count)
+    pos.entryKey(u"10000"_s);
+    REQUIRE(pos.countDrawer());
+    REQUIRE(pos.endOfDay());
+    CHECK(pos.shared()->open.empty());
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"2222"_s));
+    CHECK_FALSE(pos.setTraining(true));                             // managers only
+}

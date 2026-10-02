@@ -157,6 +157,8 @@ QVariantList PosService::adminFields(const QString &panel)
                           {"busser", "Busser"}, {"manager", "Manager"}, {"admin", "Admin"}})),
             field(u"pin"_s, tr("New PIN"), u"pin"_s, tr("4 to 8 digits. Leave empty to keep the current PIN.")),
             field(u"active"_s, tr("Active (can log in)"), u"bool"_s),
+            field(u"training"_s, tr("In training (practice only)"), u"bool"_s,
+                  tr("Their checks never go to the kitchen and don't count as sales, stock or cash.")),
             with(field(u"cashMode"_s, tr("Cash handling"), u"enum"_s,
                        tr("Where the cash this person takes goes. Store setting: %1.")
                            .arg(s_->settings.cashMode == CashMode::ServerBank ? tr("server bank") : tr("terminal drawer"))),
@@ -333,7 +335,7 @@ QVariantList PosService::adminRecords(const QString &panel)
     } else if (panel == u"employees") {
         for (const Employee &e : s_->employees) {
             QVariantMap r{{u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
-                          {u"active"_s, e.active}, {u"pin"_s, QString()}, {u"cashMode"_s, qs(e.cashMode)},
+                          {u"active"_s, e.active}, {u"training"_s, e.training}, {u"pin"_s, QString()}, {u"cashMode"_s, qs(e.cashMode)},
                           {u"checkout"_s, qs(e.checkout)}};
             for (const char *p : AllPermissions)
                 r.insert(u"perm:"_s + QString::fromLatin1(p),
@@ -453,7 +455,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"kitchenName"_s, QString()}, {u"kitchenColor"_s, QString()}, {u"kitchenHide"_s, false}};
     if (panel == u"employees")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
-                {u"active"_s, true}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()},
+                {u"active"_s, true}, {u"training"_s, false}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()},
                 {u"perm:order"_s, QString()}, {u"perm:check.settle"_s, QString()}, {u"perm:check.discount"_s, QString()},
                 {u"perm:order.void"_s, QString()}, {u"perm:manager"_s, QString()}, {u"perm:layout.edit"_s, QString()}};
     if (panel == u"tenders")
@@ -810,6 +812,7 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     e.name = ss(name);
     e.role = ss(role);
     e.active = active;
+    e.training = record.value(u"training"_s, e.training).toBool();
     if (index < 0)
         e.id = ss(uniqueId(record.value(u"id"_s).toString().trimmed().isEmpty() ? name : record.value(u"id"_s).toString(),
                            s_->employees, [](const Employee &x) { return x.id; }, -1));

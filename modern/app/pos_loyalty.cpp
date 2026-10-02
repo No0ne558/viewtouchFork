@@ -155,6 +155,8 @@ bool PosService::redeemReward(int index)
         return fail(tr("No check is open."));
     if (!s_->settings.loyaltyEnabled || index < 0 || index >= int(s_->settings.rewards.size()))
         return fail(tr("There is no such reward."));
+    if (c->training)
+        return fail(tr("Practice checks can't spend real points."));
     CustomerRecord *r = s_->customer(c->customerId);
     if (!r)
         return fail(tr("Put the customer on the check first."));

@@ -575,6 +575,8 @@ page("logout", "Log Out", "logout", [
     zone("break", 970, 580, 390, 140, "Start / End Break", actions=[command("toggleBreak")]),
     zone("logout", 560, 740, 390, 140, "Log Out", actions=[command("logout")], style=fill(RED)),
     zone("cancel", 970, 740, 390, 140, "Cancel", actions=[jump(mode="back")]),
+    # A manager switches this screen to practice (training) and back.
+    zone("practice", 1380, 900, 390, 120, "Practice Mode", actions=[command("toggleTraining")], style=fill(AMBER)),
 ], role="logout")
 
 admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"), ("Taxes", "taxes"),
@@ -797,6 +799,7 @@ logout_buttons, _ = grid_buttons([
     ("cancel", "Cancel", [jump(mode="back")], {}),
     ("tips", "Cash Out My Tips", [command("cashOutTips")], {"style": fill(GREEN)}),
     ("bank", "My Bank…", [jump(page="drawer")], {}),
+    ("practice", "Practice Mode", [command("toggleTraining")], {"style": fill(AMBER)}),
 ], 720, 2, 200)
 phone_page("logout", "Log Out", "logout", [
     label("title", 24, 40, 1032, 110, "End of shift"),

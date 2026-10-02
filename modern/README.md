@@ -169,6 +169,11 @@ Reports have a row of periods: *Day* (one business day, as before), *This Week*,
 - **Expo Display** (Manager → Expo Display, or a screen started on the `expo` page): every ticket across the stations, each line ticked when its station bumps it, "Waiting on: bar", and blue READY when all of it is made. Touch a ready ticket when it goes out (a ticket not ready yet needs a second touch); Recall brings the last one back.
 - **Reports → Kitchen:** tickets per station from sent to bumped, with the average, the longest, how many were late, and the five slowest.
 
+## Manager approval and practice mode
+
+- **Manager approval:** when someone may not do something on their own (void a sent item, a discount, a manager action), a PIN pad appears on the same screen. A manager types their PIN and it goes through once; the check's history says who approved it. *Cancel* puts it away. No logging out and back in.
+- **Practice mode** (training): mark a person *In training* (Manager → Employees), or a manager touches **Practice Mode** on the Log Out page to switch their own screen. A yellow *PRACTICE* banner shows. Practice checks are labelled "(practice)" and leave real tables free; they never reach the kitchen screens or printers, stock, drawers, banks, reports, points, gift cards or house accounts. Closing one says "not a sale"; any left open are cleared at End of Day.
+
 ## Customer display
 
 A second monitor facing the guest:

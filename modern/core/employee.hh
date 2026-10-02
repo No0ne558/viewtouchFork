@@ -33,6 +33,8 @@ struct Employee {
     std::string pinSalt;
     std::string pinHash;
     bool active = true;
+    // Practice only: their checks never reach the kitchen, sales or stock.
+    bool training = false;
     // Cash handling for this person: "serverBank" (own bank), "drawer" (the
     // terminal's drawer), or empty for the store's setting.
     std::string cashMode;

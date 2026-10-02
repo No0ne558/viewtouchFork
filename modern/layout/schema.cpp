@@ -279,6 +279,7 @@ QJsonArray actionTypes()
                             {"payout", "Pay out of drawer"}, {"paidIn", "Pay into drawer"},
                             {"cashOutTips", "Cash out my tips"}, {"closeApp", "Close ViewTouch (manager; leaves a kiosk)"}, {"toggleBreak", "Start / end a break"}, {"backupNow", "Back up the database now (manager)"},
         {"askForTip", "Ask the guest for a tip (customer display)"},
+        {"toggleTraining", "Practice mode on / off for this screen (manager)"},
         {"rush", "Rush this check (kitchen does it first)"}, {"vip", "Mark this check VIP"}, {"clearText", "Clear typed text"}, {"recallTicket", "Recall kitchen ticket"},
                             {"startDelivery", "Start delivery"}}))}),
     };

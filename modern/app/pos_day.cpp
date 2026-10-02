@@ -687,6 +687,18 @@ bool PosService::endOfDay()
 {
     if (!require(perm::Manager, tr("End of day")))
         return false;
+    // Practice checks left open don't hold up the day.
+    for (auto it = s_->open.begin(); it != s_->open.end();) {
+        if (it->second.training && !s_->lockedBy.contains(it->first)) {
+            it->second.status = CheckStatus::Discarded;
+            it->second.closedAt = now();
+            if (s_->sink)
+                s_->sink->saveCheck(it->second);
+            it = s_->open.erase(it);
+        } else {
+            ++it;
+        }
+    }
     if (!s_->open.empty())
         return fail(s_->open.size() == 1 ? tr("Settle the open check first.")
                                       : tr("Settle the %1 open checks first.").arg(s_->open.size()));
@@ -749,7 +761,8 @@ Report PosService::buildReport(const QString &id) const
         for (const Check &c : s_->closedToday)
             checks.push_back(&c);
         for (const auto &[cid, c] : s_->open)
-            checks.push_back(&c);
+            if (!c.training)
+                checks.push_back(&c);
         return kitchenReport(checks, s_->settings.kitchenLateMinutes, ctx);
     }
     if (id == u"accounts")
@@ -759,7 +772,8 @@ Report PosService::buildReport(const QString &id) const
         for (const Check &c : s_->closedToday)
             checks.push_back(&c);
         for (const auto &[id, c] : s_->open)
-            checks.push_back(&c);
+            if (!c.training)
+                checks.push_back(&c);
         return auditReport(checks, ctx);
     }
     return salesSummary(s_->closedToday, ctx);

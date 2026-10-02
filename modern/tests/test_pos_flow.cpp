@@ -897,3 +897,33 @@ TEST_CASE("Memory: a screen through a long service stays flat", "[.memory]")
     WARN("RSS after 100 checks " << after100 << " kB, after 400 " << after400 << " kB, per check "
          << (after400 - after100) / 300.0 << " kB");
 }
+
+TEST_CASE("UI: a server's void waits for a manager's PIN on the same screen", "[flow][ui][approval]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.selectTable(u"T4"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    s.pos.addItem(u"cobb"_s);
+    REQUIRE(s.pos.sendOrder());
+    REQUIRE(s.c.jumpTo(u"items-salads"_s));
+    QTest::qWait(50);
+    s.c.activate(u"flow-void"_s);                                // Void, as Sam
+    QTest::qWait(80);
+    CHECK(s.pos.approvalInfo()[u"needed"_s].toBool());
+    s.shot("19-approval");
+    std::function<QQuickItem *(QQuickItem *, const QString &)> named = [&](QQuickItem *root, const QString &name) -> QQuickItem * {
+        for (QQuickItem *i : root->childItems()) {
+            if (i->isVisible() && i->objectName() == name)
+                return i;
+            if (QQuickItem *hit = named(i, name))
+                return hit;
+        }
+        return nullptr;
+    };
+    for (const char *k : {"1", "2", "3", "4", "OK"})
+        s.tapItem(named(s.window->contentItem(), u"approvalKey-"_s + QString::fromLatin1(k)));
+    QTest::qWait(50);
+    CHECK_FALSE(s.pos.approvalInfo()[u"needed"_s].toBool());
+    CHECK(s.pos.lines().first().toMap()[u"voided"_s].toBool());
+}

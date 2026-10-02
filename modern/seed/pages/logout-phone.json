@@ -160,6 +160,30 @@
           "page": "drawer"
         }
       ]
+    },
+    {
+      "id": "practice",
+      "kind": "button",
+      "rect": {
+        "x": 24,
+        "y": 1368,
+        "w": 508,
+        "h": 200
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Practice Mode",
+      "actions": [
+        {
+          "type": "command",
+          "name": "toggleTraining"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#a86a12"
+        }
+      }
     }
   ]
 }

@@ -124,6 +124,7 @@ if(Qt6_FOUND)
             ui/qml/WidgetSoldOutList.qml
             ui/qml/TouchScrollBar.qml
             ui/qml/TouchKeyboard.qml
+            ui/qml/ApprovalPad.qml
             ui/qml/WidgetCustomerLookup.qml
             ui/qml/WidgetGiftCard.qml
             ui/qml/WidgetWaitlist.qml

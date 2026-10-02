@@ -166,7 +166,8 @@ struct Check {
     bool autoGratuity = false;        // added for a large party (not by hand)
     std::vector<CheckEvent> events;   // oldest first
     int firedCourse = 1;              // courses up to this one go out on Send
-    int pointsEarned = 0;             // loyalty points it gave its customer (taken back on reopen)
+    int pointsEarned = 0;
+    bool training = false;            // a practice check: not a sale, never to the kitchen             // loyalty points it gave its customer (taken back on reopen)
     bool rush = false;                // the kitchen does it first
     bool vip = false;                 // the kitchen takes extra care
 

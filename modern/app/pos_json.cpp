@@ -102,7 +102,7 @@ QJsonObject toJson(const Check &c)
         {u"customer"_s, QJsonObject{{u"name"_s, qs(c.customer.name)}, {u"phone"_s, qs(c.customer.phone)},
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
         {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse}, {u"customerId"_s, qs(c.customerId)},
-        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"pointsEarned"_s, c.pointsEarned},
+        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"pointsEarned"_s, c.pointsEarned}, {u"training"_s, c.training},
     };
 }
 
@@ -180,6 +180,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     c.rush = o.value(u"rush").toBool();
     c.vip = o.value(u"vip").toBool();
     c.pointsEarned = o.value(u"pointsEarned").toInt();
+    c.training = o.value(u"training").toBool();
     for (const QJsonValue &v : o.value(u"events").toArray()) {
         const QJsonObject e = v.toObject();
         c.events.push_back({i64(e.value(u"at")), ss(e.value(u"who").toString()), ss(e.value(u"what").toString()),
@@ -297,7 +298,7 @@ QJsonObject toJson(const Employee &e)
 {
     return {
         {u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
-        {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active},
+        {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active}, {u"training"_s, e.training},
         {u"cashMode"_s, qs(e.cashMode)}, {u"checkout"_s, qs(e.checkout)},
         {u"allow"_s, strings(e.allow)}, {u"deny"_s, strings(e.deny)},
     };
@@ -310,6 +311,7 @@ Employee employeeFromJson(const QJsonObject &o)
     e.name = ss(o.value(u"name").toString());
     e.role = ss(o.value(u"role").toString(u"server"_s));
     e.active = o.value(u"active").toBool(true);
+    e.training = o.value(u"training").toBool(false);
     e.cashMode = ss(o.value(u"cashMode").toString());
     e.checkout = ss(o.value(u"checkout").toString());
     for (const QJsonValue &v : o.value(u"allow").toArray())

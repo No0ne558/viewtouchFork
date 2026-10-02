@@ -68,6 +68,10 @@ class PosSession : public QObject {
     Q_PROPERTY(QString nextShift READ nextShift NOTIFY sessionChanged)
     // A report over several days, when it has been read: {loading, label, report}.
     Q_PROPERTY(QVariantMap rangeReport READ rangeReport NOTIFY sessionChanged)
+    // Waiting for a manager's PIN: {needed, action, who}.
+    Q_PROPERTY(QVariantMap approval READ approvalInfo NOTIFY sessionChanged)
+    // This screen's checks are practice (training).
+    Q_PROPERTY(bool training READ training NOTIFY sessionChanged)
     // Modifiers being chosen for the item just ordered: {active, item, groups:
     // [{id, name, rule, chosen, done, options: [{index, name, price, chosen}]}]}.
     Q_PROPERTY(QVariantMap choosing READ choosingInfo NOTIFY checkChanged)
@@ -145,6 +149,8 @@ public:
     virtual QVariantMap scheduleInfo() const = 0;
     virtual QString nextShift() const = 0;
     virtual QVariantMap rangeReport() const = 0;
+    virtual QVariantMap approvalInfo() const = 0;
+    virtual bool training() const = 0;
     virtual QStringList soldOut() const = 0;
     virtual QVariantList menuItems() const = 0;
     virtual QString checkFilter() const = 0;
@@ -230,6 +236,9 @@ public:
         invoke(QStringLiteral("payWithGiftCard"), {number, amountCents});
     }
     Q_INVOKABLE void askForTip() { invoke(QStringLiteral("askForTip")); }
+    Q_INVOKABLE void approve(const QString &pin) { invoke(QStringLiteral("approve"), {pin}); }
+    Q_INVOKABLE void cancelApproval() { invoke(QStringLiteral("cancelApproval")); }
+    Q_INVOKABLE void setTraining(bool on) { invoke(QStringLiteral("setTraining"), {on}); }
     Q_INVOKABLE void redeemReward(int index) { invoke(QStringLiteral("redeemReward"), {index}); }
     Q_INVOKABLE void customerJoin(const QString &phone) { invoke(QStringLiteral("customerJoin"), {phone}); }
     Q_INVOKABLE void sendReceipt(const QString &how, const QString &to = {})

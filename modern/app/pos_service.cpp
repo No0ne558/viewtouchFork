@@ -187,8 +187,68 @@ bool PosService::require(const char *permission, const QString &action)
 {
     if (!user())
         return fail(tr("Log in first."));
-    if (!user()->can(permission))
-        return fail(tr("%1 is not allowed for %2.").arg(action, qs(user()->name)));
+    if (user()->can(permission))
+        return true;
+    // A manager approved this one, a moment ago.
+    if (approved_ && approved_->permission == permission) {
+        const std::string by = approved_->by;
+        approved_.reset();
+        if (Check *c = current())
+            noteEvent(*c, tr("%1: approved by %2").arg(action, qs(by)), "approval");
+        emit notice(tr("Approved by %1").arg(qs(by)));
+        return true;
+    }
+    // Voids, discounts and manager actions can be approved on the spot.
+    const std::string p = permission;
+    if (running_ && (p == perm::Void || p == perm::Discount || p == perm::Manager || p == perm::Settle)) {
+        approval_ = {{u"needed"_s, true}, {u"action"_s, action}, {u"permission"_s, QString::fromLatin1(permission)},
+                     {u"who"_s, qs(user()->name)}};
+        approvalMethod_ = running_->method;
+        approvalArgs_ = running_->args;
+        emit sessionChanged();
+        return fail(tr("%1 needs a manager's approval.").arg(action));
+    }
+    return fail(tr("%1 is not allowed for %2.").arg(action, qs(user()->name)));
+}
+
+bool PosService::approve(const QString &pin)
+{
+    if (!approval_.value(u"needed"_s).toBool())
+        return fail(tr("Nothing is waiting for approval."));
+    const Employee *m = employeeByPin(pin);
+    const std::string permission = ss(approval_.value(u"permission"_s).toString());
+    if (!m || !m->active || !m->can(permission))
+        return fail(tr("That PIN can't approve this."));
+    approved_ = Approved{permission, m->name};
+    const QString method = approvalMethod_;
+    const QVariantList args = approvalArgs_;
+    approval_.clear();
+    emit sessionChanged();
+    invoke(method, args);   // once more, approved
+    approved_.reset();      // used or not, it was for that one operation
+    return true;
+}
+
+bool PosService::cancelApproval()
+{
+    approval_.clear();
+    approved_.reset();
+    emit sessionChanged();
+    return true;
+}
+
+bool PosService::training() const
+{
+    return user() && (user()->training || trainingOn_);
+}
+
+bool PosService::setTraining(bool on)
+{
+    if (!require(perm::Manager, tr("Practice mode")))
+        return false;
+    trainingOn_ = on;
+    emit notice(on ? tr("Practice mode: nothing on this screen is a real sale") : tr("Practice mode off"));
+    emit sessionChanged();
     return true;
 }
 
@@ -267,6 +327,9 @@ void PosService::logout()
     releaseCheck();
     userId_.clear();
     pin_.clear();
+    trainingOn_ = false;
+    approval_.clear();
+    approved_.reset();
     clearEntry();
     qualifier_ = Qualifier::None;
     emit qualifierChanged();
@@ -415,9 +478,11 @@ bool PosService::startCheck(CheckType type)
     c.serverId = user()->id;
     c.serverName = user()->name;
     c.openedAt = now();
+    c.training = training();
     switch (type) {
     case CheckType::DineIn:
-        c.label = ss(pendingTable_);
+        // A practice check leaves the real table free.
+        c.label = ss(c.training ? tr("%1 (practice)").arg(pendingTable_) : pendingTable_);
         c.guests = entryGuests();
         if (s_->settings.gratuityBp > 0 && c.guests >= s_->settings.gratuityMinGuests) {
             c.gratuityBp = s_->settings.gratuityBp;
@@ -594,9 +659,10 @@ bool PosService::voidItem()
         if (!require(perm::Void, tr("Voiding sent items")))
             return false;
         c->voidLine(l->id);
-        takeStock({*l}, -1);   // not made: back on the shelf
+        if (!c->training)
+            takeStock({*l}, -1);   // not made: back on the shelf
         noteEvent(*c, tr("Voided %1 (%2)").arg(name, format(l->unitPrice * l->quantity)), "void");
-        if (s_->printer)
+        if (s_->printer && !c->training)
             s_->printer->printKitchen(s_->settings, *c, {*l}, true);
         emit notice(tr("Voided %1").arg(name));
     }
@@ -614,11 +680,17 @@ bool PosService::sendOrder()
     if (const QString missing = missingChoice(fresh); !missing.isEmpty())
         return fail(missing);   // the kitchen needs the whole order
     const int n = c->sendAll(now());
-    takeStock(fresh, 1);
+    if (!c->training)
+        takeStock(fresh, 1);
     const int held = c->heldCount();
     if (n == 0)
         return fail(held > 0 ? tr("The rest is on hold: Fire the next course when it's time.")
                              : tr("Nothing new to send."));
+    if (c->training) {   // practice: the kitchen never sees it
+        emit notice(tr("Practice: %1 items marked sent (not sent to the kitchen)").arg(n));
+        changed(*c);
+        return true;
+    }
     if (s_->printer)
         s_->printer->printKitchen(s_->settings, *c, fresh, false);
     const QString sent = n == 1 ? tr("Sent 1 item to the kitchen") : tr("Sent %1 items to the kitchen").arg(n);
@@ -731,6 +803,8 @@ bool PosService::closeCheck()
     const Totals t = c->totals(s_->settings.tax);
     if (t.balance.cents() > 0)
         return fail(tr("%1 is still due.").arg(format(t.balance)));
+    if (c->training)
+        return closePractice(*c);
     const bool cash = t.cashPaid.cents() > 0;
     // With server banks the cash stays with whoever closes the check (their
     // bank starts with the first cash sale); otherwise it goes in this
@@ -745,8 +819,9 @@ bool PosService::closeCheck()
         if (const QString missing = missingChoice(fresh); !missing.isEmpty())
             return fail(missing);
         c->sendAll(now(), true);
+        if (!c->training)
         takeStock(fresh, 1);
-        if (s_->printer && !fresh.empty())
+        if (s_->printer && !fresh.empty() && !c->training)
             s_->printer->printKitchen(s_->settings, *c, fresh, false);
     }
     if (c->type == CheckType::Takeout || c->type == CheckType::Delivery)
@@ -780,6 +855,26 @@ bool PosService::closeCheck()
 }
 
 // --- QML-facing state ------------------------------------------------------------------
+
+bool PosService::closePractice(Check &c)
+{
+    // Kept for its number, out of every sale, drawer and report.
+    c.sendAll(now(), true);
+    c.status = CheckStatus::Discarded;
+    c.closedAt = now();
+    if (s_->sink)
+        s_->sink->saveCheck(c);
+    const qint64 id = c.id;
+    unlockCheck(id);
+    s_->open.erase(id);
+    currentId_ = 0;
+    selectedLine_ = 0;
+    selectedPayment_ = 0;
+    emit notice(tr("Practice check closed: not a sale"));
+    emit checkChanged();
+    emit s_->checksChanged();
+    return true;
+}
 
 QString PosService::userName() const { return user() ? qs(user()->name) : QString(); }
 QString PosService::userRole() const { return user() ? qs(user()->role) : QString(); }
@@ -1008,7 +1103,8 @@ QVariantList PosService::kitchenTickets() const
             tickets.push_back({&c, sentAt, std::move(lines)});
     };
     for (const auto &[id, c] : s_->open)
-        collect(c);
+        if (!c.training)   // practice never reaches the kitchen
+            collect(c);
     for (const Check &c : s_->closedToday)
         collect(c);
     // Rush orders first, then the oldest.
@@ -1105,7 +1201,8 @@ QVariantList PosService::expoTickets() const
             tickets.push_back({&c, sentAt, std::move(lines)});
     };
     for (const auto &[id, c] : s_->open)
-        collect(c);
+        if (!c.training)   // practice never reaches the kitchen
+            collect(c);
     for (const Check &c : s_->closedToday)
         collect(c);
     std::ranges::sort(tickets, [](const Ticket &a, const Ticket &b) {
@@ -1266,6 +1363,10 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"cashOutTips"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cashOutTips()); }},
         {u"toggleBreak"_s, [](PosService &p, const QVariantList &) { return QVariant(p.toggleBreak()); }},
         {u"askForTip"_s, [](PosService &p, const QVariantList &) { return QVariant(p.askForTip()); }},
+        {u"approve"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.approve(a.value(0).toString())); }},
+        {u"cancelApproval"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cancelApproval()); }},
+        {u"setTraining"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setTraining(a.value(0).toBool())); }},
+        {u"toggleTraining"_s, [](PosService &p, const QVariantList &) { return QVariant(p.setTraining(!p.training())); }},
         {u"redeemReward"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.redeemReward(a.value(0).toInt())); }},
         {u"customerJoin"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.customerJoin(a.value(0).toString())); }},
         {u"sendReceipt"_s, [](PosService &p, const QVariantList &a) {
@@ -1345,7 +1446,12 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
             reply(QVariant(false));
         return;
     }
+    // Remembered, so a manager's approval can run it again.
+    const std::optional<Running> outer = running_;
+    if (method != u"approve" && method != u"cancelApproval")
+        running_ = Running{method, args};
     const QVariant result = (*it)(*this, args);
+    running_ = outer;
     if (reply)
         reply(result);
 }

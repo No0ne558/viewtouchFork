@@ -204,13 +204,14 @@ bool PosService::fireCourse()
     }
     if (const QString missing = missingChoice(course_lines); !missing.isEmpty())
         return fail(missing);
-    takeStock(course_lines, 1);
+    if (!c->training)
+        takeStock(course_lines, 1);
     const int course = c->fireNextCourse();
     if (course == 0)
         return fail(tr("No course is on hold."));
     const std::vector<OrderLine> fresh = c->sendable();
     const int n = c->sendAll(now());
-    if (s_->printer && !fresh.empty())
+    if (s_->printer && !fresh.empty() && !c->training)
         s_->printer->printKitchen(s_->settings, *c, fresh, false);
     emit notice(tr("Fired course %1 (%2 items)").arg(course).arg(n));
     changed(*c);

@@ -99,6 +99,8 @@ public:
     QString nextShift() const override { return v(u"nextShift").toString(); }
     QVariantMap rangeReport() const override { return v(u"rangeReport").toMap(); }
     QVariantList expoTickets() const override { return v(u"expoTickets").toList(); }
+    QVariantMap approvalInfo() const override { return v(u"approval").toMap(); }
+    bool training() const override { return v(u"training").toBool(); }
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }
     int queryRevision() const override { return queryRevision_; }

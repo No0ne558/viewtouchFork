@@ -265,6 +265,33 @@ ApplicationWindow {
         }
     }
 
+    // Practice (training): everyone can see nothing here is real.
+    Rectangle {
+        visible: !root.editing && root.controller.pos !== null && (root.controller.pos as PosService).training
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: practiceText.implicitWidth + 40
+        height: practiceText.implicitHeight + 10
+        radius: 6
+        color: "#f5b940"
+        z: 50
+        Text {
+            id: practiceText
+            anchors.centerIn: parent
+            text: qsTr("PRACTICE - nothing here is a real sale")
+            font.bold: true
+            font.pixelSize: 16
+            color: "#1b1b1b"
+        }
+    }
+
+    // A manager's PIN for something this person may not do on their own.
+    ApprovalPad {
+        anchors.fill: parent
+        z: 60
+        pos: root.controller.pos as PosService
+    }
+
     Rectangle {
         id: toastBox
         objectName: "toast"

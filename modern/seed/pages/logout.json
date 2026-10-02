@@ -159,6 +159,30 @@
           "mode": "back"
         }
       ]
+    },
+    {
+      "id": "practice",
+      "kind": "button",
+      "rect": {
+        "x": 1380,
+        "y": 900,
+        "w": 390,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Practice Mode",
+      "actions": [
+        {
+          "type": "command",
+          "name": "toggleTraining"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#a86a12"
+        }
+      }
     }
   ]
 }

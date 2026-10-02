@@ -415,6 +415,18 @@ public:
     bool startPairing();
     // Back the database up now (managers).
     bool backupNow();
+
+    // --- manager approval ---------------------------------------------------------
+    // A manager's PIN lets the waiting operation (a void, a discount...) through once.
+    bool approve(const QString &pin);
+    bool cancelApproval();
+    QVariantMap approvalInfo() const override { return approval_; }
+
+    // --- practice (training) --------------------------------------------------------
+    // This screen's checks are practice: the person is in training, or a
+    // manager switched it on here.
+    bool training() const override;
+    bool setTraining(bool on);
     // Everything back to a fresh install, after a backup (managers; `confirm`
     // must be "RESET"). ViewTouch restarts with the starter set.
     bool factoryReset(const QString &confirm);
@@ -548,6 +560,18 @@ private:
     void connectShared();
     core::Check *current();
     bool require(const char *permission, const QString &action);
+    // The operation running through invoke(), to try again once approved.
+    struct Running { QString method; QVariantList args; };
+    std::optional<Running> running_;
+    // Waiting for a manager's PIN: {needed, action, permission}; and the
+    // one-time approval that lets the operation through.
+    QVariantMap approval_;
+    QVariantList approvalArgs_;
+    QString approvalMethod_;
+    struct Approved { std::string permission; std::string by; };
+    std::optional<Approved> approved_;
+    bool trainingOn_ = false;
+    bool closePractice(core::Check &c);   // a manager switched this screen to practice
     bool fail(const QString &message);
     void changed(core::Check &check);   // persist + notify
     const core::Employee *employeeByPin(const QString &pin) const;

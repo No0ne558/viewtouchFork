@@ -340,6 +340,8 @@ bool PosService::payWithGiftCard(const QString &number, qint64 amountCents)
     Check *c = current();
     if (!c)
         return fail(tr("No check is open."));
+    if (c->training)
+        return fail(tr("Practice checks can't use a real gift card."));
     const QString n = cleanNumber(number.isEmpty() ? giftCardNumber_ : number);
     GiftCard *g = s_->giftCard(ss(n));
     if (!g)
@@ -371,6 +373,8 @@ bool PosService::payWithGiftCard(const QString &number, qint64 amountCents)
 
 bool PosService::chargeHouseAccount(Check &c, const Tender &t, Money amount)
 {
+    if (c.training)
+        return fail(tr("Practice checks can't charge a real account."));
     CustomerRecord *r = s_->customer(c.customerId);
     if (!r)
         return fail(tr("Put the customer on the check first (Customers)."));
