@@ -173,6 +173,8 @@ write("pos/employees.json", [
 write("pos/settings.json", {
     "storeName": "ViewTouch Café",
     "currencySymbol": "$",
+    "autoLogoutMinutes": 3,
+    "tableLongMinutes": 90,
     # Points for what regulars spend, and what the points buy.
     "loyalty": {"enabled": True, "pointsPerDollar": 1,
                 "rewards": [{"points": 50, "value": 5.00}, {"points": 120, "value": 15.00},
@@ -269,7 +271,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -577,6 +579,7 @@ page("logout", "Log Out", "logout", [
     zone("cancel", 970, 740, 390, 140, "Cancel", actions=[jump(mode="back")]),
     # A manager switches this screen to practice (training) and back.
     zone("practice", 1380, 900, 390, 120, "Practice Mode", actions=[command("toggleTraining")], style=fill(AMBER)),
+    zone("message", 150, 900, 390, 120, "Send a Message…", actions=[jump(page="message")], style=fill(BLUE)),
 ], role="logout")
 
 admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"), ("Taxes", "taxes"),
@@ -663,6 +666,13 @@ page("kitchen", "Kitchen Display", "kitchen", [
 page("bar-display", "Bar Display", "kitchen", [
     zone("tickets", 0, 0, 1920, 1080, kind="kitchenDisplay", props={"station": "bar"}, style=KDS),
 ], role="bar", permission="public", background={"fill": "#101317"})
+
+# Messages between screens.
+page("message", "Send a Message", "custom", [
+    label("title", 16, 16, 1888, 80, "Send a message"),
+    zone("composer", 16, 112, 1888, 816, kind="messageComposer"),
+    zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+], permission="public")
 
 # The expediter: every station's tickets; green when all of it is made.
 page("expo", "Expo Display", "kitchen", [
@@ -800,6 +810,7 @@ logout_buttons, _ = grid_buttons([
     ("tips", "Cash Out My Tips", [command("cashOutTips")], {"style": fill(GREEN)}),
     ("bank", "My Bank…", [jump(page="drawer")], {}),
     ("practice", "Practice Mode", [command("toggleTraining")], {"style": fill(AMBER)}),
+    ("message", "Send a Message…", [jump(page="message")], {"style": fill(BLUE)}),
 ], 720, 2, 200)
 phone_page("logout", "Log Out", "logout", [
     label("title", 24, 40, 1032, 110, "End of shift"),

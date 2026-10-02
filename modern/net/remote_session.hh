@@ -101,6 +101,8 @@ public:
     QVariantList expoTickets() const override { return v(u"expoTickets").toList(); }
     QVariantMap approvalInfo() const override { return v(u"approval").toMap(); }
     bool training() const override { return v(u"training").toBool(); }
+    int autoLogoutMinutes() const override { return v(u"autoLogoutMinutes").toInt(); }
+    QVariantList messages() const override { return v(u"messages").toList(); }
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }
     int queryRevision() const override { return queryRevision_; }

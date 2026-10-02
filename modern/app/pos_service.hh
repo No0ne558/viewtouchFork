@@ -156,6 +156,10 @@ public:
     struct Bump { std::int64_t checkId; std::int64_t sentAt; std::string station; };
     std::vector<Bump> bumped;
     std::vector<Bump> served;   // expediter bumps, newest last
+    // Messages between screens ("86 salmon", "need a runner"), newest last.
+    struct Message { std::int64_t id; std::int64_t at; std::string from; std::string to; std::string text; };
+    std::vector<Message> messages;
+    std::int64_t lastMessageId = 0;
 
     // A device pairing a manager has started: the code the device must
     // type, until it is used or expires. One at a time.
@@ -416,11 +420,18 @@ public:
     // Back the database up now (managers).
     bool backupNow();
 
+    // --- messages between screens -------------------------------------------------
+    // to: "all", "kitchen" (kitchen, bar and expo screens), "floor" (every
+    // other screen) or a person's name. Needs no login (kitchen screens).
+    bool sendMessage(const QString &to, const QString &text);
+    QVariantList messages() const override;
+
     // --- manager approval ---------------------------------------------------------
     // A manager's PIN lets the waiting operation (a void, a discount...) through once.
     bool approve(const QString &pin);
     bool cancelApproval();
     QVariantMap approvalInfo() const override { return approval_; }
+    int autoLogoutMinutes() const override { return s_->settings.autoLogoutMinutes; }
 
     // --- practice (training) --------------------------------------------------------
     // This screen's checks are practice: the person is in training, or a

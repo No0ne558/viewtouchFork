@@ -72,6 +72,9 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantMap approval READ approvalInfo NOTIFY sessionChanged)
     // This screen's checks are practice (training).
     Q_PROPERTY(bool training READ training NOTIFY sessionChanged)
+    Q_PROPERTY(int autoLogoutMinutes READ autoLogoutMinutes NOTIFY adminChanged)
+    // Messages between screens, the last hour's, newest first.
+    Q_PROPERTY(QVariantList messages READ messages NOTIFY dayChanged)
     // Modifiers being chosen for the item just ordered: {active, item, groups:
     // [{id, name, rule, chosen, done, options: [{index, name, price, chosen}]}]}.
     Q_PROPERTY(QVariantMap choosing READ choosingInfo NOTIFY checkChanged)
@@ -150,6 +153,8 @@ public:
     virtual QString nextShift() const = 0;
     virtual QVariantMap rangeReport() const = 0;
     virtual QVariantMap approvalInfo() const = 0;
+    virtual int autoLogoutMinutes() const = 0;
+    virtual QVariantList messages() const = 0;
     virtual bool training() const = 0;
     virtual QStringList soldOut() const = 0;
     virtual QVariantList menuItems() const = 0;
@@ -237,6 +242,10 @@ public:
     }
     Q_INVOKABLE void askForTip() { invoke(QStringLiteral("askForTip")); }
     Q_INVOKABLE void approve(const QString &pin) { invoke(QStringLiteral("approve"), {pin}); }
+    Q_INVOKABLE void sendMessage(const QString &to, const QString &text)
+    {
+        invoke(QStringLiteral("sendMessage"), {to, text});
+    }
     Q_INVOKABLE void cancelApproval() { invoke(QStringLiteral("cancelApproval")); }
     Q_INVOKABLE void setTraining(bool on) { invoke(QStringLiteral("setTraining"), {on}); }
     Q_INVOKABLE void redeemReward(int index) { invoke(QStringLiteral("redeemReward"), {index}); }

@@ -1,5 +1,8 @@
 #include "layoutcontroller.hh"
 
+#include <QCoreApplication>
+#include <QEvent>
+
 #include "core/employee.hh"
 #include "core/settings.hh"
 #include "layout/reflow.hh"
@@ -64,8 +67,47 @@ LayoutController::LayoutController(Layout layout, QObject *parent)
     mealTimer_.setInterval(60 * 1000);
     connect(&mealTimer_, &QTimer::timeout, this, &LayoutController::updateMealPeriod);
     mealTimer_.start();
+    idleTimer_.setSingleShot(true);
+    connect(&idleTimer_, &QTimer::timeout, this, &LayoutController::idleTimeout);
+    if (QCoreApplication::instance())
+        QCoreApplication::instance()->installEventFilter(this);
     nav_.reset(homePageOf(layout_));
     refresh();
+}
+
+bool LayoutController::eventFilter(QObject *watched, QEvent *event)
+{
+    switch (event->type()) {
+    case QEvent::MouseButtonPress:
+    case QEvent::TouchBegin:
+    case QEvent::KeyPress:
+    case QEvent::Wheel:
+        restartIdle();
+        break;
+    default:
+        break;
+    }
+    return QObject::eventFilter(watched, event);
+}
+
+void LayoutController::restartIdle()
+{
+    const int minutes = pos_ ? pos_->autoLogoutMinutes() : 0;
+    const int ms = idleOverrideMs_ > 0 ? idleOverrideMs_ : minutes * 60 * 1000;
+    if (ms <= 0 || !pos_ || !pos_->loggedIn()) {
+        idleTimer_.stop();
+        return;
+    }
+    idleTimer_.start(ms);
+}
+
+void LayoutController::idleTimeout()
+{
+    // Not while a page is being edited (the editor guards its own changes).
+    if (!pos_ || !pos_->loggedIn() || editing())
+        return;
+    pos_->invoke(u"logout"_s, {});
+    setStatus(tr("Logged out after no use"));
 }
 
 LayoutController::~LayoutController()
@@ -185,6 +227,7 @@ QString LayoutController::rolePage(const QString &role) const
 
 void LayoutController::onLoggedInChanged(bool loggedIn)
 {
+    restartIdle();
     // Logged in, "home" is the floor (tables); logged out, it is the login page.
     const QString login = homePageOf(layout_);
     const QString tables = rolePage(u"tables"_s);

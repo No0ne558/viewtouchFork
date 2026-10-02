@@ -184,6 +184,31 @@
           "fill": "#a86a12"
         }
       }
+    },
+    {
+      "id": "message",
+      "kind": "button",
+      "rect": {
+        "x": 548,
+        "y": 1368,
+        "w": 508,
+        "h": 200
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Send a Message\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "message"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#2b62b0"
+        }
+      }
     }
   ]
 }

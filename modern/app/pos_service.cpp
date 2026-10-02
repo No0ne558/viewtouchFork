@@ -237,6 +237,34 @@ bool PosService::cancelApproval()
     return true;
 }
 
+bool PosService::sendMessage(const QString &to, const QString &text)
+{
+    const QString t = text.trimmed();
+    if (t.isEmpty())
+        return fail(tr("Type the message."));
+    const QString target = to.trimmed().isEmpty() ? u"all"_s : to.trimmed();
+    PosShared::Message m{++s_->lastMessageId, now(), ss(user() ? qs(user()->name) : terminal_), ss(target), ss(t.left(200))};
+    s_->messages.push_back(m);
+    if (s_->messages.size() > 50)
+        s_->messages.erase(s_->messages.begin());
+    emit notice(tr("Message sent"));
+    emit s_->dayChanged();   // every screen looks
+    return true;
+}
+
+QVariantList PosService::messages() const
+{
+    // The last hour's, newest first.
+    QVariantList out;
+    for (auto it = s_->messages.rbegin(); it != s_->messages.rend() && out.size() < 20; ++it) {
+        if (now() - it->at > 60 * 60'000)
+            break;
+        out.append(QVariantMap{{u"id"_s, qint64(it->id)}, {u"from"_s, qs(it->from)}, {u"to"_s, qs(it->to)},
+                               {u"text"_s, qs(it->text)}, {u"time"_s, timeOfDay(it->at)}});
+    }
+    return out;
+}
+
 bool PosService::training() const
 {
     return user() && (user()->training || trainingOn_);
@@ -1046,6 +1074,7 @@ QVariantList PosService::openChecks() const
             {u"id"_s, qint64(id)}, {u"label"_s, qs(c.label)}, {u"server"_s, qs(c.serverName)},
             {u"guests"_s, c.guests}, {u"total"_s, format(total)}, {u"totalCents"_s, qint64(total.cents())},
             {u"minutes"_s, qint64((t - c.openedAt) / 60000)}, {u"type"_s, qs(toString(c.type))},
+            {u"openedAt"_s, qint64(c.openedAt)}, {u"longAfter"_s, s_->settings.tableLongMinutes},
             {u"mine"_s, user() && c.serverId == user()->id}, {u"current"_s, id == currentId_},
             {u"lineCount"_s, int(c.lines.size())}, {u"busyOn"_s, lockHolder(id)},
             {u"customer"_s, qs(c.customer.name)},
@@ -1364,6 +1393,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"toggleBreak"_s, [](PosService &p, const QVariantList &) { return QVariant(p.toggleBreak()); }},
         {u"askForTip"_s, [](PosService &p, const QVariantList &) { return QVariant(p.askForTip()); }},
         {u"approve"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.approve(a.value(0).toString())); }},
+        {u"sendMessage"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.sendMessage(a.value(0).toString(), a.value(1).toString())); }},
         {u"cancelApproval"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cancelApproval()); }},
         {u"setTraining"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setTraining(a.value(0).toBool())); }},
         {u"toggleTraining"_s, [](PosService &p, const QVariantList &) { return QVariant(p.setTraining(!p.training())); }},

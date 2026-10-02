@@ -927,3 +927,30 @@ TEST_CASE("UI: a server's void waits for a manager's PIN on the same screen", "[
     CHECK_FALSE(s.pos.approvalInfo()[u"needed"_s].toBool());
     CHECK(s.pos.lines().first().toMap()[u"voided"_s].toBool());
 }
+
+TEST_CASE("UI: idle screens log out; messages show where they're meant to", "[flow][ui][messages]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    // Another screen (the kitchen) sends to the floor; this is a floor screen.
+    app::PosService kitchen(s.pos.shared(), u"Kitchen"_s);
+    REQUIRE(kitchen.sendMessage(u"floor"_s, u"86 salmon - out until tomorrow"_s));
+    QTest::qWait(80);
+    QQuickItem *ok = s.window->findChild<QQuickItem *>(u"messageOk"_s);
+    REQUIRE(ok);
+    CHECK(ok->isVisible());
+    s.shot("20-message");
+    s.tapItem(ok);
+    CHECK_FALSE(ok->isVisible());
+    // A message for the kitchen screens doesn't show on the floor.
+    REQUIRE(kitchen.sendMessage(u"kitchen"_s, u"Order up"_s));
+    QTest::qWait(50);
+    CHECK_FALSE(ok->isVisible());
+
+    // Idle: logged out by itself (a short time for the test).
+    s.c.setIdleTimeoutForTesting(150);
+    QTest::qWait(400);
+    CHECK_FALSE(s.pos.loggedIn());
+    CHECK(s.c.pageId() == u"login"_s);
+}

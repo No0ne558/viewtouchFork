@@ -805,4 +805,53 @@ Report compareReports(const Report &now, const Report &before, const std::string
     return r;
 }
 
+Report tableTurns(const std::vector<Check> &closed, const ReportContext &ctx)
+{
+    Report r;
+    r.id = "turns";
+    r.title = "Table Turns";
+    r.subtitle = ctx.period;
+    r.columns = {"", "Checks", "Avg minutes", "Avg check", "Per guest"};
+    struct Tally { std::int64_t checks = 0, minutes = 0, guests = 0; Money total; };
+    std::map<int, Tally> bySize;   // 1-2, 3-4, 5-6, 7+ (by the first of each)
+    std::map<std::string, Tally> byTable;
+    Tally all;
+    for (const Check &c : closed) {
+        if (c.type != CheckType::DineIn || c.closedAt <= c.openedAt)
+            continue;
+        const std::int64_t minutes = (c.closedAt - c.openedAt) / 60'000;
+        const Money total = c.totals(ctx.settings.tax).total;
+        const int band = c.guests <= 2 ? 1 : c.guests <= 4 ? 3 : c.guests <= 6 ? 5 : 7;
+        for (Tally *t : {&bySize[band], &byTable[c.label], &all}) {
+            ++t->checks;
+            t->minutes += minutes;
+            t->guests += std::max(1, c.guests);
+            t->total += total;
+        }
+    }
+    if (all.checks == 0) {
+        r.note("No dine-in checks closed yet.");
+        return r;
+    }
+    const auto line = [&](const std::string &label, const Tally &t, bool total) {
+        std::vector<std::string> cells{label, count(t.checks), std::to_string(t.minutes / t.checks),
+                                       ctx.money(Money::fromCents(t.total.cents() / t.checks)),
+                                       ctx.money(Money::fromCents(t.total.cents() / std::max<std::int64_t>(1, t.guests)))};
+        if (total)
+            r.total(cells);
+        else
+            r.line(cells);
+    };
+    r.section("By party size");
+    for (const auto &[band, t] : bySize) {
+        const std::string label = band == 1 ? "1 - 2 guests" : band == 3 ? "3 - 4 guests" : band == 5 ? "5 - 6 guests" : "7 or more";
+        line(label, t, false);
+    }
+    r.section("By table");
+    for (const auto &[table, t] : byTable)
+        line(table, t, false);
+    line("All tables", all, true);
+    return r;
+}
+
 } // namespace vt::core

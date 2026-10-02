@@ -41,7 +41,7 @@ QVariantMap toVariant(const Report &r)
 }
 
 const QStringList kReportIds = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s, u"tips"_s,
-                                u"labor"_s, u"drawer"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s};
+                                u"labor"_s, u"drawer"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s};
 
 } // namespace
 
@@ -756,6 +756,8 @@ Report PosService::buildReport(const QString &id) const
         return categorySales(s_->closedToday, s_->menu, ctx);
     if (id == u"foodcost")
         return foodCostReport(s_->closedToday, ctx);
+    if (id == u"turns")
+        return tableTurns(s_->closedToday, ctx);
     if (id == u"kitchen") {
         std::vector<const Check *> checks;
         for (const Check &c : s_->closedToday)
@@ -783,7 +785,7 @@ Report PosService::buildReport(const QString &id) const
 
 namespace {
 const QStringList kRangeReports = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s,
-                                   u"kitchen"_s, u"audit"_s, u"foodcost"_s};
+                                   u"kitchen"_s, u"audit"_s, u"foodcost"_s, u"turns"_s};
 } // namespace
 
 Report PosService::rangeCapableReport(const QString &id, const std::vector<Check> &closed, const ReportContext &ctx) const
@@ -805,6 +807,8 @@ Report PosService::rangeCapableReport(const QString &id, const std::vector<Check
         return auditReport(ptrs, ctx);
     if (id == u"foodcost")
         return foodCostReport(closed, ctx);
+    if (id == u"turns")
+        return tableTurns(closed, ctx);
     return salesSummary(closed, ctx);
 }
 

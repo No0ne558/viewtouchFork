@@ -2,6 +2,8 @@
   "schemaVersion": 1,
   "storeName": "ViewTouch Caf\u00e9",
   "currencySymbol": "$",
+  "autoLogoutMinutes": 3,
+  "tableLongMinutes": 90,
   "loyalty": {
     "enabled": true,
     "pointsPerDollar": 1,

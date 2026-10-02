@@ -373,3 +373,67 @@ TEST_CASE("Practice mode: checks that never reach the kitchen, sales, stock or c
     REQUIRE(pos.loginWithPin(u"2222"_s));
     CHECK_FALSE(pos.setTraining(true));                             // managers only
 }
+
+TEST_CASE("Messages between screens: sent with or without a login, the last hour's", "[staff][messages]")
+{
+    app::PosShared shared(test::seedPosData(), nullptr);
+    qint64 clock = todayAt(12);
+    shared.setClock([&] { return clock; });
+    PosService kitchen(&shared, u"Kitchen"_s);
+    PosService floor(&shared, u"Front"_s);
+    CHECK_FALSE(kitchen.sendMessage(u"floor"_s, u"   "_s));
+    REQUIRE(kitchen.sendMessage(u"floor"_s, u"86 salmon"_s));      // a kitchen screen, no login
+    REQUIRE(floor.loginWithPin(u"1111"_s));
+    REQUIRE(floor.sendMessage(u"kitchen"_s, u"Allergy: please check T4"_s));
+    REQUIRE(floor.sendMessage(u"Morgan (Manager)"_s, u"Manager please"_s));
+    const QVariantList all = floor.messages();
+    REQUIRE(all.size() == 3);
+    CHECK(all.first().toMap()[u"text"_s] == u"Manager please"_s);  // newest first
+    CHECK(all.last().toMap()[u"from"_s] == u"Kitchen"_s);
+    CHECK(all.first().toMap()[u"from"_s] == u"Sam"_s);
+    clock += 61 * 60'000;
+    CHECK(floor.messages().isEmpty());                              // an hour later
+}
+
+TEST_CASE("Table turns: minutes from seated to paid, by party size and table", "[staff][turns]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    qint64 clock = todayAt(12);
+    pos.shared()->setClock([&] { return clock; });
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    pos.entryKey(u"10000"_s);
+    REQUIRE(pos.openDrawerSession());
+    const auto seat = [&](const QString &table, int guests, int minutes) {
+        REQUIRE(pos.selectTable(table) == PosService::TableNeedsGuests);
+        pos.entryKey(QString::number(guests));
+        REQUIRE(pos.startCheck(core::CheckType::DineIn));
+        pos.addItem(u"cobb"_s);
+        clock += minutes * 60'000;
+        REQUIRE(pos.tender(u"cash"_s));
+        REQUIRE(pos.closeCheck());
+    };
+    seat(u"T1"_s, 2, 40);
+    seat(u"T1"_s, 2, 60);
+    seat(u"T5"_s, 6, 90);
+    const QVariantMap r = pos.report(u"turns"_s);
+    QStringList t1, small, all;
+    for (const QVariant &v : r[u"rows"_s].toList()) {
+        const QStringList cells = v.toMap()[u"cells"_s].toStringList();
+        if (cells.value(0) == u"T1"_s) t1 = cells;
+        if (cells.value(0) == u"1 - 2 guests"_s) small = cells;
+        if (cells.value(0) == u"All tables"_s) all = cells;
+    }
+    REQUIRE(t1.size() == 5);
+    CHECK(t1[1] == u"2"_s);
+    CHECK(t1[2] == u"50"_s);
+    CHECK(small[2] == u"50"_s);
+    CHECK(all[1] == u"3"_s);
+    CHECK(all[2] == u"63"_s);                                       // (40 + 60 + 90) / 3
+
+    // The floor plan knows when each table was seated.
+    REQUIRE(pos.selectTable(u"T3"_s) == PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    const QVariantMap t3 = pos.tableStatus(u"T3"_s);
+    CHECK(t3[u"since"_s].toLongLong() == clock);
+    CHECK(t3[u"longAfter"_s].toInt() == 90);
+}

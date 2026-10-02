@@ -99,6 +99,8 @@ public:
     // Force "phone" or "standard" (command line); empty: the terminal's
     // setting, else automatic.
     void setFormFactorOverride(const QString &formFactor);
+    // Tests: the idle log-out after `ms` instead of the store's minutes.
+    void setIdleTimeoutForTesting(int ms) { idleOverrideMs_ = ms; restartIdle(); }
     // Automatic: a window whose shorter side is under 600 (logical pixels,
     // Android's phone/tablet line) is a phone. On for Android.
     void setAutoFormFactor(bool on);
@@ -195,6 +197,14 @@ private:
     QPointer<EditorController> editor_;
     bool editing_ = false;
     QTimer mealTimer_;
+    // Idle log-out: restarted by every touch, key or click (eventFilter).
+    QTimer idleTimer_;
+    int idleOverrideMs_ = 0;
+    void restartIdle();
+    void idleTimeout();
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+private:
     bool mealPeriodFixed_ = false;
     void updateMealPeriod();
     Saver saver_;

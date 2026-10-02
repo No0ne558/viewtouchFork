@@ -21,7 +21,7 @@ const QStringList &PosSession::stateKeys()
         u"checkFilter"_s, u"kitchenTickets"_s, u"drawer"_s, u"day"_s, u"days"_s, u"adminRevision"_s,
         u"tipsOwed"_s, u"mealPeriods"_s, u"pairing"_s, u"screenMode"_s,
         u"closedChecks"_s, u"staff"_s, u"checkHistory"_s, u"choosing"_s, u"soldOut"_s, u"menuItems"_s, u"onBreakSince"_s,
-        u"customers"_s, u"customer"_s, u"giftCard"_s, u"waitlist"_s, u"customerPrompt"_s, u"schedule"_s, u"nextShift"_s, u"rangeReport"_s, u"expoTickets"_s, u"approval"_s, u"training"_s,
+        u"customers"_s, u"customer"_s, u"giftCard"_s, u"waitlist"_s, u"customerPrompt"_s, u"schedule"_s, u"nextShift"_s, u"rangeReport"_s, u"expoTickets"_s, u"approval"_s, u"training"_s, u"autoLogoutMinutes"_s, u"messages"_s,
     };
     return keys;
 }
@@ -48,7 +48,8 @@ QVariantMap PosSession::snapshot() const
         {u"waitlist"_s, waitlistInfo()}, {u"customerPrompt"_s, customerPrompt()},
         {u"schedule"_s, scheduleInfo()}, {u"nextShift"_s, nextShift()},
         {u"rangeReport"_s, rangeReport()}, {u"expoTickets"_s, expoTickets()},
-        {u"approval"_s, approvalInfo()}, {u"training"_s, training()},
+        {u"approval"_s, approvalInfo()}, {u"training"_s, training()}, {u"autoLogoutMinutes"_s, autoLogoutMinutes()},
+        {u"messages"_s, messages()},
     };
 }
 
@@ -65,7 +66,8 @@ QVariantMap PosSession::tableStatus(const QString &label) const
             continue;
         if (count++ == 0) {
             status = {{u"open"_s, true}, {u"checkId"_s, c.value(u"id"_s)}, {u"server"_s, c.value(u"server"_s)},
-                      {u"guests"_s, c.value(u"guests"_s)}, {u"mine"_s, c.value(u"mine"_s)}};
+                      {u"guests"_s, c.value(u"guests"_s)}, {u"mine"_s, c.value(u"mine"_s)},
+                      {u"since"_s, c.value(u"openedAt"_s)}, {u"longAfter"_s, c.value(u"longAfter"_s)}};
         }
         total += c.value(u"totalCents"_s).toLongLong();
         current = current || c.value(u"current"_s).toBool();

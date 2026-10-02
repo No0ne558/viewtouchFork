@@ -174,6 +174,12 @@ Reports have a row of periods: *Day* (one business day, as before), *This Week*,
 - **Manager approval:** when someone may not do something on their own (void a sent item, a discount, a manager action), a PIN pad appears on the same screen. A manager types their PIN and it goes through once; the check's history says who approved it. *Cancel* puts it away. No logging out and back in.
 - **Practice mode** (training): mark a person *In training* (Manager → Employees), or a manager touches **Practice Mode** on the Log Out page to switch their own screen. A yellow *PRACTICE* banner shows. Practice checks are labelled "(practice)" and leave real tables free; they never reach the kitchen screens or printers, stock, drawers, banks, reports, points, gift cards or house accounts. Closing one says "not a sale"; any left open are cleared at End of Day.
 
+## Idle log-out, table timers and messages
+
+- **Idle log-out** (Store Settings, 3 minutes to start, 0 = never): a screen nobody has touched logs out and goes back to the login page. Kitchen, bar and expo screens need no login.
+- **Table timers:** an open table shows how long it has been seated ("Sam · $42.10 · 38m"), with a red frame after *Mark tables seated longer than* (90 minutes to start). **Reports → Turns:** dine-in checks from seated to paid, by party size and by table, with the average check and per guest (also over a range of days).
+- **Messages:** Log Out → **Send a Message…**, or **Message…** on the kitchen screens: to everyone, the kitchen screens, the floor, or one person on the clock, picked from ready-made ones ("Need a runner", "86: …") or typed. It shows across the top of the screens it's for until someone there touches OK; the last hour's are listed on the message page.
+
 ## Customer display
 
 A second monitor facing the guest:

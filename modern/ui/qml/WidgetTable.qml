@@ -16,11 +16,20 @@ Item {
     readonly property color ink: zone.st.textColor ?? "white"
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     readonly property int seats: zone && zone.props ? (zone.props.seats ?? 0) : 0
+    // How long the table has been seated, kept current.
+    property real now: Date.now()
+    Timer { interval: 30000; running: w.status.open ?? false; repeat: true; onTriggered: w.now = Date.now() }
+    readonly property int seatedMinutes: (w.status.open ?? false) && w.status.since
+                                         ? Math.max(0, Math.floor((w.now - w.status.since) / 60000)) : 0
+    readonly property bool long: (w.status.open ?? false) && seatedMinutes >= (w.status.longAfter ?? 90)
+    function minutesText(m) { return m < 60 ? m + "m" : Math.floor(m / 60) + "h " + (m % 60) + "m" }
 
     ZoneShape {
         anchors.fill: parent
         shape: w.zone.shape
-        st: Object.assign({}, w.zone.st, { fill: tap.pressed ? Qt.lighter(w.tint, 1.3) : w.tint })
+        // Seated past the store's mark: a red frame.
+        st: Object.assign({}, w.zone.st, { fill: tap.pressed ? Qt.lighter(w.tint, 1.3) : w.tint },
+                          w.long ? { frame: "border", borderColor: "#ff4d4d", frameWidth: 6 } : {})
     }
 
     Column {
@@ -42,7 +51,7 @@ Item {
             horizontalAlignment: Text.AlignHCenter
             visible: w.status.open ?? false
             text: ((w.status.checks ?? 1) > 1 ? qsTr("%1 checks").arg(w.status.checks) : (w.status.server ?? ""))
-                  + "  ·  " + (w.status.total ?? "")
+                  + "  ·  " + (w.status.total ?? "") + "  ·  " + w.minutesText(w.seatedMinutes)
             color: w.ink
             font.family: w.face
             font.pixelSize: Math.min(w.height * 0.13, 20)

@@ -88,6 +88,13 @@ Item {
             WidgetKey {
                 Layout.preferredWidth: 240
                 Layout.fillHeight: true
+                text: qsTr("Message…")
+                fontScale: 0.4
+                onClicked: w.zone.controller.jumpTo("message")
+            }
+            WidgetKey {
+                Layout.preferredWidth: 240
+                Layout.fillHeight: true
                 text: w.showAllDay ? qsTr("Hide All Day") : qsTr("All Day")
                 fontScale: 0.4
                 onClicked: w.showAllDay = !w.showAllDay

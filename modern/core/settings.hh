@@ -133,6 +133,10 @@ struct PosSettings {
     // Waitlist: quoted minutes for each party ahead, and the text sent when
     // a table is ready ({name}, {store}). textWebhook: where texts are sent
     // (a JSON POST of {to, message}; empty: no texting).
+    // Log a screen out after this many idle minutes (0: never).
+    int autoLogoutMinutes = 0;
+    // A table seated longer than this is marked on the floor plan.
+    int tableLongMinutes = 90;
     // Clock in only near a scheduled shift (managers excepted), from this
     // many minutes before it starts until it ends.
     bool scheduleRequired = false;

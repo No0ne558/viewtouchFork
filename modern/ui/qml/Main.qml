@@ -285,6 +285,16 @@ ApplicationWindow {
         }
     }
 
+    // Messages from other screens, across the top.
+    MessageBanner {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        width: root.posWidth
+        z: 55
+        pos: root.controller.pos as PosService
+        kitchenScreen: root.controller.pageKind === "kitchen"
+    }
+
     // A manager's PIN for something this person may not do on their own.
     ApprovalPad {
         anchors.fill: parent

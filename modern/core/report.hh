@@ -99,6 +99,9 @@ Report accountsReport(const std::vector<GiftCard> &cards, const std::vector<Cust
 // the average, the longest, how many were late - and the slowest tickets.
 Report kitchenReport(const std::vector<const Check *> &checks, int lateMinutes, const ReportContext &ctx);
 Report tipsReport(const std::map<std::string, TipShare> &shares, const ReportContext &ctx);
+// Dine-in table turns: how long checks were open (seated to paid), by
+// party size and by table, with the average check and per guest.
+Report tableTurns(const std::vector<Check> &closed, const ReportContext &ctx);
 // `now` with two more columns: the same row's last value in `before`, and
 // the change in percent (rows matched by kind and first cell).
 Report compareReports(const Report &now, const Report &before, const std::string &beforeLabel);
