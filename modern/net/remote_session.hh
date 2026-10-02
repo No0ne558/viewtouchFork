@@ -107,6 +107,8 @@ public:
     QVariantMap networkInfo() const override { return v(u"network").toMap(); }
     QString language() const override { return v(u"language").toString(); }
     QString storeLanguage() const override { return v(u"storeLanguage").toString(); }
+    QVariantMap selfOrderInfo() const override { return v(u"selfOrder").toMap(); }
+    QVariantMap kioskMenu() const override { return v(u"kioskMenu").toMap(); }
     void takeOver(const QString &pin) override;
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }

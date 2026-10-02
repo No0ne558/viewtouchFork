@@ -610,6 +610,8 @@ for i, z in enumerate(slots):
     mgr.append(z)
 mgr.append(zone("back", 160, 940, 384, 120, "‹ Back", actions=[jump(mode="back")]))
 mgr.append(zone("network", 568, 940, 384, 120, "Network…", actions=[jump(page="network")]))
+# This screen becomes a kiosk for guests; a manager's PIN ends it.
+mgr.append(zone("self-order", 976, 940, 384, 120, "Self-Order Kiosk", actions=[command("selfOrder")], style=fill(BLUE)))
 page("manager", "Manager", "manager", mgr, role="manager", permission="manager")
 
 # Manager screens (reached through openAdmin from the Manager page)

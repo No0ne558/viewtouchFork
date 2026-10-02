@@ -10,6 +10,7 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QDate>
+#include <QSignalSpy>
 #include <QTest>
 
 using namespace Qt::StringLiterals;
@@ -586,6 +587,55 @@ TEST_CASE("UI: a month's report beside last year", "[flow][ui][range]")
     CHECK(s.pos.rangeReport()[u"checks"_s] == 3);
     CHECK(Screen::findBy(s.window->contentItem(), "text", u"Change"_s));
     s.shot("16-range-report");
+}
+
+TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
+{
+    Screen s;
+    s.pos.enableSelfOrder();
+    QTest::qWait(60);
+    auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    QQuickItem *kiosk = find(u"selfOrder"_s);
+    REQUIRE(kiosk);
+    CHECK(kiosk->isVisible());
+    s.shot("20-kiosk-welcome");
+
+    s.tapItem(find(u"kioskForHere"_s));
+    REQUIRE(s.pos.selfOrderInfo()[u"ordering"_s].toBool());
+    QTest::qWait(60);
+    s.tapItem(Screen::findBy(kiosk, "text", u"Classic Burger"_s));   // the kiosk's card, not the page behind
+    s.tapItem(Screen::findBy(kiosk, "text", u"Cheeseburger"_s));
+    REQUIRE(s.pos.lines().size() == 2);
+    s.shot("21-kiosk-menu");
+    s.tapItem(find(u"kioskRemove"_s));                   // changed their mind
+    REQUIRE(s.pos.lines().size() == 1);
+
+    s.tapItem(find(u"kioskReview"_s));
+    QTest::qWait(60);
+    for (const char ch : {'L', 'e', 'e'})
+        QTest::keyClick(s.window, ch);
+    QTest::qWait(30);
+    s.shot("22-kiosk-name");
+    const qint64 id = s.pos.checkInfo()[u"id"_s].toLongLong();
+    s.tapItem(find(u"kioskPlace"_s));
+    QTest::qWait(60);
+    QQuickItem *number = find(u"kioskNumber"_s);
+    REQUIRE(number);
+    CHECK(number->isVisible());
+    CHECK(number->property("text").toString() == QString::number(id));
+    CHECK(s.pos.shared()->open.at(id).customer.name == "Lee");
+    s.shot("23-kiosk-number");
+
+    // Staff: hold the top-left corner, then a manager's PIN.
+    QTest::mousePress(s.window, Qt::LeftButton, {}, QPoint(10, 10));
+    QTest::qWait(3300);
+    QTest::mouseRelease(s.window, Qt::LeftButton, {}, QPoint(10, 10));
+    QTest::qWait(50);
+    for (const char *key : {"approvalKey-1", "approvalKey-2", "approvalKey-3", "approvalKey-4", "approvalKey-OK"})
+        s.tapItem(find(QString::fromLatin1(key)));
+    QTest::qWait(50);
+    CHECK_FALSE(s.pos.selfOrderInfo()[u"on"_s].toBool());
+    CHECK_FALSE(kiosk->isVisible());
 }
 
 TEST_CASE("UI: the screen speaks the language of whoever logs in", "[flow][ui][i18n]")

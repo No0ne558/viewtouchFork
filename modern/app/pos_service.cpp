@@ -69,6 +69,8 @@ const Employee *PosShared::employee(const std::string &id) const
 {
     if (id.empty())
         return nullptr;
+    if (id == kioskEmployee().id)
+        return &kioskEmployee();
     for (const Employee &e : employees) {
         if (e.id == id)
             return &e;
@@ -203,7 +205,7 @@ bool PosService::require(const char *permission, const QString &action)
     }
     // Voids, discounts and manager actions can be approved on the spot.
     const std::string p = permission;
-    if (running_ && (p == perm::Void || p == perm::Discount || p == perm::Manager || p == perm::Settle)) {
+    if (running_ && !selfOrder_ && (p == perm::Void || p == perm::Discount || p == perm::Manager || p == perm::Settle)) {
         approval_ = {{u"needed"_s, true}, {u"action"_s, action}, {u"permission"_s, QString::fromLatin1(permission)},
                      {u"who"_s, qs(user()->name)}};
         approvalMethod_ = running_->method;
@@ -369,6 +371,10 @@ bool PosService::loginWithPin(const QString &pin)
 
 void PosService::logout()
 {
+    if (selfOrder_) {   // idle: the guest walked away
+        kioskCancel();
+        return;
+    }
     if (!user())
         return;
     releaseCheck();
@@ -1381,6 +1387,13 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"openCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.openCheck(a.value(0).toLongLong())); }},
         {u"releaseCheck"_s, [](PosService &p, const QVariantList &) { p.releaseCheck(); return QVariant(true); }},
         {u"addItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addItem(a.value(0).toString())); }},
+        {u"setSelfOrder"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setSelfOrder(a.value(0, true).toBool())); }},
+        {u"leaveSelfOrder"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.leaveSelfOrder(a.value(0).toString())); }},
+        {u"kioskStart"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.kioskStart(a.value(0).toBool())); }},
+        {u"kioskAdd"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.kioskAdd(a.value(0).toString())); }},
+        {u"kioskRemove"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.kioskRemove(a.value(0).toLongLong())); }},
+        {u"kioskFinish"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.kioskFinish(a.value(0).toMap())); }},
+        {u"kioskCancel"_s, [](PosService &p, const QVariantList &) { p.kioskCancel(); return QVariant(true); }},
         {u"setQualifier"_s, [](PosService &p, const QVariantList &a) { p.setQualifier(a.value(0).toString()); return QVariant(true); }},
         {u"selectLine"_s, [](PosService &p, const QVariantList &a) { p.selectLine(a.value(0).toLongLong()); return QVariant(true); }},
         {u"selectPayment"_s, [](PosService &p, const QVariantList &a) { p.selectPayment(a.value(0).toLongLong()); return QVariant(true); }},

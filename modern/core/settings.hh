@@ -37,8 +37,8 @@ struct TerminalConfig {
     std::string id;
     std::string key;
     std::int64_t pairedAt = 0;
-    // Pages to show: "phone" (phone versions), "standard", or empty to
-    // decide from the screen size.
+    // Pages to show: "phone" (phone versions), "standard", "selfOrder" (a
+    // self-order kiosk for guests), or empty to decide from the screen size.
     std::string screen;
 
     bool operator==(const TerminalConfig &) const = default;
@@ -143,6 +143,11 @@ struct PosSettings {
     // The store's language: screens without anyone logged in (and people
     // without their own), the customer display, receipts and tickets.
     std::string language = "en";
+    // Self-order kiosk: send orders to the kitchen as soon as the guest
+    // finishes (else when they are paid for at the counter), and how long an
+    // untouched order waits before it is cleared.
+    bool kioskSendNow = false;
+    int kioskIdleSeconds = 90;
     int serverTerm = 0;
     // Log a screen out after this many idle minutes (0: never).
     int autoLogoutMinutes = 0;

@@ -1,0 +1,202 @@
+// PosService: the self-order kiosk - guests order on their own, then pay at
+// the counter (or the order goes straight to the kitchen).
+
+#include "app/pos_json.hh"
+#include "app/pos_service.hh"
+
+#include <QUrl>
+
+using namespace Qt::StringLiterals;
+using namespace vt::core;
+
+namespace vt::app {
+
+const Employee &kioskEmployee()
+{
+    static const Employee e = [] {
+        Employee k;
+        k.id = "kiosk";
+        k.name = "Self-order kiosk";
+        k.role = "kiosk";
+        return k;
+    }();
+    return e;
+}
+
+namespace {
+
+// What guests may order on their own: not modifiers (they come as choices),
+// not what the store keeps off the kiosk, and never alcohol (ID check).
+bool onKiosk(const MenuItem &m)
+{
+    return !m.isModifier && !m.kioskHide && m.taxClass != TaxClass::Alcohol;
+}
+
+} // namespace
+
+void PosService::enableSelfOrder()
+{
+    if (selfOrder_)
+        return;
+    releaseCheck();
+    selfOrder_ = true;
+    userId_ = kioskEmployee().id;
+    trainingOn_ = false;
+    lastKioskOrder_.clear();
+    emit sessionChanged();
+    emit loggedInChanged(true);
+    emit checkChanged();
+    emit adminChanged();   // the kiosk's menu
+}
+
+bool PosService::setSelfOrder(bool on)
+{
+    if (!on)
+        return fail(tr("A manager's PIN ends self-order mode."));
+    if (!require(perm::Manager, tr("Self-order kiosk")))
+        return false;
+    if (current())
+        return fail(tr("Close or put away the check first."));
+    enableSelfOrder();
+    return true;
+}
+
+bool PosService::leaveSelfOrder(const QString &managerPin)
+{
+    if (!selfOrder_)
+        return true;
+    const Employee *m = employeeByPin(managerPin);
+    if (!m || !m->can(perm::Manager))
+        return fail(tr("That isn't a manager's PIN."));
+    kioskCancel();
+    selfOrder_ = false;
+    userId_ = m->id;   // the manager, logged in here now
+    lastKioskOrder_.clear();
+    emit sessionChanged();
+    emit checkChanged();
+    emit adminChanged();
+    emit notice(tr("Self-order kiosk off"));
+    return true;
+}
+
+bool PosService::kioskStart(bool toGo)
+{
+    if (!selfOrder_)
+        return fail(tr("This screen is not a self-order kiosk."));
+    if (current())
+        kioskCancel();
+    lastKioskOrder_.clear();
+    kioskToGo_ = toGo;
+    if (!startCheck(toGo ? CheckType::Takeout : CheckType::Quick))
+        return false;
+    Check &c = *current();
+    c.kiosk = true;
+    c.label = ss(tr("Kiosk %1").arg(c.id));
+    changed(c);
+    return true;
+}
+
+bool PosService::kioskAdd(const QString &itemId)
+{
+    if (!selfOrder_)
+        return fail(tr("This screen is not a self-order kiosk."));
+    const MenuItem *item = findItem(itemId);
+    if (!item || !onKiosk(*item))
+        return fail(tr("'%1' is not on the menu.").arg(itemId));
+    if (!current() && !kioskStart(kioskToGo_))
+        return false;
+    return addItem(itemId);
+}
+
+bool PosService::kioskRemove(qint64 lineId)
+{
+    Check *c = current();
+    if (!selfOrder_ || !c)
+        return fail(tr("No check is open."));
+    const OrderLine *l = c->line(lineId);
+    if (!l || l->sent)
+        return fail(tr("Only items not yet sent can be changed."));
+    if (choosingLine_ == lineId)
+        choosingLine_ = 0;
+    c->removeLine(lineId);
+    selectedLine_ = 0;
+    changed(*c);
+    return true;
+}
+
+bool PosService::kioskFinish(const QVariantMap &guest)
+{
+    Check *c = current();
+    if (!selfOrder_ || !c || c->lines.empty())
+        return fail(tr("Add something to your order first."));
+    const QString name = guest.value(u"name"_s).toString().trimmed();
+    if (name.isEmpty())
+        return fail(tr("Type a name so we can call your order."));
+    if (const QString missing = missingChoice(c->lines); !missing.isEmpty())
+        return fail(missing);
+    c->customer.name = ss(name.left(40));
+    c->customer.phone = ss(guest.value(u"phone"_s).toString().trimmed().left(20));
+    changed(*c);
+    const bool sendNow = s_->settings.kioskSendNow;
+    if (sendNow && !sendOrder())
+        return false;
+    const Totals t = c->totals(s_->settings.tax);
+    lastKioskOrder_ = {{u"number"_s, qint64(c->id)}, {u"name"_s, name}, {u"sent"_s, sendNow},
+                       {u"total"_s, format(t.total)}};
+    choosingLine_ = 0;
+    releaseCheck();   // for the counter now
+    emit checkChanged();
+    return true;
+}
+
+void PosService::kioskCancel()
+{
+    Check *c = current();
+    if (c && c->kiosk) {
+        // Nothing of it was sent: it was never really an order.
+        std::vector<std::int64_t> unsent;
+        for (const OrderLine &l : c->lines)
+            if (!l.sent)
+                unsent.push_back(l.id);
+        for (std::int64_t id : unsent)
+            c->removeLine(id);
+    }
+    choosingLine_ = 0;
+    releaseCheck();
+    lastKioskOrder_.clear();
+    emit checkChanged();
+}
+
+QVariantMap PosService::selfOrderInfo() const
+{
+    if (!selfOrder_)
+        return {{u"on"_s, false}};
+    const Check *c = currentCheck();
+    return {{u"on"_s, true}, {u"ordering"_s, c != nullptr}, {u"toGo"_s, kioskToGo_},
+            {u"idleSeconds"_s, s_->settings.kioskIdleSeconds}, {u"lastOrder"_s, lastKioskOrder_},
+            {u"items"_s, c ? qint64(c->lines.size()) : 0}};
+}
+
+QVariantMap PosService::kioskMenu() const
+{
+    if (!selfOrder_)
+        return {};
+    const std::string period = currentMealPeriod();
+    QStringList families;
+    QVariantList items;
+    for (const MenuItem &m : s_->menu) {
+        if (!onKiosk(m))
+            continue;
+        const QString family = m.family.empty() ? tr("Menu") : qs(m.family);
+        if (!families.contains(family))
+            families << family;
+        items.append(QVariantMap{
+            {u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"family"_s, family},
+            {u"price"_s, format(m.priceDuring(period))}, {u"description"_s, qs(m.description)},
+            {u"image"_s, m.image.empty() ? QString() : QUrl::fromLocalFile(qs(m.image)).toString()},
+            {u"available"_s, m.available}, {u"choices"_s, !m.modifierGroups.empty()}});
+    }
+    return {{u"families"_s, families}, {u"items"_s, items}};
+}
+
+} // namespace vt::app

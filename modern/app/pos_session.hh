@@ -80,6 +80,11 @@ class PosSession : public QObject {
     Q_PROPERTY(QString language READ language NOTIFY sessionChanged)
     // The store's: the customer display's language.
     Q_PROPERTY(QString storeLanguage READ storeLanguage NOTIFY adminChanged)
+    // Self-order kiosk: {on, toGo, ordering, idleSeconds, lastOrder: {number,
+    // name, sent}}; and what guests can order: {families, items: [{id, name,
+    // family, price, description, image, available, choices}]}.
+    Q_PROPERTY(QVariantMap selfOrder READ selfOrderInfo NOTIFY checkChanged)
+    Q_PROPERTY(QVariantMap kioskMenu READ kioskMenu NOTIFY adminChanged)
     // Manager -> Network: {role: main|single, term, terminals: [{name,
     // address, user, since}], standby: {address, since} | null, printers:
     // [{name, type, where, status: ok|failed|unknown, error, at}]}.
@@ -168,6 +173,8 @@ public:
     virtual bool standbyReady() const { return false; }
     virtual QString language() const = 0;
     virtual QString storeLanguage() const = 0;
+    virtual QVariantMap selfOrderInfo() const = 0;
+    virtual QVariantMap kioskMenu() const = 0;
     virtual QVariantMap networkInfo() const = 0;
     virtual bool training() const = 0;
     virtual QStringList soldOut() const = 0;
@@ -242,6 +249,12 @@ public:
     Q_INVOKABLE void finishChoosing() { invoke(QStringLiteral("finishChoosing")); }
     Q_INVOKABLE void cancelChoosing() { invoke(QStringLiteral("cancelChoosing")); }
     Q_INVOKABLE void backupNow() { invoke(QStringLiteral("backupNow")); }
+    Q_INVOKABLE void leaveSelfOrder(const QString &pin) { invoke(QStringLiteral("leaveSelfOrder"), {pin}); }
+    Q_INVOKABLE void kioskStart(bool toGo) { invoke(QStringLiteral("kioskStart"), {toGo}); }
+    Q_INVOKABLE void kioskAdd(const QString &itemId) { invoke(QStringLiteral("kioskAdd"), {itemId}); }
+    Q_INVOKABLE void kioskRemove(qint64 lineId) { invoke(QStringLiteral("kioskRemove"), {lineId}); }
+    Q_INVOKABLE void kioskFinish(const QVariantMap &guest) { invoke(QStringLiteral("kioskFinish"), {guest}); }
+    Q_INVOKABLE void kioskCancel() { invoke(QStringLiteral("kioskCancel")); }
     Q_INVOKABLE void factoryReset(const QString &confirm) { invoke(QStringLiteral("factoryReset"), {confirm}); }
     Q_INVOKABLE void findCustomers(const QString &query) { invoke(QStringLiteral("findCustomers"), {query}); }
     Q_INVOKABLE void selectCustomer(const QString &id) { invoke(QStringLiteral("selectCustomer"), {id}); }

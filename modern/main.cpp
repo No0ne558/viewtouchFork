@@ -113,6 +113,9 @@ struct Options {
         u"Show the order and total to the guest: window (a full-screen window on the second monitor), split (one "
          "window across two monitors, as a kiosk has), auto (split with --kiosk, else window) or off."_s,
         u"mode"_s, u"off"_s};
+    QCommandLineOption selfOrder{u"self-order"_s,
+        u"This screen is a self-order kiosk: guests order on their own and pay at the counter. A manager's PIN "
+         "(hold the top-left corner) ends it. Also set per terminal in Manager -> Terminals."_s};
     QCommandLineOption touchKeyboard{u"touch-keyboard"_s,
         u"Show an on-screen keyboard for text fields: yes or no (default: yes with --kiosk)."_s, u"yes|no"_s};
     QCommandLineOption screen{u"screen"_s,
@@ -1093,6 +1096,9 @@ int runStore(const Args &cli, const Options &o)
             controller.replaceLayout(l);
     });
 
+    // A self-order kiosk for guests: by option, or this terminal's setting.
+    if (cli.isSet(o.selfOrder) || pos.screenMode() == u"selfOrder")
+        pos.enableSelfOrder();
     if (cli.isSet(o.login) && !pos.loginWithPin(cli.value(o.login))) {
         qCritical().noquote() << "That PIN is not recognized.";
         return 1;
@@ -1511,7 +1517,7 @@ int main(int argc, char *argv[])
     cli.addHelpOption();
     cli.addVersionOption();
     const QList<QCommandLineOption> all = {o.config, o.dataDir, o.db, o.layout, o.resetLayout, o.resetMenu, o.serve,
-        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.touchKeyboard, o.customerDisplay, o.factoryReset, o.demoData, o.standby, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
+        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.selfOrder, o.touchKeyboard, o.customerDisplay, o.factoryReset, o.demoData, o.standby, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
         o.screenshot, o.backupDir, o.backupKeep, o.backupEvery, o.backup, o.restore, o.pairingCode, o.exportDir};
     cli.addOptions(all);
     cli.process(app);

@@ -128,6 +128,12 @@ QVariantList PosService::adminFields(const QString &panel)
                           {"blue", "Blue"}, {"purple", "Purple"}})),
             field(u"kitchenHide"_s, tr("Don't show in the kitchen"), u"bool"_s,
                   tr("Nothing to make (water, a gift card...). As a modifier: left off the kitchen ticket.")),
+            field(u"kioskHide"_s, tr("Not on the self-order kiosk"), u"bool"_s,
+                  tr("Guests can't order it on their own. Alcohol never shows there.")),
+            field(u"description"_s, tr("Description (self-order kiosk)"), u"text"_s,
+                  tr("A line guests see under the name, e.g. \"Two patties, cheddar, house sauce\".")),
+            field(u"image"_s, tr("Photo (self-order kiosk)"), u"string"_s,
+                  tr("An image file (PNG, JPG) on the computer showing the kiosk, e.g. /var/lib/viewtouch/photos/burger.jpg.")),
             field(u"recipe"_s, tr("Recipe (what one uses up)"), u"text"_s,
                   tr("One ingredient per line with the amount, e.g. \"bun 1\" or \"lettuce 0.5\" (Manager -> Inventory)."
                      " Sold out by itself when one runs short.")),
@@ -291,6 +297,10 @@ QVariantList PosService::adminFields(const QString &panel)
                   tr("Texts are POSTed here as JSON {\"to\", \"message\"} (your SMS provider or a relay). Empty: no texts; the host tells the guest.")),
             field(u"backupCopyDir"_s, tr("Also copy backups to"), u"text"_s,
                   tr("A USB drive or network folder on the server, e.g. /media/usb/viewtouch. Empty = no second copy.")),
+            field(u"kioskSendNow"_s, tr("Self-order kiosk: send orders to the kitchen at once"), u"bool"_s,
+                  tr("Otherwise a kiosk order goes to the kitchen when it is paid for at the counter.")),
+            with(with(field(u"kioskIdleSeconds"_s, tr("Self-order kiosk: clear an untouched order after (seconds)"),
+                            u"int"_s), u"min"_s, 30), u"max"_s, 600),
             field(u"encryptBackups"_s, tr("Encrypt backups"), u"bool"_s,
                   tr("Backups (and the second copy) can only be opened with the backup password. "
                      "For a lost or stolen USB drive.")),
@@ -336,7 +346,7 @@ QVariantList PosService::adminFields(const QString &panel)
             with(field(u"screen"_s, tr("Screen layout"), u"enum"_s,
                        tr("Phone pages: big buttons in portrait, for phones and small handhelds.")),
                  u"options"_s, options({{"", "Automatic (phone pages on phones)"}, {"standard", "Standard pages"},
-                                        {"phone", "Phone pages"}})),
+                                        {"phone", "Phone pages"}, {"selfOrder", "Self-order kiosk (guests order on their own)"}})),
         };
     }
     return {};
@@ -407,6 +417,7 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"terminalsHaveDrawer"_s, s_->settings.terminalsHaveDrawer},
              {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks},
              {u"backupCopyDir"_s, qs(s_->settings.backupCopyDir)},
+             {u"kioskSendNow"_s, s_->settings.kioskSendNow}, {u"kioskIdleSeconds"_s, s_->settings.kioskIdleSeconds},
              {u"encryptBackups"_s, !s_->settings.backupKey.empty()}, {u"backupPassword"_s, QString()},
              {u"waitMinutesPerParty"_s, s_->settings.waitMinutesPerParty},
              {u"autoLogoutMinutes"_s, s_->settings.autoLogoutMinutes},
@@ -486,7 +497,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"price"_s, 0.0}, {u"family"_s, QString()},
                 {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"modifier"_s, false}, {u"available"_s, true},
                 {u"modifierGroups"_s, QString()}, {u"periodPrices"_s, QString()}, {u"recipe"_s, QString()},
-                {u"kitchenName"_s, QString()}, {u"kitchenColor"_s, QString()}, {u"kitchenHide"_s, false}};
+                {u"kitchenName"_s, QString()}, {u"kitchenColor"_s, QString()}, {u"kitchenHide"_s, false},
+                {u"kioskHide"_s, false}, {u"description"_s, QString()}, {u"image"_s, QString()}};
     if (panel == u"employees")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
                 {u"active"_s, true}, {u"training"_s, false}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()},
@@ -578,7 +590,7 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         t.receiptPrinter = ss(record.value(u"receiptPrinter"_s).toString());
         t.drawer = ss(drawer);
         const QString screen = record.value(u"screen"_s).toString();
-        if (!QStringList{QString(), u"standard"_s, u"phone"_s}.contains(screen))
+        if (!QStringList{QString(), u"standard"_s, u"phone"_s, u"selfOrder"_s}.contains(screen))
             return fail(tr("Choose the terminal's screen layout."));
         t.screen = ss(screen);
         if (index >= 0 && index < int(list.size()))
@@ -713,6 +725,10 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.textWebhook = ss(record.value(u"textWebhook"_s).toString().trimmed());
         if (record.contains(u"backupCopyDir"_s))
             s_->settings.backupCopyDir = ss(record.value(u"backupCopyDir"_s).toString().trimmed());
+        if (record.contains(u"kioskSendNow"_s))
+            s_->settings.kioskSendNow = record.value(u"kioskSendNow"_s).toBool();
+        if (record.contains(u"kioskIdleSeconds"_s))
+            s_->settings.kioskIdleSeconds = std::clamp(record.value(u"kioskIdleSeconds"_s).toInt(), 30, 600);
         if (record.contains(u"encryptBackups"_s)) {
             const QString password = record.value(u"backupPassword"_s).toString();
             if (!record.value(u"encryptBackups"_s).toBool()) {
@@ -915,6 +931,9 @@ QVariantMap PosService::menuRecord(const MenuItem &m) const
     r.insert(u"kitchenName"_s, qs(m.kitchenName));
     r.insert(u"kitchenColor"_s, qs(m.kitchenColor));
     r.insert(u"kitchenHide"_s, m.kitchenHide);
+    r.insert(u"kioskHide"_s, m.kioskHide);
+    r.insert(u"description"_s, qs(m.description));
+    r.insert(u"image"_s, qs(m.image));
     for (const char16_t *k : {u"family", u"printer"}) {
         if (!r.contains(QString::fromUtf16(k)))
             r.insert(QString::fromUtf16(k), QString());

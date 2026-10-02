@@ -41,6 +41,11 @@ struct MenuItem {
     std::string kitchenName;
     std::string kitchenColor;
     bool kitchenHide = false;
+    // On the self-order kiosk: a line about it and a photo (an image file on
+    // the computer showing the kiosk); or not shown there at all.
+    std::string description;
+    std::string image;
+    bool kioskHide = false;
 
     Money priceDuring(const std::string &mealPeriod) const
     {

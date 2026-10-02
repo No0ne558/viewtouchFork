@@ -170,6 +170,7 @@ struct Check {
     bool training = false;            // a practice check: not a sale, never to the kitchen             // loyalty points it gave its customer (taken back on reopen)
     bool rush = false;                // the kitchen does it first
     bool vip = false;                 // the kitchen takes extra care
+    bool kiosk = false;               // a guest ordered it on the self-order kiosk
 
     void note(std::int64_t at, const std::string &who, const std::string &what, const std::string &kind = {})
     {

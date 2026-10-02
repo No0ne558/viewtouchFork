@@ -203,6 +203,8 @@ void PosServer::handle(Connection *c, const QJsonObject &m)
         const QString name = QString::fromStdString(paired->name);
         c->session = std::make_unique<app::PosService>(shared_, name);
         app::PosService *s = c->session.get();
+        if (paired->screen == "selfOrder")   // Manager -> Terminals: a kiosk for guests
+            s->enableSelfOrder();
         // Any change to this session's state is sent out on the next flush.
         for (auto signal : {&app::PosSession::sessionChanged, &app::PosSession::entryChanged,
                             &app::PosSession::qualifierChanged, &app::PosSession::checkChanged,

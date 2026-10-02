@@ -102,7 +102,7 @@ QJsonObject toJson(const Check &c)
         {u"customer"_s, QJsonObject{{u"name"_s, qs(c.customer.name)}, {u"phone"_s, qs(c.customer.phone)},
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
         {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse}, {u"customerId"_s, qs(c.customerId)},
-        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"pointsEarned"_s, c.pointsEarned}, {u"training"_s, c.training},
+        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"kiosk"_s, c.kiosk}, {u"pointsEarned"_s, c.pointsEarned}, {u"training"_s, c.training},
     };
 }
 
@@ -178,6 +178,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
                   ss(cust.value(u"address").toString()), ss(cust.value(u"note").toString())};
     c.customerId = ss(o.value(u"customerId").toString());
     c.rush = o.value(u"rush").toBool();
+    c.kiosk = o.value(u"kiosk").toBool();
     c.vip = o.value(u"vip").toBool();
     c.pointsEarned = o.value(u"pointsEarned").toInt();
     c.training = o.value(u"training").toBool();
@@ -227,6 +228,12 @@ QJsonObject toJson(const MenuItem &m)
         o.insert(u"kitchenColor"_s, qs(m.kitchenColor));
     if (m.kitchenHide)
         o.insert(u"kitchenHide"_s, true);
+    if (!m.description.empty())
+        o.insert(u"description"_s, qs(m.description));
+    if (!m.image.empty())
+        o.insert(u"image"_s, qs(m.image));
+    if (m.kioskHide)
+        o.insert(u"kioskHide"_s, true);
     return o;
 }
 
@@ -256,6 +263,9 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     m.kitchenName = ss(o.value(u"kitchenName").toString().trimmed());
     m.kitchenColor = ss(o.value(u"kitchenColor").toString());
     m.kitchenHide = o.value(u"kitchenHide").toBool();
+    m.description = ss(o.value(u"description").toString().trimmed());
+    m.image = ss(o.value(u"image").toString().trimmed());
+    m.kioskHide = o.value(u"kioskHide").toBool();
     return m;
 }
 
@@ -591,7 +601,8 @@ QJsonObject toJson(const PosSettings &s)
         {u"backupKey"_s, qs(s.backupKey)}, {u"backupSalt"_s, qs(s.backupSalt)},
         {u"waitMinutesPerParty"_s, s.waitMinutesPerParty},
         {u"autoLogoutMinutes"_s, s.autoLogoutMinutes}, {u"tableLongMinutes"_s, s.tableLongMinutes},
-        {u"replicaKey"_s, qs(s.replicaKey)}, {u"language"_s, qs(s.language)}, {u"serverTerm"_s, s.serverTerm},
+        {u"replicaKey"_s, qs(s.replicaKey)}, {u"language"_s, qs(s.language)},
+        {u"kioskSendNow"_s, s.kioskSendNow}, {u"kioskIdleSeconds"_s, s.kioskIdleSeconds}, {u"serverTerm"_s, s.serverTerm},
         {u"display"_s, [&] {
              QJsonArray slides;
              for (const std::string &sl : s.displaySlides) slides.append(qs(sl));
@@ -673,6 +684,8 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.autoLogoutMinutes = std::clamp(o.value(u"autoLogoutMinutes").toInt(0), 0, 120);
     s.replicaKey = ss(o.value(u"replicaKey").toString());
     s.language = ss(o.value(u"language").toString(u"en"_s));
+    s.kioskSendNow = o.value(u"kioskSendNow").toBool(false);
+    s.kioskIdleSeconds = std::clamp(o.value(u"kioskIdleSeconds").toInt(90), 30, 600);
     s.serverTerm = o.value(u"serverTerm").toInt(0);
     s.tableLongMinutes = std::clamp(o.value(u"tableLongMinutes").toInt(90), 10, 600);
     const QJsonObject display = o.value(u"display").toObject();

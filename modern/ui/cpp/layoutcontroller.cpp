@@ -746,6 +746,7 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
         {u"backupNow"_s, {u"backupNow"_s, {}}},
         {u"askForTip"_s, {u"askForTip"_s, {}}},
         {u"toggleTraining"_s, {u"toggleTraining"_s, {}}},
+        {u"selfOrder"_s, {u"setSelfOrder"_s, {true}}},
         {u"rush"_s, {u"toggleFlag"_s, {u"rush"_s}}}, {u"vip"_s, {u"toggleFlag"_s, {u"vip"_s}}},
         {u"startBreak"_s, {u"toggleBreak"_s, {}}}, {u"toggleBreak"_s, {u"toggleBreak"_s, {}}},
     };

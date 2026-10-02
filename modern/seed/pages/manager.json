@@ -585,6 +585,30 @@
           "page": "network"
         }
       ]
+    },
+    {
+      "id": "self-order",
+      "kind": "button",
+      "rect": {
+        "x": 976,
+        "y": 940,
+        "w": 384,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Self-Order Kiosk",
+      "actions": [
+        {
+          "type": "command",
+          "name": "selfOrder"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#2b62b0"
+        }
+      }
     }
   ]
 }

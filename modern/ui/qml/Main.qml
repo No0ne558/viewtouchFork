@@ -162,7 +162,7 @@ ApplicationWindow {
             objectName: "touchKeys"
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
-            visible: root.touchKeyboard && root.typingIn !== null
+            visible: root.touchKeyboard && root.typingIn !== null && !selfOrder.visible
             target: visible ? root.typingIn : null
             onDismissed: pageView.forceActiveFocus()
         }
@@ -314,6 +314,17 @@ ApplicationWindow {
     }
 
     // A manager's PIN for something this person may not do on their own.
+    // A self-order kiosk: guests order on their own; nothing else shows.
+    SelfOrder {
+        id: selfOrder
+        objectName: "selfOrder"
+        anchors.fill: parent
+        z: 55
+        visible: !root.editing && root.controller.pos !== null && ((root.controller.pos as PosService).selfOrder.on ?? false)
+        pos: root.controller.pos as PosService
+        onManagerExit: approvalPad.leavingKiosk = true
+    }
+
     ApprovalPad {
         id: approvalPad
         anchors.fill: parent

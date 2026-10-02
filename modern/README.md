@@ -199,6 +199,17 @@ Start with `--customer-display auto` (or `customer-display = auto` in the kiosk'
 - **Loyalty** (Store Settings): customers on a check earn points on what they spend after discounts (1 per dollar to start); reopening a check takes them back. *Rewards*, one per line like `50 = 5.00`, take money off: Customers → the customer on the check → the reward button. Undoing the reward gives the points back. Guests can sign up or be found by typing their phone number on the customer display.
 - **Promotions** (Manager → Promotions): percent off chosen categories or items, or *buy N, get M* (the cheapest at the percent off), on chosen days and times. They apply by themselves while they run, show on the check and receipt by name, and come off again when the time is up or the items go. The demo set has *Happy Hour* (weekdays 3-6 PM, half-price draft beer and wine) and *Burger Tuesday* (the second burger half off).
 
+## Self-order kiosk
+
+A screen where guests order on their own, then pay at the counter.
+
+- **Turning it on:** Manager → *Self-Order Kiosk* turns this screen into one on the spot. For a screen that should always be one, set Manager → Terminals → *Screen layout* to *Self-order kiosk*, or start it with `vtmodern --self-order`.
+- **For the guest:** Welcome (*For Here* / *To Go*) → the menu by category, with photos and descriptions → their choices (temperature, sides…) → a name to call the order by → *Your order number is 42*. Sold-out items show as sold out. If a guest walks away mid-order, *Are you still there?* appears, and the order is cleared (default after 90 s, set in Store Settings).
+- **At the counter:** the order waits in Open Checks as *Kiosk 42* with the guest's name. The cashier opens it, takes the payment, and closing it sends it to the kitchen. With Store Settings → *Self-order kiosk: send orders to the kitchen at once*, it goes to the kitchen as soon as the guest finishes.
+- **What guests see:** every menu item except modifiers (they appear as choices), anything marked *Not on the self-order kiosk*, and alcohol, which never shows there. Each item can have a *Description* and a *Photo* (Manager → Menu Items). The photo is an image file on the computer showing the kiosk.
+- **Staff:** nothing on the kiosk leads to staff screens. A manager holds the top-left corner for 3 seconds and types their PIN to end kiosk mode.
+- Card payments at the kiosk will come with card readers (M8).
+
 ## Languages
 
 The screens come in English and Spanish (Español).

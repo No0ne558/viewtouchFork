@@ -70,6 +70,10 @@ struct PastDay {
     QJsonObject reports;
 };
 
+// The built-in user a self-order kiosk takes orders as (role "kiosk": it
+// may only order). Not one of the staff: it can't log in with a PIN.
+const core::Employee &kioskEmployee();
+
 // Everything the running POS needs at startup.
 struct PosData {
     core::PosSettings settings;
@@ -448,6 +452,26 @@ public:
     // manager switched it on here.
     bool training() const override;
     bool setTraining(bool on);
+
+    // Self-order kiosk: this screen is for guests ordering on their own (no
+    // staff logged in; the built-in "Self-order kiosk" user takes the
+    // orders). A manager turns it on here (setSelfOrder), the terminal's
+    // setting does at connect (enableSelfOrder), and a manager's PIN turns
+    // it off (leaveSelfOrder).
+    bool setSelfOrder(bool on);
+    void enableSelfOrder();
+    bool leaveSelfOrder(const QString &managerPin);
+    bool selfOrder() const { return selfOrder_; }
+    // A guest's order: start (for here / to go), add and remove items,
+    // finish with the name to call it by (it waits for the counter, or goes
+    // to the kitchen at once), or cancel.
+    bool kioskStart(bool toGo);
+    bool kioskAdd(const QString &itemId);
+    bool kioskRemove(qint64 lineId);
+    bool kioskFinish(const QVariantMap &guest);
+    void kioskCancel();
+    QVariantMap selfOrderInfo() const override;
+    QVariantMap kioskMenu() const override;
     // Everything back to a fresh install, after a backup (managers; `confirm`
     // must be "RESET"). ViewTouch restarts with the starter set.
     bool factoryReset(const QString &confirm);
@@ -592,6 +616,9 @@ private:
     struct Approved { std::string permission; std::string by; };
     std::optional<Approved> approved_;
     bool trainingOn_ = false;
+    bool selfOrder_ = false;
+    bool kioskToGo_ = false;
+    QVariantMap lastKioskOrder_;   // the confirmation the guest sees
     bool closePractice(core::Check &c);   // a manager switched this screen to practice
     bool fail(const QString &message);
     void changed(core::Check &check);   // persist + notify
