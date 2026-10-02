@@ -179,6 +179,9 @@ public:
     // Backups (set up by main on the store server): take one now, and how
     // the last one went - {at, ok, error, copy, copyOk}.
     std::function<bool()> requestBackup;
+    // A backup key for a password: {key, salt}, both empty when this
+    // computer can't encrypt (the app sets it; see storage/sealed.hh).
+    std::function<std::pair<QByteArray, QByteArray>(const QString &password)> backupKeyFor;
     // Factory reset from the Manager page: main backs up, closes, deletes the
     // database and starts again. False: not possible here.
     std::function<bool()> requestFactoryReset;

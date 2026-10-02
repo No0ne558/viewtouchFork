@@ -82,6 +82,7 @@ if(Qt6_FOUND)
         storage/pos_store.hh storage/pos_store.cpp
         storage/async_writer.hh storage/async_writer.cpp
         storage/backup.hh storage/backup.cpp
+        storage/sealed.hh storage/sealed.cpp
     )
     target_link_libraries(vtm_storage PUBLIC vtm_layout vtm_pos Qt6::Sql)
 

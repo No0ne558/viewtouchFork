@@ -291,6 +291,13 @@ QVariantList PosService::adminFields(const QString &panel)
                   tr("Texts are POSTed here as JSON {\"to\", \"message\"} (your SMS provider or a relay). Empty: no texts; the host tells the guest.")),
             field(u"backupCopyDir"_s, tr("Also copy backups to"), u"text"_s,
                   tr("A USB drive or network folder on the server, e.g. /media/usb/viewtouch. Empty = no second copy.")),
+            field(u"encryptBackups"_s, tr("Encrypt backups"), u"bool"_s,
+                  tr("Backups (and the second copy) can only be opened with the backup password. "
+                     "For a lost or stolen USB drive.")),
+            field(u"backupPassword"_s, tr("Backup password"), u"password"_s,
+                  tr("At least 8 characters. Write it down somewhere safe: without it, an encrypted backup can't be "
+                     "restored on another computer. Changing it keeps older backups on the old one. "
+                     "Leave empty to keep the current password.")),
             field(u"checkoutNeedsClosedChecks"_s, tr("Close all checks before checking out"), u"bool"_s,
                   tr("Servers must close or hand over their checks before they check out their bank. "
                      "Can be set per employee.")),
@@ -400,6 +407,7 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"terminalsHaveDrawer"_s, s_->settings.terminalsHaveDrawer},
              {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks},
              {u"backupCopyDir"_s, qs(s_->settings.backupCopyDir)},
+             {u"encryptBackups"_s, !s_->settings.backupKey.empty()}, {u"backupPassword"_s, QString()},
              {u"waitMinutesPerParty"_s, s_->settings.waitMinutesPerParty},
              {u"autoLogoutMinutes"_s, s_->settings.autoLogoutMinutes},
              {u"tableLongMinutes"_s, s_->settings.tableLongMinutes},
@@ -705,6 +713,21 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.textWebhook = ss(record.value(u"textWebhook"_s).toString().trimmed());
         if (record.contains(u"backupCopyDir"_s))
             s_->settings.backupCopyDir = ss(record.value(u"backupCopyDir"_s).toString().trimmed());
+        if (record.contains(u"encryptBackups"_s)) {
+            const QString password = record.value(u"backupPassword"_s).toString();
+            if (!record.value(u"encryptBackups"_s).toBool()) {
+                s_->settings.backupKey.clear();
+                s_->settings.backupSalt.clear();
+            } else if (!password.isEmpty() || s_->settings.backupKey.empty()) {
+                if (password.size() < 8)
+                    return fail(tr("Choose a backup password of at least 8 characters."));
+                const auto [key, salt] = s_->backupKeyFor ? s_->backupKeyFor(password) : std::pair<QByteArray, QByteArray>{};
+                if (key.isEmpty())
+                    return fail(tr("This computer can't encrypt backups."));
+                s_->settings.backupKey = key.toBase64().toStdString();
+                s_->settings.backupSalt = salt.toBase64().toStdString();
+            }
+        }
         settingsChanged();
         ok = true;
     }

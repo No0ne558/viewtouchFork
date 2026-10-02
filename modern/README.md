@@ -116,6 +116,9 @@ Every page is designed on a 1920 × 1080 landscape canvas and scaled to the scre
   sudo systemctl start vtmodern      # or vtmodern-kiosk
   ```
   The backup is checked first. The database it replaces is kept beside it as `viewtouch.db.before-restore-<time>`.
+- **Encrypted backups:** Manager → Store Settings → *Encrypt backups* and a *Backup password* (8 characters or more). Backups and the second copy are then `viewtouch-<time>.vtbak` files that only that password opens (AES-256-GCM, with the key made from the password by PBKDF2). Each one is opened again and checked as it is made. Restoring one on the same computer needs nothing more. On another computer `--restore` asks for the password (or reads `VTM_BACKUP_PASSWORD`). **Write the password down somewhere safe:** without it, an encrypted backup can't be opened by anyone. Changing it leaves older backups on the old password.
+
+**Encrypting the data itself.** The live database is an ordinary SQLite file, readable by anyone who has the disk. For a store server, turn on disk encryption when installing the operating system (Fedora and Ubuntu installers: *Encrypt my data*). Everything is then encrypted at rest with no change to ViewTouch, and the server asks for the disk password when it boots. PINs are never stored, only salted hashes.
 
 **Power cuts and damage.** Each sale is synced to disk as soon as it is saved, on a background thread, so a power cut loses nothing that was already on the screen. At start ViewTouch checks the database. If it is damaged, ViewTouch won't run on it: it names the newest good backup and the command to restore it. The tests cover a power cut in the middle of a check, and a busy service of 1,000 checks on four terminals (every step under a millisecond, nothing lost).
 

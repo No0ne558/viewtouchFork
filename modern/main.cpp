@@ -14,6 +14,7 @@
 #include "storage/async_writer.hh"
 #include "app/pos_demo.hh"
 #include "storage/backup.hh"
+#include "storage/sealed.hh"
 #include "storage/layout_store.hh"
 #include "storage/pos_store.hh"
 
@@ -42,6 +43,11 @@
 #include <QStandardPaths>
 #include <QSysInfo>
 #include <QTimer>
+
+#ifdef Q_OS_UNIX
+#include <termios.h>
+#include <unistd.h>
+#endif
 #include <QTemporaryDir>
 #include <QtQml/qqmlextensionplugin.h>
 
@@ -125,7 +131,8 @@ struct Options {
         u"Ask the ViewTouch server running on this machine (same --data-dir) for a code to pair a "
         "terminal with, print it, and exit."_s};
     QCommandLineOption restore{u"restore"_s,
-        u"Put backup <file> in place of the database and exit. ViewTouch must not be running."_s, u"file"_s};
+        u"Put backup <file> in place of the database and exit. ViewTouch must not be running. An encrypted "
+         "backup (.vtbak) asks for the backup password (or reads VTM_BACKUP_PASSWORD)."_s, u"file"_s};
 
     static QString defaultDataDir() { return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation); }
 };
@@ -846,10 +853,14 @@ int runStore(const Args &cli, const Options &o)
     if (havePosStore) {
         backups = std::make_unique<vt::storage::BackupScheduler>(
             dbPath, backupDirOf(cli, o), cli.value(o.backupKeep).toInt(), cli.value(o.backupEvery).toInt());
-        backups->setCopyDirectory(QString::fromStdString(shared->settings.backupCopyDir));
-        QObject::connect(shared, &vt::app::PosShared::adminChanged, backups.get(), [shared, &backups] {
+        // Encrypted backups once a manager sets a backup password.
+        auto applyBackupSettings = [shared, &backups] {
             backups->setCopyDirectory(QString::fromStdString(shared->settings.backupCopyDir));
-        });
+            backups->setSealing(QByteArray::fromBase64(QByteArray::fromStdString(shared->settings.backupKey)),
+                                QByteArray::fromBase64(QByteArray::fromStdString(shared->settings.backupSalt)));
+        };
+        applyBackupSettings();
+        QObject::connect(shared, &vt::app::PosShared::adminChanged, backups.get(), applyBackupSettings);
         QObject::connect(backups.get(), &vt::storage::BackupScheduler::finished, &pos,
                          [&pos, shared](bool ok, const QString &, const QString &error, const QString &copy, bool copyOk) {
             shared->setBackupStatus({{u"at"_s, QTime::currentTime().toString(u"h:mm AP"_s)}, {u"ok"_s, ok},
@@ -859,6 +870,15 @@ int runStore(const Args &cli, const Options &o)
             else if (!copyOk)
                 say(pos, QCoreApplication::translate("main", "The backup worked, but %1").arg(copy));
         });
+        shared->backupKeyFor = [](const QString &password) {
+            QString why;
+            if (!vt::storage::sealingAvailable(&why)) {
+                qWarning().noquote() << "Can't encrypt backups:" << why;
+                return std::pair<QByteArray, QByteArray>{};
+            }
+            const QByteArray salt = vt::storage::newSalt();
+            return std::pair{vt::storage::sealingKey(password, salt), salt};
+        };
         shared->requestBackup = [&backups, &writer] {
             if (backups->running())
                 return false;
@@ -1327,6 +1347,30 @@ int runDemoData(const Args &cli, const Options &o)
     return 0;
 }
 
+// Read a password from the terminal without showing it.
+QString askPassword(const QString &prompt)
+{
+    QTextStream out(stdout);
+    out << prompt << Qt::flush;
+#ifdef Q_OS_UNIX
+    termios old {};
+    const bool tty = isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &old) == 0;
+    if (tty) {
+        termios quiet = old;
+        quiet.c_lflag &= ~tcflag_t(ECHO);
+        tcsetattr(STDIN_FILENO, TCSANOW, &quiet);
+    }
+#endif
+    QTextStream in(stdin);
+    const QString line = in.readLine();
+#ifdef Q_OS_UNIX
+    if (tty)
+        tcsetattr(STDIN_FILENO, TCSANOW, &old);
+#endif
+    out << Qt::endl;
+    return line;
+}
+
 int runRestore(const Args &cli, const Options &o)
 {
     const QString dbPath = dbPathOf(cli, o);
@@ -1339,7 +1383,32 @@ int runRestore(const Args &cli, const Options &o)
         return 1;
     }
     QString keptAs, error;
-    if (!vt::storage::restoreDatabase(cli.value(o.restore), dbPath, &keptAs, &error)) {
+    QString backup = cli.value(o.restore);
+    QTemporaryDir opened;
+    if (vt::storage::isSealed(backup)) {
+        // Encrypted: this store's own key opens it (same computer); else the password.
+        const QString plain = opened.filePath(u"restore.db"_s);
+        bool ok = false;
+        if (QFile::exists(dbPath)) {
+            vt::storage::PosStore store(dbPath);
+            const auto data = store.open() ? store.load() : std::nullopt;
+            if (data && !data->settings.backupKey.empty())
+                ok = vt::storage::openSealedFileWithKey(
+                    backup, plain, QByteArray::fromBase64(QByteArray::fromStdString(data->settings.backupKey)));
+        }
+        if (!ok) {
+            QString password = qEnvironmentVariable("VTM_BACKUP_PASSWORD");
+            if (password.isEmpty())
+                password = askPassword(u"Backup password: "_s);
+            QFile::remove(plain);
+            if (!vt::storage::openSealedFile(backup, plain, password, &error)) {
+                qCritical().noquote() << "Restore failed:" << error;
+                return 1;
+            }
+        }
+        backup = plain;
+    }
+    if (!vt::storage::restoreDatabase(backup, dbPath, &keptAs, &error)) {
         qCritical().noquote() << "Restore failed:" << error;
         return 1;
     }

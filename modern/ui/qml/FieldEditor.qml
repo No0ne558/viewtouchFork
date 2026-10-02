@@ -78,6 +78,7 @@ ColumnLayout {
             case "percent": return numberField
             case "number": return numberField
             case "pin": return pinField
+            case "password": return passwordField
             default: return textField
             }
         }
@@ -274,6 +275,16 @@ ColumnLayout {
             placeholderText: fe.field.hint ?? ""
             inputMethodHints: Qt.ImhDigitsOnly
             validator: RegularExpressionValidator { regularExpression: /[0-9]{0,8}/ }
+            onEditingFinished: if (text !== (fe.value ?? "")) fe.commit(text)
+        }
+    }
+
+    Component {
+        id: passwordField
+        TextField {
+            text: fe.value ?? ""
+            echoMode: TextInput.Password
+            selectByMouse: true
             onEditingFinished: if (text !== (fe.value ?? "")) fe.commit(text)
         }
     }

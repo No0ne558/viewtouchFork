@@ -130,6 +130,10 @@ struct PosSettings {
     // A second folder every backup is also copied to (a USB drive, a
     // network share), so one dead disk can't take the backups with it.
     std::string backupCopyDir;
+    // Encrypted backups: the key made from the backup password, and its salt
+    // (base64). Empty: backups are plain copies.
+    std::string backupKey;
+    std::string backupSalt;
     // Waitlist: quoted minutes for each party ahead, and the text sent when
     // a table is ready ({name}, {store}). textWebhook: where texts are sent
     // (a JSON POST of {to, message}; empty: no texting).

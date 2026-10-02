@@ -31,7 +31,7 @@ bool restoreDatabase(const QString &backup, const QString &db, QString *keptAs =
 // Copy `backup` into `dir` as well (written aside, checked, then renamed).
 // `note` says where it went or why it couldn't.
 bool copyBackup(const QString &backup, const QString &dir, QString *note = nullptr);
-// Backups in `dir`, newest first.
+// Backups in `dir` (plain .db and encrypted .vtbak), newest first.
 QStringList listBackups(const QString &dir);
 // Remove all but the newest `keep` backups in `dir`; returns what was removed.
 QStringList pruneBackups(const QString &dir, int keep);
@@ -52,6 +52,13 @@ public:
     QString directory() const { return dir_; }
     // Also copy each backup to `dir` (empty: no second copy), keeping as many.
     void setCopyDirectory(const QString &dir) { copyDir_ = dir; }
+    // Encrypt backups with this key (see sealed.hh); empty: plain copies.
+    // Encrypted backups are named viewtouch-<time>.vtbak.
+    void setSealing(const QByteArray &key, const QByteArray &salt)
+    {
+        sealKey_ = key;
+        sealSalt_ = salt;
+    }
     // Begin the hourly checks (and check now).
     void start();
     // Take a backup now unless one is already running.
@@ -68,6 +75,8 @@ private:
     QString db_;
     QString dir_;
     QString copyDir_;
+    QByteArray sealKey_;
+    QByteArray sealSalt_;
     int keep_;
     int everyHours_;
     QTimer timer_;

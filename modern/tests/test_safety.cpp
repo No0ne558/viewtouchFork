@@ -7,6 +7,7 @@
 #include "storage/backup.hh"
 #include "storage/layout_store.hh"
 #include "storage/pos_store.hh"
+#include "storage/sealed.hh"
 
 #include <QDir>
 #include <QElapsedTimer>
@@ -171,6 +172,105 @@ TEST_CASE("Backups: a second checked copy elsewhere; a missing drive is reported
     CHECK(done.last()[0].toBool());
     CHECK_FALSE(done.last()[4].toBool());
     CHECK(done.last()[3].toString().startsWith(u"Second copy failed"_s));
+}
+
+TEST_CASE("Encrypted files: only the password opens them, and changes are caught", "[safety][backup][sealed]")
+{
+    REQUIRE(storage::sealingAvailable());
+    QTemporaryDir dir;
+    const QString plain = seeded(dir);
+    const QByteArray salt = storage::newSalt();
+    REQUIRE(salt.size() == 16);
+    const QByteArray key = storage::sealingKey(u"correct horse"_s, salt);
+    REQUIRE(key.size() == 32);
+    CHECK(key == storage::sealingKey(u"correct horse"_s, salt));
+    CHECK(key != storage::sealingKey(u"correct horsf"_s, salt));
+    CHECK(key != storage::sealingKey(u"correct horse"_s, storage::newSalt()));
+
+    const QString sealed = dir.filePath(u"backup.vtbak"_s);
+    REQUIRE(storage::sealFile(plain, sealed, key, salt));
+    CHECK(storage::isSealed(sealed));
+    CHECK_FALSE(storage::isSealed(plain));
+    QFile f(sealed);
+    REQUIRE(f.open(QIODevice::ReadOnly));
+    const QByteArray bytes = f.readAll();
+    f.close();
+    CHECK_FALSE(bytes.contains("Morgan"));   // nothing readable inside
+    CHECK_FALSE(bytes.contains("SQLite format"));
+
+    QString error;
+    CHECK_FALSE(storage::openSealedFile(sealed, dir.filePath(u"wrong.db"_s), u"wrong password"_s, &error));
+    CHECK(error.startsWith(u"Wrong password"_s));
+    CHECK_FALSE(QFile::exists(dir.filePath(u"wrong.db"_s)));
+    REQUIRE(storage::openSealedFile(sealed, dir.filePath(u"open.db"_s), u"correct horse"_s));
+    CHECK(storage::verifyDatabase(dir.filePath(u"open.db"_s)));
+    REQUIRE(storage::openSealedFileWithKey(sealed, dir.filePath(u"open2.db"_s), key));
+
+    // One byte changed anywhere (here in the middle): refused.
+    QByteArray changed = bytes;
+    changed[changed.size() / 2] = char(changed[changed.size() / 2] ^ 1);
+    QFile g(dir.filePath(u"changed.vtbak"_s));
+    REQUIRE(g.open(QIODevice::WriteOnly));
+    g.write(changed);
+    g.close();
+    CHECK_FALSE(storage::openSealedFile(g.fileName(), dir.filePath(u"changed.db"_s), u"correct horse"_s));
+}
+
+TEST_CASE("Encrypted backups: sealed, checked, copied, and restorable with the password", "[safety][backup][sealed]")
+{
+    QTemporaryDir dir;
+    const QString path = seeded(dir);
+    const QString backups = dir.filePath(u"backups"_s);
+    const QString usb = dir.filePath(u"usb/viewtouch"_s);
+    const QByteArray salt = storage::newSalt();
+    const QByteArray key = storage::sealingKey(u"store password"_s, salt);
+
+    storage::BackupScheduler scheduler(path, backups, 2, 0);
+    scheduler.setCopyDirectory(usb);
+    scheduler.setSealing(key, salt);
+    QSignalSpy done(&scheduler, &storage::BackupScheduler::finished);
+    scheduler.backupNow();
+    REQUIRE(done.wait(20000));
+    INFO(done.last()[2].toString().toStdString());
+    REQUIRE(done.last()[0].toBool());
+    CHECK(done.last()[4].toBool());
+    const QStringList files = storage::listBackups(backups);
+    REQUIRE(files.size() == 1);
+    CHECK(files.first().endsWith(u".vtbak"_s));   // no plain copy left behind
+    CHECK(QDir(backups).entryList(QDir::Files).size() == 1);
+    const QStringList copies = storage::listBackups(usb);
+    REQUIRE(copies.size() == 1);
+    CHECK(storage::isSealed(copies.first()));
+    REQUIRE(storage::openSealedFile(copies.first(), dir.filePath(u"restored.db"_s), u"store password"_s));
+    CHECK(storage::verifyDatabase(dir.filePath(u"restored.db"_s)));
+}
+
+TEST_CASE("Encrypt backups: a manager sets a backup password", "[safety][backup][sealed]")
+{
+    app::PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    pos.shared()->backupKeyFor = [](const QString &password) {
+        const QByteArray salt = storage::newSalt();
+        return std::pair{storage::sealingKey(password, salt), salt};
+    };
+    QVariantMap store = pos.adminRecords(u"store"_s).value(0).toMap();
+    CHECK_FALSE(store[u"encryptBackups"_s].toBool());
+    store[u"encryptBackups"_s] = true;
+    store[u"backupPassword"_s] = u"short"_s;
+    CHECK_FALSE(pos.adminSave(u"store"_s, 0, store));
+    CHECK(pos.shared()->settings.backupKey.empty());
+    store[u"backupPassword"_s] = u"long enough"_s;
+    REQUIRE(pos.adminSave(u"store"_s, 0, store));
+    const std::string key = pos.shared()->settings.backupKey;
+    CHECK(QByteArray::fromBase64(QByteArray::fromStdString(key)).size() == 32);
+    CHECK(pos.adminRecords(u"store"_s).value(0).toMap()[u"backupPassword"_s].toString().isEmpty());   // never shown
+    // Saving other settings keeps it; turning it off forgets it.
+    store = pos.adminRecords(u"store"_s).value(0).toMap();
+    REQUIRE(pos.adminSave(u"store"_s, 0, store));
+    CHECK(pos.shared()->settings.backupKey == key);
+    store[u"encryptBackups"_s] = false;
+    REQUIRE(pos.adminSave(u"store"_s, 0, store));
+    CHECK(pos.shared()->settings.backupKey.empty());
 }
 
 TEST_CASE("Back Up Now: managers only, and the status shows on End of Day", "[safety][backup]")

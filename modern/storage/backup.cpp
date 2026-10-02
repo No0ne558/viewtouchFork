@@ -1,5 +1,7 @@
 #include "storage/backup.hh"
 
+#include "storage/sealed.hh"
+
 #include <QAtomicInt>
 #include <QDir>
 #include <QFile>
@@ -80,6 +82,18 @@ void takeOwnership(const QString &file, const QString &like)
 
 } // namespace
 
+// An encrypted copy can't be opened without the key: it is checked byte for byte.
+bool sameBytes(const QString &a, const QString &b, QString *error)
+{
+    QFile fa(a);
+    QFile fb(b);
+    if (fa.open(QIODevice::ReadOnly) && fb.open(QIODevice::ReadOnly) && fa.readAll() == fb.readAll())
+        return true;
+    if (error)
+        *error = u"the copy differs from the backup"_s;
+    return false;
+}
+
 bool copyBackup(const QString &backup, const QString &dir, QString *note)
 {
     const QString target = QDir(dir).filePath(QFileInfo(backup).fileName());
@@ -89,7 +103,8 @@ bool copyBackup(const QString &backup, const QString &dir, QString *note)
         error = u"cannot create %1 (is the drive plugged in?)"_s.arg(dir);
     else if (QFile::remove(part), !QFile::copy(backup, part))
         error = u"cannot write to %1"_s.arg(dir);
-    else if (!verifyDatabase(part, &error) || !QFile::rename(part, target))
+    else if (!(isSealed(backup) ? sameBytes(backup, part, &error) : verifyDatabase(part, &error))
+             || !QFile::rename(part, target))
         QFile::remove(part);
     else {
         if (note)
@@ -208,7 +223,8 @@ bool restoreDatabase(const QString &backup, const QString &db, QString *keptAs, 
 QStringList listBackups(const QString &dir)
 {
     QStringList out;
-    const QFileInfoList files = QDir(dir).entryInfoList({u"viewtouch-*.db"_s}, QDir::Files, QDir::Name | QDir::Reversed);
+    const QFileInfoList files = QDir(dir).entryInfoList({u"viewtouch-*.db"_s, u"viewtouch-*.vtbak"_s}, QDir::Files,
+                                                        QDir::Name | QDir::Reversed);
     for (const QFileInfo &f : files)
         out.append(f.absoluteFilePath());
     return out;
@@ -266,7 +282,7 @@ void BackupScheduler::backupNow()
     if (running_)
         return;
     running_ = true;
-    pool_.start([this, db = db_, dir = dir_, copyDir = copyDir_, keep = keep_] {
+    pool_.start([this, db = db_, dir = dir_, copyDir = copyDir_, keep = keep_, key = sealKey_, salt = sealSalt_] {
         QString error;
         QString target;
         bool ok = QDir().mkpath(dir);
@@ -278,6 +294,20 @@ void BackupScheduler::backupNow()
             for (int n = 2; QFile::exists(target); ++n)
                 target = QDir(dir).filePath(backupFileName(now).replace(u".db"_s, u"-%1.db"_s.arg(n)));
             ok = backupDatabase(db, target, &error);
+            if (ok && !key.isEmpty()) {
+                // Encrypted: sealed, opened again and checked, then the plain copy goes.
+                QString sealed = target;
+                sealed.replace(u".db"_s, u".vtbak"_s);
+                const QString check = target + u".check"_s;
+                QFile::remove(check);
+                ok = sealFile(target, sealed, key, salt, &error) && openSealedFileWithKey(sealed, check, key, &error)
+                     && verifyDatabase(check, &error);
+                QFile::remove(check);
+                QFile::remove(target);
+                if (!ok)
+                    QFile::remove(sealed);
+                target = sealed;
+            }
             if (ok)
                 pruneBackups(dir, keep);
         }
