@@ -135,8 +135,9 @@ TEST_CASE("How items look in the kitchen: kitchen names, colors, hidden items an
     REQUIRE(pos.selectTable(u"T1"_s) == PosService::TableNeedsGuests);
     REQUIRE(pos.startCheck(core::CheckType::DineIn));
     pos.addItem(u"bacon-burger"_s);                 // kitchen name BCN BGR, orange
-    pos.addItem(u"medium-rare"_s);                  // MR
-    pos.addItem(u"no-side"_s);                      // hidden modifier
+    REQUIRE(pos.chooseOption(u"temperature"_s, 1)); // Medium Rare: MR
+    REQUIRE(pos.chooseOption(u"side"_s, 4));        // No Side: left off the ticket
+    REQUIRE(pos.finishChoosing());
     pos.addItem(u"water"_s);                        // hidden item
     pos.addItem(u"house-salad"_s);
     const int last = int(pos.shared()->settings.modifierGroups[groupIndex].options.size()) - 1;

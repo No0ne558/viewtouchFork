@@ -222,14 +222,14 @@ TEST_CASE("Pages: add, duplicate, delete rules", "[editor]")
 TEST_CASE("Renaming a page id rewrites every reference", "[editor]")
 {
     LayoutEditor e(seed());
-    const QStringList before = e.referencesTo(u"mod-temperature"_s);
+    const QStringList before = e.referencesTo(u"split"_s);
     CHECK_FALSE(before.isEmpty());
 
     QString why;
-    REQUIRE(e.setPageField(u"mod-temperature"_s, u"id"_s, u"mod-doneness"_s, &why));
-    CHECK_FALSE(e.layout().page(u"mod-temperature"_s));
-    CHECK(e.referencesTo(u"mod-doneness"_s).size() == before.size());
-    CHECK(e.referencesTo(u"mod-temperature"_s).isEmpty());
+    REQUIRE(e.setPageField(u"split"_s, u"id"_s, u"split-check"_s, &why));
+    CHECK_FALSE(e.layout().page(u"split"_s));
+    CHECK(e.referencesTo(u"split-check"_s).size() == before.size());
+    CHECK(e.referencesTo(u"split"_s).isEmpty());
     CHECK(e.layout().validate() == QStringList{});
 
     REQUIRE(e.setPageField(u"order-template"_s, u"id"_s, u"order-base"_s, &why));

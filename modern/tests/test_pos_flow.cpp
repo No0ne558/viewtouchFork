@@ -85,11 +85,11 @@ TEST_CASE("Flow: login, table, order with modifiers, send, pay, close", "[flow]"
     CHECK(s.pos.checkInfo()[u"guests"_s].toInt() == 2);
 
     s.c.activate(u"cat-items-burgers"_s);
-    s.c.activate(u"item-1"_s);                       // Classic Burger
-    CHECK(s.c.pageId() == u"mod-temperature"_s);
-    s.c.activate(u"opt-2"_s);                        // Medium Rare
-    CHECK(s.c.pageId() == u"mod-side"_s);
-    s.c.activate(u"opt-3"_s);                        // Onion Rings (+1.00)
+    s.c.activate(u"item-1"_s);                       // Classic Burger: its choices
+    CHECK(s.c.pageId() == u"modifiers"_s);
+    REQUIRE(s.pos.chooseOption(u"temperature"_s, 1)); // Medium Rare
+    REQUIRE(s.pos.chooseOption(u"side"_s, 2));        // Onion Rings (+1.00)
+    s.c.finishChoosing();
     CHECK(s.c.pageId() == u"items-burgers"_s);
 
     // Qualifier button stays lit while pending, clears after use.
@@ -484,8 +484,9 @@ TEST_CASE("UI: the customer display shows the order, asks for a tip, says thank 
     REQUIRE(s.pos.selectTable(u"T4"_s) == app::PosService::TableNeedsGuests);
     REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
     s.pos.addItem(u"bacon-burger"_s);
-    s.pos.addItem(u"medium-rare"_s);
-    s.pos.addItem(u"onion-rings"_s);
+    REQUIRE(s.pos.chooseOption(u"temperature"_s, 1));   // Medium Rare
+    REQUIRE(s.pos.chooseOption(u"side"_s, 2));          // Onion Rings (+1.00)
+    REQUIRE(s.pos.finishChoosing());
     s.pos.addItem(u"house-salad"_s);
     REQUIRE(s.pos.chooseOption(u"dressing"_s, 0));
     REQUIRE(s.pos.chooseOption(u"salad-protein"_s, 0));
@@ -525,6 +526,9 @@ TEST_CASE("UI: the kitchen display with a rush ticket and the all-day counts", "
         REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
         for (const char *i : items) {
             s.pos.addItem(QString::fromLatin1(i));
+            for (const QVariant &g : s.pos.choosingInfo()[u"groups"_s].toList())   // the first of what's required
+                if (!g.toMap()[u"done"_s].toBool())
+                    s.pos.chooseOption(g.toMap()[u"id"_s].toString(), 0);
             s.pos.finishChoosing();
         }
         if (rush)
@@ -535,7 +539,7 @@ TEST_CASE("UI: the kitchen display with a rush ticket and the all-day counts", "
     order(u"T1"_s, {"cobb", "caesar"});
     order(u"T2"_s, {"cobb", "cobb", "water"});
     order(u"T3"_s, {"caesar"}, true);
-    order(u"T4"_s, {"bacon-burger", "medium-rare", "fries", "cheeseburger"});
+    order(u"T4"_s, {"bacon-burger", "cheeseburger"});
     REQUIRE(s.c.jumpTo(u"kitchen"_s));
     QTest::qWait(50);
     s.tapKey(u"All Day"_s);
@@ -603,9 +607,29 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     s.tapItem(find(u"kioskForHere"_s));
     REQUIRE(s.pos.selfOrderInfo()[u"ordering"_s].toBool());
     QTest::qWait(60);
-    s.tapItem(Screen::findBy(kiosk, "text", u"Classic Burger"_s));   // the kiosk's card, not the page behind
+    // A burger asks how it's cooked and for a side; the guest touches them.
+    const auto burger = [&](const QString &name, const QString &temperature, const QString &side) {
+        s.tapItem(Screen::findBy(kiosk, "text", name));   // the kiosk's card, not the page behind
+        QTest::qWait(60);
+        QQuickItem *done = find(u"kioskChoicesDone"_s);
+        REQUIRE(done);
+        CHECK(done->isVisible());
+        CHECK_FALSE(done->isEnabled());                   // nothing chosen yet
+        s.tapItem(Screen::findBy(kiosk, "text", temperature));
+        s.tapItem(Screen::findBy(kiosk, "text", side));
+        QTest::qWait(30);
+        CHECK(done->isEnabled());
+        s.tapItem(done);
+    };
+    burger(u"Classic Burger"_s, u"Medium Rare"_s, u"Fries"_s);
     s.tapItem(Screen::findBy(kiosk, "text", u"Cheeseburger"_s));
+    QTest::qWait(60);
+    s.tapItem(Screen::findBy(kiosk, "text", u"Well Done"_s));
+    s.shot("21b-kiosk-choices");
+    s.tapItem(Screen::findBy(kiosk, "text", u"Onion Rings\n+$1.00"_s));
+    s.tapItem(find(u"kioskChoicesDone"_s));
     REQUIRE(s.pos.lines().size() == 2);
+    CHECK(s.pos.lines()[0].toMap()[u"modifiers"_s].toList().size() == 2);   // Medium Rare, Fries
     s.shot("21-kiosk-menu");
     s.tapItem(find(u"kioskRemove"_s));                   // changed their mind
     REQUIRE(s.pos.lines().size() == 1);
@@ -740,7 +764,7 @@ TEST_CASE("UI: the expo screen - kitchen names, what's made, ready in blue", "[f
         REQUIRE(s.pos.sendOrder());
         s.pos.releaseCheck();
     };
-    order(u"T1"_s, {"bacon-burger", "medium-rare", "fries", "draft-beer"});
+    order(u"T1"_s, {"bacon-burger", "draft-beer"});
     order(u"T2"_s, {"cobb", "kids-burger"});
     const QVariantMap t2 = s.pos.expoTickets().last().toMap();
     REQUIRE(s.pos.bumpTicket(t2[u"checkId"_s].toLongLong(), t2[u"sentAt"_s].toLongLong(), {}));
@@ -910,10 +934,11 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
     go("index-lunch", "m04-menu-index");
     s.pos.addItem(u"bacon-burger"_s);
-    s.pos.addItem(u"medium-rare"_s);
-    s.pos.addItem(u"fries"_s);
+    s.pos.chooseOption(u"temperature"_s, 1);                    // Medium Rare
+    s.pos.chooseOption(u"side"_s, 0);                           // Fries
+    s.pos.finishChoosing();
     go("items-burgers", "m05-items");
-    s.c.activate(u"item-1"_s);                                  // Classic Burger -> its modifier pages
+    s.c.activate(u"item-1"_s);                                  // Classic Burger -> its choices
     QTest::qWait(120);
     snap("m06-modifier-page");
     s.c.jumpTo(u"items-salads"_s);

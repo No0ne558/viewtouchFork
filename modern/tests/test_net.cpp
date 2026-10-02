@@ -259,10 +259,12 @@ TEST_CASE("Remote terminal: full order flow through the server", "[net][remote]"
     CHECK(front.remote->checkInfo()[u"guests"_s].toInt() == 3);
 
     front.tap(u"cat-items-burgers"_s);
-    front.tap(u"item-1"_s);                            // Classic Burger -> Temperature
-    CHECK(front.c.pageId() == u"mod-temperature"_s);
-    front.tap(u"opt-2"_s);
-    front.tap(u"skip"_s);
+    front.tap(u"item-1"_s);                            // Classic Burger -> its choices
+    CHECK(front.c.pageId() == u"modifiers"_s);
+    front.remote->chooseOption(u"temperature"_s, 1);   // Medium Rare
+    front.settle();
+    front.c.finishChoosing();
+    front.settle();
     CHECK(front.c.pageId() == u"items-burgers"_s);
     REQUIRE(front.remote->lines().size() == 1);
     CHECK(front.remote->lines()[0].toMap()[u"modifiers"_s].toList().size() == 1);

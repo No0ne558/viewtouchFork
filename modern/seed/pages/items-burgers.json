@@ -38,11 +38,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "classic-burger",
-          "modifierSequence": [
-            "mod-temperature",
-            "mod-side"
-          ]
+          "item": "classic-burger"
         }
       ],
       "style": {
@@ -66,11 +62,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "cheeseburger",
-          "modifierSequence": [
-            "mod-temperature",
-            "mod-side"
-          ]
+          "item": "cheeseburger"
         }
       ],
       "style": {
@@ -94,11 +86,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "bacon-burger",
-          "modifierSequence": [
-            "mod-temperature",
-            "mod-side"
-          ]
+          "item": "bacon-burger"
         }
       ],
       "style": {
@@ -122,11 +110,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "mushroom-swiss",
-          "modifierSequence": [
-            "mod-temperature",
-            "mod-side"
-          ]
+          "item": "mushroom-swiss"
         }
       ],
       "style": {
@@ -150,10 +134,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "veggie-burger",
-          "modifierSequence": [
-            "mod-side"
-          ]
+          "item": "veggie-burger"
         }
       ],
       "style": {
@@ -201,11 +182,7 @@
       "actions": [
         {
           "type": "addItem",
-          "item": "burger-of-the-day",
-          "modifierSequence": [
-            "mod-temperature",
-            "mod-side"
-          ]
+          "item": "burger-of-the-day"
         }
       ],
       "imagePath": "qrc:/images/burger.png"
@@ -221,7 +198,7 @@
       },
       "shape": "rect",
       "behavior": "none",
-      "label": "Burgers run Temperature, then Side, then return here."
+      "label": "Burgers ask for Temperature and Side (Manager -> Modifier Groups)."
     }
   ]
 }

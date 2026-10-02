@@ -91,6 +91,11 @@ item("omelette")["modifierGroups"] = ["omelette-fillings", "toast", "breakfast-a
 for bid in ("pancakes", "french-toast"):
     item(bid)["modifierGroups"] = ["syrup", "breakfast-add-ons"]
 item("kids-burger")["modifierGroups"] = ["kids-side", "kids-drink"]
+# Burgers ask how they're cooked and for a side (the veggie patty just the side),
+# on staff screens and the self-order kiosk alike.
+for bid in ("classic-burger", "cheeseburger", "bacon-burger", "mushroom-swiss", "burger-of-the-day"):
+    item(bid)["modifierGroups"] = ["temperature", "side"]
+item("veggie-burger")["modifierGroups"] = ["side"]
 for did in ("soda", "lemonade", "juice"):
     item(did)["modifierGroups"] = ["drink-size"]
 item("coffee")["modifierGroups"] = ["coffee-extras"]
@@ -236,6 +241,12 @@ write("pos/settings.json", {
          "options": [{"name": "Bacon", "price": 3.00}, {"name": "Sausage", "price": 3.00},
                      {"name": "Fruit Cup", "price": 2.50}, {"name": "Hash Browns", "price": 2.75},
                      {"name": "Whipped Cream", "price": 0.75}]},
+        {"id": "temperature", "name": "Temperature", "min": 1, "max": 1,
+         "options": [{"name": n, "price": 0, "kitchenName": k} for n, k in
+                     zip(TEMPS, ("RARE", "MR", "MED", "MW", "WELL"))]},
+        {"id": "side", "name": "Side", "min": 1, "max": 1,   # "No Side": nothing for the kitchen
+         "options": [dict({"name": n, "price": p}, **({"kitchenHide": True} if n == "No Side" else {}))
+                     for n, p in SIDES]},
         {"id": "kids-side", "name": "Kids Side", "min": 1, "max": 1,
          "options": [{"name": n, "price": 0} for n in ("Fries", "Apple Slices", "Fruit Cup", "Carrot Sticks")]},
         {"id": "kids-drink", "name": "Kids Drink", "min": 0, "max": 1,
@@ -361,36 +372,16 @@ def item_page(id, name, items, color, shape="rounded", cols=4, cell=(316, 180), 
     zs.extend(extra)
     page(id, name, "items", zs, templateId="order-template")
 
-BURGER_MODS = ["mod-temperature", "mod-side"]
-item_page("items-burgers", "Burgers",
-          [(n, BURGER_MODS if n not in ("Veggie Burger", "Kids Burger", "Burger of the Day")
-            else (["mod-side"] if n == "Veggie Burger" else None))
-           for n, _ in BURGERS[:6]],
-          AMBER,
+item_page("items-burgers", "Burgers", [(n, None) for n, _ in BURGERS[:6]], AMBER,
           extra=[zone("burger-photo", 592, 596, 316, 260, "Burger of the Day", kind="image",
-                      imagePath="qrc:/images/burger.png",
-                      actions=[add("Burger of the Day", BURGER_MODS)]),
+                      imagePath="qrc:/images/burger.png", actions=[add("Burger of the Day")]),
                  zone("note", 1240, 596, 664, 120,
-                      "Burgers run Temperature, then Side, then return here.", kind="comment")])
+                      "Burgers ask for Temperature and Side (Manager -> Modifier Groups).", kind="comment")])
 item_page("items-salads", "Salads", [(n, None) for n, _ in SALADS], GREEN, shape="hexagon")
 item_page("items-drinks", "Drinks", [(n, None) for n, _, _ in DRINKS], TEAL, shape="circle", cols=5,
           cell=(200, 200))
 item_page("items-breakfast", "Breakfast Plates", [(n, None) for n, _ in BREAKFAST], AMBER, shape="octagon",
           cell=(316, 220))
-
-# ---------------------------------------------------------------- modifier pages
-def modifier_page(id, name, question, options):
-    zs = [label("title", 592, 104, 1312, 72, question)]
-    for i, text in enumerate(options):
-        col, row = i % 3, i // 3
-        zs.append(zone(f"opt-{i + 1}", 592 + col * 444, 192 + row * 196, 424, 180, text,
-                       actions=[add(text), jump(mode="sequence")]))
-    zs.append(zone("skip", 1480, 800, 424, 120, "Skip ›", actions=[jump(mode="sequence")],
-                   style={"normal": {"fill": "#3a4250", "fontSize": 28}}))
-    page(id, name, "modifier", zs, templateId="order-template")
-
-modifier_page("mod-temperature", "Temperature", "How should it be cooked?", TEMPS)
-modifier_page("mod-side", "Side", "Choose a side", [n for n, _ in SIDES])
 
 # Free-text note for the kitchen
 page("note", "Note", "custom", [

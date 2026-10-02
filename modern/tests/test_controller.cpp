@@ -3,6 +3,8 @@
 #include "layoutcontroller.hh"
 #include "qt_catch.hh"
 
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QSignalSpy>
 
 using namespace Qt::StringLiterals;
@@ -14,6 +16,59 @@ LayoutController seedController()
     auto layout = vt::layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
     REQUIRE(layout);
     return LayoutController(std::move(*layout));
+}
+
+// The starter pages plus the older way to ask for modifiers: the Classic
+// Burger button runs a chain of pages (Temperature, then Side), as a store
+// can still build in the page editor.
+vt::layout::Layout withModifierPages()
+{
+    auto seed = vt::layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    REQUIRE(seed);
+    QJsonObject root = seed->toJson();
+    QJsonArray pages = root.value(u"pages").toArray();
+    auto modifierPage = [](const QString &id, const QStringList &options) {
+        QJsonArray zones;
+        for (int i = 0; i < options.size(); ++i) {
+            const QString item = options[i].toLower().replace(u' ', u'-');
+            zones.append(QJsonObject{
+                {u"id"_s, u"opt-%1"_s.arg(i + 1)}, {u"kind"_s, u"button"_s}, {u"label"_s, options[i]},
+                {u"rect"_s, QJsonObject{{u"x"_s, 592 + i * 260}, {u"y"_s, 192}, {u"w"_s, 240}, {u"h"_s, 180}}},
+                {u"actions"_s, QJsonArray{QJsonObject{{u"type"_s, u"addItem"_s}, {u"item"_s, item}},
+                                          QJsonObject{{u"type"_s, u"jump"_s}, {u"mode"_s, u"sequence"_s}}}}});
+        }
+        zones.append(QJsonObject{
+            {u"id"_s, u"skip"_s}, {u"kind"_s, u"button"_s}, {u"label"_s, u"Skip"_s},
+            {u"rect"_s, QJsonObject{{u"x"_s, 1480}, {u"y"_s, 800}, {u"w"_s, 424}, {u"h"_s, 120}}},
+            {u"actions"_s, QJsonArray{QJsonObject{{u"type"_s, u"jump"_s}, {u"mode"_s, u"sequence"_s}}}}});
+        return QJsonObject{{u"schemaVersion"_s, 1}, {u"id"_s, id}, {u"name"_s, id}, {u"kind"_s, u"modifier"_s},
+                           {u"canvas"_s, QJsonObject{{u"w"_s, 1920}, {u"h"_s, 1080}}}, {u"grid"_s, 8},
+                           {u"templateId"_s, u"order-template"_s}, {u"zones"_s, zones}};
+    };
+    pages.append(modifierPage(u"mod-temperature"_s, {u"Rare"_s, u"Medium Rare"_s, u"Medium"_s}));
+    pages.append(modifierPage(u"mod-side"_s, {u"Fries"_s, u"Onion Rings"_s}));
+    for (QJsonValueRef v : pages) {
+        QJsonObject page = v.toObject();
+        if (page.value(u"id").toString() != u"items-burgers")
+            continue;
+        QJsonArray zones = page.value(u"zones").toArray();
+        for (QJsonValueRef z : zones) {
+            QJsonObject zone = z.toObject();
+            if (zone.value(u"id").toString() == u"item-1")
+                zone[u"actions"_s] = QJsonArray{QJsonObject{
+                    {u"type"_s, u"addItem"_s}, {u"item"_s, u"classic-burger"_s},
+                    {u"modifierSequence"_s, QJsonArray{u"mod-temperature"_s, u"mod-side"_s}}}};
+            z = zone;
+        }
+        page[u"zones"_s] = zones;
+        v = page;
+    }
+    root[u"pages"_s] = pages;
+    QStringList errors;
+    auto layout = vt::layout::Layout::fromJson(root, &errors);
+    INFO(errors.join(u'\n').toStdString());
+    REQUIRE(layout);
+    return *layout;
 }
 
 // Row of the zone in the controller's model, or -1.
@@ -46,7 +101,7 @@ TEST_CASE("Meal period from time of day", "[controller]")
 TEST_CASE("Seed navigation without a POS session", "[controller]")
 {
     // Layout-only use (no PosService): commands are no-ops, jumps still work.
-    LayoutController c = seedController();
+    LayoutController c(withModifierPages());
     c.setMealPeriod(u"lunch"_s);
     QSignalSpy items(&c, &LayoutController::itemAdded);
 
@@ -65,7 +120,7 @@ TEST_CASE("Seed navigation without a POS session", "[controller]")
     CHECK(c.pageId() == u"items-burgers"_s);
     CHECK(role(c, u"tab-lunch"_s, ZoneModel::CurrentRole).toBool());   // via last index
 
-    // Burger runs Temperature -> Side -> back to the burger page.
+    // A burger button with a page chain: Temperature -> Side -> back to the burger page.
     c.activate(u"item-1"_s);
     CHECK(c.pageId() == u"mod-temperature"_s);
     c.activate(u"opt-3"_s);                     // "Medium", then continue sequence
