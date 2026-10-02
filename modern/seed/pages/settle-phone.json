@@ -18,7 +18,7 @@
         "x": 16,
         "y": 16,
         "w": 1048,
-        "h": 900
+        "h": 760
       },
       "shape": "rect",
       "behavior": "none"
@@ -28,9 +28,9 @@
       "kind": "numPad",
       "rect": {
         "x": 16,
-        "y": 932,
+        "y": 792,
         "w": 520,
-        "h": 700
+        "h": 840
       },
       "shape": "rect",
       "behavior": "none",
@@ -43,9 +43,9 @@
       "kind": "button",
       "rect": {
         "x": 552,
-        "y": 932,
+        "y": 792,
         "w": 512,
-        "h": 103
+        "h": 126
       },
       "shape": "rect",
       "behavior": "blink",
@@ -67,9 +67,9 @@
       "kind": "button",
       "rect": {
         "x": 552,
-        "y": 1051,
+        "y": 934,
         "w": 512,
-        "h": 103
+        "h": 126
       },
       "shape": "rect",
       "behavior": "blink",
@@ -91,9 +91,9 @@
       "kind": "button",
       "rect": {
         "x": 552,
-        "y": 1170,
+        "y": 1076,
         "w": 512,
-        "h": 103
+        "h": 126
       },
       "shape": "rect",
       "behavior": "blink",
@@ -116,9 +116,9 @@
       "kind": "button",
       "rect": {
         "x": 552,
-        "y": 1289,
+        "y": 1218,
         "w": 512,
-        "h": 103
+        "h": 126
       },
       "shape": "rect",
       "behavior": "blink",
@@ -140,9 +140,9 @@
       "kind": "button",
       "rect": {
         "x": 552,
-        "y": 1408,
+        "y": 1360,
         "w": 512,
-        "h": 103
+        "h": 126
       },
       "shape": "rect",
       "behavior": "blink",
@@ -164,9 +164,9 @@
       "kind": "button",
       "rect": {
         "x": 552,
-        "y": 1527,
+        "y": 1502,
         "w": 512,
-        "h": 103
+        "h": 126
       },
       "shape": "rect",
       "behavior": "blink",

@@ -795,13 +795,14 @@ phone_page("order-template", "Order Template", "template", [
 ], contentArea={"x": 16, "y": 878, "w": 1048, "h": 1032})
 
 tender_zones = []
-th = (700 - 16 * (len(tenders) - 1)) // len(tenders)
+# Six payment types beside the keypad, each still a finger tall on a phone.
+th = (840 - 16 * (len(tenders) - 1)) // len(tenders)
 for i, (text, tid, color) in enumerate(tenders):
-    tender_zones.append(zone(f"tender-{tid}", 552, 932 + i * (th + 16), 512, th, text,
+    tender_zones.append(zone(f"tender-{tid}", 552, 792 + i * (th + 16), 512, th, text,
                              actions=tender_action(tid), style=fill(color)))
 phone_page("settle", "Settle", "settle", [
-    zone("payment", 16, 16, 1048, 900, kind="paymentPanel"),
-    zone("pad", 16, 932, 520, 700, kind="numPad", props={"mode": "amount"}),
+    zone("payment", 16, 16, 1048, 760, kind="paymentPanel"),
+    zone("pad", 16, 792, 520, 840, kind="numPad", props={"mode": "amount"}),
     *tender_zones,
     zone("close", 16, 1648, 520, 180, "Close Check", actions=[command("closeCheck")], style=fill(GREEN)),
     zone("receipt", 552, 1648, 512, 180, "Print Receipt", actions=[command("printReceipt")]),

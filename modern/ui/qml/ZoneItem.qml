@@ -25,6 +25,17 @@ Item {
     required property bool soldOut   // its item is 86'd: shown, not orderable
 
     // POS session and controller, for widgets.
+    // Screen pixels per canvas unit (the page is scaled to fit the screen).
+    property real screenScale: 1
+    // Form widgets lay out desktop-sized controls (25 px) and scale them by
+    // this: big enough for a finger (46 screen px), unless the content would
+    // then be narrower than `minWidth` (or shorter than `minHeight`) canvas units.
+    function formZoom(minWidth, minHeight) {
+        const touch = 46 / (25 * Math.max(0.1, screenScale))
+        return Math.max(1, Math.min(touch, width / minWidth, minHeight ? height / minHeight : touch))
+    }
+    // Canvas units for `px` screen pixels: keys at least a finger tall.
+    function touch(px) { return px / Math.max(0.1, screenScale) }
     property LayoutController controller
     property PosService pos
 

@@ -66,11 +66,14 @@ Item {
         anchors.margins: w.unit * 0.6
         spacing: w.unit * 0.5
 
-        RowLayout {
+        // Two rows, so each name has room to be read.
+        GridLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: w.unit * 2.6
+            Layout.preferredHeight: 2 * Math.max(w.unit * 2.2, w.zone ? w.zone.touch(46) : 0) + w.unit * 0.3
             Layout.fillHeight: false   // nested layouts fill by default
-            spacing: w.unit * 0.3
+            columns: Math.ceil(w.reportIds.length / 2)
+            rowSpacing: w.unit * 0.3
+            columnSpacing: w.unit * 0.3
             Repeater {
                 model: w.reportIds
                 delegate: WidgetKey {
@@ -88,7 +91,7 @@ Item {
         // Which days.
         RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: w.unit * 2.2
+            Layout.preferredHeight: Math.max(w.unit * 2.2, w.zone ? w.zone.touch(46) : 0)
             Layout.fillHeight: false
             spacing: w.unit * 0.3
             Repeater {
@@ -137,7 +140,7 @@ Item {
             }
             WidgetKey {
                 Layout.preferredWidth: w.unit * 5
-                Layout.preferredHeight: w.unit * 2
+                Layout.preferredHeight: Math.max(w.unit * 2, w.zone ? w.zone.touch(46) : 0)
                 text: qsTr("Show")
                 fontScale: 0.34
                 onClicked: w.refresh()
@@ -147,7 +150,7 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: w.unit * 2.4
+            Layout.preferredHeight: Math.max(w.unit * 2.4, w.zone ? w.zone.touch(46) : 0)
             Layout.fillHeight: false
             spacing: w.unit * 0.3
             Text {

@@ -24,7 +24,8 @@ Item {
             anchors.margins: 10
             spacing: 14
 
-            ColumnLayout {
+            // Scrolls when many people are clocked in.
+            TouchScrollColumn {
                 Layout.preferredWidth: parent.width * 0.58
                 Layout.fillWidth: false
                 Layout.fillHeight: true
@@ -43,6 +44,7 @@ Item {
                             checkable: true
                             checked: w.to === modelData.id
                             implicitHeight: 48
+                            font.pixelSize: 16
                             onClicked: w.to = modelData.id
                         }
                     }
@@ -57,6 +59,7 @@ Item {
                             required property string modelData
                             text: modelData
                             implicitHeight: 48
+                            font.pixelSize: 16
                             onClicked: { message.text = modelData; message.forceActiveFocus(); message.cursorPosition = message.length }
                         }
                     }
@@ -64,6 +67,7 @@ Item {
                 TextField {
                     id: message
                     Layout.fillWidth: true
+                    implicitHeight: 52
                     font.pixelSize: 20
                     placeholderText: qsTr("Type a message…")
                     onAccepted: send.clicked()
@@ -78,7 +82,6 @@ Item {
                     enabled: message.text.trim().length > 0
                     onClicked: { w.pos.sendMessage(w.to, message.text); message.text = "" }
                 }
-                Item { Layout.fillHeight: true }
             }
 
             ToolSeparator { Layout.fillHeight: true }

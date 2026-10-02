@@ -40,6 +40,7 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     TextField {
+                        implicitHeight: 48
                         id: number
                         Layout.fillWidth: true
                         font.pixelSize: 22
@@ -49,7 +50,8 @@ Item {
                         // A card reader types the number and Enter.
                         onAccepted: w.lookUp()
                     }
-                    Button { text: qsTr("Look Up"); implicitHeight: 48; onClicked: w.lookUp() }
+                    Button { text: qsTr("Look Up")
+                        font.pixelSize: 17; implicitHeight: 48; onClicked: w.lookUp() }
                 }
 
                 Label { text: qsTr("Amount"); opacity: 0.8; Layout.topMargin: 8 }
@@ -62,6 +64,7 @@ Item {
                             required property int modelData
                             Layout.fillWidth: true
                             implicitHeight: 56
+                            font.pixelSize: 20
                             text: "$" + modelData / 100
                             checkable: true
                             checked: w.amountCents === modelData && other.text === ""
@@ -72,6 +75,7 @@ Item {
                 RowLayout {
                     Label { text: qsTr("Other $") }
                     TextField {
+                        implicitHeight: 48
                         id: other
                         Layout.fillWidth: true
                         inputMethodHints: Qt.ImhFormattedNumbersOnly

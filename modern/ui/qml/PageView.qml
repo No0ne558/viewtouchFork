@@ -48,6 +48,7 @@ Item {
             delegate: ZoneItem {
                 controller: view.controller
                 pos: view.controller.pos
+                screenScale: view.scaleFactor
                 selectedZoneId: view.selectedZoneId
                 editing: view.editing
                 editSelected: view.editing && editLayer.sel.includes(zoneId)

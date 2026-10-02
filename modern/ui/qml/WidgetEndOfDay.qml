@@ -80,7 +80,7 @@ Item {
             }
             WidgetKey {
                 Layout.preferredWidth: w.unit * 8
-                Layout.preferredHeight: w.unit * 2
+                Layout.preferredHeight: Math.max(w.unit * 2, w.zone ? w.zone.touch(46) : 0)
                 text: qsTr("Back Up Now")
                 baseColor: "#343c49"
                 fontScale: 0.3
@@ -98,7 +98,7 @@ Item {
         }
         WidgetKey {
             Layout.fillWidth: true
-            Layout.preferredHeight: w.unit * 3.2
+            Layout.preferredHeight: Math.max(w.unit * 3.2, w.zone ? w.zone.touch(46) : 0)
             text: w.armed ? qsTr("Tap again to close the day") : qsTr("Close the Day")
             baseColor: (w.day.ready ?? false) ? (w.armed ? "#b83232" : "#1f5f3a") : "#3a3f48"
             fontScale: 0.3

@@ -64,7 +64,7 @@ Item {
     onPanelChanged: single ? choose(0) : (index = -2)
 
     // Controls are laid out at a comfortable size, then scaled with the page.
-    readonly property real zoom: 1.6
+    readonly property real zoom: zone ? zone.formZoom(680) : 1.6
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
@@ -210,6 +210,7 @@ Item {
                     Layout.fillHeight: true
                     contentWidth: availableWidth
                     clip: true
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     // Finger-wide, shown when the form is longer than the panel.
                     ScrollBar.vertical: TouchScrollBar {
                         id: formBar

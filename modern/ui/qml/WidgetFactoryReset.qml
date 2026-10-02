@@ -45,6 +45,7 @@ Item {
             }
             Label { text: qsTr("Type RESET to confirm"); font.pixelSize: 17; Layout.topMargin: 10 }
             TextField {
+                implicitHeight: 56
                 id: confirm
                 Layout.fillWidth: true
                 font.pixelSize: 24

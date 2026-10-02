@@ -128,6 +128,7 @@ if(Qt6_FOUND)
             ui/qml/WidgetModifierPicker.qml
             ui/qml/WidgetSoldOutList.qml
             ui/qml/TouchScrollBar.qml
+            ui/qml/TouchScrollColumn.qml
             ui/qml/TouchKeyboard.qml
             ui/qml/ApprovalPad.qml
             ui/qml/MessageBanner.qml

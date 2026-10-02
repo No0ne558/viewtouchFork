@@ -197,8 +197,19 @@ TEST_CASE("Customer details typed then Continue are kept", "[ui][pages]")
     QTest::qWait(50);
     auto *surface = window->findChild<QQuickItem *>(u"pageSurface"_s);
     REQUIRE(surface);
-    // Name field: first entry in the form (widget at 16,112, drawn at 1.6x).
-    QTest::mouseClick(window, Qt::LeftButton, {}, surface->mapToScene(QPointF(400, 112 + 70 * 1.6)).toPoint());
+    // Name field: the first text field in the form (wherever the zoom puts it).
+    std::function<QQuickItem *(QQuickItem *)> firstField = [&](QQuickItem *item) -> QQuickItem * {
+        if (item->inherits("QQuickTextField") && item->isVisible())
+            return item;
+        for (QQuickItem *child : item->childItems())
+            if (QQuickItem *found = firstField(child))
+                return found;
+        return nullptr;
+    };
+    QQuickItem *name = firstField(surface);
+    REQUIRE(name);
+    QTest::mouseClick(window, Qt::LeftButton, {},
+                      name->mapToScene(QPointF(name->width() / 2, name->height() / 2)).toPoint());
     for (char ch : std::string("Lee"))
         QTest::keyClick(window, ch);
     c.activate(u"menu"_s);                          // Continue at once, no Save button

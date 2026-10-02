@@ -29,7 +29,7 @@ Item {
         note = ""
     }
 
-    readonly property real zoom: Math.max(1, Math.min(1.6, width / 1200))
+    readonly property real zoom: zone ? zone.formZoom(680) : 1
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom

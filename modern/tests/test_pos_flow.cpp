@@ -702,6 +702,98 @@ TEST_CASE("UI: the expo screen - kitchen names, what's made, ready in blue", "[f
     CHECK(Screen::findBy(s.window->contentItem(), "text", u"READY"_s));
 }
 
+// --- touch targets ------------------------------------------------------------------------
+// Every page on a 1280x800 screen: lists what a finger can touch that is
+// smaller than 40 px (about 7 mm on a 10" screen; widgets aim for 46).
+
+namespace {
+
+QString describe(QQuickItem *item)
+{
+    for (QQuickItem *i = item; i; i = i->parentItem()) {
+        for (const char *p : {"text", "placeholderText", "objectName"}) {
+            const QString v = i->property(p).toString();
+            if (!v.isEmpty())
+                return QString::fromLatin1(item->metaObject()->className()) + u" \""_s + v.left(40) + u'"';
+        }
+    }
+    return QString::fromLatin1(item->metaObject()->className());
+}
+
+bool touchable(QQuickItem *item)
+{
+    if (item->inherits("QQuickAbstractButton") || item->inherits("QQuickMouseArea") || item->inherits("QQuickComboBox")
+        || item->inherits("QQuickTextField") || item->inherits("QQuickSpinBox") || item->inherits("QQuickScrollBar"))
+        return true;
+    for (QObject *child : item->children()) {
+        if ((child->inherits("QQuickTapHandler") || child->inherits("QQuickDragHandler"))
+            && child->property("enabled").toBool())   // a label's handler is off
+            return true;
+    }
+    return false;
+}
+
+void smallTargets(QQuickItem *item, QQuickWindow *window, QStringList *out)
+{
+    if (!item->isVisible() || item->opacity() < 0.05)
+        return;
+    if (touchable(item) && item->isEnabled()) {
+        // The item's box (a text field's boundingRect is just its text).
+        const QRectF r = item->mapRectToScene(QRectF(0, 0, item->width(), item->height()));
+        const QRectF shown = r.intersected(QRectF(QPointF(), window->size()));
+        if (!shown.isEmpty() && (r.width() < 40 || r.height() < 40))
+            out->append(u"%1 (%2x%3)"_s.arg(describe(item)).arg(qRound(r.width())).arg(qRound(r.height())));
+    }
+    for (QQuickItem *child : item->childItems())
+        smallTargets(child, window, out);
+}
+
+} // namespace
+
+TEST_CASE("Touch: every control on every page is big enough for a finger", "[ui][touch]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    QStringList report;
+    QDir pages(QStringLiteral(VTM_SEED_DIR "/pages"));
+    for (const QString &file : pages.entryList({u"*.json"_s})) {
+        const QString id = file.chopped(5);
+        if (id.endsWith(u"-phone"_s) || !s.c.jumpTo(id))
+            continue;
+        QTest::qWait(60);
+        s.shot(qPrintable(u"touch-"_s + id));
+        QStringList small;
+        smallTargets(s.window->contentItem(), s.window, &small);
+        small.removeDuplicates();
+        for (const QString &x : small)
+            report << id + u": "_s + x;
+    }
+    WARN(report.join(u'\n').toStdString());
+    CHECK(report.isEmpty());
+}
+
+TEST_CASE("Touch: the phone pages on a phone", "[ui][touch]")
+{
+    Screen s(false, 412, 915, u"phone"_s);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    QStringList report;
+    QDir pages(QStringLiteral(VTM_SEED_DIR "/pages"));
+    for (const QString &file : pages.entryList({u"*-phone.json"_s})) {
+        const QString id = file.chopped(5).chopped(6);   // the base page; the phone variant shows
+        if (!s.c.jumpTo(id))
+            continue;
+        QTest::qWait(60);
+        s.shot(qPrintable(u"touch-phone-"_s + id));
+        QStringList small;
+        smallTargets(s.window->contentItem(), s.window, &small);
+        small.removeDuplicates();
+        for (const QString &x : small)
+            report << id + u": "_s + x;
+    }
+    WARN(report.join(u'\n').toStdString());
+    CHECK(report.isEmpty());
+}
+
 // --- the user manual's screenshots (hidden: run with "[.manual]" and VTM_SHOTS) ---------------
 
 #include "app/pos_demo.hh"

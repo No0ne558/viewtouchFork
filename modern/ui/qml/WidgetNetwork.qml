@@ -28,7 +28,7 @@ Item {
         Layout.topMargin: 14
     }
 
-    readonly property real zoom: Math.max(1, Math.min(1.6, width / 1100))
+    readonly property real zoom: zone ? zone.formZoom(688) : 1
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
