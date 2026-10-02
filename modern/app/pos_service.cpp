@@ -1394,6 +1394,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"kioskRemove"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.kioskRemove(a.value(0).toLongLong())); }},
         {u"kioskFinish"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.kioskFinish(a.value(0).toMap())); }},
         {u"kioskCancel"_s, [](PosService &p, const QVariantList &) { p.kioskCancel(); return QVariant(true); }},
+        {u"storeImage"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.storeImage(a.value(0).toString())); }},
         {u"setQualifier"_s, [](PosService &p, const QVariantList &a) { p.setQualifier(a.value(0).toString()); return QVariant(true); }},
         {u"selectLine"_s, [](PosService &p, const QVariantList &a) { p.selectLine(a.value(0).toLongLong()); return QVariant(true); }},
         {u"selectPayment"_s, [](PosService &p, const QVariantList &a) { p.selectPayment(a.value(0).toLongLong()); return QVariant(true); }},

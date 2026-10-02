@@ -8,6 +8,10 @@
 #include "qt_catch.hh"
 
 #include <QDeadlineTimer>
+#include <QFile>
+#include <QImage>
+#include <QTemporaryDir>
+#include <QUrl>
 #include <QSignalSpy>
 
 using namespace Qt::StringLiterals;
@@ -180,6 +184,22 @@ TEST_CASE("Self-order: a paired screen set up as a kiosk comes up as one", "[kio
     pairer.start(u"127.0.0.1"_s, server.port(), office.pairingInfo()[u"code"_s].toString(), u"Lobby"_s);
     REQUIRE(paired.wait(10000));
     const auto creds = paired[0][1].value<net::Credentials>();
+    // A photo for the Classic Burger, on the server's disk.
+    QTemporaryDir dir;
+    const QString photo = dir.filePath(u"burger.png"_s);
+    {
+        QImage img(64, 48, QImage::Format_RGB32);
+        img.fill(Qt::darkYellow);
+        REQUIRE(img.save(photo));
+    }
+    for (core::MenuItem &m : shared.menu)
+        if (m.id == "classic-burger")
+            m.image = photo.toStdString();
+    // Only the store's pictures are handed out, never any other file.
+    CHECK_FALSE(office.storeImage(photo).isEmpty());
+    CHECK(office.storeImage(dir.filePath(u"other.png"_s)).isEmpty());
+    CHECK(office.storeImage(u"/etc/hostname"_s).isEmpty());
+
     // Manager -> Terminals: the Lobby screen is a self-order kiosk.
     for (core::TerminalConfig &t : shared.settings.terminals)
         if (t.name == "Lobby")
@@ -187,10 +207,26 @@ TEST_CASE("Self-order: a paired screen set up as a kiosk comes up as one", "[kio
 
     net::RemoteSession lobby(u"Lobby"_s);
     lobby.setCredentials(creds);
+    lobby.setImageCache(dir.filePath(u"cache"_s));
     lobby.connectTo(creds.host, creds.port);
     REQUIRE(lobby.waitForWelcome(5000));
     CHECK(lobby.selfOrderInfo()[u"on"_s].toBool());
     CHECK_FALSE(lobby.kioskMenu()[u"items"_s].toList().isEmpty());
+
+    // The photo comes over from the server and is kept on this device.
+    const auto burgerImage = [&] {
+        for (const QVariant &v : lobby.kioskMenu()[u"items"_s].toList())
+            if (v.toMap()[u"id"_s] == u"classic-burger"_s)
+                return v.toMap()[u"image"_s].toString();
+        return QString();
+    };
+    REQUIRE(waitFor([&] { return !burgerImage().isEmpty(); }));
+    const QString local = QUrl(burgerImage()).toLocalFile();
+    CHECK(local.startsWith(dir.filePath(u"cache"_s)));
+    QFile a(photo), b(local);
+    REQUIRE(a.open(QIODevice::ReadOnly));
+    REQUIRE(b.open(QIODevice::ReadOnly));
+    CHECK(a.readAll() == b.readAll());
 
     lobby.kioskStart(true);
     CHECK(waitFor([&] { return lobby.selfOrderInfo()[u"ordering"_s].toBool(); }));

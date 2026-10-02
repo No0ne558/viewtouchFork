@@ -604,6 +604,8 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK(kiosk->isVisible());
     s.shot("20-kiosk-welcome");
 
+    s.tapItem(find(u"kioskAttract"_s));                  // "Touch to Order"
+    QTest::qWait(60);
     s.tapItem(find(u"kioskForHere"_s));
     REQUIRE(s.pos.selfOrderInfo()[u"ordering"_s].toBool());
     QTest::qWait(60);
@@ -1256,4 +1258,85 @@ TEST_CASE("UI: idle screens log out; messages show where they're meant to", "[fl
     QTest::qWait(400);
     CHECK_FALSE(s.pos.loggedIn());
     CHECK(s.c.pageId() == u"login"_s);
+}
+
+TEST_CASE("Kiosk on a 1080x1920 portrait screen (Chipsee KIOSK-CM4-215)", "[flow][ui][kiosk][portrait]")
+{
+    // A 21.5" floor-standing kiosk: tall, guests reaching up to it.
+    Screen s(false, 1080, 1920);
+    s.pos.enableSelfOrder();
+    QTest::qWait(100);
+    auto find = [&](const QString &name) {
+        QQuickItem *kiosk = Screen::findBy(s.window->contentItem(), "objectName", u"selfOrder"_s);
+        REQUIRE(kiosk);
+        // The visible one (landscape and portrait share some names).
+        std::function<QQuickItem *(QQuickItem *)> look = [&](QQuickItem *item) -> QQuickItem * {
+            if (!item->isVisible())
+                return nullptr;
+            if (item->objectName() == name)
+                return item;
+            for (QQuickItem *c : item->childItems())
+                if (QQuickItem *f = look(c))
+                    return f;
+            return nullptr;
+        };
+        return look(kiosk);
+    };
+    // In reach: what a guest touches sits in the lower two-thirds.
+    const auto lowerTwoThirds = [&](QQuickItem *item) {
+        REQUIRE(item);
+        return item->mapToScene(QPointF(0, 0)).y() >= 1920.0 / 3;
+    };
+    s.shot("p1-attract");
+    s.tapItem(find(u"kioskAttract"_s));
+    QTest::qWait(60);
+    CHECK(lowerTwoThirds(find(u"kioskForHere"_s)));
+    s.shot("p2-where");
+    s.tapItem(find(u"kioskForHere"_s));
+    REQUIRE(s.pos.selfOrderInfo()[u"ordering"_s].toBool());
+    QTest::qWait(60);
+    for (const char *name : {"kioskReview", "kioskOrderBar", "kioskStartOver", "kioskEasyReach"})
+        CHECK(lowerTwoThirds(find(QString::fromLatin1(name))));
+
+    // A burger: its choices come up from the bottom.
+    REQUIRE(s.pos.kioskAdd(u"classic-burger"_s));
+    REQUIRE(s.pos.chooseOption(u"temperature"_s, 1));
+    QTest::qWait(100);
+    CHECK(lowerTwoThirds(find(u"kioskChoicesDone"_s)));
+    s.shot("p3-choices");
+    REQUIRE(s.pos.chooseOption(u"side"_s, 2));
+    s.tapItem(find(u"kioskChoicesDone"_s));
+    REQUIRE(s.pos.kioskAdd(u"lemonade"_s));
+    REQUIRE(s.pos.chooseOption(u"drink-size"_s, 1));
+    REQUIRE(s.pos.finishChoosing());
+    QTest::qWait(100);
+    s.shot("p4-menu");
+    CHECK(find(u"kioskOrderBar"_s)->property("text").toString().startsWith(u"2 items"_s));
+
+    // Easy Reach: everything in the lower part of the screen.
+    s.tapItem(find(u"kioskEasyReach"_s));
+    QTest::qWait(400);
+    QQuickItem *items = find(u"kioskItems"_s);
+    REQUIRE(items);
+    CHECK(items->mapToScene(QPointF(0, 0)).y() >= 1920 * 0.4 - 1);
+    s.shot("p5-easy-reach");
+    s.tapItem(find(u"kioskEasyReach"_s));
+    QTest::qWait(400);
+    CHECK(find(u"kioskItems"_s)->mapToScene(QPointF(0, 0)).y() < 1920 * 0.2);   // full screen again
+
+    // The order sheet, then a name and the number.
+    s.tapItem(find(u"kioskOrderBar"_s));
+    QTest::qWait(100);
+    s.shot("p6-order-sheet");
+    s.tapItem(Screen::findBy(s.window->contentItem(), "text", u"Keep Ordering"_s));
+    s.tapItem(find(u"kioskReview"_s));
+    QTest::qWait(100);
+    CHECK(lowerTwoThirds(find(u"kioskName"_s)));
+    for (const char ch : {'A', 'n', 'a'})
+        QTest::keyClick(s.window, ch);
+    s.shot("p7-name");
+    s.tapItem(find(u"kioskPlace"_s));
+    QTest::qWait(100);
+    REQUIRE(find(u"kioskNumber"_s));
+    s.shot("p8-number");
 }

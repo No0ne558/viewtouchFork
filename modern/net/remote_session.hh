@@ -94,7 +94,7 @@ public:
     QVariantMap customerInfo() const override { return v(u"customer").toMap(); }
     QVariantMap giftCardInfo() const override { return v(u"giftCard").toMap(); }
     QVariantMap waitlistInfo() const override { return v(u"waitlist").toMap(); }
-    QVariantMap customerPrompt() const override { return v(u"customerPrompt").toMap(); }
+    QVariantMap customerPrompt() const override;
     QVariantMap scheduleInfo() const override { return v(u"schedule").toMap(); }
     QString nextShift() const override { return v(u"nextShift").toString(); }
     QVariantMap rangeReport() const override { return v(u"rangeReport").toMap(); }
@@ -108,7 +108,9 @@ public:
     QString language() const override { return v(u"language").toString(); }
     QString storeLanguage() const override { return v(u"storeLanguage").toString(); }
     QVariantMap selfOrderInfo() const override { return v(u"selfOrder").toMap(); }
-    QVariantMap kioskMenu() const override { return v(u"kioskMenu").toMap(); }
+    QVariantMap kioskMenu() const override;
+    // Where pictures from the server are kept on this device (tests set it).
+    void setImageCache(const QString &dir) { imageCache_ = dir; }
     void takeOver(const QString &pin) override;
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }
@@ -167,6 +169,11 @@ private:
         bool inFlight = false;
     };
     QHash<QString, Cached> cache_;
+    // The store's pictures are files on the server: fetched once, kept here.
+    // Returns the local file, or empty until it has arrived.
+    QString localImage(const QString &serverPath) const;
+    QString imageCache_;
+    mutable QHash<QString, QString> images_;   // server path -> local file ("" while fetching)
     int queryRevision_ = 0;
 };
 

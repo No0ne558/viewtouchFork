@@ -3,7 +3,12 @@ import QtQuick.Controls.Fusion
 import QtQuick.Layouts
 
 // The self-order kiosk: guests order on their own, then pay at the counter.
-//   Welcome (for here / to go) -> menu and their order -> name -> number.
+//   Attract (photos, "Touch to order") -> For Here / To Go -> the menu and
+//   their order -> a name -> the order number.
+// Landscape: categories | dishes | their order. Portrait (a tall kiosk such
+// as a 21.5" floor stand): big photo cards, with the categories and the order
+// bar at the bottom, in reach; "Easy Reach" brings everything into the lower
+// part of the screen for guests in a wheelchair, and children.
 // No way to the staff pages from here: a manager holds the top-left corner
 // for three seconds and types their PIN (`managerExit`).
 Rectangle {
@@ -16,27 +21,43 @@ Rectangle {
     readonly property var brand: pos ? pos.customerPrompt : ({})
     readonly property color accent: brand.accent || "#2f6fd6"
     readonly property string logo: !brand.logo ? "" : brand.logo.startsWith("/") ? "file://" + brand.logo : brand.logo
-    readonly property bool portrait: height > width
-    // One unit: about 20 px on a 1280x800 screen.
-    readonly property real u: Math.max(12, Math.min(width / 64, height / 40))
+    readonly property bool portrait: height > width * 1.15
+    // One unit: about 6 mm on a 21.5" portrait kiosk (26 px of 1080), 20 px
+    // on a 1280x800 landscape screen.
+    readonly property real u: portrait ? Math.max(14, width / 42) : Math.max(12, Math.min(width / 64, height / 40))
 
     readonly property var lastOrder: info.lastOrder ?? ({})
     readonly property bool done: (lastOrder.number ?? 0) > 0
     readonly property bool ordering: info.ordering ?? false
     property bool reviewing: false
+    property bool choosingType: false   // touched the attract screen: For Here / To Go
+    property bool orderOpen: false      // portrait: the order sheet
+    property bool easyReach: false
     property string family: ""
     readonly property var families: menu.families ?? []
     readonly property string shownFamily: families.includes(family) ? family : (families[0] ?? "")
     readonly property var items: (menu.items ?? []).filter(i => i.family === shownFamily)
     readonly property var lines: pos ? pos.lines.filter(l => !l.voided && !l.comment) : []
     readonly property var choosing: pos ? pos.choosing : ({})
+    readonly property string total: pos ? (pos.totals.total ?? "") : ""
 
     color: "#14181f"
-    onOrderingChanged: if (!ordering) { reviewing = false; family = "" }
+    onOrderingChanged: {
+        if (ordering) {
+            choosingType = false
+            return
+        }
+        reviewing = false
+        orderOpen = false
+        family = ""
+        if (!done)   // cancelled: the next guest starts with the full screen
+            easyReach = false
+    }
+    onDoneChanged: if (!done) easyReach = false   // the number shown, then the next guest
 
     // --- idle: an order nobody is finishing is cleared ---------------------------------
     property int idleLeft: 0
-    function touched() { idle.restart(); stillThere.visible = false }
+    function touched() { idle.restart(); typeIdle.restart(); stillThere.visible = false }
     PointHandler { onActiveChanged: if (active) k.touched() }   // any touch, without taking it
     Timer {
         id: idle
@@ -51,7 +72,14 @@ Rectangle {
         running: stillThere.visible
         onTriggered: if (--k.idleLeft <= 0) { stillThere.visible = false; k.pos.kioskCancel() }
     }
-    // The confirmation goes back to the welcome screen by itself.
+    // For Here / To Go left untouched: back to the pictures.
+    Timer {
+        id: typeIdle
+        interval: 30000
+        running: k.choosingType
+        onTriggered: k.choosingType = false
+    }
+    // The confirmation goes back to the attract screen by itself.
     Timer {
         interval: 20000
         running: k.done && !k.ordering
@@ -85,212 +113,353 @@ Rectangle {
         MouseArea { id: tap; anchors.fill: parent; onClicked: big.clicked() }
     }
 
-    // --- welcome ---------------------------------------------------------------------------
-    ColumnLayout {
-        visible: !k.ordering && !k.done
-        anchors.centerIn: parent
-        width: Math.min(parent.width * 0.8, k.u * 50)
-        spacing: k.u * 2
-        Image {
-            visible: k.logo !== ""
-            Layout.alignment: Qt.AlignHCenter
-            Layout.preferredHeight: k.u * 10
-            Layout.preferredWidth: k.u * 30
-            source: k.logo
-            fillMode: Image.PreserveAspectFit
-        }
-        Text {
-            visible: k.logo === ""
-            Layout.fillWidth: true
-            horizontalAlignment: Text.AlignHCenter
-            text: k.pos ? k.pos.storeName : ""
-            color: "white"
-            font.pixelSize: k.u * 3.2
-            font.bold: true
-            wrapMode: Text.WordWrap
-        }
-        Text {
-            Layout.fillWidth: true
-            horizontalAlignment: Text.AlignHCenter
-            text: qsTr("Order here")
-            color: "#c9d1de"
-            font.pixelSize: k.u * 2
-        }
-        GridLayout {
-            Layout.fillWidth: true
-            columns: k.portrait ? 1 : 2
-            columnSpacing: k.u * 1.5
-            rowSpacing: k.u * 1.5
-            Big {
-                objectName: "kioskForHere"
-                Layout.fillWidth: true
-                Layout.preferredHeight: k.u * 9
-                text: qsTr("For Here")
-                size: 2.4
-                base: k.accent
-                onClicked: k.pos.kioskStart(false)
+    // A dish: its photo (or its initial), name, description and price.
+    component Card: Item {
+        id: card
+        required property var modelData
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: k.u * 0.35
+            radius: k.u * 0.6
+            color: cardTap.pressed ? "#323b49" : "#232a35"
+            clip: true
+            Rectangle {
+                id: photo
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                height: parent.height * (k.portrait ? 0.58 : 0.5)
+                color: Qt.darker(k.accent, 2.2)
+                Text {
+                    anchors.centerIn: parent
+                    visible: !card.modelData.image || picture.status !== Image.Ready
+                    text: card.modelData.name.charAt(0)
+                    color: Qt.lighter(k.accent, 1.6)
+                    font.pixelSize: k.u * 3
+                    font.bold: true
+                }
+                Image {
+                    id: picture
+                    anchors.fill: parent
+                    visible: !!card.modelData.image
+                    source: card.modelData.image
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    sourceSize.width: 600
+                }
             }
-            Big {
-                objectName: "kioskToGo"
+            ColumnLayout {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: photo.bottom
+                anchors.bottom: parent.bottom
+                anchors.margins: k.u * 0.5
+                spacing: k.u * 0.15
+                Text {
+                    Layout.fillWidth: true
+                    text: card.modelData.name
+                    color: "white"
+                    font.pixelSize: k.u * 1.05
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
+                Text {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    text: card.modelData.description
+                    color: "#9aa4b5"
+                    font.pixelSize: k.u * 0.75
+                    wrapMode: Text.WordWrap
+                    elide: Text.ElideRight
+                    maximumLineCount: 2
+                }
+                Text {
+                    text: card.modelData.price
+                    color: Qt.lighter(k.accent, 1.5)
+                    font.pixelSize: k.u * 1.05
+                    font.bold: true
+                }
+            }
+            // Sold out: shown, but can't be ordered.
+            Rectangle {
+                anchors.fill: parent
+                visible: !card.modelData.available
+                color: "#c0141820"
+                Text {
+                    anchors.centerIn: parent
+                    text: qsTr("SOLD OUT")
+                    color: "#ff9a9e"
+                    font.pixelSize: k.u * 1.4
+                    font.bold: true
+                    rotation: -12
+                }
+            }
+        }
+        // A MouseArea: it works inside the scrolling grid (a drag still scrolls).
+        MouseArea {
+            id: cardTap
+            anchors.fill: parent
+            enabled: card.modelData.available
+            onClicked: k.pos.kioskAdd(card.modelData.id)
+        }
+    }
+
+    // Their order, one line each: what, choices, price, and × to take it off.
+    component OrderList: ListView {
+        id: cart
+        objectName: "kioskCart"
+        clip: true
+        spacing: k.u * 0.3
+        model: k.lines
+        ScrollBar.vertical: TouchScrollBar { id: cartBar; needed: cart.contentHeight > cart.height + 1 }
+        delegate: RowLayout {
+            id: row
+            required property var modelData
+            width: ListView.view.width - cartBar.room
+            spacing: k.u * 0.4
+            ColumnLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: k.u * 9
-                text: qsTr("To Go")
-                size: 2.4
-                base: k.accent
-                onClicked: k.pos.kioskStart(true)
+                spacing: 0
+                Text {
+                    Layout.fillWidth: true
+                    text: row.modelData.name
+                    color: "white"
+                    font.pixelSize: k.u * 0.95
+                    wrapMode: Text.WordWrap
+                }
+                Text {
+                    Layout.fillWidth: true
+                    visible: text !== ""
+                    text: (row.modelData.modifiers ?? []).map(m => m.name).join(", ")
+                    color: "#9aa4b5"
+                    font.pixelSize: k.u * 0.75
+                    wrapMode: Text.WordWrap
+                }
+            }
+            Text { text: row.modelData.price; color: "white"; font.pixelSize: k.u * 0.95 }
+            Big {
+                objectName: "kioskRemove"
+                Layout.preferredWidth: k.u * 2.6
+                Layout.preferredHeight: k.u * 2.6
+                text: "×"
+                size: 1.4
+                base: "#3a2a2e"
+                onClicked: k.pos.kioskRemove(row.modelData.id)
             }
         }
     }
 
-    // --- the menu and the order --------------------------------------------------------------
-    GridLayout {
-        visible: k.ordering && !k.reviewing
+    // --- attract: pictures and messages until someone touches -------------------------------
+    Item {
+        id: attract
+        objectName: "kioskAttract"
         anchors.fill: parent
-        anchors.margins: k.u * 0.8
-        columns: k.portrait ? 1 : 3
-        rowSpacing: k.u * 0.8
-        columnSpacing: k.u * 0.8
-
-        // Categories: a column, or a row on a portrait screen.
-        ListView {
-            id: familyList
-            Layout.preferredWidth: k.portrait ? -1 : k.u * 12
-            Layout.fillWidth: k.portrait
-            Layout.fillHeight: !k.portrait
-            Layout.preferredHeight: k.portrait ? k.u * 3.6 : -1
-            orientation: k.portrait ? ListView.Horizontal : ListView.Vertical
-            spacing: k.u * 0.5
-            clip: true
-            model: k.families
-            delegate: Big {
-                required property string modelData
-                width: k.portrait ? k.u * 11 : ListView.view.width
-                height: k.u * 3.6
-                // "burgers" -> "Burgers" (and in the guest's language when it has the phrase)
-                text: qsTranslate("Page", modelData.charAt(0).toUpperCase() + modelData.slice(1))
-                size: 1.2
-                base: modelData === k.shownFamily ? k.accent : "#2a313d"
-                onClicked: k.family = modelData
-            }
+        visible: !k.ordering && !k.done && !k.choosingType
+        // The store's slides (Store Settings → Customer display), then dishes with photos.
+        readonly property var slides: (k.brand.slides ?? []).concat(
+            (k.menu.items ?? []).filter(i => !!i.image && i.available).map(i => ({ image: i.image, text: i.name, price: i.price })))
+        property int index: 0
+        readonly property var current: slides.length ? slides[index % slides.length] : null
+        readonly property string picture: !current ? ""
+            : typeof current === "string" ? (current.startsWith("image:") ? (current.slice(6).startsWith("/") ? "file://" + current.slice(6) : current.slice(6)) : "")
+            : current.image
+        readonly property string caption: !current ? "" : typeof current === "string" ? (current.startsWith("image:") ? "" : current)
+                                                     : current.text + "  ·  " + current.price
+        Timer {
+            interval: 6000
+            running: attract.visible && attract.slides.length > 1
+            repeat: true
+            onTriggered: fade.restart()
         }
-
-        // What there is.
-        GridView {
-            id: grid
-            objectName: "kioskItems"
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            clip: true
-            readonly property int across: Math.max(1, Math.floor(width / (k.u * 13)))
-            cellWidth: width / across
-            cellHeight: k.u * 15
-            model: k.items
-            ScrollBar.vertical: TouchScrollBar { needed: grid.contentHeight > grid.height + 1 }
-            delegate: Item {
-                id: card
-                required property var modelData
-                width: grid.cellWidth
-                height: grid.cellHeight
-                Rectangle {
-                    anchors.fill: parent
-                    anchors.margins: k.u * 0.35
-                    radius: k.u * 0.6
-                    color: cardTap.pressed ? "#323b49" : "#232a35"
-                    clip: true
-                    Rectangle {
-                        id: photo
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        height: parent.height * 0.5
-                        color: Qt.darker(k.accent, 2.2)
-                        Text {
-                            anchors.centerIn: parent
-                            visible: !card.modelData.image
-                            text: card.modelData.name.charAt(0)
-                            color: Qt.lighter(k.accent, 1.6)
-                            font.pixelSize: k.u * 3
-                            font.bold: true
-                        }
-                        Image {
-                            anchors.fill: parent
-                            visible: !!card.modelData.image
-                            source: card.modelData.image
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                        }
-                    }
-                    ColumnLayout {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: photo.bottom
-                        anchors.bottom: parent.bottom
-                        anchors.margins: k.u * 0.5
-                        spacing: k.u * 0.15
-                        Text {
-                            Layout.fillWidth: true
-                            text: card.modelData.name
-                            color: "white"
-                            font.pixelSize: k.u * 1.05
-                            font.bold: true
-                            elide: Text.ElideRight
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            text: card.modelData.description
-                            color: "#9aa4b5"
-                            font.pixelSize: k.u * 0.75
-                            wrapMode: Text.WordWrap
-                            elide: Text.ElideRight
-                            maximumLineCount: 2
-                        }
-                        Text {
-                            text: card.modelData.price
-                            color: Qt.lighter(k.accent, 1.5)
-                            font.pixelSize: k.u * 1.05
-                            font.bold: true
-                        }
-                    }
-                    // Sold out: shown, but can't be ordered.
-                    Rectangle {
-                        anchors.fill: parent
-                        visible: !card.modelData.available
-                        color: "#c0141820"
-                        Text {
-                            anchors.centerIn: parent
-                            text: qsTr("SOLD OUT")
-                            color: "#ff9a9e"
-                            font.pixelSize: k.u * 1.4
-                            font.bold: true
-                            rotation: -12
-                        }
-                    }
-                }
-                // A MouseArea: it works inside the scrolling grid (a drag still scrolls).
-                MouseArea {
-                    id: cardTap
-                    anchors.fill: parent
-                    enabled: card.modelData.available
-                    onClicked: k.pos.kioskAdd(card.modelData.id)
-                }
-            }
+        SequentialAnimation {
+            id: fade
+            NumberAnimation { target: slide; property: "opacity"; to: 0; duration: 400 }
+            ScriptAction { script: attract.index = (attract.index + 1) % Math.max(1, attract.slides.length) }
+            NumberAnimation { target: slide; property: "opacity"; to: 1; duration: 400 }
         }
-
-        // Their order.
-        Rectangle {
-            Layout.preferredWidth: k.portrait ? -1 : k.u * 19
-            Layout.fillWidth: k.portrait
-            Layout.fillHeight: !k.portrait
-            Layout.preferredHeight: k.portrait ? parent.height * 0.32 : -1
-            radius: k.u * 0.6
-            color: "#1d232c"
-            ColumnLayout {
+        Item {
+            id: slide
+            anchors.fill: parent
+            Image {
                 anchors.fill: parent
-                anchors.margins: k.u * 0.7
-                spacing: k.u * 0.4
-                RowLayout {
+                visible: attract.picture !== ""
+                source: attract.picture
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+            }
+            Rectangle {   // the text stays readable on a photo
+                anchors.fill: parent
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: "#80000000" }
+                    GradientStop { position: 0.45; color: "#00000000" }
+                    GradientStop { position: 0.7; color: "#30000000" }
+                    GradientStop { position: 1.0; color: "#e0000000" }
+                }
+            }
+        }
+        ColumnLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: k.u * 2
+            spacing: k.u
+            Image {
+                visible: k.logo !== ""
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredHeight: k.u * 7
+                Layout.preferredWidth: k.u * 22
+                source: k.logo
+                fillMode: Image.PreserveAspectFit
+            }
+            Text {
+                visible: k.logo === ""
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: k.pos ? k.pos.storeName : ""
+                color: "white"
+                font.pixelSize: k.u * 3
+                font.bold: true
+                wrapMode: Text.WordWrap
+            }
+        }
+        ColumnLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: k.u * 2
+            spacing: k.u * 1.5
+            Text {
+                Layout.fillWidth: true
+                visible: attract.caption !== ""
+                horizontalAlignment: Text.AlignHCenter
+                text: attract.caption
+                color: "white"
+                font.pixelSize: k.u * 2
+                font.bold: true
+                wrapMode: Text.WordWrap
+            }
+            Rectangle {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: Math.min(parent.width, k.u * 24)
+                Layout.preferredHeight: k.u * 5.5
+                radius: height / 2
+                color: k.accent
+                SequentialAnimation on scale {   // a gentle pulse: touch me
+                    running: attract.visible
+                    loops: Animation.Infinite
+                    NumberAnimation { from: 1; to: 1.05; duration: 900; easing.type: Easing.InOutQuad }
+                    NumberAnimation { from: 1.05; to: 1; duration: 900; easing.type: Easing.InOutQuad }
+                }
+                Text {
+                    anchors.centerIn: parent
+                    text: qsTr("Touch to Order")
+                    color: "white"
+                    font.pixelSize: k.u * 2
+                    font.bold: true
+                }
+            }
+        }
+        MouseArea { anchors.fill: parent; onClicked: k.choosingType = true }
+    }
+
+    // --- the stage: everything a guest touches; Easy Reach puts it in the lower part ----------
+    Item {
+        id: stage
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: k.easyReach ? parent.height * 0.6 : parent.height
+        Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+
+        // --- For Here / To Go ---
+        ColumnLayout {
+            visible: k.choosingType && !k.ordering && !k.done
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: k.u * 2
+            anchors.bottomMargin: k.portrait ? parent.height * 0.18 : k.u * 4
+            spacing: k.u * 1.5
+            Text {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: qsTr("Where will you eat?")
+                color: "white"
+                font.pixelSize: k.u * 2.2
+                font.bold: true
+            }
+            GridLayout {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: Math.min(parent.width, k.u * 46)
+                columns: 2
+                columnSpacing: k.u * 1.5
+                Big {
+                    objectName: "kioskForHere"
                     Layout.fillWidth: true
+                    Layout.preferredHeight: k.u * (k.portrait ? 10 : 8)
+                    text: qsTr("For Here")
+                    size: 2.2
+                    base: k.accent
+                    onClicked: k.pos.kioskStart(false)
+                }
+                Big {
+                    objectName: "kioskToGo"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: k.u * (k.portrait ? 10 : 8)
+                    text: qsTr("To Go")
+                    size: 2.2
+                    base: k.accent
+                    onClicked: k.pos.kioskStart(true)
+                }
+            }
+        }
+
+        // --- landscape: categories | dishes | their order ---
+        RowLayout {
+            visible: k.ordering && !k.reviewing && !k.portrait
+            anchors.fill: parent
+            anchors.margins: k.u * 0.8
+            spacing: k.u * 0.8
+
+            ListView {
+                Layout.preferredWidth: k.u * 12
+                Layout.fillHeight: true
+                spacing: k.u * 0.5
+                clip: true
+                model: k.families
+                delegate: Big {
+                    required property string modelData
+                    width: ListView.view.width
+                    height: k.u * 3.6
+                    // "burgers" -> "Burgers" (and in the guest's language when it has the phrase)
+                    text: qsTranslate("Page", modelData.charAt(0).toUpperCase() + modelData.slice(1))
+                    size: 1.2
+                    base: modelData === k.shownFamily ? k.accent : "#2a313d"
+                    onClicked: k.family = modelData
+                }
+            }
+            GridView {
+                id: grid
+                objectName: "kioskItems"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                readonly property int across: Math.max(1, Math.floor(width / (k.u * 13)))
+                cellWidth: width / across
+                cellHeight: k.u * 15
+                model: k.items
+                ScrollBar.vertical: TouchScrollBar { needed: grid.contentHeight > grid.height + 1 }
+                delegate: Card { width: grid.cellWidth; height: grid.cellHeight }
+            }
+            Rectangle {
+                Layout.preferredWidth: k.u * 19
+                Layout.fillHeight: true
+                radius: k.u * 0.6
+                color: "#1d232c"
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: k.u * 0.7
+                    spacing: k.u * 0.4
                     Text {
                         Layout.fillWidth: true
                         text: k.info.toGo ? qsTr("Your order · to go") : qsTr("Your order · for here")
@@ -299,325 +468,445 @@ Rectangle {
                         font.bold: true
                         elide: Text.ElideRight
                     }
-                }
-                ListView {
-                    id: cart
-                    objectName: "kioskCart"
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    spacing: k.u * 0.3
-                    model: k.lines
-                    ScrollBar.vertical: TouchScrollBar { id: cartBar; needed: cart.contentHeight > cart.height + 1 }
-                    delegate: RowLayout {
-                        id: row
-                        required property var modelData
-                        width: ListView.view.width - cartBar.room
-                        spacing: k.u * 0.4
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 0
-                            Text {
-                                Layout.fillWidth: true
-                                text: row.modelData.name
-                                color: "white"
-                                font.pixelSize: k.u * 0.95
-                                wrapMode: Text.WordWrap
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                visible: text !== ""
-                                text: (row.modelData.modifiers ?? []).map(m => m.name).join(", ")
-                                color: "#9aa4b5"
-                                font.pixelSize: k.u * 0.75
-                                wrapMode: Text.WordWrap
-                            }
-                        }
-                        Text {
-                            text: row.modelData.price
-                            color: "white"
-                            font.pixelSize: k.u * 0.95
+                    OrderList { Layout.fillWidth: true; Layout.fillHeight: true }
+                    Text {
+                        visible: k.lines.length === 0
+                        Layout.fillWidth: true
+                        text: qsTr("Touch something on the menu to add it.")
+                        color: "#9aa4b5"
+                        font.pixelSize: k.u * 0.9
+                        wrapMode: Text.WordWrap
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { text: qsTr("Total"); color: "white"; font.pixelSize: k.u * 1.2; font.bold: true; Layout.fillWidth: true }
+                        Text { text: k.total; color: "white"; font.pixelSize: k.u * 1.4; font.bold: true }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: k.u * 0.5
+                        Big {
+                            objectName: "kioskStartOver"
+                            Layout.preferredWidth: k.u * 6
+                            Layout.preferredHeight: k.u * 3.4
+                            text: qsTr("Start Over")
+                            size: 0.9
+                            onClicked: k.pos.kioskCancel()
                         }
                         Big {
-                            objectName: "kioskRemove"
-                            Layout.preferredWidth: k.u * 2.6
-                            Layout.preferredHeight: k.u * 2.6
-                            text: "×"
-                            size: 1.4
-                            base: "#3a2a2e"
-                            onClicked: k.pos.kioskRemove(row.modelData.id)
+                            objectName: "kioskReview"
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: k.u * 3.4
+                            enabled: k.lines.length > 0
+                            text: qsTr("Done ›")
+                            base: "#1f8a4c"
+                            onClicked: k.reviewing = true
                         }
                     }
                 }
+            }
+        }
+
+        // --- portrait: dishes above; categories and the order bar below, in reach ---
+        ColumnLayout {
+            visible: k.ordering && !k.reviewing && k.portrait
+            anchors.fill: parent
+            anchors.margins: k.u * 0.6
+            spacing: k.u * 0.5
+
+            RowLayout {   // who we are
+                Layout.fillWidth: true
+                Layout.fillHeight: false   // nested layouts fill by default
+                visible: !k.easyReach
                 Text {
-                    visible: k.lines.length === 0
                     Layout.fillWidth: true
-                    text: qsTr("Touch something on the menu to add it.")
-                    color: "#9aa4b5"
-                    font.pixelSize: k.u * 0.9
-                    wrapMode: Text.WordWrap
+                    text: k.pos ? k.pos.storeName : ""
+                    color: "white"
+                    font.pixelSize: k.u * 1.4
+                    font.bold: true
+                    elide: Text.ElideRight
                 }
-                RowLayout {
+                Text {
+                    text: k.info.toGo ? qsTr("To Go") : qsTr("For Here")
+                    color: "#9aa4b5"
+                    font.pixelSize: k.u
+                }
+            }
+            GridView {
+                id: tallGrid
+                objectName: "kioskItems"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                readonly property int across: k.easyReach ? 4 : 3
+                cellWidth: width / across
+                cellHeight: cellWidth * (k.easyReach ? 1.15 : 1.3)
+                model: k.items
+                ScrollBar.vertical: TouchScrollBar { needed: tallGrid.contentHeight > tallGrid.height + 1 }
+                delegate: Card { width: tallGrid.cellWidth; height: tallGrid.cellHeight }
+            }
+            ListView {   // the categories
+                Layout.fillWidth: true
+                Layout.preferredHeight: k.u * 3.4
+                orientation: ListView.Horizontal
+                spacing: k.u * 0.5
+                clip: true
+                model: k.families
+                delegate: Big {
+                    required property string modelData
+                    width: Math.max(k.u * 9, (ListView.view.width - k.u * 0.5 * (k.families.length - 1)) / Math.max(1, k.families.length))
+                    height: k.u * 3.4
+                    text: qsTranslate("Page", modelData.charAt(0).toUpperCase() + modelData.slice(1))
+                    size: 1.1
+                    base: modelData === k.shownFamily ? k.accent : "#2a313d"
+                    onClicked: k.family = modelData
+                }
+            }
+            RowLayout {   // the order bar
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                Layout.preferredHeight: k.u * 4
+                spacing: k.u * 0.5
+                Big {
+                    objectName: "kioskStartOver"
+                    Layout.preferredWidth: k.u * 6
+                    Layout.fillHeight: true
+                    text: qsTr("Start Over")
+                    size: 0.85
+                    onClicked: k.pos.kioskCancel()
+                }
+                Big {
+                    objectName: "kioskEasyReach"
+                    Layout.preferredWidth: k.u * 6
+                    Layout.fillHeight: true
+                    text: k.easyReach ? qsTr("Full Screen") : qsTr("Easy Reach")
+                    size: 0.85
+                    base: k.easyReach ? Qt.darker(k.accent, 1.3) : "#2a313d"
+                    onClicked: k.easyReach = !k.easyReach
+                }
+                Big {
+                    objectName: "kioskOrderBar"
                     Layout.fillWidth: true
-                    Text { text: qsTr("Total"); color: "white"; font.pixelSize: k.u * 1.2; font.bold: true; Layout.fillWidth: true }
+                    Layout.fillHeight: true
+                    enabled: k.lines.length > 0
+                    text: k.lines.length === 0 ? qsTr("Touch a dish to add it")
+                          : (k.lines.length === 1 ? qsTr("1 item") : qsTr("%1 items").arg(k.lines.length)) + "  ·  " + k.total
+                    size: 1
+                    base: "#232a35"
+                    onClicked: k.orderOpen = true
+                }
+                Big {
+                    objectName: "kioskReview"
+                    Layout.preferredWidth: k.u * 9
+                    Layout.fillHeight: true
+                    enabled: k.lines.length > 0
+                    text: qsTr("Done ›")
+                    base: "#1f8a4c"
+                    onClicked: k.reviewing = true
+                }
+            }
+        }
+
+        // --- portrait: the order, as a sheet from the bottom ---
+        Rectangle {
+            visible: k.ordering && !k.reviewing && k.portrait && k.orderOpen
+            anchors.fill: parent
+            color: "#a0101318"
+            MouseArea { anchors.fill: parent; onClicked: k.orderOpen = false }
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: Math.min(parent.height * 0.75, k.u * 8 + Math.max(k.u * 6, k.lines.length * k.u * 3.4) + k.u * 8)
+                radius: k.u
+                color: "#1d232c"
+                MouseArea { anchors.fill: parent }   // touches on the sheet stay here
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: k.u
+                    spacing: k.u * 0.5
                     Text {
-                        text: k.pos ? (k.pos.totals.total ?? "") : ""
+                        text: k.info.toGo ? qsTr("Your order · to go") : qsTr("Your order · for here")
                         color: "white"
                         font.pixelSize: k.u * 1.4
                         font.bold: true
                     }
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: k.u * 0.5
-                    Big {
-                        objectName: "kioskStartOver"
-                        Layout.preferredWidth: k.u * 6
-                        Layout.preferredHeight: k.u * 3.4
-                        text: qsTr("Start Over")
-                        size: 0.9
-                        onClicked: k.pos.kioskCancel()
-                    }
-                    Big {
-                        objectName: "kioskReview"
+                    OrderList { Layout.fillWidth: true; Layout.fillHeight: true }
+                    RowLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: k.u * 3.4
-                        enabled: k.lines.length > 0
-                        text: qsTr("Done ›")
-                        base: "#1f8a4c"
-                        onClicked: k.reviewing = true
+                        Text { text: qsTr("Total"); color: "white"; font.pixelSize: k.u * 1.3; font.bold: true; Layout.fillWidth: true }
+                        Text { text: k.total; color: "white"; font.pixelSize: k.u * 1.5; font.bold: true }
                     }
-                }
-            }
-        }
-    }
-
-    // --- review: a name to call the order by ------------------------------------------------
-    ColumnLayout {
-        visible: k.ordering && k.reviewing
-        anchors.fill: parent
-        anchors.margins: k.u
-        spacing: k.u * 0.8
-        Text {
-            text: qsTr("Almost done: %1").arg(k.pos ? (k.pos.totals.total ?? "") : "")
-            color: "white"
-            font.pixelSize: k.u * 2
-            font.bold: true
-        }
-        Text {
-            Layout.fillWidth: true
-            text: k.lines.map(l => l.name).join(" · ")
-            color: "#9aa4b5"
-            font.pixelSize: k.u
-            wrapMode: Text.WordWrap
-            maximumLineCount: 2
-            elide: Text.ElideRight
-        }
-        Text { text: qsTr("Your name, so we can call your order"); color: "white"; font.pixelSize: k.u * 1.2 }
-        TextField {
-            id: nameField
-            objectName: "kioskName"
-            Layout.fillWidth: true
-            implicitHeight: k.u * 3.4
-            font.pixelSize: k.u * 1.6
-            maximumLength: 40
-            placeholderText: qsTr("Name")
-            onVisibleChanged: if (visible) { text = ""; forceActiveFocus() }
-            onAccepted: place.clicked()
-        }
-        TouchKeyboard {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            target: nameField
-        }
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: k.u * 0.6
-            Big {
-                Layout.preferredWidth: k.u * 12
-                Layout.preferredHeight: k.u * 3.6
-                text: qsTr("‹ Back to the Menu")
-                size: 1
-                onClicked: k.reviewing = false
-            }
-            Big {
-                id: place
-                objectName: "kioskPlace"
-                Layout.fillWidth: true
-                Layout.preferredHeight: k.u * 3.6
-                enabled: nameField.text.trim().length > 0
-                text: qsTr("Place My Order")
-                base: "#1f8a4c"
-                onClicked: k.pos.kioskFinish({ name: nameField.text })
-            }
-        }
-    }
-
-    // --- the order number ---------------------------------------------------------------------
-    ColumnLayout {
-        visible: k.done && !k.ordering
-        anchors.centerIn: parent
-        width: Math.min(parent.width * 0.85, k.u * 50)
-        spacing: k.u
-        Text {
-            Layout.fillWidth: true
-            horizontalAlignment: Text.AlignHCenter
-            text: qsTr("Thank you, %1!").arg(k.lastOrder.name ?? "")
-            color: "white"
-            font.pixelSize: k.u * 2.4
-            font.bold: true
-            wrapMode: Text.WordWrap
-        }
-        Text { Layout.alignment: Qt.AlignHCenter; text: qsTr("Your order number"); color: "#c9d1de"; font.pixelSize: k.u * 1.4 }
-        Text {
-            objectName: "kioskNumber"
-            Layout.alignment: Qt.AlignHCenter
-            text: String(k.lastOrder.number ?? "")
-            color: Qt.lighter(k.accent, 1.5)
-            font.pixelSize: k.u * 8
-            font.bold: true
-        }
-        Text {
-            Layout.fillWidth: true
-            horizontalAlignment: Text.AlignHCenter
-            text: k.lastOrder.sent ? qsTr("We're making it now. Please pay at the counter.")
-                                   : qsTr("Please pay at the counter (%1), and we'll start making it.").arg(k.lastOrder.total ?? "")
-            color: "white"
-            font.pixelSize: k.u * 1.4
-            wrapMode: Text.WordWrap
-        }
-        Big {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: k.u * 16
-            Layout.topMargin: k.u
-            text: qsTr("New Order")
-            base: k.accent
-            onClicked: k.pos.kioskCancel()
-        }
-    }
-
-    // --- choices (temperature, sides...) for what was just added ------------------------------
-    Rectangle {
-        visible: k.ordering && (k.choosing.active ?? false)
-        anchors.fill: parent
-        color: "#d0101318"
-        TapHandler {}   // touches stop here
-        Rectangle {
-            anchors.centerIn: parent
-            width: Math.min(parent.width * 0.92, k.u * 46)
-            height: Math.min(parent.height * 0.9, choicesColumn.implicitHeight + k.u * 2)
-            radius: k.u * 0.8
-            color: "#1d232c"
-            ColumnLayout {
-                id: choicesColumn
-                anchors.fill: parent
-                anchors.margins: k.u
-                spacing: k.u * 0.6
-                Text {
-                    text: k.choosing.item ?? ""
-                    color: "white"
-                    font.pixelSize: k.u * 1.6
-                    font.bold: true
-                }
-                TouchScrollColumn {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.preferredHeight: implicitHeight
-                    spacing: k.u * 0.5
-                    Repeater {
-                        model: k.choosing.groups ?? []
-                        delegate: ColumnLayout {
-                            id: group
-                            required property var modelData
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: k.u * 0.6
+                        Big {
+                            Layout.preferredWidth: k.u * 12
+                            Layout.preferredHeight: k.u * 3.8
+                            text: qsTr("Keep Ordering")
+                            size: 1
+                            onClicked: k.orderOpen = false
+                        }
+                        Big {
                             Layout.fillWidth: true
-                            spacing: k.u * 0.3
-                            Text {
-                                text: group.modelData.name + "  ·  " + group.modelData.rule
-                                color: group.modelData.done ? "#c9d1de" : "#f5b940"
-                                font.pixelSize: k.u * 1.1
-                                font.bold: true
-                            }
-                            Flow {
-                                Layout.fillWidth: true
-                                spacing: k.u * 0.4
-                                Repeater {
-                                    model: group.modelData.options
-                                    delegate: Big {
-                                        required property var modelData
-                                        width: k.u * 10
-                                        height: k.u * 3.2
-                                        text: modelData.name + (modelData.price ? "\n+" + modelData.price : "")
-                                        size: 0.95
-                                        base: modelData.chosen ? k.accent : "#2a313d"
-                                        onClicked: k.pos.chooseOption(group.modelData.id, modelData.index)
-                                    }
-                                }
-                            }
+                            Layout.preferredHeight: k.u * 3.8
+                            enabled: k.lines.length > 0
+                            text: qsTr("Done ›")
+                            base: "#1f8a4c"
+                            onClicked: { k.orderOpen = false; k.reviewing = true }
                         }
                     }
                 }
-                RowLayout {
+            }
+        }
+
+        // --- review: a name to call the order by ---
+        ColumnLayout {
+            visible: k.ordering && k.reviewing
+            anchors.fill: parent
+            anchors.margins: k.u
+            spacing: k.u * 0.8
+            Item { Layout.fillHeight: true; visible: k.portrait && !k.easyReach }   // in reach: at the bottom
+            Text {
+                text: qsTr("Almost done: %1").arg(k.total)
+                color: "white"
+                font.pixelSize: k.u * 2
+                font.bold: true
+            }
+            Text {
+                Layout.fillWidth: true
+                text: k.lines.map(l => l.name).join(" · ")
+                color: "#9aa4b5"
+                font.pixelSize: k.u
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+            }
+            Text { text: qsTr("Your name, so we can call your order"); color: "white"; font.pixelSize: k.u * 1.2 }
+            TextField {
+                id: nameField
+                objectName: "kioskName"
+                Layout.fillWidth: true
+                implicitHeight: k.u * 3.4
+                font.pixelSize: k.u * 1.6
+                maximumLength: 40
+                placeholderText: qsTr("Name")
+                onVisibleChanged: if (visible) { text = ""; forceActiveFocus() }
+                onAccepted: place.clicked()
+            }
+            TouchKeyboard {
+                Layout.fillWidth: true
+                Layout.fillHeight: !k.portrait || k.easyReach
+                Layout.preferredHeight: k.portrait && !k.easyReach ? k.u * 16 : -1
+                target: nameField
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: k.u * 0.6
+                Big {
+                    Layout.preferredWidth: k.u * 12
+                    Layout.preferredHeight: k.u * 3.6
+                    text: qsTr("‹ Back to the Menu")
+                    size: 1
+                    onClicked: k.reviewing = false
+                }
+                Big {
+                    id: place
+                    objectName: "kioskPlace"
                     Layout.fillWidth: true
-                    spacing: k.u * 0.6
-                    Big {
-                        Layout.preferredWidth: k.u * 10
-                        Layout.preferredHeight: k.u * 3.4
-                        text: qsTr("Remove It")
-                        size: 1
-                        base: "#3a2a2e"
-                        onClicked: k.pos.kioskRemove(k.choosing.lineId)
-                    }
-                    Big {
-                        objectName: "kioskChoicesDone"
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: k.u * 3.4
-                        enabled: (k.choosing.groups ?? []).every(g => g.done)
-                        text: qsTr("Add to My Order")
-                        base: "#1f8a4c"
-                        onClicked: k.pos.finishChoosing()
-                    }
+                    Layout.preferredHeight: k.u * 3.6
+                    enabled: nameField.text.trim().length > 0
+                    text: qsTr("Place My Order")
+                    base: "#1f8a4c"
+                    onClicked: k.pos.kioskFinish({ name: nameField.text })
                 }
             }
         }
-    }
 
-    // --- still there? ---------------------------------------------------------------------------
-    Rectangle {
-        id: stillThere
-        visible: false
-        anchors.fill: parent
-        color: "#e0101318"
+        // --- the order number ---
         ColumnLayout {
+            visible: k.done && !k.ordering
             anchors.centerIn: parent
-            width: Math.min(parent.width * 0.8, k.u * 36)
+            width: Math.min(parent.width * 0.85, k.u * 50)
             spacing: k.u
             Text {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
-                text: qsTr("Are you still there?")
+                text: qsTr("Thank you, %1!").arg(k.lastOrder.name ?? "")
                 color: "white"
                 font.pixelSize: k.u * 2.4
+                font.bold: true
+                wrapMode: Text.WordWrap
+            }
+            Text { Layout.alignment: Qt.AlignHCenter; text: qsTr("Your order number"); color: "#c9d1de"; font.pixelSize: k.u * 1.4 }
+            Text {
+                objectName: "kioskNumber"
+                Layout.alignment: Qt.AlignHCenter
+                text: String(k.lastOrder.number ?? "")
+                color: Qt.lighter(k.accent, 1.5)
+                font.pixelSize: k.u * 8
                 font.bold: true
             }
             Text {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
-                text: qsTr("Your order will be cleared in %1 seconds.").arg(k.idleLeft)
-                color: "#c9d1de"
-                font.pixelSize: k.u * 1.3
+                text: k.lastOrder.sent ? qsTr("We're making it now. Please pay at the counter.")
+                                       : qsTr("Please pay at the counter (%1), and we'll start making it.").arg(k.lastOrder.total ?? "")
+                color: "white"
+                font.pixelSize: k.u * 1.4
                 wrapMode: Text.WordWrap
             }
             Big {
-                Layout.fillWidth: true
-                Layout.preferredHeight: k.u * 4.4
-                text: qsTr("Yes, Keep Ordering")
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: k.u * 16
+                Layout.topMargin: k.u
+                text: qsTr("New Order")
                 base: k.accent
-                onClicked: k.touched()
+                onClicked: k.pos.kioskCancel()
+            }
+        }
+
+        // --- choices (temperature, sides...) for what was just added: a sheet from the bottom ---
+        Rectangle {
+            visible: k.ordering && (k.choosing.active ?? false)
+            anchors.fill: parent
+            color: "#d0101318"
+            TapHandler {}   // touches stop here
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: k.portrait ? 0 : (parent.height - height) / 2
+                width: k.portrait ? parent.width : Math.min(parent.width * 0.92, k.u * 46)
+                height: Math.min(parent.height * (k.portrait ? 0.75 : 0.9), choicesColumn.implicitHeight + k.u * 2)
+                radius: k.u * 0.8
+                color: "#1d232c"
+                ColumnLayout {
+                    id: choicesColumn
+                    anchors.fill: parent
+                    anchors.margins: k.u
+                    spacing: k.u * 0.6
+                    Text {
+                        text: k.choosing.item ?? ""
+                        color: "white"
+                        font.pixelSize: k.u * 1.6
+                        font.bold: true
+                    }
+                    TouchScrollColumn {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.preferredHeight: implicitHeight
+                        spacing: k.u * 0.5
+                        Repeater {
+                            model: k.choosing.groups ?? []
+                            delegate: ColumnLayout {
+                                id: group
+                                required property var modelData
+                                Layout.fillWidth: true
+                                spacing: k.u * 0.3
+                                Text {
+                                    text: group.modelData.name + "  ·  " + group.modelData.rule
+                                    color: group.modelData.done ? "#c9d1de" : "#f5b940"
+                                    font.pixelSize: k.u * 1.1
+                                    font.bold: true
+                                }
+                                Flow {
+                                    Layout.fillWidth: true
+                                    spacing: k.u * 0.4
+                                    Repeater {
+                                        model: group.modelData.options
+                                        delegate: Big {
+                                            required property var modelData
+                                            width: k.u * 10
+                                            height: k.u * 3.2
+                                            text: modelData.name + (modelData.price ? "\n+" + modelData.price : "")
+                                            size: 0.95
+                                            base: modelData.chosen ? k.accent : "#2a313d"
+                                            onClicked: k.pos.chooseOption(group.modelData.id, modelData.index)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: k.u * 0.6
+                        Big {
+                            Layout.preferredWidth: k.u * 10
+                            Layout.preferredHeight: k.u * 3.4
+                            text: qsTr("Remove It")
+                            size: 1
+                            base: "#3a2a2e"
+                            onClicked: k.pos.kioskRemove(k.choosing.lineId)
+                        }
+                        Big {
+                            objectName: "kioskChoicesDone"
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: k.u * 3.4
+                            enabled: (k.choosing.groups ?? []).every(g => g.done)
+                            text: qsTr("Add to My Order")
+                            base: "#1f8a4c"
+                            onClicked: k.pos.finishChoosing()
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- still there? ---
+        Rectangle {
+            id: stillThere
+            visible: false
+            anchors.fill: parent
+            color: "#e0101318"
+            ColumnLayout {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: k.u * 2
+                anchors.bottomMargin: parent.height * 0.2
+                spacing: k.u
+                Text {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    text: qsTr("Are you still there?")
+                    color: "white"
+                    font.pixelSize: k.u * 2.4
+                    font.bold: true
+                }
+                Text {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    text: qsTr("Your order will be cleared in %1 seconds.").arg(k.idleLeft)
+                    color: "#c9d1de"
+                    font.pixelSize: k.u * 1.3
+                    wrapMode: Text.WordWrap
+                }
+                Big {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: Math.min(parent.width, k.u * 30)
+                    Layout.preferredHeight: k.u * 4.4
+                    text: qsTr("Yes, Keep Ordering")
+                    base: k.accent
+                    onClicked: k.touched()
+                }
             }
         }
     }
 
-    // --- staff only: hold the top-left corner for 3 seconds -------------------------------------
+    // Easy Reach: the top of the screen just shows who we are.
+    Text {
+        visible: k.easyReach && k.ordering
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.verticalCenter: parent.top
+        anchors.verticalCenterOffset: (parent.height - stage.height) / 2
+        text: k.pos ? k.pos.storeName : ""
+        color: "#4a5263"
+        font.pixelSize: k.u * 2.4
+        font.bold: true
+    }
+
+    // --- staff only: hold the top-left corner for 3 seconds -------------------------------
     Item {
         width: k.u * 4
         height: k.u * 4

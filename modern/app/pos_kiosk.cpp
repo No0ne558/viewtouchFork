@@ -4,6 +4,7 @@
 #include "app/pos_json.hh"
 #include "app/pos_service.hh"
 
+#include <QFile>
 #include <QUrl>
 
 using namespace Qt::StringLiterals;
@@ -175,6 +176,24 @@ QVariantMap PosService::selfOrderInfo() const
     return {{u"on"_s, true}, {u"ordering"_s, c != nullptr}, {u"toGo"_s, kioskToGo_},
             {u"idleSeconds"_s, s_->settings.kioskIdleSeconds}, {u"lastOrder"_s, lastKioskOrder_},
             {u"items"_s, c ? qint64(c->lines.size()) : 0}};
+}
+
+QString PosService::storeImage(const QString &path) const
+{
+    // Only the pictures the store has set up: never any other file.
+    const std::string p = ss(path);
+    bool known = !p.empty() && (p == s_->settings.displayLogo);
+    for (const MenuItem &m : s_->menu)
+        known = known || m.image == p;
+    for (const std::string &slide : s_->settings.displaySlides)
+        known = known || slide == "image:" + p;
+    if (!known)
+        return {};
+    QFile f(path);
+    constexpr qint64 kMaxBytes = 8 * 1024 * 1024;
+    if (f.size() > kMaxBytes || !f.open(QIODevice::ReadOnly))
+        return {};
+    return QString::fromLatin1(f.readAll().toBase64());
 }
 
 QVariantMap PosService::kioskMenu() const

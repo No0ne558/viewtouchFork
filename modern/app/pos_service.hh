@@ -472,6 +472,9 @@ public:
     void kioskCancel();
     QVariantMap selfOrderInfo() const override;
     QVariantMap kioskMenu() const override;
+    // A picture the store uses (a menu item's photo, the display logo or a
+    // slide), base64, for screens on other computers; empty for anything else.
+    QString storeImage(const QString &path) const;
     // Everything back to a fresh install, after a backup (managers; `confirm`
     // must be "RESET"). ViewTouch restarts with the starter set.
     bool factoryReset(const QString &confirm);

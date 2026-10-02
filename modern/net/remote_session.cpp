@@ -5,6 +5,12 @@
 
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFileInfo>
+#include <QSaveFile>
+#include <QStandardPaths>
+#include <QUrl>
 #include <QJsonArray>
 #include <QSslPreSharedKeyAuthenticator>
 #include <QLoggingCategory>
@@ -111,6 +117,70 @@ RemoteSession::RemoteSession(QString terminalName, QObject *parent)
             socket_.connectToHostEncrypted(host_, port_);
         }
     });
+}
+
+QString RemoteSession::localImage(const QString &serverPath) const
+{
+    if (serverPath.isEmpty() || !serverPath.startsWith(u'/'))
+        return serverPath;   // a resource or web address: as it is
+    const auto it = images_.constFind(serverPath);
+    if (it != images_.cend())
+        return *it;
+    images_.insert(serverPath, QString());   // asked once per run
+    auto *self = const_cast<RemoteSession *>(this);
+    self->invoke(u"storeImage"_s, {serverPath}, [self, serverPath](const QVariant &r) {
+        const QByteArray data = QByteArray::fromBase64(r.toString().toLatin1());
+        if (data.isEmpty())
+            return;
+        const QString dir = self->imageCache_.isEmpty()
+                                ? QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + u"/images"_s
+                                : self->imageCache_;
+        QDir().mkpath(dir);
+        const QString name = QString::fromLatin1(QCryptographicHash::hash(serverPath.toUtf8(), QCryptographicHash::Sha1).toHex())
+                             + u'.' + QFileInfo(serverPath).suffix();
+        QSaveFile f(QDir(dir).filePath(name));
+        if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size() || !f.commit())
+            return;
+        self->images_.insert(serverPath, QDir(dir).filePath(name));
+        emit self->adminChanged();   // the kiosk's menu
+        emit self->checkChanged();   // the customer display
+    });
+    return {};
+}
+
+QVariantMap RemoteSession::kioskMenu() const
+{
+    QVariantMap menu = v(u"kioskMenu").toMap();
+    QVariantList items = menu.value(u"items"_s).toList();
+    for (QVariant &item : items) {
+        QVariantMap m = item.toMap();
+        const QString url = m.value(u"image"_s).toString();
+        if (url.startsWith(u"file:")) {
+            const QString local = localImage(QUrl(url).toLocalFile());
+            m.insert(u"image"_s, local.isEmpty() ? QString() : QUrl::fromLocalFile(local).toString());
+            item = m;
+        }
+    }
+    menu.insert(u"items"_s, items);
+    return menu;
+}
+
+QVariantMap RemoteSession::customerPrompt() const
+{
+    QVariantMap prompt = v(u"customerPrompt").toMap();
+    if (const QString logo = prompt.value(u"logo"_s).toString(); !logo.isEmpty())
+        prompt.insert(u"logo"_s, localImage(logo));
+    QVariantList slides;
+    for (const QVariant &s : prompt.value(u"slides"_s).toList()) {
+        const QString slide = s.toString();
+        if (!slide.startsWith(u"image:")) {
+            slides << slide;
+        } else if (const QString local = localImage(slide.mid(6)); !local.isEmpty()) {
+            slides << u"image:"_s + local;   // until it arrives, the slide waits
+        }
+    }
+    prompt.insert(u"slides"_s, slides);
+    return prompt;
 }
 
 void RemoteSession::takeOver(const QString &pin)

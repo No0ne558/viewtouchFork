@@ -58,7 +58,10 @@
 - **Safe:** every sale is saved at once, with automatic and optionally encrypted backups, a second copy on USB, and a damaged-database check at start.
 - **English and Spanish:** each person's screens are in their own language.
 
-<p align="center"><img src="modern/docs/screenshots/phone.jpg" alt="Phone pages" width="180"><br><sub>Phones get their own big-button pages.</sub></p>
+<table align="center"><tr>
+<td align="center"><img src="modern/docs/screenshots/kiosk-portrait.jpg" alt="Self-order kiosk, portrait" width="200"><br><sub>The self-order kiosk on a tall<br>21.5" stand, buttons within reach.</sub></td>
+<td align="center"><img src="modern/docs/screenshots/phone.jpg" alt="Phone pages" width="180"><br><sub>Phones get their own<br>big-button pages.</sub></td>
+</tr></table>
 
 ### Download and build
 

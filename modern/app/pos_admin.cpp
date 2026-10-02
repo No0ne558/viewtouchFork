@@ -133,7 +133,7 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"description"_s, tr("Description (self-order kiosk)"), u"text"_s,
                   tr("A line guests see under the name, e.g. \"Two patties, cheddar, house sauce\".")),
             field(u"image"_s, tr("Photo (self-order kiosk)"), u"string"_s,
-                  tr("An image file (PNG, JPG) on the computer showing the kiosk, e.g. /var/lib/viewtouch/photos/burger.jpg.")),
+                  tr("An image file (PNG, JPG) on the store's computer, e.g. /var/lib/viewtouch/photos/burger.jpg. Kiosks on other computers get it from there.")),
             field(u"recipe"_s, tr("Recipe (what one uses up)"), u"text"_s,
                   tr("One ingredient per line with the amount, e.g. \"bun 1\" or \"lettuce 0.5\" (Manager -> Inventory)."
                      " Sold out by itself when one runs short.")),
