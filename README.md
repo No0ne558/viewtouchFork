@@ -83,7 +83,7 @@ git clone -b Modernization https://github.com/No0ne558/viewtouchFork.git
 cd viewtouchFork
 cmake -S modern -B modern/build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build modern/build
-ctest --test-dir modern/build          # optional: about 250 tests, a few minutes
+ctest --test-dir modern/build -j4      # optional: 250 tests, under a minute
 ```
 
 **3. Run it**
