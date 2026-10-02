@@ -923,7 +923,7 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
         REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
         s.pos.addItem(u"cobb"_s);
         s.pos.addItem(u"classic-burger"_s);
-        s.pos.addItem(u"medium"_s);
+        chooseRequired();                                       // its temperature and side
         s.pos.sendOrder();
         s.pos.releaseCheck();
     }
@@ -1014,7 +1014,9 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
         s.c.jumpTo(QString::fromLatin1(page));
         QTest::qWait(120);
         if (pickFirst) {
-            s.tapCanvas(16 + 60 * 1.6, 112 + 30 * 1.6);         // the first record
+            // The first record; the form is zoomed for fingers (ZoneItem.formZoom).
+            const double zoom = std::min(46.0 / (25 * std::min(1600.0 / 1920, 900.0 / 1080)), 1888.0 / 680);
+            s.tapCanvas(16 + 60 * zoom, 112 + 30 * zoom);
             QTest::qWait(80);
         }
         snap(name);
@@ -1051,6 +1053,76 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     }
     go("closed-checks", "m49-closed-checks");
     go("factory-reset", "m50-factory-reset");
+
+    // Network, as it looks with a standby server and a few screens.
+    s.pos.shared()->network = [] {
+        const qint64 since = QDateTime::currentMSecsSinceEpoch() - 3 * 3600 * 1000;
+        QVariantList terminals;
+        for (const auto &[name, address, user] : {std::tuple{"Bar", "192.168.1.21", "Jo"}, {"Patio Tablet", "192.168.1.34", "Sam"},
+                                                 {"Kitchen", "192.168.1.40", ""}})
+            terminals << QVariantMap{{u"name"_s, QString::fromLatin1(name)}, {u"address"_s, QString::fromLatin1(address)},
+                                     {u"user"_s, QString::fromLatin1(user)}, {u"since"_s, since}};
+        return QVariantMap{{u"role"_s, u"main"_s}, {u"machine"_s, u"office-pc"_s}, {u"terminals"_s, terminals},
+                           {u"standby"_s, QVariantMap{{u"address"_s, u"192.168.1.11"_s}, {u"since"_s, since}}},
+                           {u"printers"_s, QVariantList{
+                               QVariantMap{{u"name"_s, u"Kitchen"_s}, {u"where"_s, u"192.168.1.50:9100"_s}, {u"status"_s, u"ok"_s},
+                                           {u"at"_s, since + 3 * 3600 * 1000 - 120000}},
+                               QVariantMap{{u"name"_s, u"Receipt"_s}, {u"where"_s, u"192.168.1.51:9100"_s}, {u"status"_s, u"failed"_s},
+                                           {u"error"_s, u"No answer (is it on?)"_s}, {u"at"_s, since + 3 * 3600 * 1000 - 60000}}}}};
+    };
+    emit s.pos.shared()->networkChanged();
+    go("network", "m52-network-standby");
+    s.pos.shared()->network = nullptr;
+
+    // Spanish: Rosa's screens.
+    vt::i18n::install();
+    vt::ui::followLanguage(&s.engine, &s.c);
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"5555"_s));
+    go("tables", "m53-spanish-tables");
+    REQUIRE(s.pos.selectTable(u"T6"_s) == app::PosService::TableNeedsGuests);
+    s.pos.entryKey(u"2"_s);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    s.pos.addItem(u"bacon-burger"_s);
+    go("modifiers", "m54-spanish-choices");
+    s.pos.cancelChoosing();
+    s.pos.releaseCheck();
+    s.pos.logout();
+    vt::i18n::setLanguage(u"en"_s);
+    s.engine.retranslate();
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+
+    // The self-order kiosk, as a guest sees it.
+    s.pos.logout();
+    s.pos.enableSelfOrder();
+    QTest::qWait(150);
+    snap("m55-kiosk-welcome");
+    REQUIRE(s.pos.kioskStart(false));
+    REQUIRE(s.pos.kioskAdd(u"cheeseburger"_s));
+    s.pos.finishChoosing();
+    REQUIRE(s.pos.kioskAdd(u"classic-burger"_s));
+    REQUIRE(s.pos.chooseOption(u"temperature"_s, 1));
+    QTest::qWait(150);
+    snap("m56-kiosk-choices");
+    REQUIRE(s.pos.chooseOption(u"side"_s, 2));
+    REQUIRE(s.pos.finishChoosing());
+    REQUIRE(s.pos.kioskRemove(s.pos.lines().value(0).toMap()[u"id"_s].toLongLong()));   // the first, unfinished
+    REQUIRE(s.pos.kioskAdd(u"lemonade"_s));
+    REQUIRE(s.pos.chooseOption(u"drink-size"_s, 1));
+    REQUIRE(s.pos.finishChoosing());
+    QTest::qWait(150);
+    snap("m57-kiosk-order");
+    QQuickItem *review = Screen::findBy(s.window->contentItem(), "objectName", u"kioskReview"_s);
+    REQUIRE(review);
+    s.tapItem(review);
+    QTest::qWait(120);
+    for (const char ch : {'M', 'a', 'r', 'i', 'a'})
+        QTest::keyClick(s.window, ch);
+    snap("m58-kiosk-name");
+    REQUIRE(s.pos.kioskFinish({{u"name"_s, u"Maria"_s}}));
+    QTest::qWait(150);
+    snap("m59-kiosk-number");
+    REQUIRE(s.pos.leaveSelfOrder(u"1234"_s));
 
     // Editing pages.
     s.c.jumpTo(u"tables"_s);

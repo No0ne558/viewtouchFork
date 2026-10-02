@@ -26,7 +26,7 @@
 <div class="cover">
 <h1 class="first">ViewTouch</h1>
 <p style="font-size:18pt; color:#555">User Manual</p>
-<p style="font-size:11pt; color:#555">For servers, hosts, kitchen staff, cashiers and managers<br>Version 0.7 (Modernization) · October 2026</p>
+<p style="font-size:11pt; color:#555">For servers, hosts, kitchen staff, cashiers and managers<br>Version 0.8 (Modernization) · October 2026</p>
 <p class="shot"><img src="shots/m02-tables.png" width="520" height="292"></p>
 </div>
 
@@ -47,6 +47,9 @@
 <li>Changing the screens (edit mode)</li>
 <li>Phones and tablets</li>
 <li>Backups, safety and starting over</li>
+<li>The self-order kiosk</li>
+<li>Languages (Español)</li>
+<li>Keep running if a computer fails</li>
 <li>Quick reference</li>
 </ol>
 
@@ -81,6 +84,7 @@
 <tr><td>2222</td><td>Casey</td><td>Cashier</td></tr>
 <tr><td>4444</td><td>Jo</td><td>Bartender</td></tr>
 <tr><td>3333</td><td>Riley</td><td>Busser (clocks in, shares tips)</td></tr>
+<tr><td>5555</td><td>Rosa</td><td>Server whose screens are in Spanish (chapter 17)</td></tr>
 </table>
 <div class="tip">Change the PINs and staff in <b>Manager → Employees</b> before you open for real.</div>
 
@@ -128,10 +132,10 @@
 <p class="caption">An item page. Touch an item to add it.</p>
 
 <h2>Choices for an item</h2>
-<p>Some items ask for choices. Burgers walk through pages: how it's cooked, then a side.</p>
+<p>Some items ask for choices on the <b>Choose</b> page beside the check. A burger asks how it's cooked and for a side (onion rings and sweet potato fries cost extra).</p>
 <p class="shot"><img src="shots/m06-modifier-page.png" width="560" height="315"></p>
-<p class="caption">A modifier page: touch a choice (or Skip).</p>
-<p>Other items open the <b>Choose</b> page beside the check: a dressing (choose 1), proteins (optional, priced), fillings (up to 3).</p>
+<p class="caption">A burger's choices: Temperature (choose 1) and Side (choose 1).</p>
+<p>Other items ask for a dressing (choose 1), a protein (optional, priced), fillings (up to 3), a drink size… The groups and their options are set in <b>Manager → Modifier Groups</b> (chapter 11), and the self-order kiosk asks for the same choices.</p>
 <p class="shot"><img src="shots/m07-choose.png" width="560" height="315"></p>
 <p class="caption">The Choose page. Required choices must be made before Done; Cancel Item takes it off.</p>
 <div class="warn">An item still missing a required choice can't be sent. Its amber <b>Choose</b> button on the check reopens its choices.</div>
@@ -310,6 +314,7 @@
 <h1>11. Manager screens</h1>
 <p class="shot"><img src="shots/m30-manager.png" width="560" height="315"></p>
 <p class="caption">The Manager screen (PIN 1234).</p>
+<p><b>Network…</b> shows the store's computers and printers (chapter 18), and <b>Self-Order Kiosk</b> turns this screen into a kiosk for guests (chapter 16).</p>
 <p>Every Manager screen works the same way: the list on the left, the details on the right. Touch a record, change it, touch <b>Save</b> (or <b>Undo changes</b>). <b>+ Add</b> makes a new one; <b>Remove</b> deletes it.</p>
 
 <h2>Menu items</h2>
@@ -325,6 +330,8 @@
 <tr><td>Prices by meal period</td><td>e.g. <code>dinner = 14.50</code>.</td></tr>
 <tr><td>Kitchen name, highlight, don't show</td><td>How it looks on the kitchen screen and tickets.</td></tr>
 <tr><td>Recipe</td><td>What one uses up, e.g. <code>bun 1</code>, <code>lettuce 0.5</code> (Inventory).</td></tr>
+<tr><td>Not on the self-order kiosk</td><td>Guests can't order it on their own (alcohol never shows there).</td></tr>
+<tr><td>Description, Photo</td><td>What guests see on the self-order kiosk: a line under the name, and an image file on the kiosk's computer.</td></tr>
 </table>
 
 <h2>Modifier groups</h2>
@@ -337,12 +344,14 @@
 <li>Name, role (server, bartender, cashier, host, busser, manager, admin) and a PIN of 4 to 8 digits.</li>
 <li>Each permission can be <i>As the role</i>, <i>Yes</i> or <i>No</i> for one person: take orders, take payments, discounts, void sent items, manager screens, edit pages.</li>
 <li>Staff are deactivated, not deleted, so their sales and hours keep a name.</li>
+<li><b>Language</b>: the screens switch to it when this person logs in (chapter 17).</li>
 </ul>
 
 <h2>Store settings</h2>
 <p class="shot"><img src="shots/m34-store-settings.png" width="560" height="315"></p>
 <p>The store's name, receipt header and footer, and:</p>
 <ul>
+<li><b>Language</b>: for screens nobody is logged in to, the customer display, receipts and tickets.</li>
 <li><b>Cash handling</b>: server banks or a drawer per screen.</li>
 <li><b>Breaks and overtime</b>.</li>
 <li><b>Schedule</b>: the clock-in rule.</li>
@@ -352,7 +361,8 @@
 <li><b>Tip choices</b>.</li>
 <li><b>Kitchen times</b>.</li>
 <li><b>Waitlist</b>: quotes, the table-ready text, and the texting service.</li>
-<li><b>Backups</b>: a second copy.</li>
+<li><b>Backups</b>: a second copy, and <b>Encrypt backups</b> with a backup password (chapter 15).</li>
+<li><b>Self-order kiosk</b>: send kiosk orders to the kitchen at once, and when an untouched order is cleared.</li>
 <li><b>Party gratuity</b>.</li>
 </ul>
 
@@ -364,7 +374,7 @@
 </tr></table>
 <ul>
 <li><b>Printers</b>: network (TCP 9100, ESC/POS), CUPS, or a text file for testing.</li>
-<li><b>Terminals</b>: each screen's receipt printer, cash drawer and screen layout, and <b>Pair a Device</b>.</li>
+<li><b>Terminals</b>: each screen's receipt printer, cash drawer and screen layout (standard, phone, or <b>Self-order kiosk</b>), and <b>Pair a Device</b>.</li>
 </ul>
 
 <h2>Meal periods</h2>
@@ -482,13 +492,85 @@
 <li><b>Damaged database:</b> if the database is damaged, ViewTouch won't use it. It names the newest good backup and the command to restore it.</li>
 <li><b>Restore</b> (ViewTouch stopped): <code>sudo vtmodern --data-dir /var/lib/viewtouch --restore &lt;backup file&gt;</code>.</li>
 </ul>
+<h2>Encrypted backups</h2>
+<p>A USB drive with backups on it holds every sale, customer and phone number. To lock them: <b>Store Settings → Encrypt backups</b>, then a <b>Backup password</b> (8 characters or more), and Save. From then on every backup and its second copy is a <code>.vtbak</code> file that only this password opens. Each one is opened again and checked as it's made.</p>
+<ul>
+<li>Restoring on the same computer needs nothing more. On another computer, <code>--restore</code> asks for the password.</li>
+<li>Changing the password leaves older backups on the old one.</li>
+</ul>
+<div class="warn">Write the backup password down and keep it somewhere safe. Without it, nobody can open an encrypted backup, not even ViewTouch's makers.</div>
+<p>The live database on the store computer is protected by turning on disk encryption when installing the operating system (Fedora and Ubuntu: <i>Encrypt my data</i>). PINs are never stored, only scrambled (salted hashes).</p>
 <h2>Factory reset</h2>
 <p class="shot"><img src="shots/m50-factory-reset.png" width="480" height="270"></p>
 <p><b>Manager → Factory Reset…</b>, type RESET. ViewTouch backs up, deletes everything (sales, customers, staff, menu, settings, page changes) and starts again with the starter set. The backup lets you undo it with <code>--restore</code>.</p>
 <p>From the command line: <code>vtmodern --factory-reset</code>, and <code>vtmodern --demo-data</code> to fill an empty store with two months of demo history for training.</p>
 
 <!-- ======================================================================= -->
-<h1>16. Quick reference</h1>
+<h1>16. The self-order kiosk</h1>
+<p>A screen where guests order on their own and pay at the counter, with no help from staff.</p>
+<h2>Turning it on</h2>
+<ul>
+<li><b>On the spot:</b> log in as a manager, touch <b>Manager → Self-Order Kiosk</b>.</li>
+<li><b>Always:</b> Manager → Terminals → the screen → <i>Screen layout</i> → <b>Self-order kiosk</b>. It starts as a kiosk every time it connects.</li>
+<li><b>From the command line:</b> <code>vtmodern --self-order</code>.</li>
+<li><b>Turning it off:</b> hold the top-left corner of the kiosk for 3 seconds, then type a manager's PIN.</li>
+</ul>
+<h2>What the guest does</h2>
+<table cellpadding="4"><tr>
+<td><img src="shots/m55-kiosk-welcome.png" width="280" height="158"><br><small>1. For Here or To Go</small></td>
+<td><img src="shots/m57-kiosk-order.png" width="280" height="158"><br><small>2. The menu and their order</small></td>
+</tr><tr>
+<td><img src="shots/m56-kiosk-choices.png" width="280" height="158"><br><small>3. Choices (temperature, side…)</small></td>
+<td><img src="shots/m58-kiosk-name.png" width="280" height="158"><br><small>4. A name to call the order by</small></td>
+</tr></table>
+<p class="shot"><img src="shots/m59-kiosk-number.png" width="480" height="270"></p>
+<p class="caption">5. The order number, and "please pay at the counter".</p>
+<ul>
+<li>Categories on the left, dishes with their photo, description and price in the middle, their order and total on the right. <b>×</b> takes an item off; <b>Start Over</b> clears everything.</li>
+<li>Sold-out items show SOLD OUT and can't be ordered.</li>
+<li>If nobody touches the screen for 90 seconds in the middle of an order, it asks <b>Are you still there?</b>. With no answer it clears the order and goes back to the welcome screen (Store Settings sets the time).</li>
+</ul>
+<h2>At the counter</h2>
+<p>The order waits in <b>Open Checks</b> as <i>Kiosk 42</i>, with the guest's name. The cashier opens it, takes the payment and closes it. Closing sends it to the kitchen. With <b>Store Settings → Self-order kiosk: send orders to the kitchen at once</b>, it goes to the kitchen as soon as the guest finishes instead.</p>
+<h2>What guests can order</h2>
+<p>Every menu item except modifiers (they appear as choices), items marked <b>Not on the self-order kiosk</b>, and alcohol, which never shows there. Give items a <b>Description</b> and a <b>Photo</b> in Manager → Menu Items. A photo is an image file on the computer showing the kiosk.</p>
+<div class="tip">Card payments at the kiosk will come with card readers. Until then, guests pay at the counter.</div>
+
+<!-- ======================================================================= -->
+<h1>17. Languages (Español)</h1>
+<p>The screens come in English and Spanish.</p>
+<ul>
+<li><b>Each person's own:</b> Manager → Employees → the person → <b>Language</b>. The screen switches when they log in and back when they log out. On a store with several screens, each speaks its own user's language, messages included.</li>
+<li><b>The store's:</b> Manager → Store Settings → <b>Language</b>. Used on screens nobody is logged in to, for people without their own, and for everything guests see: the customer display, the self-order kiosk, receipts and kitchen tickets.</li>
+</ul>
+<table cellpadding="4"><tr>
+<td><img src="shots/m53-spanish-tables.png" width="280" height="158"><br><small>Rosa's floor plan</small></td>
+<td><img src="shots/m54-spanish-choices.png" width="280" height="158"><br><small>Taking an order in Spanish</small></td>
+</tr></table>
+<p>Menu items, modifier groups and their options stay as you typed them, because the check, the kitchen and receipts use those names. To translate your own buttons or any phrase, put a file <code>translations/es.json</code> in ViewTouch's data folder, for example <code>{"Burger of the Day": "Hamburguesa del día"}</code>.</p>
+
+<!-- ======================================================================= -->
+<h1>18. Keep running if a computer fails</h1>
+<p>A second store computer can be the <b>standby</b>. It keeps a live copy of everything and takes over if the main computer stops.</p>
+<h2>Setting it up</h2>
+<ol>
+<li>On any store screen: Manager → Terminals → <b>Pair a Device</b>, and note the code.</li>
+<li>On the second computer: <code>vtmodern --standby auto --pair &lt;code&gt;</code> (once). From then on, <code>vtmodern --standby auto</code>, best as a service.</li>
+</ol>
+<h2>When the main computer stops</h2>
+<ul>
+<li>The screens say <i>The main server isn't answering. The standby computer takes over in a few seconds.</i></li>
+<li>After 20 seconds the standby becomes the main computer: same store, same screens, same check numbers. The screens find it and reconnect by themselves.</li>
+<li>A manager can touch <b>Take Over Now</b> on a screen and type their PIN to skip the wait.</li>
+<li>When the old main computer comes back, it sees the store running elsewhere and becomes the new standby. It first keeps its own data as a <code>…-before-standby.db</code> backup.</li>
+</ul>
+<h2>Manager → Network</h2>
+<p class="shot"><img src="shots/m52-network-standby.png" width="560" height="315"></p>
+<p class="caption">Network: this computer, the standby, the screens connected (and who is on them), and how each printer did last.</p>
+<div class="warn">If the cable between the two computers breaks while both keep running, both may take orders for a few seconds. Orders taken on the old main computer in that time are only in its <code>-before-standby</code> backup.</div>
+
+<!-- ======================================================================= -->
+<h1>19. Quick reference</h1>
 <h2>Where things are</h2>
 <table border="1" cellpadding="5" cellspacing="0" width="100%">
 <tr><th>To…</th><th>Go to</th></tr>
@@ -505,6 +587,11 @@
 <tr><td>Pair a tablet</td><td>Manager → Terminals → Pair a Device</td></tr>
 <tr><td>Close the day</td><td>Manager → End of Day</td></tr>
 <tr><td>Close ViewTouch on a screen</td><td>Manager → Close ViewTouch (twice)</td></tr>
+<tr><td>Make a screen a self-order kiosk</td><td>Manager → Self-Order Kiosk</td></tr>
+<tr><td>Leave the self-order kiosk</td><td>Hold the top-left corner 3 seconds → manager PIN</td></tr>
+<tr><td>Someone's screens in Spanish</td><td>Manager → Employees → Language</td></tr>
+<tr><td>Is the standby in sync? Are printers OK?</td><td>Manager → Network…</td></tr>
+<tr><td>Encrypt backups</td><td>Manager → Settings → Encrypt backups + Backup password</td></tr>
 </table>
 <h2>Keys (with a keyboard)</h2>
 <table border="1" cellpadding="5" cellspacing="0" width="100%">
