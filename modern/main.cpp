@@ -1133,11 +1133,27 @@ int runPairingCode(const Args &cli, const Options &o)
 int runBackup(const Args &cli, const Options &o)
 {
     const QString dir = backupDirOf(cli, o);
-    const QString target = QDir(dir).filePath(vt::storage::backupFileName(QDateTime::currentDateTime()));
+    QString target = QDir(dir).filePath(vt::storage::backupFileName(QDateTime::currentDateTime()));
     QString error;
     if (!QDir().mkpath(dir) || !vt::storage::backupDatabase(dbPathOf(cli, o), target, &error)) {
         qCritical().noquote() << "Backup failed:" << (error.isEmpty() ? u"cannot create "_s + dir : error);
         return 1;
+    }
+    // The store encrypts its backups: this one too.
+    if (const auto [key, salt] = vt::storage::backupKeyOf(target); !key.isEmpty()) {
+        QString sealed = target;
+        sealed.replace(u".db"_s, u".vtbak"_s);
+        QTemporaryDir check;
+        const bool ok = vt::storage::sealFile(target, sealed, key, salt, &error)
+                        && vt::storage::openSealedFileWithKey(sealed, check.filePath(u"check.db"_s), key, &error)
+                        && vt::storage::verifyDatabase(check.filePath(u"check.db"_s), &error);
+        QFile::remove(target);
+        if (!ok) {
+            QFile::remove(sealed);
+            qCritical().noquote() << "Encrypting the backup failed:" << error;
+            return 1;
+        }
+        target = sealed;
     }
     vt::storage::pruneBackups(dir, cli.value(o.backupKeep).toInt());
     qInfo().noquote() << "Backed up to" << target;
@@ -1390,11 +1406,8 @@ int runRestore(const Args &cli, const Options &o)
         const QString plain = opened.filePath(u"restore.db"_s);
         bool ok = false;
         if (QFile::exists(dbPath)) {
-            vt::storage::PosStore store(dbPath);
-            const auto data = store.open() ? store.load() : std::nullopt;
-            if (data && !data->settings.backupKey.empty())
-                ok = vt::storage::openSealedFileWithKey(
-                    backup, plain, QByteArray::fromBase64(QByteArray::fromStdString(data->settings.backupKey)));
+            if (const QByteArray key = vt::storage::backupKeyOf(dbPath).first; !key.isEmpty())
+                ok = vt::storage::openSealedFileWithKey(backup, plain, key);
         }
         if (!ok) {
             QString password = qEnvironmentVariable("VTM_BACKUP_PASSWORD");

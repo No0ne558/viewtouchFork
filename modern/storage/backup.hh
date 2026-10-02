@@ -35,6 +35,9 @@ bool copyBackup(const QString &backup, const QString &dir, QString *note = nullp
 QStringList listBackups(const QString &dir);
 // Remove all but the newest `keep` backups in `dir`; returns what was removed.
 QStringList pruneBackups(const QString &dir, int keep);
+// The store's backup key and salt from the database at `db` (read only);
+// both empty when its backups aren't encrypted.
+std::pair<QByteArray, QByteArray> backupKeyOf(const QString &db);
 // The file name for a backup taken at `when`.
 QString backupFileName(const QDateTime &when);
 

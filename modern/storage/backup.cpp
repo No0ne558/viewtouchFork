@@ -3,6 +3,8 @@
 #include "storage/sealed.hh"
 
 #include <QAtomicInt>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -114,6 +116,18 @@ bool copyBackup(const QString &backup, const QString &dir, QString *note)
     if (note)
         *note = u"Second copy failed: %1."_s.arg(error.isEmpty() ? u"cannot rename the copy"_s : error);
     return false;
+}
+
+std::pair<QByteArray, QByteArray> backupKeyOf(const QString &db)
+{
+    QJsonObject settings;
+    withConnection(db, true, nullptr, [&](QSqlQuery &q) {
+        if (q.exec(u"SELECT json FROM settings WHERE key = 'pos'"_s) && q.next())
+            settings = QJsonDocument::fromJson(q.value(0).toByteArray()).object();
+        return true;
+    });
+    return {QByteArray::fromBase64(settings.value(u"backupKey").toString().toLatin1()),
+            QByteArray::fromBase64(settings.value(u"backupSalt").toString().toLatin1())};
 }
 
 QString backupFileName(const QDateTime &when)
