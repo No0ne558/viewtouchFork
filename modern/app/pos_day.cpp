@@ -41,7 +41,7 @@ QVariantMap toVariant(const Report &r)
 }
 
 const QStringList kReportIds = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s, u"tips"_s,
-                                u"labor"_s, u"drawer"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s};
+                                u"labor"_s, u"drawer"_s, u"expenses"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s};
 
 } // namespace
 
@@ -377,6 +377,13 @@ bool PosService::payout(CashMovement::Kind kind)
     const Money amount = Money::fromCents(entry_.toLongLong());
     if (amount.cents() <= 0)
         return fail(tr("Enter the amount on the keypad first."));
+    // A pay out is an expense: what was it for?
+    if (kind == CashMovement::Kind::Payout && expenseCategory_.isEmpty() && !s_->settings.expenseCategories.empty()) {
+        QStringList names;
+        for (const std::string &c : s_->settings.expenseCategories)
+            names << qs(c);
+        return fail(tr("Choose what it was for: %1.").arg(names.join(u", "_s)));
+    }
     DrawerSession *d = serverBank() ? ensureMyBank() : myDrawer();   // a bank starts with the first cash
     if (!d)
         return fail(noDrawerMessage());
@@ -387,9 +394,12 @@ bool PosService::payout(CashMovement::Kind kind)
     m.reason = ss(text_.trimmed());
     m.by = user()->name;
     m.at = now();
+    if (kind == CashMovement::Kind::Payout)
+        m.category = ss(expenseCategory_);
     d->movements.push_back(m);
     entry_.clear();
     text_.clear();
+    expenseCategory_.clear();
     emit entryChanged();
     if (s_->sink)
         s_->sink->saveDrawer(*d);
@@ -400,6 +410,12 @@ bool PosService::payout(CashMovement::Kind kind)
     emit s_->drawerChanged();
     emit s_->dayChanged();
     return true;
+}
+
+void PosService::setExpenseCategory(const QString &category)
+{
+    expenseCategory_ = category == expenseCategory_ ? QString() : category;
+    emit drawerChanged();
 }
 
 bool PosService::cashOutTips()
@@ -494,7 +510,7 @@ QVariantMap PosService::drawerInfo() const
     for (const CashMovement &m : d.movements) {
         const QString what = m.kind == CashMovement::Kind::PaidIn ? tr("Paid in")
                              : m.kind == CashMovement::Kind::TipPayout ? tr("Tips to %1").arg(qs(m.reason))
-                                                                       : tr("Paid out");
+                             : m.category.empty() ? tr("Paid out") : tr("Paid out · %1").arg(qs(m.category));
         movements.append(QVariantMap{{u"what"_s, m.kind == CashMovement::Kind::TipPayout || m.reason.empty()
                                                     ? what : what + u": "_s + qs(m.reason)},
                                      {u"amount"_s, format(m.effect())}, {u"time"_s, clockText(m.at)}});
@@ -508,6 +524,12 @@ QVariantMap PosService::drawerInfo() const
         {u"movements"_s, movements},
         {u"expected"_s, format(expected)}, {u"counted"_s, format(d.counted)},
         {u"closedBy"_s, qs(d.closedBy)}, {u"overShort"_s, format(d.overShort())},
+        {u"categories"_s, [&] {
+             QVariantList out;
+             for (const std::string &c : s_->settings.expenseCategories)
+                 out.append(QVariantMap{{u"name"_s, qs(c)}, {u"chosen"_s, qs(c) == expenseCategory_}});
+             return out;
+         }()},
         {u"overShortCents"_s, qint64(d.overShort().cents())},
     };
 }
@@ -761,6 +783,8 @@ Report PosService::buildReport(const QString &id) const
     }
     if (id == u"drawer")
         return drawerReport(s_->drawers, s_->closedToday, ctx);
+    if (id == u"expenses")
+        return expensesReport(s_->drawers, ctx);
     if (id == u"tips")
         return tipsReport(allTipShares(), ctx);
     if (id == u"hourly")

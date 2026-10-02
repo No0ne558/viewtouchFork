@@ -476,6 +476,45 @@ Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Empl
     return r;
 }
 
+Report expensesReport(const std::vector<DrawerSession> &drawers, const ReportContext &ctx)
+{
+    Report r;
+    r.id = "expenses";
+    r.title = "Expenses";
+    r.subtitle = ctx.period;
+    r.columns = {"", "When", "Who", "Amount"};
+    struct Row { const CashMovement *m; const DrawerSession *d; };
+    std::vector<Row> rows;
+    std::map<std::string, Money> byCategory;
+    Money total;
+    for (const DrawerSession &d : drawers) {
+        for (const CashMovement &m : d.movements) {
+            if (m.kind != CashMovement::Kind::Payout)
+                continue;
+            rows.push_back({&m, &d});
+            byCategory[m.category.empty() ? "Not sorted" : m.category] += m.amount;
+            total += m.amount;
+        }
+    }
+    if (rows.empty()) {
+        r.note("No cash was paid out.");
+        return r;
+    }
+    r.section("By category");
+    for (const auto &[category, amount] : byCategory)
+        r.line({category, "", "", ctx.money(amount)});
+    r.total({"Total paid out", "", "", ctx.money(total)});
+    r.section("Each one");
+    std::ranges::sort(rows, {}, [](const Row &x) { return x.m->at; });
+    for (const Row &x : rows) {
+        std::string what = x.m->category.empty() ? "Not sorted" : x.m->category;
+        if (!x.m->reason.empty())
+            what += ": " + x.m->reason;
+        r.line({what, ctx.clock(x.m->at), x.m->by, ctx.money(x.m->amount)});
+    }
+    return r;
+}
+
 Report drawerReport(const std::vector<DrawerSession> &drawers, const std::vector<Check> &closed,
                     const ReportContext &ctx)
 {

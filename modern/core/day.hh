@@ -29,6 +29,7 @@ struct CashMovement {
     std::string by;            // who did it
     std::string employeeId;    // TipPayout: whose tips
     std::int64_t at = 0;
+    std::string category;      // Payout: what it was for (Produce, Ice, Repairs...)
 
     // Effect on the cash in the drawer.
     Money effect() const { return kind == Kind::PaidIn ? amount : -amount; }

@@ -172,6 +172,25 @@ Item {
                 onClicked: w.pos.noSale()
             }
         }
+        // Manager: what a pay out is for (Store Settings: expense categories).
+        Flow {
+            visible: (w.d.open ?? false) && w.pos !== null && w.pos.can("manager") && (w.d.categories ?? []).length > 0
+            Layout.fillWidth: true
+            spacing: w.unit * 0.3
+            Repeater {
+                model: w.d.categories ?? []
+                delegate: WidgetKey {
+                    required property var modelData
+                    objectName: "expense-" + modelData.name
+                    width: w.unit * 6
+                    height: Math.max(w.unit * 2.2, w.zone ? w.zone.touch(46) : 0)
+                    text: modelData.name
+                    fontScale: 0.32
+                    baseColor: modelData.chosen ? "#2f6fd6" : "#343c49"
+                    onClicked: w.pos.setExpenseCategory(modelData.name)
+                }
+            }
+        }
         // Manager: cash taken out (vendor, ice…) or put in (change). The
         // reason comes from the Reason… keyboard page when typed.
         RowLayout {

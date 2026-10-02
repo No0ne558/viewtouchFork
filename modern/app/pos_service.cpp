@@ -1426,6 +1426,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"loginWithPin"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.loginWithPin(a.value(0).toString())); }},
         {u"logout"_s, [](PosService &p, const QVariantList &) { p.logout(); return QVariant(true); }},
         {u"clockIn"_s, [](PosService &p, const QVariantList &) { return QVariant(p.clockIn()); }},
+        {u"setExpenseCategory"_s, [](PosService &p, const QVariantList &a) { p.setExpenseCategory(a.value(0).toString()); return QVariant(true); }},
         {u"clockInAs"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.clockInAs(a.value(0).toString())); }},
         {u"cancelClockIn"_s, [](PosService &p, const QVariantList &) { p.cancelClockIn(); return QVariant(true); }},
         {u"clockOut"_s, [](PosService &p, const QVariantList &) { return QVariant(p.clockOut()); }},

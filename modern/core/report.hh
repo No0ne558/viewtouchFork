@@ -86,6 +86,8 @@ Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Empl
                    const ReportContext &ctx, const std::vector<TimePunch> &earlier = {}, Money netSales = {});
 Report drawerReport(const std::vector<DrawerSession> &drawers, const std::vector<Check> &closed,
                     const ReportContext &ctx);
+// Cash paid out of drawers and banks for expenses: by category, then each one.
+Report expensesReport(const std::vector<DrawerSession> &drawers, const ReportContext &ctx);
 // Net sales by the hour checks closed in.
 Report hourlySales(const std::vector<Check> &closed, const ReportContext &ctx);
 // Net sales per family (category), with its share of the day.

@@ -301,6 +301,9 @@ QVariantList PosService::adminFields(const QString &panel)
                   tr("Texts are POSTed here as JSON {\"to\", \"message\"} (your SMS provider or a relay). Empty: no texts; the host tells the guest.")),
             field(u"backupCopyDir"_s, tr("Also copy backups to"), u"text"_s,
                   tr("A USB drive or network folder on the server, e.g. /media/usb/viewtouch. Empty = no second copy.")),
+            field(u"expenseCategories"_s, tr("Expense categories"), u"text"_s,
+                  tr("What cash paid out of a drawer can be for, one per line (Produce, Ice, Repairs...). "
+                     "Each pay out picks one; Reports -> Expenses adds them up.")),
             field(u"kioskSendNow"_s, tr("Self-order kiosk: send orders to the kitchen at once"), u"bool"_s,
                   tr("Otherwise a kiosk order goes to the kitchen when it is paid for at the counter.")),
             with(with(field(u"kioskIdleSeconds"_s, tr("Self-order kiosk: clear an untouched order after (seconds)"),
@@ -427,6 +430,12 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"terminalsHaveDrawer"_s, s_->settings.terminalsHaveDrawer},
              {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks},
              {u"backupCopyDir"_s, qs(s_->settings.backupCopyDir)},
+             {u"expenseCategories"_s, [&] {
+                  QStringList lines;
+                  for (const std::string &c : s_->settings.expenseCategories)
+                      lines << qs(c);
+                  return lines.join(u'\n');
+              }()},
              {u"kioskSendNow"_s, s_->settings.kioskSendNow}, {u"kioskIdleSeconds"_s, s_->settings.kioskIdleSeconds},
              {u"encryptBackups"_s, !s_->settings.backupKey.empty()}, {u"backupPassword"_s, QString()},
              {u"waitMinutesPerParty"_s, s_->settings.waitMinutesPerParty},
@@ -736,6 +745,13 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.textWebhook = ss(record.value(u"textWebhook"_s).toString().trimmed());
         if (record.contains(u"backupCopyDir"_s))
             s_->settings.backupCopyDir = ss(record.value(u"backupCopyDir"_s).toString().trimmed());
+        if (record.contains(u"expenseCategories"_s)) {
+            std::vector<std::string> categories;
+            for (const QString &line : record.value(u"expenseCategories"_s).toString().split(u'\n', Qt::SkipEmptyParts))
+                if (!line.trimmed().isEmpty())
+                    categories.push_back(ss(line.trimmed()));
+            s_->settings.expenseCategories = categories;
+        }
         if (record.contains(u"kioskSendNow"_s))
             s_->settings.kioskSendNow = record.value(u"kioskSendNow"_s).toBool();
         if (record.contains(u"kioskIdleSeconds"_s))

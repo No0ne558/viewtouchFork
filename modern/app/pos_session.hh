@@ -254,6 +254,7 @@ public:
     Q_INVOKABLE void backupNow() { invoke(QStringLiteral("backupNow")); }
     Q_INVOKABLE void leaveSelfOrder(const QString &pin) { invoke(QStringLiteral("leaveSelfOrder"), {pin}); }
     Q_INVOKABLE void clockInAs(const QString &role) { invoke(QStringLiteral("clockInAs"), {role}); }
+    Q_INVOKABLE void setExpenseCategory(const QString &category) { invoke(QStringLiteral("setExpenseCategory"), {category}); }
     Q_INVOKABLE void cancelClockIn() { invoke(QStringLiteral("cancelClockIn")); }
     Q_INVOKABLE void kioskStart(bool toGo) { invoke(QStringLiteral("kioskStart"), {toGo}); }
     Q_INVOKABLE void kioskAdd(const QString &itemId) { invoke(QStringLiteral("kioskAdd"), {itemId}); }

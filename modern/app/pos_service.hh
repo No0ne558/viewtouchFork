@@ -248,6 +248,9 @@ public:
     // Someone with more than one job is asked which one first (clockInJobs),
     // then clocks in as it.
     bool clockInAs(const QString &role);
+    // What the next pay out is for (Store Settings: expense categories);
+    // touching the chosen one again clears it.
+    void setExpenseCategory(const QString &category);
     void cancelClockIn();
     QVariantMap clockInJobs() const override;
     bool clockOut();
@@ -635,6 +638,7 @@ private:
     // Start a shift: the job and its pay recorded on the punch.
     bool punchIn(const core::Employee &e, const core::Job &job, const QString &by = {});
     std::string jobChoice_;   // waiting for this person to pick a job
+    QString expenseCategory_;
     std::int64_t now() const { return s_->now(); }
     bool lockCheck(std::int64_t checkId);   // false: open on another terminal
     void unlockCheck(std::int64_t checkId);

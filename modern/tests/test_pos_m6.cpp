@@ -151,16 +151,24 @@ TEST_CASE("Pay-outs and paid-ins change the expected cash", "[m6][drawers]")
     pos.logout();
 
     REQUIRE(pos.loginWithPin(u"1234"_s));
-    for (const char *k : {"I", "c", "e"})
+    for (const char *k : {"B", "a", "g", "s"})
         pos.textKey(QString::fromLatin1(k));
     pos.entryKey(u"2000"_s);
+    CHECK_FALSE(pos.payout(CashMovement::Kind::Payout));    // what was it for?
+    pos.setExpenseCategory(u"Ice"_s);
     REQUIRE(pos.payout(CashMovement::Kind::Payout));        // $20 for ice
     pos.entryKey(u"500"_s);
     REQUIRE(pos.payout(CashMovement::Kind::PaidIn));
     const QVariantMap d = pos.drawerInfo();
     CHECK(d[u"expected"_s].toString() == u"$85.00"_s);
     REQUIRE(d[u"movements"_s].toList().size() == 2);
-    CHECK(d[u"movements"_s].toList()[0].toMap()[u"what"_s].toString() == u"Paid out: Ice"_s);
+    CHECK(d[u"movements"_s].toList()[0].toMap()[u"what"_s].toString() == u"Paid out · Ice: Bags"_s);
+    // Reports -> Expenses adds them up by category.
+    const auto expenses = pos.buildReport(u"expenses"_s);
+    bool ice = false;
+    for (const core::ReportRow &row : expenses.rows)
+        ice = ice || (row.cells.size() == 4 && row.cells[0] == "Ice" && row.cells[3] == "$20.00");
+    CHECK(ice);
     CHECK(pos.entry().isEmpty());
     CHECK(pos.textEntry().isEmpty());
 

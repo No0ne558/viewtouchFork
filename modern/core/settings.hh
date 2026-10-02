@@ -143,6 +143,8 @@ struct PosSettings {
     // The store's language: screens without anyone logged in (and people
     // without their own), the customer display, receipts and tickets.
     std::string language = "en";
+    // What cash paid out of a drawer is for, for the Expenses report.
+    std::vector<std::string> expenseCategories{"Food & supplies", "Produce", "Ice", "Cleaning", "Repairs", "Other"};
     // Self-order kiosk: send orders to the kitchen as soon as the guest
     // finishes (else when they are paid for at the counter), and how long an
     // untouched order waits before it is cleared.

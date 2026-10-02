@@ -449,7 +449,7 @@ QJsonObject toJson(const DrawerSession &d)
         movements.append(QJsonObject{
             {u"id"_s, qint64(m.id)}, {u"kind"_s, qs(toString(m.kind))}, {u"amount"_s, qint64(m.amount.cents())},
             {u"reason"_s, qs(m.reason)}, {u"by"_s, qs(m.by)}, {u"employeeId"_s, qs(m.employeeId)},
-            {u"at"_s, qint64(m.at)}});
+            {u"at"_s, qint64(m.at)}, {u"category"_s, qs(m.category)}});
     }
     return {{u"id"_s, qint64(d.id)}, {u"name"_s, qs(d.name)}, {u"terminal"_s, qs(d.terminal)},
             {u"employeeId"_s, qs(d.employeeId)},
@@ -479,7 +479,7 @@ DrawerSession drawerFromJson(const QJsonObject &o)
         d.movements.push_back({i64(m.value(u"id")), cashMovementKindFromString(ss(m.value(u"kind").toString())),
                                money(m.value(u"amount")), ss(m.value(u"reason").toString()),
                                ss(m.value(u"by").toString()), ss(m.value(u"employeeId").toString()),
-                               i64(m.value(u"at"))});
+                               i64(m.value(u"at")), ss(m.value(u"category").toString())});
     }
     d.nextMovementId = std::max<std::int64_t>(i64(o.value(u"nextMovementId")), 1);
     return d;
@@ -615,6 +615,12 @@ QJsonObject toJson(const PosSettings &s)
         {u"waitMinutesPerParty"_s, s.waitMinutesPerParty},
         {u"autoLogoutMinutes"_s, s.autoLogoutMinutes}, {u"tableLongMinutes"_s, s.tableLongMinutes},
         {u"replicaKey"_s, qs(s.replicaKey)}, {u"language"_s, qs(s.language)},
+        {u"expenseCategories"_s, [&] {
+             QJsonArray a;
+             for (const std::string &c : s.expenseCategories)
+                 a.append(qs(c));
+             return a;
+         }()},
         {u"kioskSendNow"_s, s.kioskSendNow}, {u"kioskIdleSeconds"_s, s.kioskIdleSeconds}, {u"serverTerm"_s, s.serverTerm},
         {u"display"_s, [&] {
              QJsonArray slides;
@@ -697,6 +703,11 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.autoLogoutMinutes = std::clamp(o.value(u"autoLogoutMinutes").toInt(0), 0, 120);
     s.replicaKey = ss(o.value(u"replicaKey").toString());
     s.language = ss(o.value(u"language").toString(u"en"_s));
+    if (o.contains(u"expenseCategories")) {
+        s.expenseCategories.clear();
+        for (const QJsonValue &v : o.value(u"expenseCategories").toArray())
+            s.expenseCategories.push_back(ss(v.toString()));
+    }
     s.kioskSendNow = o.value(u"kioskSendNow").toBool(false);
     s.kioskIdleSeconds = std::clamp(o.value(u"kioskIdleSeconds").toInt(90), 30, 600);
     s.serverTerm = o.value(u"serverTerm").toInt(0);

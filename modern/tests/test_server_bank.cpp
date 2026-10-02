@@ -143,6 +143,7 @@ TEST_CASE("Server banks: pay outs and tip cash-outs come from your own bank", "[
 
     REQUIRE(pos.loginWithPin(u"1234"_s));
     pos.entryKey(u"500"_s);
+    pos.setExpenseCategory(u"Other"_s);
     REQUIRE(pos.payout(CashMovement::Kind::Payout));   // the manager's bank goes to -$5
     CHECK(pos.drawerInfo()[u"name"_s].toString() == u"Morgan (Manager)'s bank"_s);
     CHECK(pos.drawerInfo()[u"expected"_s].toString() == u"-$5.00"_s);
