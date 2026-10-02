@@ -90,7 +90,8 @@ Item {
     Text {
         id: caption
         visible: text !== "" && !zone.hasWidget
-        text: zone.isWidget ? zone.kind + (zone.label ? "\n" + zone.label : "") : zone.label
+        // Page text is translated too (i18n/<lang>.json, or the store's own phrases).
+        text: zone.isWidget ? zone.kind + (zone.label ? "\n" + zone.label : "") : qsTranslate("Page", zone.label)
         anchors.fill: parent
         anchors.margins: (zone.st.frameWidth ?? 3) + 8
         anchors.topMargin: picture.visible ? parent.height * 0.7 : anchors.margins

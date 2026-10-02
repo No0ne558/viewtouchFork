@@ -1,6 +1,8 @@
 #include "app/pos_json.hh"
 #include "joincontroller.hh"
+#include "language.hh"
 #include "layoutcontroller.hh"
+#include "app/i18n.hh"
 #include "net/discovery.hh"
 #include "net/layout_hub.hh"
 #include "net/pos_server.hh"
@@ -339,6 +341,7 @@ std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o,
     if (display == u"auto")
         display = cli.isSet(o.kiosk) ? u"split"_s : u"window"_s;
     auto engine = std::make_unique<QQmlApplicationEngine>();
+    vt::ui::followLanguage(engine.get(), &controller);
     QObject::connect(engine.get(), &QQmlApplicationEngine::objectCreationFailed,
                      qApp, [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
     engine->setInitialProperties({
@@ -440,6 +443,7 @@ int runTerminal(const Args &cli, const Options &o)
     const QString dataDir = dataDirOf(cli, o);
     QDir().mkpath(dataDir);
     const QString credentialFile = QDir(dataDir).filePath(u"terminal.json"_s);
+    vt::i18n::install(QDir(dataDir).filePath(u"translations"_s));   // the store's own phrases, if any
     const QString address = cli.value(o.connect) == u"auto" ? QString() : cli.value(o.connect);
     auto split = [](const QString &a) {
         QString host = a;
@@ -799,6 +803,12 @@ int runStore(const Args &cli, const Options &o)
         shared->saveSettings();
         qWarning().noquote() << "Serving the store as the main server now (taken over for" << by << ")";
     }
+    // Languages: each screen its user's; the customer display the store's.
+    vt::i18n::install(QDir(dataDirOf(cli, o)).filePath(u"translations"_s));
+    vt::i18n::setGuestLanguage(QString::fromStdString(shared->settings.language));
+    QObject::connect(shared, &vt::app::PosShared::adminChanged, shared, [shared] {
+        vt::i18n::setGuestLanguage(QString::fromStdString(shared->settings.language));
+    });
     if (havePosStore)   // reports over a range read the closed checks back
         shared->history = [dbPath](std::int64_t from, std::int64_t to) {
             return vt::storage::closedChecksBetween(dbPath, from, to);

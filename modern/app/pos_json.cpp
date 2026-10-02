@@ -299,7 +299,7 @@ QJsonObject toJson(const Employee &e)
     return {
         {u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
         {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active}, {u"training"_s, e.training},
-        {u"cashMode"_s, qs(e.cashMode)}, {u"checkout"_s, qs(e.checkout)},
+        {u"cashMode"_s, qs(e.cashMode)}, {u"checkout"_s, qs(e.checkout)}, {u"language"_s, qs(e.language)},
         {u"allow"_s, strings(e.allow)}, {u"deny"_s, strings(e.deny)},
     };
 }
@@ -314,6 +314,7 @@ Employee employeeFromJson(const QJsonObject &o)
     e.training = o.value(u"training").toBool(false);
     e.cashMode = ss(o.value(u"cashMode").toString());
     e.checkout = ss(o.value(u"checkout").toString());
+    e.language = ss(o.value(u"language").toString());
     for (const QJsonValue &v : o.value(u"allow").toArray())
         e.allow.insert(ss(v.toString()));
     for (const QJsonValue &v : o.value(u"deny").toArray())
@@ -589,7 +590,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"backupCopyDir"_s, qs(s.backupCopyDir)},
         {u"waitMinutesPerParty"_s, s.waitMinutesPerParty},
         {u"autoLogoutMinutes"_s, s.autoLogoutMinutes}, {u"tableLongMinutes"_s, s.tableLongMinutes},
-        {u"replicaKey"_s, qs(s.replicaKey)}, {u"serverTerm"_s, s.serverTerm},
+        {u"replicaKey"_s, qs(s.replicaKey)}, {u"language"_s, qs(s.language)}, {u"serverTerm"_s, s.serverTerm},
         {u"display"_s, [&] {
              QJsonArray slides;
              for (const std::string &sl : s.displaySlides) slides.append(qs(sl));
@@ -668,6 +669,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.waitMinutesPerParty = std::clamp(o.value(u"waitMinutesPerParty").toInt(10), 1, 120);
     s.autoLogoutMinutes = std::clamp(o.value(u"autoLogoutMinutes").toInt(0), 0, 120);
     s.replicaKey = ss(o.value(u"replicaKey").toString());
+    s.language = ss(o.value(u"language").toString(u"en"_s));
     s.serverTerm = o.value(u"serverTerm").toInt(0);
     s.tableLongMinutes = std::clamp(o.value(u"tableLongMinutes").toInt(90), 10, 600);
     const QJsonObject display = o.value(u"display").toObject();

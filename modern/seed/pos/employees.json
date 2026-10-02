@@ -28,5 +28,12 @@
     "name": "Casey",
     "role": "cashier",
     "pin": "2222"
+  },
+  {
+    "id": "rosa",
+    "name": "Rosa",
+    "role": "server",
+    "pin": "5555",
+    "language": "es"
   }
 ]

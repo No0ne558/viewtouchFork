@@ -196,6 +196,15 @@ Start with `--customer-display auto` (or `customer-display = auto` in the kiosk'
 - **Loyalty** (Store Settings): customers on a check earn points on what they spend after discounts (1 per dollar to start); reopening a check takes them back. *Rewards*, one per line like `50 = 5.00`, take money off: Customers → the customer on the check → the reward button. Undoing the reward gives the points back. Guests can sign up or be found by typing their phone number on the customer display.
 - **Promotions** (Manager → Promotions): percent off chosen categories or items, or *buy N, get M* (the cheapest at the percent off), on chosen days and times. They apply by themselves while they run, show on the check and receipt by name, and come off again when the time is up or the items go. The demo set has *Happy Hour* (weekdays 3-6 PM, half-price draft beer and wine) and *Burger Tuesday* (the second burger half off).
 
+## Languages
+
+The screens come in English and Spanish (Español).
+
+- **Each person's own.** Manager → Employees → *Language*. The screen switches when that person logs in and back when they log out. On a store with several terminals each screen speaks its own user's language, messages included. The demo store has Rosa (PIN 5555), a server whose screens are in Spanish.
+- **The store's.** Manager → Store Settings → *Language*: for screens nobody is logged in to, people without their own, and everything guests see: the customer display, receipts and kitchen tickets.
+- **Your own words.** Menu item names stay as you typed them, since the check, the kitchen and receipts use them. To translate buttons you added (or change any phrase), put a file `translations/es.json` in the data folder: `{"Burger of the Day": "Hamburguesa del día"}`. It wins over the built-in phrases.
+- **Developers.** Phrases live in `i18n/es.json` (English → Spanish). `python3 tools/i18n.py missing es` lists what a new screen still needs, and the `i18n_es` test fails until every phrase has its Spanish with the same `%1` placeholders.
+
 ## On-screen keyboard
 
 Text fields (customer names, Manager forms…) get an on-screen keyboard, docked below the page, on touch screens: on by default with `--kiosk`, or `--touch-keyboard yes|no`. Number fields get a number pad.

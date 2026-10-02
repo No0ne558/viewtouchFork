@@ -1,5 +1,7 @@
 #include "app/pos_service.hh"
 
+#include "app/i18n.hh"
+
 #include "app/pos_json.hh"
 
 #include <QDateTime>
@@ -251,6 +253,13 @@ bool PosService::sendMessage(const QString &to, const QString &text)
     emit notice(tr("Message sent"));
     emit s_->dayChanged();   // every screen looks
     return true;
+}
+
+QString PosService::language() const
+{
+    if (const core::Employee *e = user(); e && !e->language.empty())
+        return qs(e->language);
+    return qs(s_->settings.language);
 }
 
 QVariantMap PosService::networkInfo() const
@@ -1487,6 +1496,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
             reply(QVariant(false));
         return;
     }
+    // In this terminal's language (on a server, each its own).
+    const i18n::Scope language([this] { return this->language(); });
     // Remembered, so a manager's approval can run it again.
     const std::optional<Running> outer = running_;
     if (method != u"approve" && method != u"cancelApproval")

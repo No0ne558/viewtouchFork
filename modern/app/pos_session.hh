@@ -76,6 +76,10 @@ class PosSession : public QObject {
     // Messages between screens, the last hour's, newest first.
     Q_PROPERTY(QVariantList messages READ messages NOTIFY dayChanged)
     Q_PROPERTY(bool standbyReady READ standbyReady NOTIFY sessionChanged)
+    // This screen's language: the logged-in person's, else the store's.
+    Q_PROPERTY(QString language READ language NOTIFY sessionChanged)
+    // The store's: the customer display's language.
+    Q_PROPERTY(QString storeLanguage READ storeLanguage NOTIFY adminChanged)
     // Manager -> Network: {role: main|single, term, terminals: [{name,
     // address, user, since}], standby: {address, since} | null, printers:
     // [{name, type, where, status: ok|failed|unknown, error, at}]}.
@@ -162,6 +166,8 @@ public:
     virtual QVariantList messages() const = 0;
     // A screen that lost its server: the store's standby is there, ready.
     virtual bool standbyReady() const { return false; }
+    virtual QString language() const = 0;
+    virtual QString storeLanguage() const = 0;
     virtual QVariantMap networkInfo() const = 0;
     virtual bool training() const = 0;
     virtual QStringList soldOut() const = 0;
@@ -185,6 +191,8 @@ public:
 
     // --- queries ---------------------------------------------------------------
     Q_INVOKABLE bool can(const QString &permission) const { return permissions().contains(permission); }
+    // "server" -> "Server" (in the screen's language).
+    Q_INVOKABLE QString roleName(const QString &role) const;
     // Status of a table on the floor plan, from the open checks.
     Q_INVOKABLE QVariantMap tableStatus(const QString &label) const;
     // Other open checks at the current check's table, plus {id: 0, "New check"}.

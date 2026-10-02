@@ -136,6 +136,9 @@ struct PosSettings {
     // Between the store's servers (main and standby): the key the standby
     // replicates with (base64), and how many times a standby took over.
     std::string replicaKey;
+    // The store's language: screens without anyone logged in (and people
+    // without their own), the customer display, receipts and tickets.
+    std::string language = "en";
     int serverTerm = 0;
     // Log a screen out after this many idle minutes (0: never).
     int autoLogoutMinutes = 0;

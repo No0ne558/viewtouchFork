@@ -3,6 +3,8 @@
 // use the same schema format as the page editor's inspector.
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
+#include <QCoreApplication>
 #include "app/pos_service.hh"
 
 #include <QDateTime>
@@ -37,8 +39,20 @@ QVariantMap with(QVariantMap f, const QString &key, const QVariant &value)
 QVariantList options(std::initializer_list<std::pair<const char *, const char *>> values)
 {
     QVariantList out;
-    for (const auto &[value, text] : values)
-        out.append(QVariantMap{{u"value"_s, QString::fromUtf8(value)}, {u"text"_s, QString::fromUtf8(text)}});
+    for (const auto &[value, text] : values)   // the texts are phrases too (tools/i18n.py finds them)
+        out.append(QVariantMap{{u"value"_s, QString::fromUtf8(value)},
+                               {u"text"_s, QCoreApplication::translate("PosService", text)}});
+    return out;
+}
+
+// "Store setting" first for a person; each language named in itself.
+QVariantList languageOptions(bool person)
+{
+    QVariantList out;
+    if (person)
+        out.append(QVariantMap{{u"value"_s, QString()}, {u"text"_s, QCoreApplication::translate("PosService", "Store setting")}});
+    for (const i18n::Language &l : i18n::languages())
+        out.append(QVariantMap{{u"value"_s, l.code}, {u"text"_s, l.name}});
     return out;
 }
 
@@ -156,6 +170,8 @@ QVariantList PosService::adminFields(const QString &panel)
                  options({{"server", "Server"}, {"bartender", "Bartender"}, {"cashier", "Cashier"}, {"host", "Host"},
                           {"busser", "Busser"}, {"manager", "Manager"}, {"admin", "Admin"}})),
             field(u"pin"_s, tr("New PIN"), u"pin"_s, tr("4 to 8 digits. Leave empty to keep the current PIN.")),
+            with(field(u"language"_s, tr("Language"), u"enum"_s, tr("The screens switch to it when this person logs in.")),
+                 u"options"_s, languageOptions(true)),
             field(u"active"_s, tr("Active (can log in)"), u"bool"_s),
             field(u"training"_s, tr("In training (practice only)"), u"bool"_s,
                   tr("Their checks never go to the kitchen and don't count as sales, stock or cash.")),
@@ -215,6 +231,10 @@ QVariantList PosService::adminFields(const QString &panel)
     if (panel == u"store") {
         return {
             field(u"storeName"_s, tr("Store name"), u"string"_s),
+            with(field(u"language"_s, tr("Language"), u"enum"_s,
+                       tr("For screens nobody is logged in to, the customer display, receipts and tickets. "
+                          "Each person can have their own (Employees).")),
+                 u"options"_s, languageOptions(false)),
             field(u"currencySymbol"_s, tr("Currency symbol"), u"string"_s),
             field(u"receiptHeader"_s, tr("Receipt header"), u"text"_s, tr("Address, phone… one per line")),
             field(u"receiptFooter"_s, tr("Receipt footer"), u"text"_s),
@@ -339,7 +359,7 @@ QVariantList PosService::adminRecords(const QString &panel)
     } else if (panel == u"employees") {
         for (const Employee &e : s_->employees) {
             QVariantMap r{{u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
-                          {u"active"_s, e.active}, {u"training"_s, e.training}, {u"pin"_s, QString()}, {u"cashMode"_s, qs(e.cashMode)},
+                          {u"active"_s, e.active}, {u"training"_s, e.training}, {u"pin"_s, QString()}, {u"cashMode"_s, qs(e.cashMode)}, {u"language"_s, qs(e.language)},
                           {u"checkout"_s, qs(e.checkout)}};
             for (const char *p : AllPermissions)
                 r.insert(u"perm:"_s + QString::fromLatin1(p),
@@ -372,7 +392,7 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"taxTakeoutFood"_s, t.taxTakeoutFood}},
             tr("Tax rates"), QString());
     } else if (panel == u"store") {
-        add({{u"storeName"_s, qs(s_->settings.storeName)}, {u"currencySymbol"_s, qs(s_->settings.currencySymbol)},
+        add({{u"storeName"_s, qs(s_->settings.storeName)}, {u"language"_s, qs(s_->settings.language)}, {u"currencySymbol"_s, qs(s_->settings.currencySymbol)},
              {u"receiptHeader"_s, qs(s_->settings.receiptHeader)}, {u"receiptFooter"_s, qs(s_->settings.receiptFooter)},
              {u"gratuityPercent"_s, double(s_->settings.gratuityBp) / 100.0},
              {u"gratuityMinGuests"_s, s_->settings.gratuityMinGuests},
@@ -588,6 +608,12 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         s_->settings.gratuityMinGuests = std::max(1, record.value(u"gratuityMinGuests"_s, 6).toInt());
         if (record.contains(u"cashMode"_s))
             s_->settings.cashMode = cashModeFromString(ss(record.value(u"cashMode"_s).toString()));
+        if (record.contains(u"language"_s)) {
+            const QString lang = record.value(u"language"_s).toString();
+            if (std::ranges::none_of(i18n::languages(), [&](const i18n::Language &l) { return l.code == lang; }))
+                return fail(tr("Choose a language."));
+            s_->settings.language = ss(lang);
+        }
         if (record.contains(u"terminalsHaveDrawer"_s))
             s_->settings.terminalsHaveDrawer = record.value(u"terminalsHaveDrawer"_s).toBool();
         if (record.contains(u"paidBreaks"_s))
@@ -814,7 +840,12 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     const QString checkout = record.value(u"checkout"_s).toString();
     if (!QStringList{QString(), u"closeChecks"_s, u"anyTime"_s}.contains(checkout))
         return fail(tr("Choose whether this person may check out with open checks."));
+    const QString language = record.value(u"language"_s).toString();
+    if (!language.isEmpty()
+        && std::ranges::none_of(i18n::languages(), [&](const i18n::Language &l) { return l.code == language; }))
+        return fail(tr("Choose a language."));
     Employee e = index >= 0 ? s_->employees[index] : Employee{};
+    e.language = ss(language);
     e.cashMode = ss(cashMode);
     e.checkout = ss(checkout);
     e.allow = allow;

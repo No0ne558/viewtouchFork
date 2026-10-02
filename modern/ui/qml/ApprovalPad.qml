@@ -69,7 +69,7 @@ Rectangle {
                         objectName: "approvalKey-" + modelData
                         Layout.fillWidth: true
                         Layout.preferredHeight: 64
-                        text: modelData
+                        text: modelData === "Cancel" ? qsTr("Cancel") : modelData === "OK" ? qsTr("OK") : modelData
                         fontScale: modelData.length > 1 ? 0.3 : 0.45
                         baseColor: modelData === "OK" ? "#1f6b40" : modelData === "Cancel" ? "#6b2a2a" : "#343c49"
                         onClicked: {

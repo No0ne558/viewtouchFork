@@ -430,6 +430,8 @@ public:
     bool sendMessage(const QString &to, const QString &text);
     QVariantList messages() const override;
     QVariantMap networkInfo() const override;
+    QString language() const override;
+    QString storeLanguage() const override { return QString::fromStdString(s_->settings.language); }
 
     // --- manager approval ---------------------------------------------------------
     // A manager's PIN lets the waiting operation (a void, a discount...) through once.

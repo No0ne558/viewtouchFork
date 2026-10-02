@@ -168,6 +168,7 @@ write("pos/employees.json", [
     {"id": "riley", "name": "Riley", "role": "busser", "pin": "3333"},
     {"id": "jo", "name": "Jo", "role": "bartender", "pin": "4444"},
     {"id": "casey", "name": "Casey", "role": "cashier", "pin": "2222"},
+    {"id": "rosa", "name": "Rosa", "role": "server", "pin": "5555", "language": "es"},   # screens in Spanish
 ], versioned=False)
 
 write("pos/settings.json", {
@@ -409,7 +410,7 @@ page("login", "Login", "login", [
     zone("start", 660, 880, 600, 120, "Log In", actions=[command("login")], style=fill(GREEN)),
     zone("clock-out", 1276, 880, 344, 120, "Clock Out", actions=[command("clockOut")]),
     zone("hint", 1300, 260, 560, 200,
-         "Demo PINs: 1234 manager, 1111 server, 2222 cashier. Remove this note in the editor.",
+         "Demo PINs: 1234 manager, 1111 server, 2222 cashier, 5555 server in Spanish. Remove this note in the editor.",
          kind="comment"),
 ], role="login")
 

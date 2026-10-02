@@ -51,7 +51,7 @@ Item {
                 Text {
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
-                    text: cell.modelData.role + (cell.modelData.clockedIn ? qsTr(" · on the clock") : "")
+                    text: (w.pos ? w.pos.roleName(cell.modelData.role) : cell.modelData.role) + (cell.modelData.clockedIn ? qsTr(" · on the clock") : "")
                     color: "#b8c0cc"
                     font.family: w.face
                     font.pixelSize: 20

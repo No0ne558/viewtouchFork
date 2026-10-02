@@ -1,5 +1,7 @@
 #include "print/ticket_printer.hh"
 
+#include "app/i18n.hh"
+
 #include <QDateTime>
 #include <QDir>
 #include <QLocale>
@@ -48,6 +50,7 @@ void TicketPrinter::send(const PosSettings &, const PrinterConfig &printer, cons
 void TicketPrinter::printKitchen(const PosSettings &settings, const Check &check,
                                  const std::vector<OrderLine> &lines, bool voids)
 {
+    const i18n::Scope language(QString::fromStdString(settings.language));   // the store's, not the server's
     // Group by station; items without a printer (or with an unknown one) go
     // to the kitchen, and nowhere if there is no kitchen printer either.
     std::map<std::string, std::vector<OrderLine>> byStation;
@@ -79,6 +82,7 @@ const PrinterConfig *receiptPrinter(const PosSettings &settings, const std::stri
 
 void TicketPrinter::printReceipt(const PosSettings &settings, const Check &check, const std::string &printerId)
 {
+    const i18n::Scope language(QString::fromStdString(settings.language));   // the guest's: the store's
     if (const PrinterConfig *p = receiptPrinter(settings, printerId))
         send(settings, *p, receipt(check, context(settings)), u"Receipt #%1"_s.arg(check.id));
 }

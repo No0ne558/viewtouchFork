@@ -56,10 +56,13 @@ if(Qt6_FOUND)
     add_library(vtm_pos STATIC
         app/pos_json.hh app/pos_json.cpp
         app/pos_session.hh app/pos_session.cpp
+        app/i18n.hh app/i18n.cpp
         app/pos_service.hh app/pos_service.cpp
         app/pos_day.cpp app/pos_admin.cpp app/pos_checks.cpp app/pos_menu.cpp app/pos_customers.cpp app/pos_waitlist.cpp app/pos_inventory.cpp app/pos_schedule.cpp app/pos_demo.cpp app/pos_loyalty.cpp
     )
     target_link_libraries(vtm_pos PUBLIC vtm_core Qt6::Core)
+    # Phrase files for the screens' languages (see app/i18n.hh)
+    qt_add_resources(vtm_pos "vtm_i18n" PREFIX "/i18n" BASE i18n FILES i18n/es.json)
     # PosService is exposed to QML via QML_FOREIGN (ui/cpp/posforeign.hh),
     # which needs its type information.
     qt_extract_metatypes(vtm_pos)
@@ -156,6 +159,7 @@ if(Qt6_FOUND)
         SOURCES
             ui/cpp/zonemodel.hh ui/cpp/zonemodel.cpp
             ui/cpp/layoutcontroller.hh ui/cpp/layoutcontroller.cpp
+            ui/cpp/language.hh ui/cpp/language.cpp
             ui/cpp/editorcontroller.hh ui/cpp/editorcontroller.cpp
             ui/cpp/joincontroller.hh ui/cpp/joincontroller.cpp
             ui/cpp/reportexport.hh ui/cpp/reportexport.cpp

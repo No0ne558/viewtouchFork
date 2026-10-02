@@ -105,6 +105,8 @@ public:
     QVariantList messages() const override { return v(u"messages").toList(); }
     bool standbyReady() const override { return !welcomed_ && !standbyHost_.isEmpty(); }
     QVariantMap networkInfo() const override { return v(u"network").toMap(); }
+    QString language() const override { return v(u"language").toString(); }
+    QString storeLanguage() const override { return v(u"storeLanguage").toString(); }
     void takeOver(const QString &pin) override;
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }

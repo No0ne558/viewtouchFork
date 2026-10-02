@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "layoutcontroller.hh"
+#include "app/i18n.hh"
+#include "language.hh"
 #include "pos_fixture.hh"
 #include "qt_catch.hh"
 
@@ -584,6 +586,27 @@ TEST_CASE("UI: a month's report beside last year", "[flow][ui][range]")
     CHECK(s.pos.rangeReport()[u"checks"_s] == 3);
     CHECK(Screen::findBy(s.window->contentItem(), "text", u"Change"_s));
     s.shot("16-range-report");
+}
+
+TEST_CASE("UI: the screen speaks the language of whoever logs in", "[flow][ui][i18n]")
+{
+    Screen s;
+    vt::i18n::install();
+    vt::ui::followLanguage(&s.engine, &s.c);
+    auto shows = [&](const QString &text) { return Screen::findBy(s.window->contentItem(), "text", text) != nullptr; };
+    CHECK(shows(u"Clock In"_s));                          // the store's: English
+    REQUIRE(s.pos.loginWithPin(u"5555"_s));               // Rosa
+    QTest::qWait(50);
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    QTest::qWait(50);
+    CHECK(shows(u"Orden rápida"_s));                      // page buttons
+    CHECK(shows(u"Cuentas abiertas"_s));
+    s.shot("19-spanish-tables");
+    s.pos.logout();
+    QTest::qWait(50);
+    CHECK(s.c.pageId() == u"login"_s);
+    CHECK(shows(u"Clock In"_s));                          // back to the store's
+    vt::i18n::setLanguage(u"en"_s);
 }
 
 TEST_CASE("UI: Manager -> Network shows the standby, the screens and the printers", "[flow][ui][network]")

@@ -1,5 +1,9 @@
 #include "app/pos_session.hh"
 
+#include "app/i18n.hh"
+
+#include <QHash>
+
 using namespace Qt::StringLiterals;
 
 namespace vt::app {
@@ -21,13 +25,25 @@ const QStringList &PosSession::stateKeys()
         u"checkFilter"_s, u"kitchenTickets"_s, u"drawer"_s, u"day"_s, u"days"_s, u"adminRevision"_s,
         u"tipsOwed"_s, u"mealPeriods"_s, u"pairing"_s, u"screenMode"_s,
         u"closedChecks"_s, u"staff"_s, u"checkHistory"_s, u"choosing"_s, u"soldOut"_s, u"menuItems"_s, u"onBreakSince"_s,
-        u"customers"_s, u"customer"_s, u"giftCard"_s, u"waitlist"_s, u"customerPrompt"_s, u"schedule"_s, u"nextShift"_s, u"rangeReport"_s, u"expoTickets"_s, u"approval"_s, u"training"_s, u"autoLogoutMinutes"_s, u"messages"_s, u"network"_s,
+        u"customers"_s, u"customer"_s, u"giftCard"_s, u"waitlist"_s, u"customerPrompt"_s, u"schedule"_s, u"nextShift"_s, u"rangeReport"_s, u"expoTickets"_s, u"approval"_s, u"training"_s, u"autoLogoutMinutes"_s, u"messages"_s, u"network"_s, u"language"_s, u"storeLanguage"_s,
     };
     return keys;
 }
 
+QString PosSession::roleName(const QString &role) const
+{
+    static const QHash<QString, const char *> names = {
+        {u"server"_s, QT_TR_NOOP("Server")}, {u"bartender"_s, QT_TR_NOOP("Bartender")},
+        {u"cashier"_s, QT_TR_NOOP("Cashier")}, {u"host"_s, QT_TR_NOOP("Host")}, {u"busser"_s, QT_TR_NOOP("Busser")},
+        {u"manager"_s, QT_TR_NOOP("Manager")}, {u"admin"_s, QT_TR_NOOP("Admin")},
+    };
+    const auto it = names.constFind(role);
+    return it == names.cend() ? role : tr(*it);
+}
+
 QVariantMap PosSession::snapshot() const
 {
+    const i18n::Scope scope([this] { return language(); });
     return {
         {u"terminalName"_s, terminalName()}, {u"loggedIn"_s, loggedIn()}, {u"userName"_s, userName()},
         {u"userRole"_s, userRole()}, {u"permissions"_s, permissions()}, {u"clockedIn"_s, clockedIn()},
@@ -51,6 +67,8 @@ QVariantMap PosSession::snapshot() const
         {u"approval"_s, approvalInfo()}, {u"training"_s, training()}, {u"autoLogoutMinutes"_s, autoLogoutMinutes()},
         {u"messages"_s, messages()},
         {u"network"_s, networkInfo()},
+        {u"language"_s, language()},
+        {u"storeLanguage"_s, storeLanguage()},
     };
 }
 

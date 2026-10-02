@@ -31,7 +31,7 @@ Item {
         Text {
             visible: w.pos && w.pos.loggedIn
             Layout.fillWidth: true
-            text: w.pos ? w.pos.userRole : ""
+            text: w.pos ? w.pos.roleName(w.pos.userRole) : ""
             color: "#8a94a6"
             font.family: w.face
             font.pixelSize: w.unit * 0.8
@@ -55,6 +55,7 @@ Item {
             color: w.ink
             font.family: w.face
             font.pixelSize: w.unit * 0.8
+            wrapMode: Text.WordWrap
         }
         Text {
             visible: w.pos !== null && w.pos.loggedIn && w.pos.nextShift !== ""
