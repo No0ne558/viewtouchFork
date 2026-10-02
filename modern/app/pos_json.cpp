@@ -310,6 +310,12 @@ QJsonObject toJson(const Employee &e)
         {u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
         {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active}, {u"training"_s, e.training},
         {u"cashMode"_s, qs(e.cashMode)}, {u"checkout"_s, qs(e.checkout)}, {u"language"_s, qs(e.language)},
+        {u"payRate"_s, e.payRate.cents() / 100.0}, {u"otherJobs"_s, [&] {
+             QJsonArray jobs;
+             for (const Job &job : e.otherJobs)
+                 jobs.append(QJsonObject{{u"role"_s, qs(job.role)}, {u"rate"_s, job.rate.cents() / 100.0}});
+             return jobs;
+         }()},
         {u"allow"_s, strings(e.allow)}, {u"deny"_s, strings(e.deny)},
     };
 }
@@ -325,6 +331,10 @@ Employee employeeFromJson(const QJsonObject &o)
     e.cashMode = ss(o.value(u"cashMode").toString());
     e.checkout = ss(o.value(u"checkout").toString());
     e.language = ss(o.value(u"language").toString());
+    e.payRate = Money::fromCents(centsFromDecimal(o.value(u"payRate").toDouble()));
+    for (const QJsonValue &v : o.value(u"otherJobs").toArray())
+        e.otherJobs.push_back({ss(v.toObject().value(u"role").toString()),
+                               Money::fromCents(centsFromDecimal(v.toObject().value(u"rate").toDouble()))});
     for (const QJsonValue &v : o.value(u"allow").toArray())
         e.allow.insert(ss(v.toString()));
     for (const QJsonValue &v : o.value(u"deny").toArray())
@@ -355,7 +365,8 @@ QJsonObject toJson(const TimePunch &p)
     for (const TimePunch::Break &b : p.breaks)
         breaks.append(QJsonObject{{u"start"_s, qint64(b.start)}, {u"end"_s, qint64(b.end)}});
     return {{u"id"_s, qint64(p.id)}, {u"employeeId"_s, qs(p.employeeId)}, {u"clockIn"_s, qint64(p.clockIn)},
-            {u"clockOut"_s, qint64(p.clockOut)}, {u"breaks"_s, breaks}};
+            {u"clockOut"_s, qint64(p.clockOut)}, {u"breaks"_s, breaks}, {u"job"_s, qs(p.job)},
+            {u"rate"_s, qint64(p.rate.cents())}};
 }
 
 TimePunch punchFromJson(const QJsonObject &o)
@@ -364,6 +375,8 @@ TimePunch punchFromJson(const QJsonObject &o)
                 i64(o.value(u"clockOut")), {}};
     for (const QJsonValue &b : o.value(u"breaks").toArray())
         p.breaks.push_back({i64(b.toObject().value(u"start")), i64(b.toObject().value(u"end"))});
+    p.job = ss(o.value(u"job").toString());
+    p.rate = Money::fromCents(i64(o.value(u"rate")));
     return p;
 }
 

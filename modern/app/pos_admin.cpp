@@ -176,6 +176,10 @@ QVariantList PosService::adminFields(const QString &panel)
                  options({{"server", "Server"}, {"bartender", "Bartender"}, {"cashier", "Cashier"}, {"host", "Host"},
                           {"busser", "Busser"}, {"manager", "Manager"}, {"admin", "Admin"}})),
             field(u"pin"_s, tr("New PIN"), u"pin"_s, tr("4 to 8 digits. Leave empty to keep the current PIN.")),
+            field(u"payRate"_s, tr("Pay rate ($ an hour)"), u"money"_s, tr("For their role, before tips. For the Labor report.")),
+            field(u"otherJobs"_s, tr("Other jobs"), u"text"_s,
+                  tr("Other jobs they work, one per line with its pay, e.g. \"bartender 9.00\". "
+                     "They choose the job when they clock in. Jobs: server, bartender, cashier, host, busser, manager.")),
             with(field(u"language"_s, tr("Language"), u"enum"_s, tr("The screens switch to it when this person logs in.")),
                  u"options"_s, languageOptions(true)),
             field(u"active"_s, tr("Active (can log in)"), u"bool"_s),
@@ -377,6 +381,12 @@ QVariantList PosService::adminRecords(const QString &panel)
         for (const Employee &e : s_->employees) {
             QVariantMap r{{u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
                           {u"active"_s, e.active}, {u"training"_s, e.training}, {u"pin"_s, QString()}, {u"cashMode"_s, qs(e.cashMode)}, {u"language"_s, qs(e.language)},
+                          {u"payRate"_s, e.payRate.cents() / 100.0}, {u"otherJobs"_s, [&] {
+                               QStringList lines;
+                               for (const Job &j : e.otherJobs)
+                                   lines << u"%1 %2"_s.arg(qs(j.role), QString::number(j.rate.cents() / 100.0, 'f', 2));
+                               return lines.join(u'\n');
+                           }()},
                           {u"checkout"_s, qs(e.checkout)}};
             for (const char *p : AllPermissions)
                 r.insert(u"perm:"_s + QString::fromLatin1(p),
@@ -502,6 +512,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"employees")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
                 {u"active"_s, true}, {u"training"_s, false}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()},
+                {u"payRate"_s, 0.0}, {u"otherJobs"_s, QString()}, {u"language"_s, QString()},
                 {u"perm:order"_s, QString()}, {u"perm:check.settle"_s, QString()}, {u"perm:check.discount"_s, QString()},
                 {u"perm:order.void"_s, QString()}, {u"perm:manager"_s, QString()}, {u"perm:layout.edit"_s, QString()}};
     if (panel == u"tenders")
@@ -883,7 +894,24 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     if (!language.isEmpty()
         && std::ranges::none_of(i18n::languages(), [&](const i18n::Language &l) { return l.code == language; }))
         return fail(tr("Choose a language."));
+    // Pay: their rate, and other jobs as "bartender 9.00", one per line.
+    const double rate = record.value(u"payRate"_s, 0.0).toDouble();
+    if (rate < 0 || rate > 1000)
+        return fail(tr("Write the pay rate in dollars an hour."));
+    std::vector<Job> otherJobs;
+    static const QStringList jobRoles{u"server"_s, u"bartender"_s, u"cashier"_s, u"host"_s, u"busser"_s, u"manager"_s, u"admin"_s};
+    for (const QString &line : record.value(u"otherJobs"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
+        const QStringList parts = line.simplified().split(u' ');
+        bool ok = parts.size() == 2;
+        const double jobRate = ok ? parts[1].toDouble(&ok) : 0;
+        const QString jobRole = parts.value(0).toLower();
+        if (!ok || jobRate < 0 || !jobRoles.contains(jobRole))
+            return fail(tr("Write other jobs like \"bartender 9.00\": %1").arg(line.trimmed()));
+        otherJobs.push_back({ss(jobRole), Money::fromCents(std::llround(jobRate * 100))});
+    }
     Employee e = index >= 0 ? s_->employees[index] : Employee{};
+    e.payRate = Money::fromCents(std::llround(rate * 100));
+    e.otherJobs = otherJobs;
     e.language = ss(language);
     e.cashMode = ss(cashMode);
     e.checkout = ss(checkout);

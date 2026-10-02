@@ -168,12 +168,14 @@ for iid, recipe in RECIPES.items():
 write("pos/menu.json", MENU, versioned=False)
 
 write("pos/employees.json", [
-    {"id": "manager", "name": "Morgan (Manager)", "role": "manager", "pin": "1234"},
-    {"id": "sam", "name": "Sam", "role": "server", "pin": "1111"},
-    {"id": "riley", "name": "Riley", "role": "busser", "pin": "3333"},
-    {"id": "jo", "name": "Jo", "role": "bartender", "pin": "4444"},
-    {"id": "casey", "name": "Casey", "role": "cashier", "pin": "2222"},
-    {"id": "rosa", "name": "Rosa", "role": "server", "pin": "5555", "language": "es"},   # screens in Spanish
+    # Pay an hour before tips; Jo also works the floor as a server some nights.
+    {"id": "manager", "name": "Morgan (Manager)", "role": "manager", "pin": "1234", "payRate": 24.00},
+    {"id": "sam", "name": "Sam", "role": "server", "pin": "1111", "payRate": 7.25},
+    {"id": "riley", "name": "Riley", "role": "busser", "pin": "3333", "payRate": 11.00},
+    {"id": "jo", "name": "Jo", "role": "bartender", "pin": "4444", "payRate": 9.00,
+     "otherJobs": [{"role": "server", "rate": 7.25}]},
+    {"id": "casey", "name": "Casey", "role": "cashier", "pin": "2222", "payRate": 15.50},
+    {"id": "rosa", "name": "Rosa", "role": "server", "pin": "5555", "language": "es", "payRate": 7.25},   # screens in Spanish
 ], versioned=False)
 
 write("pos/settings.json", {

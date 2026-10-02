@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/money.hh"
+
 #include <cstdint>
 #include <set>
 #include <algorithm>
@@ -25,6 +27,13 @@ inline constexpr const char *AllPermissions[] = {perm::Order, perm::Settle, perm
 // Built-in roles. M4 makes these editable.
 std::set<std::string> permissionsForRole(const std::string &role);
 
+// A job someone can work, at its pay (dollars an hour, before tips).
+struct Job {
+    std::string role;   // server, bartender...
+    Money rate;
+    bool operator==(const Job &) const = default;
+};
+
 struct Employee {
     std::string id;
     std::string name;
@@ -38,6 +47,10 @@ struct Employee {
     // Cash handling for this person: "serverBank" (own bank), "drawer" (the
     // terminal's drawer), or empty for the store's setting.
     std::string language;          // "en", "es"...; empty: the store's
+    // Pay for their role, and other jobs they can clock in as (a server who
+    // also bartends), each at its own rate.
+    Money payRate;
+    std::vector<Job> otherJobs;
     std::string cashMode;
     // Checking out with checks still open: "closeChecks" (not allowed),
     // "anyTime" (allowed), or empty for the store's setting.
@@ -56,6 +69,15 @@ struct Employee {
         return out;
     }
     bool can(const std::string &permission) const { return permissions().contains(permission); }
+    // Their role first, then the other jobs.
+    std::vector<Job> jobs() const
+    {
+        std::vector<Job> out{{role, payRate}};
+        for (const Job &j : otherJobs)
+            if (j.role != role)
+                out.push_back(j);
+        return out;
+    }
     bool operator==(const Employee &) const = default;
 };
 
@@ -71,6 +93,10 @@ struct TimePunch {
         bool operator==(const Break &) const = default;
     };
     std::vector<Break> breaks;
+    // The job worked and its pay, as they were at clock in (a raise later
+    // doesn't change what this shift cost).
+    std::string job;
+    Money rate;
 
     bool open() const { return clockOut == 0; }
     bool onBreak() const { return !breaks.empty() && breaks.back().end == 0; }

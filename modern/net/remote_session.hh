@@ -109,6 +109,7 @@ public:
     QString storeLanguage() const override { return v(u"storeLanguage").toString(); }
     QVariantMap selfOrderInfo() const override { return v(u"selfOrder").toMap(); }
     QVariantMap kioskMenu() const override;
+    QVariantMap clockInJobs() const override { return v(u"clockInJobs").toMap(); }
     // Where pictures from the server are kept on this device (tests set it).
     void setImageCache(const QString &dir) { imageCache_ = dir; }
     void takeOver(const QString &pin) override;

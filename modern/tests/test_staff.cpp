@@ -73,6 +73,19 @@ std::int64_t todayAt(int hour, int minute = 0)
     return QDateTime(QDate::currentDate(), QTime(hour, minute)).toMSecsSinceEpoch();
 }
 
+// The row starting with `first` in the section titled `section`.
+std::vector<std::string> rowIn(const core::Report &r, const std::string &section, const std::string &first)
+{
+    std::string current;
+    for (const core::ReportRow &x : r.rows) {
+        if (x.kind == core::ReportRow::Kind::Section)
+            current = x.cells.empty() ? std::string() : x.cells.front();
+        else if (current == section && !x.cells.empty() && x.cells.front() == first)
+            return x.cells;
+    }
+    return {};
+}
+
 std::vector<std::string> row(const core::Report &r, const std::string &first, bool last = false)
 {
     std::vector<std::string> found;
@@ -144,7 +157,7 @@ TEST_CASE("Overtime: daily and weekly rules, the larger counts", "[staff][overti
 
     // Weekly 40: 46 h this week -> 6 h overtime.
     auto r = pos.buildReport(u"labor"_s);
-    auto sams = row(r, "Sam", true);                         // the overtime line
+    auto sams = rowIn(r, "Hours and overtime", "Sam");
     REQUIRE(sams.size() == 5);
     CHECK(sams[1] == "10.00");
     CHECK(sams[2] == "46.00");
@@ -154,13 +167,13 @@ TEST_CASE("Overtime: daily and weekly rules, the larger counts", "[staff][overti
     // Daily 8 as well: 1 h on each earlier day + 2 h today = 6 h; weekly also 6.
     pos.shared()->settings.overtimeDailyHours = 8;
     pos.shared()->settings.overtimeWeeklyHours = 0;
-    sams = row(pos.buildReport(u"labor"_s), "Sam", true);
+    sams = rowIn(pos.buildReport(u"labor"_s), "Hours and overtime", "Sam");
     CHECK(sams[4] == "6.00");
 
     // No rules: no overtime, and the report says so.
     pos.shared()->settings.overtimeDailyHours = 0;
     r = pos.buildReport(u"labor"_s);
-    CHECK(row(r, "Sam", true)[4] == "-");
+    CHECK(rowIn(r, "Hours and overtime", "Sam")[4] == "-");
     CHECK_FALSE(row(r, "No overtime rule is set (Manager -> Settings).").empty());
 }
 
@@ -436,4 +449,97 @@ TEST_CASE("Table turns: minutes from seated to paid, by party size and table", "
     const QVariantMap t3 = pos.tableStatus(u"T3"_s);
     CHECK(t3[u"since"_s].toLongLong() == clock);
     CHECK(t3[u"longAfter"_s].toInt() == 90);
+}
+
+TEST_CASE("Pay: a rate per person, other jobs, and which job at clock in", "[staff][pay]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    std::int64_t clock = todayAt(9);
+    pos.shared()->setClock([&] { return clock; });
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+
+    // Manager -> Employees: pay and other jobs, checked.
+    const int sam = indexOf(pos, u"Sam"_s);
+    QVariantMap rec = pos.adminRecords(u"employees"_s)[sam].toMap();
+    CHECK(rec[u"payRate"_s].toDouble() == 7.25);
+    rec[u"otherJobs"_s] = u"bartender nine"_s;
+    CHECK_FALSE(pos.adminSave(u"employees"_s, sam, rec));
+    rec[u"otherJobs"_s] = u"chef 20.00"_s;               // not a job
+    CHECK_FALSE(pos.adminSave(u"employees"_s, sam, rec));
+    rec[u"otherJobs"_s] = u"Bartender 9.50\nhost 8"_s;
+    REQUIRE(pos.adminSave(u"employees"_s, sam, rec));
+    const core::Employee *e = pos.shared()->employee("sam");
+    REQUIRE(e);
+    REQUIRE(e->jobs().size() == 3);
+    CHECK(e->jobs()[1].role == "bartender");
+    CHECK(e->jobs()[1].rate.cents() == 950);
+    CHECK(app::employeeFromJson(app::toJson(*e)) == *e);
+    pos.logout();
+
+    // One job: straight in, at its pay.
+    pos.pinKey(u"2"_s); pos.pinKey(u"2"_s); pos.pinKey(u"2"_s); pos.pinKey(u"2"_s);   // Casey
+    REQUIRE(pos.clockIn());
+    CHECK(pos.clockInJobs().isEmpty());
+    CHECK(pos.shared()->punches.back().job == "cashier");
+    CHECK(pos.shared()->punches.back().rate.cents() == 1550);
+
+    // Several: which one today? Then that job's pay.
+    for (const char *k : {"1", "1", "1", "1"})
+        pos.pinKey(QString::fromLatin1(k));
+    REQUIRE(pos.clockIn());
+    const QVariantMap ask = pos.clockInJobs();
+    CHECK(ask[u"who"_s] == u"Sam"_s);
+    REQUIRE(ask[u"jobs"_s].toList().size() == 3);
+    CHECK(ask[u"jobs"_s].toList()[1].toMap()[u"name"_s] == u"Bartender"_s);
+    CHECK_FALSE(pos.shared()->punches.back().employeeId == "sam");   // not in yet
+    REQUIRE(pos.clockInAs(u"bartender"_s));
+    CHECK(pos.clockInJobs().isEmpty());
+    const core::TimePunch &p = pos.shared()->punches.back();
+    CHECK(p.employeeId == "sam");
+    CHECK(p.job == "bartender");
+    CHECK(p.rate.cents() == 950);
+    CHECK(app::punchFromJson(app::toJson(p)) == p);
+
+    // A manager clocking someone in uses their main job.
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.clockInEmployee(u"riley"_s));
+    CHECK(pos.shared()->punches.back().job == "busser");
+    CHECK(pos.shared()->punches.back().rate.cents() == 1100);
+}
+
+TEST_CASE("Labor cost: each shift at its pay, overtime at time and a half, against sales", "[staff][pay][labor]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    std::int64_t clock = todayAt(8);
+    pos.shared()->setClock([&] { return clock; });
+    pos.shared()->settings.overtimeDailyHours = 8;
+    pos.shared()->settings.overtimeWeeklyHours = 0;
+    pos.shared()->settings.paidBreaks = true;
+    REQUIRE(pos.loginWithPin(u"4444"_s));            // Jo: bartender $9, or server $7.25
+    REQUIRE(pos.clockIn());
+    REQUIRE(pos.clockInAs(u"bartender"_s));
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"1111"_s));            // Sam: server $7.25
+    REQUIRE(pos.clockIn());
+    clock = todayAt(12);                             // Sam: 4 h
+    REQUIRE(pos.clockOut());
+
+    // $200 of food sold.
+    REQUIRE(pos.openDrawerSession());
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    for (int i = 0; i < 20; ++i)
+        pos.addItem(u"cobb"_s);                       // 20 x $12.50 = $250
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+    pos.logout();
+
+    clock = todayAt(18);                             // Jo: 10 h, 2 of them overtime
+    const core::Report r = pos.buildReport(u"labor"_s);
+    CHECK(row(r, "Jo (bartender)").size() == 5);       // Jo has two jobs: the shift says which
+    CHECK(rowIn(r, "Labor cost today", "Sam") == std::vector<std::string>{"Sam", "4.00", "$29.00", "-", "$29.00"});
+    // 10 h x $9 = $90, + 2 h x $4.50 = $9.
+    CHECK(rowIn(r, "Labor cost today", "Jo") == std::vector<std::string>{"Jo", "10.00", "$90.00", "$9.00", "$99.00"});
+    CHECK(rowIn(r, "Labor cost today", "Labor cost") == std::vector<std::string>{"Labor cost", "14.00", "$119.00", "$9.00", "$128.00"});
+    CHECK(rowIn(r, "Labor cost today", "Net sales")[4] == "$250.00");
+    CHECK(rowIn(r, "Labor cost today", "Labor % of sales")[4] == "51.2%");
 }

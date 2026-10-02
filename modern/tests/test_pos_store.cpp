@@ -243,3 +243,37 @@ TEST_CASE("A version 1 POS database is migrated in place", "[posstore]")
     CHECK(store.checks(core::CheckStatus::Closed).size() == 1);
     CHECK(data->lastDayId == 0);   // no days yet: the service opens day 1
 }
+
+TEST_CASE("A shift keeps the job worked and its pay in the database", "[posstore][pay]")
+{
+    QTemporaryDir dir;
+    const QString path = dir.filePath(u"vt.db"_s);
+    const auto seed = test::seedPosData();
+    {
+        PosStore store(path);
+        QString why;
+        const bool opened = store.open(&why);
+        INFO(why.toStdString());
+        REQUIRE(opened);
+        REQUIRE(store.seed(seed.settings, seed.menu, seed.employees));
+        AsyncWriter writer(path);
+        SqlPosSink sink(writer);
+        core::TimePunch p{7, "jo", QDateTime::currentMSecsSinceEpoch(), 0, {}, "server", Money::fromCents(725)};
+        sink.savePunch(p);
+    }
+    PosStore store(path);
+    QString why2;
+    const bool reopened = store.open(&why2);
+    INFO(why2.toStdString());
+    REQUIRE(reopened);
+    const auto data = store.load();
+    REQUIRE(data);
+    REQUIRE(data->punches.size() == 1);
+    CHECK(data->punches[0].job == "server");
+    CHECK(data->punches[0].rate.cents() == 725);
+    CHECK(data->employees.size() == seed.employees.size());
+    const auto jo = std::ranges::find_if(data->employees, [](const core::Employee &e) { return e.id == "jo"; });
+    REQUIRE(jo != data->employees.end());
+    CHECK(jo->payRate.cents() == 900);
+    CHECK(jo->otherJobs.size() == 1);
+}

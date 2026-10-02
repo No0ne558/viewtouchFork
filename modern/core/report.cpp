@@ -360,7 +360,7 @@ Report serverSales(const std::vector<Check> &closed, const ReportContext &ctx)
 }
 
 Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Employee> &employees,
-                   const ReportContext &ctx, const std::vector<TimePunch> &earlier)
+                   const ReportContext &ctx, const std::vector<TimePunch> &earlier, Money netSales)
 {
     Report r;
     r.id = "labor";
@@ -370,8 +370,12 @@ Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Empl
     const PosSettings &s = ctx.settings;
 
     std::map<std::string, std::string> names;
-    for (const Employee &e : employees)
+    std::set<std::string> severalJobs;   // whose shifts say which job
+    for (const Employee &e : employees) {
         names[e.id] = e.name;
+        if (e.jobs().size() > 1)
+            severalJobs.insert(e.id);
+    }
     auto nameOf = [&](const std::string &id) {
         const auto it = names.find(id);
         return it == names.end() ? id : it->second;
@@ -384,8 +388,9 @@ Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Empl
         const std::int64_t ms = p.workedMs(ctx.now, s.paidBreaks);
         totalMs += ms;
         const std::string out = !p.open() ? ctx.clock(p.clockOut) : p.onBreak() ? "on break" : "on clock";
-        r.line({nameOf(p.employeeId), ctx.clock(p.clockIn), out, p.breaks.empty() ? "" : hours(p.breakMs(ctx.now)),
-                hours(ms)});
+        r.line({nameOf(p.employeeId) + (p.job.empty() || !severalJobs.contains(p.employeeId) ? "" : " (" + p.job + ")"),
+                ctx.clock(p.clockIn), out,
+                p.breaks.empty() ? "" : hours(p.breakMs(ctx.now)), hours(ms)});
     }
     if (sorted.empty()) {
         r.note("Nobody has clocked in.");
@@ -396,13 +401,19 @@ Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Empl
     // Hours and overtime per person: daily rule per day worked, weekly rule
     // on the pay week so far; whichever gives more overtime counts.
     const std::int64_t hourMs = 3'600'000;
-    struct Person { std::map<int, std::int64_t> byDay; std::int64_t today = 0; };
+    struct Person {
+        std::map<int, std::int64_t> byDay;
+        std::int64_t today = 0;
+        double payToday = 0;   // cents: today's shifts at their pay
+        std::int64_t otTodayMs = 0;
+    };
     std::map<std::string, Person> people;
     auto dayKey = [&](std::int64_t ms) { return ctx.dayOf ? ctx.dayOf(ms) : int(ms / (24 * hourMs)); };
     for (const TimePunch &p : sorted) {
         const std::int64_t ms = p.workedMs(ctx.now, s.paidBreaks);
         people[p.employeeId].today += ms;
         people[p.employeeId].byDay[dayKey(p.clockIn)] += ms;
+        people[p.employeeId].payToday += double(ms) / hourMs * double(p.rate.cents());
     }
     for (const TimePunch &p : earlier) {
         if (p.clockIn >= ctx.weekStart && people.contains(p.employeeId))
@@ -410,20 +421,58 @@ Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Empl
     }
     r.section("Hours and overtime");
     r.line({"", "Today", "This week", "Regular", "Overtime"});
-    for (const auto &[id, person] : people) {
+    for (auto &[id, person] : people) {
         std::int64_t week = 0, dailyOt = 0;
         for (const auto &[day, ms] : person.byDay) {
             week += ms;
             if (s.overtimeDailyHours > 0)
                 dailyOt += std::max<std::int64_t>(0, ms - s.overtimeDailyHours * hourMs);
         }
-        const std::int64_t weeklyOt = s.overtimeWeeklyHours > 0
-                                          ? std::max<std::int64_t>(0, week - s.overtimeWeeklyHours * hourMs) : 0;
+        const auto weeklyOver = [&](std::int64_t ms) {
+            return s.overtimeWeeklyHours > 0 ? std::max<std::int64_t>(0, ms - s.overtimeWeeklyHours * hourMs) : 0;
+        };
+        const std::int64_t weeklyOt = weeklyOver(week);
         const std::int64_t ot = std::max(dailyOt, weeklyOt);
         r.line({nameOf(id), hours(person.today), hours(week), hours(week - ot), ot > 0 ? hours(ot) : "-"});
+        // The overtime that falls on today: today's own daily overtime, or
+        // what today added to the week's.
+        const std::int64_t dailyToday = s.overtimeDailyHours > 0
+                                            ? std::max<std::int64_t>(0, person.today - s.overtimeDailyHours * hourMs) : 0;
+        person.otTodayMs = std::max(dailyToday, weeklyOt - weeklyOver(week - person.today));
     }
     if (s.overtimeDailyHours == 0 && s.overtimeWeeklyHours == 0)
         r.note("No overtime rule is set (Manager -> Settings).");
+
+    // What today's labor costs: each shift at its pay, overtime at time and
+    // a half (the extra half at the average pay of the day).
+    double pay = 0, premium = 0;
+    bool anyPay = false;
+    for (const TimePunch &p : sorted)
+        anyPay = anyPay || p.rate.cents() > 0;
+    r.section("Labor cost today");
+    if (!anyPay) {
+        r.note("No pay rates are set (Manager -> Employees -> Pay rate).");
+        return r;
+    }
+    r.line({"", "Hours", "Pay", "Overtime", "Cost"});
+    for (const auto &[id, person] : people) {
+        const double avg = person.today > 0 ? person.payToday / (double(person.today) / hourMs) : 0;
+        const double extra = double(person.otTodayMs) / hourMs * avg * 0.5;
+        pay += person.payToday;
+        premium += extra;
+        r.line({nameOf(id), hours(person.today), ctx.money(Money::fromCents(std::llround(person.payToday))),
+                extra > 0 ? ctx.money(Money::fromCents(std::llround(extra))) : "-",
+                ctx.money(Money::fromCents(std::llround(person.payToday + extra)))});
+    }
+    const Money cost = Money::fromCents(std::llround(pay + premium));
+    r.total({"Labor cost", hours(totalMs), ctx.money(Money::fromCents(std::llround(pay))),
+             premium > 0 ? ctx.money(Money::fromCents(std::llround(premium))) : "-", ctx.money(cost)});
+    r.line({"Net sales", "", "", "", ctx.money(netSales)});
+    if (netSales.cents() > 0) {
+        char pct[16];
+        std::snprintf(pct, sizeof pct, "%.1f%%", 100.0 * double(cost.cents()) / double(netSales.cents()));
+        r.line({"Labor % of sales", "", "", "", pct});
+    }
     return r;
 }
 

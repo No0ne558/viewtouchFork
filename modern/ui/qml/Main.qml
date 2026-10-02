@@ -325,6 +325,12 @@ ApplicationWindow {
         onManagerExit: approvalPad.leavingKiosk = true
     }
 
+    JobChooser {
+        anchors.fill: parent
+        z: 59
+        pos: root.controller.pos as PosService
+    }
+
     ApprovalPad {
         id: approvalPad
         anchors.fill: parent

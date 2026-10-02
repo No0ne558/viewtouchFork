@@ -128,14 +128,7 @@ bool PosService::clockInEmployee(const QString &employeeId)
         return fail(tr("No such employee."));
     if (openPunch(e->id))
         return fail(tr("%1 is already clocked in.").arg(qs(e->name)));
-    TimePunch p{++s_->lastPunchId, e->id, now(), 0, {}};
-    s_->punches.push_back(p);
-    if (s_->sink)
-        s_->sink->savePunch(p);
-    emit s_->dayChanged();
-    emit s_->staffChanged();
-    emit notice(tr("%1 clocked in by %2").arg(qs(e->name), qs(user()->name)));
-    return true;
+    return punchIn(*e, e->jobs().front(), qs(user()->name));   // their main job
 }
 
 bool PosService::setScheduleWeek(int offset)

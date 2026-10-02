@@ -380,6 +380,7 @@ void PosService::logout()
     releaseCheck();
     userId_.clear();
     pin_.clear();
+    jobChoice_.clear();
     trainingOn_ = false;
     approval_.clear();
     approved_.reset();
@@ -410,13 +411,58 @@ bool PosService::clockIn()
         return fail(tr("%1 is already clocked in.").arg(qs(e->name)));
     if (const QString why = scheduleCheck(*e); !why.isEmpty())
         return fail(why);
-    TimePunch p{++s_->lastPunchId, e->id, now(), 0};
+    const std::vector<Job> jobs = e->jobs();
+    if (jobs.size() > 1) {   // which job today?
+        jobChoice_ = e->id;
+        emit sessionChanged();
+        return true;
+    }
+    return punchIn(*e, jobs.front());
+}
+
+bool PosService::clockInAs(const QString &role)
+{
+    const Employee *e = s_->employee(jobChoice_);
+    jobChoice_.clear();
+    emit sessionChanged();
+    if (!e)
+        return fail(tr("Enter your PIN, then Clock In."));
+    for (const Job &job : e->jobs()) {
+        if (qs(job.role) == role)
+            return openPunch(e->id) ? fail(tr("%1 is already clocked in.").arg(qs(e->name))) : punchIn(*e, job);
+    }
+    return fail(tr("Choose one of your jobs."));
+}
+
+void PosService::cancelClockIn()
+{
+    jobChoice_.clear();
+    emit sessionChanged();
+}
+
+QVariantMap PosService::clockInJobs() const
+{
+    const Employee *e = s_->employee(jobChoice_);
+    if (!e)
+        return {};
+    QVariantList jobs;
+    for (const Job &job : e->jobs())
+        jobs.append(QVariantMap{{u"role"_s, qs(job.role)}, {u"name"_s, roleName(qs(job.role))}});
+    return {{u"who"_s, qs(e->name)}, {u"jobs"_s, jobs}};
+}
+
+bool PosService::punchIn(const Employee &e, const Job &job, const QString &by)
+{
+    TimePunch p{++s_->lastPunchId, e.id, now(), 0, {}, job.role, job.rate};
     s_->punches.push_back(p);
     if (s_->sink)
         s_->sink->savePunch(p);
     emit sessionChanged();
     emit s_->dayChanged();
-    emit notice(tr("%1 clocked in at %2").arg(qs(e->name), timeOfDay(p.clockIn)));
+    emit s_->staffChanged();
+    const QString as = e.jobs().size() > 1 ? u" (%1)"_s.arg(roleName(qs(job.role))) : QString();
+    emit notice(by.isEmpty() ? tr("%1 clocked in at %2").arg(qs(e.name) + as, timeOfDay(p.clockIn))
+                             : tr("%1 clocked in by %2").arg(qs(e.name) + as, by));
     return true;
 }
 
@@ -1380,6 +1426,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"loginWithPin"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.loginWithPin(a.value(0).toString())); }},
         {u"logout"_s, [](PosService &p, const QVariantList &) { p.logout(); return QVariant(true); }},
         {u"clockIn"_s, [](PosService &p, const QVariantList &) { return QVariant(p.clockIn()); }},
+        {u"clockInAs"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.clockInAs(a.value(0).toString())); }},
+        {u"cancelClockIn"_s, [](PosService &p, const QVariantList &) { p.cancelClockIn(); return QVariant(true); }},
         {u"clockOut"_s, [](PosService &p, const QVariantList &) { return QVariant(p.clockOut()); }},
         {u"selectTable"_s, [](PosService &p, const QVariantList &a) { return QVariant(int(p.selectTable(a.value(0).toString()))); }},
         {u"startCheck"_s, [](PosService &p, const QVariantList &a) {

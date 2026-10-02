@@ -445,9 +445,17 @@ std::map<std::string, TipShare> PosService::allTipShares() const
 {
     // Hours worked today, for splitting the tip pools.
     std::map<std::string, double> hours;
-    for (const TimePunch &p : s_->punches)
+    std::map<std::string, std::string> jobToday;   // someone who bartended today is in the bar's pool
+    for (const TimePunch &p : s_->punches) {
         hours[p.employeeId] += double(p.workedMs(now(), s_->settings.paidBreaks)) / 3'600'000.0;
-    return core::tipShares(s_->closedToday, s_->drawers, s_->settings, s_->employees, hours);
+        if (!p.job.empty())
+            jobToday[p.employeeId] = p.job;
+    }
+    std::vector<Employee> staff = s_->employees;
+    for (Employee &e : staff)
+        if (const auto it = jobToday.find(e.id); it != jobToday.end())
+            e.role = it->second;
+    return core::tipShares(s_->closedToday, s_->drawers, s_->settings, staff, hours);
 }
 
 TipShare PosService::tipShareFor(const std::string &employeeId) const
@@ -744,8 +752,13 @@ Report PosService::buildReport(const QString &id) const
         return itemSales(s_->closedToday, s_->menu, ctx);
     if (id == u"servers")
         return serverSales(s_->closedToday, ctx);
-    if (id == u"labor")
-        return laborReport(s_->punches, s_->employees, ctx, s_->earlierPunches);
+    if (id == u"labor") {
+        Money net;
+        for (const Check &c : s_->closedToday)
+            if (!c.training)
+                net += c.totals(s_->settings.tax).subtotal;
+        return laborReport(s_->punches, s_->employees, ctx, s_->earlierPunches, net);
+    }
     if (id == u"drawer")
         return drawerReport(s_->drawers, s_->closedToday, ctx);
     if (id == u"tips")

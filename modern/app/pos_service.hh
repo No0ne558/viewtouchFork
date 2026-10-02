@@ -245,6 +245,11 @@ public:
     bool loginWithPin(const QString &pin);
     void logout();
     bool clockIn();                    // logged-in user, else PIN entered
+    // Someone with more than one job is asked which one first (clockInJobs),
+    // then clocks in as it.
+    bool clockInAs(const QString &role);
+    void cancelClockIn();
+    QVariantMap clockInJobs() const override;
     bool clockOut();
 
     // --- keypads -------------------------------------------------------------
@@ -627,6 +632,9 @@ private:
     void changed(core::Check &check);   // persist + notify
     const core::Employee *employeeByPin(const QString &pin) const;
     core::TimePunch *openPunch(const std::string &employeeId);
+    // Start a shift: the job and its pay recorded on the punch.
+    bool punchIn(const core::Employee &e, const core::Job &job, const QString &by = {});
+    std::string jobChoice_;   // waiting for this person to pick a job
     std::int64_t now() const { return s_->now(); }
     bool lockCheck(std::int64_t checkId);   // false: open on another terminal
     void unlockCheck(std::int64_t checkId);

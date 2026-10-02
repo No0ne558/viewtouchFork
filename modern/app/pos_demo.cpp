@@ -24,6 +24,15 @@ namespace vt::app {
 namespace {
 
 constexpr std::int64_t kMinute = 60'000;
+// Clock in; someone with more than one job works their main one.
+void clockInMainJob(PosService &pos)
+{
+    pos.clockIn();
+    const QVariantList jobs = pos.clockInJobs().value(u"jobs"_s).toList();
+    if (!jobs.isEmpty())
+        pos.clockInAs(jobs.first().toMap().value(u"role"_s).toString());
+}
+
 // The demo staff: who takes tables, and everyone's PIN and id.
 const char *const kServers[] = {"1111", "2222", "4444", "1234"};
 const std::pair<const char *, const char *> kStaff[] = {
@@ -245,7 +254,7 @@ struct Demo {
         // Staff in; Sam takes a break mid-afternoon.
         for (const char *pin : {"1234", "1111", "2222", "4444", "3333"}) {
             as(pin);
-            pos.clockIn();
+            clockInMainJob(pos);
         }
         openDrawer();
         // Mondays the house accounts pay what they owe (by card).
@@ -357,7 +366,7 @@ QString fillDemoData(PosService &pos, std::int64_t realNow)
     d.restock();
     for (const char *pin : {"1234", "1111", "2222", "4444", "3333"}) {
         d.as(pin);
-        pos.clockIn();
+        clockInMainJob(pos);
     }
     d.openDrawer();
     for (int hour = 10; hour < std::min(22, nowTime.hour()); ++hour) {

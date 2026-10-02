@@ -203,6 +203,21 @@ bool PosStore::open(QString *error)
             || !run(q, u"UPDATE meta SET value = '8' WHERE key = 'pos_schema_version'"_s, error))
             return false;
     }
+    if (version < 9) {   // the job worked on a shift and its pay (labor cost)
+        if (!db.transaction()) {
+            if (error)
+                *error = db.lastError().text();
+            return false;
+        }
+        const bool ok =
+            run(q, u"ALTER TABLE time_punches ADD COLUMN job TEXT NOT NULL DEFAULT ''"_s, error)
+            && run(q, u"ALTER TABLE time_punches ADD COLUMN rate INTEGER NOT NULL DEFAULT 0"_s, error)
+            && run(q, u"UPDATE meta SET value = '9' WHERE key = 'pos_schema_version'"_s, error);
+        if (!ok || !db.commit()) {
+            db.rollback();
+            return false;
+        }
+    }
     return true;
 }
 
@@ -387,13 +402,15 @@ std::vector<TimePunch> PosStore::punches() const
 {
     std::vector<TimePunch> out;
     QSqlQuery q(QSqlDatabase::database(connection_));
-    if (!q.exec(u"SELECT id, employee_id, clock_in, clock_out, breaks FROM time_punches ORDER BY id"_s))
+    if (!q.exec(u"SELECT id, employee_id, clock_in, clock_out, breaks, job, rate FROM time_punches ORDER BY id"_s))
         return out;
     while (q.next()) {
         TimePunch p{q.value(0).toLongLong(), q.value(1).toString().toStdString(), q.value(2).toLongLong(),
                     q.value(3).toLongLong(), {}};
         for (const QJsonValue &b : QJsonDocument::fromJson(q.value(4).toByteArray()).array())
             p.breaks.push_back({b.toObject().value(u"start").toInteger(), b.toObject().value(u"end").toInteger()});
+        p.job = q.value(5).toString().toStdString();
+        p.rate = Money::fromCents(q.value(6).toLongLong());
         out.push_back(std::move(p));
     }
     return out;
@@ -495,6 +512,7 @@ void SqlPosSink::savePunch(const TimePunch &p)
         {u"id"_s, qint64(p.id)}, {u"employee_id"_s, qs(p.employeeId)},
         {u"clock_in"_s, qint64(p.clockIn)}, {u"clock_out"_s, qint64(p.clockOut)},
         {u"breaks"_s, QString::fromUtf8(QJsonDocument(app::toJson(p).value(u"breaks").toArray()).toJson(QJsonDocument::Compact))},
+        {u"job"_s, qs(p.job)}, {u"rate"_s, qint64(p.rate.cents())},
     });
 }
 

@@ -18,7 +18,7 @@ class AsyncWriter;
 // service go through AsyncWriter via SqlPosSink.
 class PosStore {
 public:
-    static constexpr int DbSchemaVersion = 8;
+    static constexpr int DbSchemaVersion = 9;
 
     explicit PosStore(QString databasePath);
     ~PosStore();

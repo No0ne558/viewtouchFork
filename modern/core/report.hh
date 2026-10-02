@@ -80,9 +80,10 @@ Report itemSales(const std::vector<Check> &closed, const std::vector<MenuItem> &
 Report serverSales(const std::vector<Check> &closed, const ReportContext &ctx);
 // Today's punches with breaks and worked hours, then each person's hours
 // today and this pay week with overtime (`earlier`: this week's punches
-// from earlier days).
+// from earlier days), then what today's labor costs (each shift at the pay
+// it was clocked in at, overtime at time and a half) against `netSales`.
 Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Employee> &employees,
-                   const ReportContext &ctx, const std::vector<TimePunch> &earlier = {});
+                   const ReportContext &ctx, const std::vector<TimePunch> &earlier = {}, Money netSales = {});
 Report drawerReport(const std::vector<DrawerSession> &drawers, const std::vector<Check> &closed,
                     const ReportContext &ctx);
 // Net sales by the hour checks closed in.

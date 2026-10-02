@@ -10,6 +10,7 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QDate>
+#include <QPointer>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -662,6 +663,25 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     QTest::qWait(50);
     CHECK_FALSE(s.pos.selfOrderInfo()[u"on"_s].toBool());
     CHECK_FALSE(kiosk->isVisible());
+}
+
+TEST_CASE("UI: clocking in with two jobs asks which one", "[flow][ui][pay]")
+{
+    Screen s;
+    for (const char *k : {"4", "4", "4", "4"})   // Jo: bartender, or server
+        s.pos.pinKey(QString::fromLatin1(k));
+    REQUIRE(s.pos.clockIn());
+    QTest::qWait(60);
+    QPointer<QQuickItem> server = Screen::findBy(s.window->contentItem(), "objectName", u"jobKey-server"_s);
+    REQUIRE(server);
+    CHECK(server->isVisible());
+    s.shot("24-which-job");
+    s.tapItem(server);
+    QTest::qWait(60);
+    CHECK(s.pos.clockInJobs().isEmpty());
+    CHECK((!server || !server->isVisible()));   // the choice is gone
+    REQUIRE_FALSE(s.pos.shared()->punches.empty());
+    CHECK(s.pos.shared()->punches.back().job == "server");
 }
 
 TEST_CASE("UI: the screen speaks the language of whoever logs in", "[flow][ui][i18n]")
