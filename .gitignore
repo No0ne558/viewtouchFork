@@ -16,6 +16,7 @@ Makefile
 *.cmake
 !CMakeLists.txt
 !cmake/*.cmake
+!modern/packaging/*.cmake
 
 # Generated version files
 version_generated.hh
