@@ -192,12 +192,12 @@ TEST_CASE("Expediter: every station's ticket, ready when all made, run out, reca
     QVariantMap t = pos.expoTickets().first().toMap();
     CHECK_FALSE(t[u"ready"_s].toBool());
     CHECK(t[u"lines"_s].toList().size() == 2);
-    CHECK(t[u"waitingOn"_s].toStringList() == QStringList{u"kitchen"_s, u"bar"_s});   // in order on the ticket
+    CHECK(t[u"waitingOn"_s].toStringList() == QStringList{u"Cold Line"_s, u"Bar"_s});   // in order on the ticket
     const qint64 sentAt = t[u"sentAt"_s].toLongLong();
 
     REQUIRE(pos.bumpTicket(id, sentAt, u"kitchen"_s));   // the kitchen is done
     t = pos.expoTickets().first().toMap();
-    CHECK(t[u"waitingOn"_s].toStringList() == QStringList{u"bar"_s});
+    CHECK(t[u"waitingOn"_s].toStringList() == QStringList{u"Bar"_s});
     REQUIRE(pos.bumpTicket(id, sentAt, u"bar"_s));
     CHECK(pos.expoTickets().first().toMap()[u"ready"_s].toBool());
     CHECK(pos.kitchenTickets().isEmpty());               // the stations are clear
@@ -215,4 +215,79 @@ TEST_CASE("Expediter: every station's ticket, ready when all made, run out, reca
     const QVariantMap second = all.last().toMap();
     REQUIRE(pos.expoBump(id, second[u"sentAt"_s].toLongLong()));
     CHECK(pos.kitchenTickets().isEmpty());
+}
+
+TEST_CASE("Stations: each screen its station's lines, a combo's fries at the fryer, expo waits for all",
+          "[kitchen][stations]")
+{
+    app::PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.selectTable(u"T1"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    pos.addItem(u"burger-combo"_s);
+    REQUIRE(pos.chooseOption(u"temperature"_s, 2));
+    REQUIRE(pos.chooseOption(u"side"_s, 0));       // Fries: the fryer's
+    REQUIRE(pos.chooseOption(u"combo-drink"_s, 0)); // Soda: the bar's, not the kitchen's
+    REQUIRE(pos.finishChoosing());
+    pos.addItem(u"cobb"_s);                         // the cold line's
+    REQUIRE(pos.sendOrder());
+    const qint64 id = pos.checkInfo()[u"id"_s].toLongLong();
+
+    const auto at = [&](const QString &station) {
+        QStringList out;
+        for (const QVariant &t : pos.kitchenTickets())
+            for (const QVariant &v : t.toMap()[u"lines"_s].toList()) {
+                const QVariantMap l = v.toMap();
+                if (l[u"station"_s] == station || l[u"printer"_s] == station)
+                    out << l[u"name"_s].toString();
+            }
+        return out;
+    };
+    CHECK(at(u"grill"_s) == QStringList{u"COMBO BGR"_s});
+    CHECK(at(u"fryer"_s) == QStringList{u"Fries"_s});
+    CHECK(at(u"cold"_s) == QStringList{u"Cobb"_s});
+    CHECK(at(u"kitchen"_s).size() == 3);             // the whole kitchen printer's screen
+
+    const QVariantMap burger = pos.kitchenTickets().first().toMap()[u"lines"_s].toList().first().toMap();
+    CHECK_FALSE(burger[u"modifiers"_s].toStringList().contains(u"Fries"_s));   // the fryer makes those
+    const qint64 sentAt = pos.kitchenTickets().first().toMap()[u"sentAt"_s].toLongLong();
+
+    REQUIRE(pos.bumpTicket(id, sentAt, u"fryer"_s));
+    CHECK(at(u"fryer"_s).isEmpty());
+    CHECK(at(u"grill"_s) == QStringList{u"COMBO BGR"_s});
+    QVariantMap expo = pos.expoTickets().first().toMap();
+    CHECK(expo[u"waitingOn"_s].toStringList() == QStringList{u"Grill"_s, u"Cold Line"_s});
+
+    REQUIRE(pos.recallTicket());                     // the fries weren't done after all
+    CHECK(at(u"fryer"_s) == QStringList{u"Fries"_s});
+    CHECK(pos.expoTickets().first().toMap()[u"waitingOn"_s].toStringList().contains(u"Fryer"_s));
+
+    REQUIRE(pos.bumpTicket(id, sentAt, u"grill"_s));
+    CHECK(at(u"fryer"_s) == QStringList{u"Fries"_s}); // still the fryer's
+    REQUIRE(pos.bumpTicket(id, sentAt, u"fryer"_s));
+    REQUIRE(pos.bumpTicket(id, sentAt, u"cold"_s));
+    CHECK(pos.expoTickets().first().toMap()[u"ready"_s].toBool());
+
+    // Saved with the check.
+    const auto back = app::checkFromJson(app::toJson(pos.shared()->open.at(id)));
+    CHECK(back->lines.front().station == "grill");
+    CHECK(back->lines.front().modifiers[1].station == "fryer");
+    CHECK(back->lines.front().modifiers[1].made);
+}
+
+TEST_CASE("Stations: a screen keeps the station it was set to", "[kitchen][stations]")
+{
+    app::PosService pos(test::seedPosData(), nullptr);
+    CHECK(pos.kitchenStation().isEmpty());
+    CHECK(pos.kitchenStations().size() >= 3);
+    REQUIRE(pos.setKitchenStation(u"fryer"_s));        // nobody logged in: kitchen screens
+    CHECK(pos.kitchenStation() == u"fryer"_s);
+    CHECK(app::settingsFromJson(app::toJson(pos.shared()->settings)).terminals.back().station == "fryer");
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    QVariantMap s = pos.adminRecords(u"store"_s).first().toMap();
+    CHECK(s[u"kitchenStations"_s] == u"Grill\nFryer\nCold Line"_s);
+    s[u"kitchenStations"_s] = u"Grill\nFryer\nCold Line\nPizza Oven"_s;
+    REQUIRE(pos.adminSave(u"store"_s, 0, s));
+    CHECK(pos.shared()->settings.stations.back().id == "pizza-oven");
+    CHECK(pos.shared()->settings.stations.front().id == "grill");
 }

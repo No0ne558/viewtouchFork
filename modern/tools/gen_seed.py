@@ -184,6 +184,14 @@ item("kids-burger")["kitchenColor"] = "blue"
 item("kids-burger")["kitchenName"] = "KIDS BGR"
 for iid in ("water", "no-side"):
     item(iid)["kitchenHide"] = True
+# Kitchen stations, each with its own screen (the Station button picks one).
+for iid in ("classic-burger", "cheeseburger", "bacon-burger", "mushroom-swiss", "veggie-burger", "kids-burger",
+            "burger-of-the-day", "burger-combo", "two-eggs", "pancakes", "french-toast", "omelette"):
+    item(iid)["station"] = "grill"
+for iid in ("fries", "onion-rings", "sweet-potato-fries"):
+    item(iid)["station"] = "fryer"
+for iid in ("house-salad", "caesar", "cobb", "greek", "side-salad"):
+    item(iid)["station"] = "cold"
 RECIPES["burger-combo"] = RECIPES["classic-burger"]   # its side and drink count on their own
 item("burger-combo")["kitchenName"] = "COMBO BGR"
 item("burger-combo")["kitchenColor"] = "orange"
@@ -259,6 +267,8 @@ write("pos/settings.json", {
     "terminals": [],
     # Servers carry their own bank; terminals need no drawer of their own.
     "cashMode": "serverBank",
+    "stations": [{"id": "grill", "name": "Grill"}, {"id": "fryer", "name": "Fryer"},
+                 {"id": "cold", "name": "Cold Line"}],
     "modifierGroups": link_items([
         {"id": "dressing", "name": "Dressing", "min": 1, "max": 1,
          "options": [{"name": n, "price": 0, "kitchenName": k} for n, k in

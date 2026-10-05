@@ -26,6 +26,9 @@ struct MenuItem {
     TaxClass taxClass = TaxClass::Food;
     bool isModifier = false;
     std::string printer;     // kitchen routing target (used by printing, M4)
+    // The kitchen station that makes it (a PosSettings::stations id: grill,
+    // fryer...); empty = its printer's screen.
+    std::string station;
     bool available = true;   // false = "86'd", cannot be ordered
     // Choices asked for when it is ordered (ModifierGroup ids, in order).
     std::vector<std::string> modifierGroups;

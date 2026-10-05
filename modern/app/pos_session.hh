@@ -74,6 +74,8 @@ class PosSession : public QObject {
     Q_PROPERTY(bool training READ training NOTIFY sessionChanged)
     Q_PROPERTY(int autoLogoutMinutes READ autoLogoutMinutes NOTIFY adminChanged)
     Q_PROPERTY(int screenSaverMinutes READ screenSaverMinutes NOTIFY adminChanged)
+    Q_PROPERTY(QVariantList kitchenStations READ kitchenStations NOTIFY adminChanged)
+    Q_PROPERTY(QString kitchenStation READ kitchenStation NOTIFY adminChanged)
     // Messages between screens, the last hour's, newest first.
     Q_PROPERTY(QVariantList messages READ messages NOTIFY dayChanged)
     Q_PROPERTY(bool standbyReady READ standbyReady NOTIFY sessionChanged)
@@ -179,6 +181,8 @@ public:
     virtual QVariantMap approvalInfo() const = 0;
     virtual int autoLogoutMinutes() const = 0;
     virtual int screenSaverMinutes() const = 0;
+    virtual QVariantList kitchenStations() const = 0;
+    virtual QString kitchenStation() const = 0;
     virtual QVariantList messages() const = 0;
     // A screen that lost its server: the store's standby is there, ready.
     virtual bool standbyReady() const { return false; }
@@ -270,6 +274,7 @@ public:
     Q_INVOKABLE void searchChecks(const QString &query) { invoke(QStringLiteral("searchChecks"), {query}); }
     // Orders for later: ready at this time (ms since 1970; 0 = as soon as possible).
     Q_INVOKABLE void setDueAt(double at) { invoke(QStringLiteral("setDueAt"), {qint64(at)}); }
+    Q_INVOKABLE void setKitchenStation(const QString &id) { invoke(QStringLiteral("setKitchenStation"), {id}); }
     Q_INVOKABLE void selectFoundCheck(qint64 id) { invoke(QStringLiteral("selectFoundCheck"), {id}); }
     Q_INVOKABLE void reprintCheck(qint64 id) { invoke(QStringLiteral("reprintCheck"), {id}); }
     Q_INVOKABLE void cancelClockIn() { invoke(QStringLiteral("cancelClockIn")); }

@@ -100,7 +100,7 @@ TEST_CASE("Combos: a side and a drink from the menu, their stock, sold out, the 
     REQUIRE(pos.sendOrder());
     QStringList made;
     for (const QVariant &l : pos.kitchenTickets().last().toMap()[u"lines"_s].toList())
-        made << l.toMap()[u"modifiers"_s].toStringList();
+        made << l.toMap()[u"name"_s].toString() << l.toMap()[u"modifiers"_s].toStringList();
     CHECK(made.join(u'|').contains(u"Fries"_s));
     CHECK_FALSE(made.join(u'|').contains(u"Lemonade"_s));
     {

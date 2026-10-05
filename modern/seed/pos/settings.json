@@ -172,6 +172,20 @@
   },
   "terminals": [],
   "cashMode": "serverBank",
+  "stations": [
+    {
+      "id": "grill",
+      "name": "Grill"
+    },
+    {
+      "id": "fryer",
+      "name": "Fryer"
+    },
+    {
+      "id": "cold",
+      "name": "Cold Line"
+    }
+  ],
   "modifierGroups": [
     {
       "id": "dressing",

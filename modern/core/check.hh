@@ -4,6 +4,7 @@
 #include "core/money.hh"
 #include "core/tax.hh"
 
+#include <algorithm>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -20,6 +21,11 @@ struct Modifier {
     std::string group;   // the ModifierGroup it was chosen from, if any
     std::string kitchenName;   // what the kitchen sees instead of the name
     bool kitchenHide = false;  // not shown in the kitchen at all
+    // A part made at another station (a combo's fries at the fryer): that
+    // station's screen shows it, and bumps it, on its own.
+    std::string station;
+    bool made = false;
+    std::int64_t madeAt = 0;
 
     Money price() const { return qualifiedPrice(unitPrice, qualifier); }
     std::string displayName() const { return qualifierPrefix(qualifier) + name; }
@@ -38,6 +44,7 @@ struct OrderLine {
     Qualifier qualifier = Qualifier::None;
     std::vector<Modifier> modifiers;
     std::string printer;
+    std::string station;         // the station that makes it (empty: its printer's screen)
     bool sent = false;           // sent to the kitchen; can no longer just be deleted
     bool voided = false;         // voided after sending (kept for the record)
     std::int64_t sentAt = 0;
@@ -55,6 +62,18 @@ struct OrderLine {
     std::int64_t servedAt = 0;
 
     bool isComment() const { return itemId.empty(); }
+    std::string printerOf() const { return printer.empty() ? std::string("kitchen") : printer; }
+    std::string stationOf() const { return station.empty() ? printerOf() : station; }
+    // A modifier made at another station than this line (see Modifier::station).
+    bool isPart(const Modifier &m) const
+    {
+        return !m.station.empty() && m.station != stationOf() && !m.kitchenHide && m.qualifier != Qualifier::No;
+    }
+    // This line and its parts at other stations are all made.
+    bool allMade() const
+    {
+        return made && std::ranges::all_of(modifiers, [this](const Modifier &m) { return !isPart(m) || m.made; });
+    }
     std::string kitchenText() const { return qualifierPrefix(qualifier) + (kitchenName.empty() ? name : kitchenName); }
     // Something the kitchen sees (not a gift card or a hidden item).
     bool forKitchen() const { return !kitchenHide && !itemId.starts_with("giftcard:"); }

@@ -4,12 +4,27 @@ import QtQuick.Layouts
 // Kitchen / bar display: every order sent and not yet made, oldest first.
 // Touch a ticket when it is ready (bump); Recall brings the last one back.
 // props.station: "kitchen", "bar"... shows only that printer's lines
-// (empty = everything).
+// (empty = everything). The Station button picks one of the store's
+// stations (grill, fryer...) for this screen instead; it stays picked.
 Item {
     id: w
     property ZoneItem zone
     readonly property PosService pos: zone ? zone.pos : null
-    readonly property string station: zone && zone.props && zone.props.station ? zone.props.station : ""
+    readonly property string pageStation: zone && zone.props && zone.props.station ? zone.props.station : ""
+    readonly property string station: !expo && pos && pos.kitchenStation ? pos.kitchenStation : pageStation
+    readonly property var stations: pos ? pos.kitchenStations.filter(s => !s.printer) : []
+    function stationName(id) {
+        if (id === "") return qsTr("All stations")
+        const all = w.pos ? w.pos.kitchenStations : []
+        const s = all.find(x => x.id === id)
+        return s ? s.name : id.charAt(0).toUpperCase() + id.slice(1)
+    }
+    // The page's own, then each station, and around again.
+    function nextStation() {
+        const ids = [w.pageStation].concat(w.stations.map(s => s.id).filter(id => id !== w.pageStation))
+        const next = ids[(ids.indexOf(w.station) + 1) % ids.length]
+        w.pos.setKitchenStation(next === w.pageStation ? "" : next)
+    }
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     property real now: Date.now()
 
@@ -30,7 +45,8 @@ Item {
         if (expo) return pos.expoTickets
         const out = []
         for (const t of pos.kitchenTickets) {
-            const lines = station === "" ? t.lines : t.lines.filter(l => l.printer === station || l.comment)
+            const lines = station === "" ? t.lines
+                        : t.lines.filter(l => l.station === station || l.printer === station || l.comment)
             if (lines.some(l => !l.comment))
                 out.push(Object.assign({}, t, { lines: lines }))
         }
@@ -78,12 +94,21 @@ Item {
             Layout.fillHeight: false   // nested layouts fill by default
             Text {
                 Layout.fillWidth: true
-                text: (w.expo ? qsTr("Expo") : w.station === "" ? qsTr("All stations") : w.station.charAt(0).toUpperCase() + w.station.slice(1))
+                text: (w.expo ? qsTr("Expo") : w.stationName(w.station))
                       + "  ·  " + (w.tickets.length === 1 ? qsTr("1 order") : qsTr("%1 orders").arg(w.tickets.length))
                 color: "white"
                 font.family: w.face
                 font.pixelSize: 40
                 font.bold: true
+            }
+            WidgetKey {
+                objectName: "kdsStation"
+                visible: !w.expo && w.stations.length > 0
+                Layout.preferredWidth: 240
+                Layout.fillHeight: true
+                text: qsTr("Station…")
+                fontScale: 0.4
+                onClicked: w.nextStation()
             }
             WidgetKey {
                 Layout.preferredWidth: 240

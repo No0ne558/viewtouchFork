@@ -43,6 +43,12 @@ QJsonObject toJson(const Check &c)
                 mo.insert(u"kitchenName"_s, qs(m.kitchenName));
             if (m.kitchenHide)
                 mo.insert(u"kitchenHide"_s, true);
+            if (!m.station.empty())
+                mo.insert(u"station"_s, qs(m.station));
+            if (m.made) {
+                mo.insert(u"made"_s, true);
+                mo.insert(u"madeAt"_s, qint64(m.madeAt));
+            }
             mods.append(mo);
         }
         QJsonObject lo{
@@ -57,6 +63,8 @@ QJsonObject toJson(const Check &c)
             lo.insert(u"modifiers"_s, mods);
         if (!l.printer.empty())
             lo.insert(u"printer"_s, qs(l.printer));
+        if (!l.station.empty())
+            lo.insert(u"station"_s, qs(l.station));
         if (l.made) {
             lo.insert(u"made"_s, true);
             lo.insert(u"madeAt"_s, qint64(l.madeAt));
@@ -135,6 +143,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
         l.taxClass = taxClassFromString(ss(lo.value(u"taxClass").toString()));
         l.qualifier = qualifierFromString(ss(lo.value(u"qualifier").toString()));
         l.printer = ss(lo.value(u"printer").toString());
+        l.station = ss(lo.value(u"station").toString());
         l.sent = lo.value(u"sent").toBool();
         l.voided = lo.value(u"voided").toBool();
         l.sentAt = i64(lo.value(u"sentAt"));
@@ -155,7 +164,8 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
                                    money(mo.value(u"unitPrice")),
                                    qualifierFromString(ss(mo.value(u"qualifier").toString())),
                                    ss(mo.value(u"group").toString()), ss(mo.value(u"kitchenName").toString()),
-                                   mo.value(u"kitchenHide").toBool()});
+                                   mo.value(u"kitchenHide").toBool(), ss(mo.value(u"station").toString()),
+                                   mo.value(u"made").toBool(), i64(mo.value(u"madeAt"))});
         }
         c.lines.push_back(l);
     }
@@ -209,6 +219,7 @@ QJsonObject toJson(const MenuItem &m)
     if (!m.family.empty()) o.insert(u"family"_s, qs(m.family));
     if (m.isModifier) o.insert(u"modifier"_s, true);
     if (!m.printer.empty()) o.insert(u"printer"_s, qs(m.printer));
+    if (!m.station.empty()) o.insert(u"station"_s, qs(m.station));
     if (!m.available) o.insert(u"available"_s, false);
     if (!m.modifierGroups.empty()) {
         QJsonArray groups;
@@ -265,6 +276,7 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     m.taxClass = taxClassFromString(ss(o.value(u"taxClass").toString(u"food"_s)));
     m.isModifier = o.value(u"modifier").toBool();
     m.printer = ss(o.value(u"printer").toString());
+    m.station = ss(o.value(u"station").toString());
     m.available = o.value(u"available").toBool(true);
     for (const QJsonValue &g : o.value(u"modifierGroups").toArray())
         m.modifierGroups.push_back(ss(g.toString()));
@@ -601,7 +613,8 @@ QJsonObject toJson(const PosSettings &s)
     for (const TerminalConfig &t : s.terminals)
         terminals.append(QJsonObject{{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)},
                                      {u"drawer"_s, qs(t.drawer)}, {u"id"_s, qs(t.id)}, {u"key"_s, qs(t.key)},
-                                     {u"pairedAt"_s, qint64(t.pairedAt)}, {u"screen"_s, qs(t.screen)}});
+                                     {u"pairedAt"_s, qint64(t.pairedAt)}, {u"screen"_s, qs(t.screen)},
+                                     {u"station"_s, qs(t.station)}});
     QJsonArray printers;
     for (const PrinterConfig &p : s.printers)
         printers.append(toJson(p));
@@ -665,6 +678,12 @@ QJsonObject toJson(const PosSettings &s)
              return QJsonObject{{u"enabled"_s, s.loyaltyEnabled}, {u"pointsPerDollar"_s, s.pointsPerDollar},
                                 {u"rewards"_s, rewards}};
          }()},
+        {u"stations"_s, [&] {
+             QJsonArray a;
+             for (const Station &st : s.stations)
+                 a.append(QJsonObject{{u"id"_s, qs(st.id)}, {u"name"_s, qs(st.name)}});
+             return a;
+         }()},
         {u"vendors"_s, [&] {
              QJsonArray a;
              for (const Vendor &v : s.vendors)
@@ -724,7 +743,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
         s.terminals.push_back({ss(t.value(u"name").toString()), ss(t.value(u"receiptPrinter").toString()),
                                ss(t.value(u"drawer").toString()), ss(t.value(u"id").toString()),
                                ss(t.value(u"key").toString()), i64(t.value(u"pairedAt")),
-                               ss(t.value(u"screen").toString())});
+                               ss(t.value(u"screen").toString()), ss(t.value(u"station").toString())});
     }
     s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));
     const QJsonObject labor = o.value(u"labor").toObject();
@@ -767,6 +786,10 @@ PosSettings settingsFromJson(const QJsonObject &o)
         const QJsonObject r = v.toObject();
         if (r.value(u"points").toInt() > 0)
             s.rewards.push_back({r.value(u"points").toInt(), Money::fromCents(centsFromDecimal(r.value(u"value").toDouble()))});
+    }
+    for (const QJsonValue &v : o.value(u"stations").toArray()) {
+        const QJsonObject x = v.toObject();
+        s.stations.push_back({ss(x.value(u"id").toString()), ss(x.value(u"name").toString())});
     }
     for (const QJsonValue &v : o.value(u"vendors").toArray()) {
         const QJsonObject x = v.toObject();

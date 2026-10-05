@@ -296,6 +296,11 @@ public:
     // Sends the orders for later whose time has come (the server calls it
     // every half minute); returns how many went.
     int fireDueOrders();
+    // Kitchen stations: the store's, and the one this screen shows.
+    QVariantList kitchenStations() const override;
+    QString kitchenStation() const override;
+    bool setKitchenStation(const QString &station);
+    QString stationName(const std::string &id) const;
     bool addComment();
     // Amount: explicit cents, else the keypad entry, else the balance due.
     bool tender(const QString &tenderId, std::optional<std::int64_t> amountCents = std::nullopt);

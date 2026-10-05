@@ -665,6 +665,49 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: a kitchen screen picks its station; the fries show at the fryer", "[flow][ui][stations]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.selectTable(u"T2"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    s.pos.addItem(u"burger-combo"_s);
+    s.pos.chooseOption(u"temperature"_s, 2);
+    s.pos.chooseOption(u"side"_s, 0);
+    s.pos.chooseOption(u"combo-drink"_s, 0);
+    s.pos.finishChoosing();
+    s.pos.addItem(u"caesar"_s);
+    REQUIRE(s.pos.sendOrder());
+    s.pos.releaseCheck();
+    REQUIRE(s.c.jumpTo(u"kitchen"_s));
+    QTest::qWait(150);
+    const auto shows = [&](const QString &text) {
+        return Screen::findBy(s.window->contentItem(), "text", text) != nullptr;
+    };
+    // Found again each time: a settings change rebuilds the page.
+    const auto station = [&] {
+        QQuickItem *k = Screen::findBy(s.window->contentItem(), "objectName", u"kdsStation"_s);
+        REQUIRE(k);
+        return k;
+    };
+    s.tapItem(station());                                   // Grill
+    QTest::qWait(150);
+    CHECK(s.pos.kitchenStation() == u"grill"_s);
+    s.shot("29-station-grill");
+    s.tapItem(station());                                   // Fryer
+    QTest::qWait(150);
+    CHECK(s.pos.kitchenStation() == u"fryer"_s);
+    CHECK(shows(u"1  Fries"_s));
+    CHECK_FALSE(shows(u"1  COMBO BGR"_s));
+    s.shot("30-station-fryer");
+    s.tapItem(station());                                   // Cold Line
+    QTest::qWait(150);
+    s.tapItem(station());                                   // back to the page's own: the kitchen
+    QTest::qWait(150);
+    CHECK(s.pos.kitchenStation().isEmpty());
+    CHECK(shows(u"1  COMBO BGR"_s));
+}
+
 TEST_CASE("UI: a takeout ready later, picked by day, hour and minutes", "[flow][ui][later]")
 {
     Screen s;
@@ -1222,6 +1265,9 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     }
     go("tabs", "m81-bar-tabs");
     go("tables", "m81-tables");
+    REQUIRE(s.pos.setKitchenStation(u"fryer"_s));
+    go("kitchen", "m83-station-fryer");
+    REQUIRE(s.pos.setKitchenStation(QString()));
     s.c.setScreenSaverForTesting(100);
     QTest::qWait(300);
     snap("m82-screen-saver");

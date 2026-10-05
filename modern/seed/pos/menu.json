@@ -14,6 +14,7 @@
       "dinner": 12.5
     },
     "kitchenColor": "orange",
+    "station": "grill",
     "recipe": [
       {
         "ingredient": "bun",
@@ -41,6 +42,7 @@
       "side"
     ],
     "kitchenColor": "orange",
+    "station": "grill",
     "recipe": [
       {
         "ingredient": "bun",
@@ -76,6 +78,7 @@
     },
     "kitchenName": "BCN BGR",
     "kitchenColor": "orange",
+    "station": "grill",
     "recipe": [
       {
         "ingredient": "bun",
@@ -108,6 +111,7 @@
     ],
     "kitchenName": "MUSH SWS",
     "kitchenColor": "orange",
+    "station": "grill",
     "recipe": [
       {
         "ingredient": "bun",
@@ -138,6 +142,7 @@
       "side"
     ],
     "kitchenColor": "orange",
+    "station": "grill",
     "recipe": [
       {
         "ingredient": "bun",
@@ -166,6 +171,7 @@
     ],
     "kitchenColor": "blue",
     "kitchenName": "KIDS BGR",
+    "station": "grill",
     "recipe": [
       {
         "ingredient": "bun",
@@ -190,6 +196,7 @@
     ],
     "kitchenName": "BOTD",
     "kitchenColor": "orange",
+    "station": "grill",
     "recipe": [
       {
         "ingredient": "bun",
@@ -220,6 +227,7 @@
       "dressing",
       "salad-protein"
     ],
+    "station": "cold",
     "recipe": [
       {
         "ingredient": "lettuce",
@@ -237,6 +245,7 @@
     "modifierGroups": [
       "salad-protein"
     ],
+    "station": "cold",
     "recipe": [
       {
         "ingredient": "romaine",
@@ -254,6 +263,7 @@
     "modifierGroups": [
       "salad-protein"
     ],
+    "station": "cold",
     "recipe": [
       {
         "ingredient": "lettuce",
@@ -284,6 +294,7 @@
       "dressing",
       "salad-protein"
     ],
+    "station": "cold",
     "recipe": [
       {
         "ingredient": "lettuce",
@@ -401,6 +412,7 @@
       "toast",
       "breakfast-add-ons"
     ],
+    "station": "grill",
     "recipe": [
       {
         "ingredient": "eggs",
@@ -423,6 +435,7 @@
       "syrup",
       "breakfast-add-ons"
     ],
+    "station": "grill",
     "recipe": [
       {
         "ingredient": "batter",
@@ -441,6 +454,7 @@
       "syrup",
       "breakfast-add-ons"
     ],
+    "station": "grill",
     "recipe": [
       {
         "ingredient": "bread",
@@ -464,6 +478,7 @@
       "toast",
       "breakfast-add-ons"
     ],
+    "station": "grill",
     "recipe": [
       {
         "ingredient": "eggs",
@@ -533,6 +548,7 @@
     "taxClass": "food",
     "printer": "kitchen",
     "modifier": true,
+    "station": "fryer",
     "recipe": [
       {
         "ingredient": "potatoes",
@@ -547,7 +563,8 @@
     "family": "sides",
     "taxClass": "food",
     "printer": "kitchen",
-    "modifier": true
+    "modifier": true,
+    "station": "cold"
   },
   {
     "id": "onion-rings",
@@ -557,6 +574,7 @@
     "taxClass": "food",
     "printer": "kitchen",
     "modifier": true,
+    "station": "fryer",
     "recipe": [
       {
         "ingredient": "onions",
@@ -573,6 +591,7 @@
     "printer": "kitchen",
     "modifier": true,
     "kitchenName": "SWT FRY",
+    "station": "fryer",
     "recipe": [
       {
         "ingredient": "potatoes",
@@ -603,6 +622,7 @@
       "combo-drink"
     ],
     "description": "Classic burger, a side and a drink",
+    "station": "grill",
     "kitchenName": "COMBO BGR",
     "kitchenColor": "orange",
     "recipe": [

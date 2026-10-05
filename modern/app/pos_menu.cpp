@@ -116,6 +116,8 @@ bool PosService::chooseOption(const QString &groupId, int index)
             return fail(tr("%1 is sold out.").arg(qs(o.name)));
         Modifier m;
         m.itemId = o.itemId;   // its stock (a combo's side or drink)
+        if (linked)
+            m.station = linked->station;   // made at the fryer, say
         m.name = o.name;
         m.unitPrice = o.price;
         m.group = g->id;

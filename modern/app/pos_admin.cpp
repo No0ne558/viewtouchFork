@@ -114,6 +114,15 @@ QVariantList PosService::adminFields(const QString &panel)
                  options({{"food", "Food"}, {"alcohol", "Alcohol"}, {"merchandise", "Merchandise"},
                           {"room", "Room"}, {"none", "No tax"}})),
             with(field(u"printer"_s, tr("Kitchen ticket goes to"), u"enum"_s), u"options"_s, printers),
+            with(field(u"station"_s, tr("Made at (kitchen screen)"), u"enum"_s,
+                       tr("The station whose screen shows it (Store Settings -> Kitchen stations). "
+                          "As a combo's part, it shows there on its own.")),
+                 u"options"_s, [this] {
+                     QVariantList st = options({{"", "Its ticket's screen"}});
+                     for (const Station &x : s_->settings.stations)
+                         st.append(QVariantMap{{u"value"_s, qs(x.id)}, {u"text"_s, qs(x.name)}});
+                     return st;
+                 }()),
             field(u"modifier"_s, tr("Is a modifier (attaches to the item before it)"), u"bool"_s),
             field(u"available"_s, tr("Available (untick when sold out / 86'd)"), u"bool"_s),
             field(u"modifierGroups"_s, tr("Modifier groups"), u"string"_s,
@@ -334,6 +343,9 @@ QVariantList PosService::adminFields(const QString &panel)
                       u"min"_s, 0), u"max"_s, 500),
             field(u"extraCharge"_s, tr("Extra: amount added"), u"money"_s,
                   tr("And/or a fixed amount for Extra, e.g. 0.75. Charged even on choices that are free.")),
+            field(u"kitchenStations"_s, tr("Kitchen stations"), u"text"_s,
+                  tr("One per line (Grill, Fryer, Cold Line). Each kitchen screen picks one with its Station "
+                     "button; menu items say where they're made.")),
             field(u"expenseCategories"_s, tr("Expense categories"), u"text"_s,
                   tr("What cash paid out of a drawer can be for, one per line (Produce, Ice, Repairs...). "
                      "Each pay out picks one; Reports -> Expenses adds them up.")),
@@ -466,6 +478,12 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"terminalsHaveDrawer"_s, s_->settings.terminalsHaveDrawer},
              {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks},
              {u"backupCopyDir"_s, qs(s_->settings.backupCopyDir)},
+             {u"kitchenStations"_s, [&] {
+                  QStringList lines;
+                  for (const Station &x : s_->settings.stations)
+                      lines << qs(x.name);
+                  return lines.join(u'\n');
+              }()},
              {u"expenseCategories"_s, [&] {
                   QStringList lines;
                   for (const std::string &c : s_->settings.expenseCategories)
@@ -560,7 +578,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
 {
     if (panel == u"menu")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"price"_s, 0.0}, {u"family"_s, QString()},
-                {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"modifier"_s, false}, {u"available"_s, true},
+                {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"station"_s, QString()}, {u"modifier"_s, false}, {u"available"_s, true},
                 {u"modifierGroups"_s, QString()}, {u"periodPrices"_s, QString()}, {u"recipe"_s, QString()},
                 {u"kitchenName"_s, QString()}, {u"kitchenColor"_s, QString()}, {u"kitchenHide"_s, false},
                 {u"kioskHide"_s, false}, {u"description"_s, QString()}, {u"image"_s, QString()},
@@ -826,6 +844,22 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.textWebhook = ss(record.value(u"textWebhook"_s).toString().trimmed());
         if (record.contains(u"backupCopyDir"_s))
             s_->settings.backupCopyDir = ss(record.value(u"backupCopyDir"_s).toString().trimmed());
+        if (record.contains(u"kitchenStations"_s)) {
+            // Names in; ids stay the same for names already there.
+            std::vector<Station> stations;
+            for (const QString &line : record.value(u"kitchenStations"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
+                const QString name = line.trimmed();
+                if (name.isEmpty())
+                    continue;
+                const auto old = std::ranges::find_if(s_->settings.stations, [&](const Station &x) {
+                    return QString::compare(qs(x.name), name, Qt::CaseInsensitive) == 0;
+                });
+                const std::string id = old != s_->settings.stations.end() ? old->id : ss(slug(name));
+                if (std::ranges::none_of(stations, [&](const Station &x) { return x.id == id; }))
+                    stations.push_back({id, ss(name)});
+            }
+            s_->settings.stations = stations;
+        }
         if (record.contains(u"expenseCategories"_s)) {
             std::vector<std::string> categories;
             for (const QString &line : record.value(u"expenseCategories"_s).toString().split(u'\n', Qt::SkipEmptyParts))

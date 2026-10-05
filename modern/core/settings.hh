@@ -29,6 +29,14 @@ struct PrinterConfig {
 
 // Per-terminal setup: which printer takes its receipts (and opens its
 // drawer). Terminals not listed use the "receipt" printer.
+// A place in the kitchen with its own screen: Grill, Fryer, Cold Line.
+struct Station {
+    std::string id;
+    std::string name;
+
+    bool operator==(const Station &) const = default;
+};
+
 struct TerminalConfig {
     std::string name;
     std::string receiptPrinter;
@@ -41,6 +49,8 @@ struct TerminalConfig {
     // Pages to show: "phone" (phone versions), "standard", "selfOrder" (a
     // self-order kiosk for guests), or empty to decide from the screen size.
     std::string screen;
+    // Its kitchen screen shows this station (a Station id or a printer id; empty = the page's).
+    std::string station;
 
     bool operator==(const TerminalConfig &) const = default;
 };
@@ -216,6 +226,8 @@ struct PosSettings {
     int kitchenLateMinutes = 15;
     // Orders for later go to the kitchen this long before they're due.
     int laterLeadMinutes = 20;
+    // Kitchen stations, each with its own screen (Manager -> Menu: where an item is made).
+    std::vector<Station> stations;
     // Tip choices offered to the guest (percent of the check before gratuity).
     std::vector<int> tipPercents{15, 18, 20, 25};
     std::string tableReadyText = "Hi {name}, your table at {store} is ready! Please come to the host stand.";
