@@ -596,6 +596,42 @@ TEST_CASE("UI: a month's report beside last year", "[flow][ui][range]")
     s.shot("16-range-report");
 }
 
+TEST_CASE("UI: the kiosk in the store's own look, asking only what the store wants", "[flow][ui][kiosk][kiosklook]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    QVariantMap store = s.pos.adminRecords(u"store"_s).first().toMap();
+    store[u"kioskBackground"_s] = u"blue"_s;
+    CHECK_FALSE(s.pos.adminSave(u"store"_s, 0, store));       // colors as #rrggbb
+    store[u"kioskBackground"_s] = u"#f4efe6"_s;
+    store[u"kioskCard"_s] = u"#ffffff"_s;
+    store[u"kioskText"_s] = u"#2b2118"_s;
+    store[u"kioskGo"_s] = u"#c0392b"_s;
+    store[u"kioskWelcome"_s] = u"Tap to start your order"_s;
+    store[u"kioskSizePercent"_s] = 120;
+    store[u"kioskAskWhere"_s] = false;
+    store[u"kioskAskName"_s] = false;
+    store[u"kioskEasyReach"_s] = false;
+    REQUIRE(s.pos.adminSave(u"store"_s, 0, store));
+    CHECK(app::settingsFromJson(app::toJson(s.pos.shared()->settings)).kioskLook == s.pos.shared()->settings.kioskLook);
+    s.pos.logout();
+
+    s.pos.enableSelfOrder();
+    QTest::qWait(80);
+    auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    QQuickItem *kiosk = find(u"selfOrder"_s);
+    REQUIRE(kiosk);
+    CHECK(kiosk->property("color").value<QColor>() == QColor(u"#f4efe6"_s));
+    CHECK(Screen::findBy(kiosk, "text", u"Tap to start your order"_s));
+    s.shot("34-kiosk-look");
+
+    s.tapItem(find(u"kioskAttract"_s));                   // no For Here / To Go: the menu
+    QTest::qWait(60);
+    REQUIRE(s.pos.selfOrderInfo()[u"ordering"_s].toBool());
+    CHECK_FALSE(find(u"kioskEasyReach"_s));
+    s.shot("35-kiosk-look-menu");
+}
+
 TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
 {
     Screen s;
@@ -667,6 +703,26 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: the theme's status colors: a table with my check", "[flow][ui][statuscolors]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    REQUIRE(s.c.editor()->setField(u"theme"_s, u"status.tableMine"_s, u"#7a1fa2"_s));
+    REQUIRE(s.c.leaveEditMode(true));
+    CHECK(s.c.statusColors().value(u"tableMine"_s) == u"#7a1fa2"_s);
+
+    REQUIRE(s.pos.selectTable(u"T4"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    s.pos.addItem(u"cobb"_s);
+    s.pos.releaseCheck();
+    QTest::qWait(80);
+    QQuickItem *t4 = Screen::findBy(s.window->contentItem(), "name", u"T4"_s);
+    REQUIRE(t4);
+    CHECK(t4->property("tint").value<QColor>() == QColor(u"#7a1fa2"_s));
+}
+
 TEST_CASE("UI: zones shown only when their rules hold; live text in labels", "[flow][ui][rules]")
 {
     Screen s;
@@ -731,6 +787,7 @@ TEST_CASE("UI: a widget's own buttons hidden, renamed, restyled; their commands 
     e->selectOnly({u"tickets"_s});
     REQUIRE(e->setField(u"zone"_s, u"props.buttons.recall.hide"_s, true));
     REQUIRE(e->setField(u"zone"_s, u"props.buttons.allDay.label"_s, u"Everything"_s));
+    REQUIRE(e->setField(u"zone"_s, u"props.buttons.allDay.order"_s, 1));   // first in the row
     REQUIRE(e->setField(u"zone"_s, u"style.normal.keyFill"_s, u"#aa2200"_s));
     QTest::qWait(150);
     s.shot("32-inspector");
@@ -749,6 +806,9 @@ TEST_CASE("UI: a widget's own buttons hidden, renamed, restyled; their commands 
     QQuickItem *allDay = find("kdsAllDay");
     REQUIRE(allDay);
     CHECK(allDay->property("text").toString() == u"Everything"_s);
+    QQuickItem *station = find("kdsStation");
+    REQUIRE(station);
+    CHECK(allDay->mapToScene({0, 0}).x() < station->mapToScene({0, 0}).x());
     CHECK(allDay->property("color").value<QColor>() == QColor(u"#aa2200"_s));
     s.shot("31-builtins");
 

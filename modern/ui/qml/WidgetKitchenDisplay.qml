@@ -80,7 +80,9 @@ Item {
     // Green, then yellow after the store's warn minutes, red when late.
     function ageColor(ticket) {
         const minutes = (now - ticket.sentAt) / 60000
-        return minutes < (ticket.warnMinutes ?? 8) ? "#1f8a4c" : minutes < (ticket.lateMinutes ?? 15) ? "#b7791f" : "#c53030"
+        return minutes < (ticket.warnMinutes ?? 8) ? w.zone.statusColor("kitchenNew", "#1f8a4c")
+             : minutes < (ticket.lateMinutes ?? 15) ? w.zone.statusColor("kitchenWarn", "#b7791f")
+             : w.zone.statusColor("kitchenLate", "#c53030")
     }
 
     // "All day": everything still to make here, by item, most first.
@@ -99,11 +101,18 @@ Item {
         anchors.margins: 12
         spacing: 12
 
-        RowLayout {
+        // One row; the buttons in the order the editor gives them.
+        GridLayout {
+            id: header
+            readonly property var keys: ["station", "message", "allDay", "recall"]
+            function col(id) { return 1 + w.zone.keyOrder(id, keys) }
+            rows: 1
+            columnSpacing: 6
             Layout.fillWidth: true
             Layout.preferredHeight: 72
             Layout.fillHeight: false   // nested layouts fill by default
             Text {
+                Layout.column: 0
                 Layout.fillWidth: true
                 text: (w.expo ? qsTr("Expo") : w.stationName(w.station))
                       + "  ·  " + (w.tickets.length === 1 ? qsTr("1 order") : qsTr("%1 orders").arg(w.tickets.length))
@@ -115,6 +124,7 @@ Item {
             WidgetKey {
                 objectName: "kdsStation"
                 visible: !w.expo && w.stations.length > 0 && w.zone.keyShown("station")
+                Layout.column: header.col("station")
                 Layout.preferredWidth: 240
                 Layout.fillHeight: true
                 text: w.zone.keyText("station", qsTr("Station…"))
@@ -123,6 +133,7 @@ Item {
             }
             WidgetKey {
                 visible: w.zone.keyShown("message")
+                Layout.column: header.col("message")
                 Layout.preferredWidth: 240
                 Layout.fillHeight: true
                 text: w.zone.keyText("message", qsTr("Message…"))
@@ -132,6 +143,7 @@ Item {
             WidgetKey {
                 objectName: "kdsAllDay"
                 visible: w.zone.keyShown("allDay")
+                Layout.column: header.col("allDay")
                 Layout.preferredWidth: 240
                 Layout.fillHeight: true
                 text: w.showAllDay ? qsTr("Hide All Day") : w.zone.keyText("allDay", qsTr("All Day"))
@@ -141,6 +153,7 @@ Item {
             WidgetKey {
                 objectName: "kdsRecall"
                 visible: w.zone.keyShown("recall")
+                Layout.column: header.col("recall")
                 Layout.preferredWidth: 240
                 Layout.fillHeight: true
                 text: w.zone.keyText("recall", qsTr("Recall"))
@@ -180,7 +193,7 @@ Item {
                         width: parent.width
                         height: 72
                         radius: 10
-                        color: w.expo && card.modelData.ready ? "#1f6fd6" : w.ageColor(card.modelData)
+                        color: w.expo && card.modelData.ready ? w.zone.statusColor("kitchenReady", "#1f6fd6") : w.ageColor(card.modelData)
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 10; color: parent.color }
                         Column {
                             anchors.left: parent.left

@@ -154,6 +154,7 @@ Item {
             Layout.preferredHeight: w.unit * 3
             Layout.fillHeight: false   // nested layouts fill by default
             spacing: w.unit * 0.4
+            layoutDirection: w.zone.keyOrder("drawer", ["drawer", "noSale"]) === 1 ? Qt.RightToLeft : Qt.LeftToRight
             WidgetKey {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -200,6 +201,7 @@ Item {
             Layout.preferredHeight: w.unit * 3
             Layout.fillHeight: false
             spacing: w.unit * 0.4
+            layoutDirection: w.zone.keyOrder("payOut", ["payOut", "paidIn"]) === 1 ? Qt.RightToLeft : Qt.LeftToRight
             WidgetKey {
                 Layout.fillWidth: true
                 Layout.fillHeight: true

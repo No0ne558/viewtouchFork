@@ -353,6 +353,23 @@ QVariantList PosService::adminFields(const QString &panel)
                   tr("Otherwise a kiosk order goes to the kitchen when it is paid for at the counter.")),
             with(with(field(u"kioskIdleSeconds"_s, tr("Self-order kiosk: clear an untouched order after (seconds)"),
                             u"int"_s), u"min"_s, 30), u"max"_s, 600),
+            field(u"kioskWelcome"_s, tr("Self-order kiosk: welcome button"), u"string"_s,
+                  tr("The words on the pictures screen. Empty: \"Touch to Order\".")),
+            field(u"kioskAskWhere"_s, tr("Self-order kiosk: ask For Here or To Go"), u"bool"_s,
+                  tr("Off: every kiosk order is for here.")),
+            field(u"kioskAskName"_s, tr("Self-order kiosk: ask for a name"), u"bool"_s,
+                  tr("Off: orders are called by number only.")),
+            field(u"kioskEasyReach"_s, tr("Self-order kiosk: Easy Reach button"), u"bool"_s,
+                  tr("Brings everything down within reach of a seated guest.")),
+            with(with(field(u"kioskSizePercent"_s, tr("Self-order kiosk: size of buttons and text (%)"), u"int"_s,
+                            tr("100 = as designed for the screen; bigger for a far-away or tall screen.")),
+                      u"min"_s, 60), u"max"_s, 200),
+            field(u"kioskBackground"_s, tr("Self-order kiosk: background color"), u"string"_s,
+                  tr("Like #14181f. Empty: the usual. The accent color and logo are the customer display's.")),
+            field(u"kioskCard"_s, tr("Self-order kiosk: button and card color"), u"string"_s, tr("Like #2a313d.")),
+            field(u"kioskGo"_s, tr("Self-order kiosk: Add / Place Order color"), u"string"_s, tr("Like #1f8a4c.")),
+            field(u"kioskText"_s, tr("Self-order kiosk: text color"), u"string"_s, tr("Like #ffffff.")),
+            field(u"kioskFont"_s, tr("Self-order kiosk: font"), u"string"_s, tr("A font installed on the kiosk, e.g. DejaVu Sans.")),
             field(u"encryptBackups"_s, tr("Encrypt backups"), u"bool"_s,
                   tr("Backups (and the second copy) can only be opened with the backup password. "
                      "For a lost or stolen USB drive.")),
@@ -493,6 +510,12 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"extraPercent"_s, s_->settings.extraPercent},
              {u"extraCharge"_s, s_->settings.extraCharge.cents() / 100.0},
              {u"kioskSendNow"_s, s_->settings.kioskSendNow}, {u"kioskIdleSeconds"_s, s_->settings.kioskIdleSeconds},
+             {u"kioskWelcome"_s, qs(s_->settings.kioskLook.welcome)}, {u"kioskAskWhere"_s, s_->settings.kioskLook.askWhere},
+             {u"kioskAskName"_s, s_->settings.kioskLook.askName}, {u"kioskEasyReach"_s, s_->settings.kioskLook.easyReach},
+             {u"kioskSizePercent"_s, s_->settings.kioskLook.sizePercent},
+             {u"kioskBackground"_s, qs(s_->settings.kioskLook.background)}, {u"kioskCard"_s, qs(s_->settings.kioskLook.card)},
+             {u"kioskGo"_s, qs(s_->settings.kioskLook.go)}, {u"kioskText"_s, qs(s_->settings.kioskLook.text)},
+             {u"kioskFont"_s, qs(s_->settings.kioskLook.font)},
              {u"encryptBackups"_s, !s_->settings.backupKey.empty()}, {u"backupPassword"_s, QString()},
              {u"waitMinutesPerParty"_s, s_->settings.waitMinutesPerParty},
              {u"autoLogoutMinutes"_s, s_->settings.autoLogoutMinutes},
@@ -879,6 +902,31 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.kioskSendNow = record.value(u"kioskSendNow"_s).toBool();
         if (record.contains(u"kioskIdleSeconds"_s))
             s_->settings.kioskIdleSeconds = std::clamp(record.value(u"kioskIdleSeconds"_s).toInt(), 30, 600);
+        {
+            auto &l = s_->settings.kioskLook;
+            static const QRegularExpression hex(u"^(#[0-9a-fA-F]{6})?$"_s);
+            for (const auto &[key, slot] : {std::pair{u"kioskBackground"_s, &l.background}, {u"kioskCard"_s, &l.card},
+                                            {u"kioskGo"_s, &l.go}, {u"kioskText"_s, &l.text}}) {
+                if (!record.contains(key))
+                    continue;
+                const QString v = record.value(key).toString().trimmed();
+                if (!hex.match(v).hasMatch())
+                    return fail(tr("Write kiosk colors like #1f8a4c, or leave them empty."));
+                *slot = ss(v);
+            }
+            if (record.contains(u"kioskFont"_s))
+                l.font = ss(record.value(u"kioskFont"_s).toString().trimmed());
+            if (record.contains(u"kioskWelcome"_s))
+                l.welcome = ss(record.value(u"kioskWelcome"_s).toString().trimmed().left(40));
+            if (record.contains(u"kioskSizePercent"_s))
+                l.sizePercent = std::clamp(record.value(u"kioskSizePercent"_s).toInt(), 60, 200);
+            if (record.contains(u"kioskAskWhere"_s))
+                l.askWhere = record.value(u"kioskAskWhere"_s).toBool();
+            if (record.contains(u"kioskAskName"_s))
+                l.askName = record.value(u"kioskAskName"_s).toBool();
+            if (record.contains(u"kioskEasyReach"_s))
+                l.easyReach = record.value(u"kioskEasyReach"_s).toBool();
+        }
         if (record.contains(u"encryptBackups"_s)) {
             const QString password = record.value(u"backupPassword"_s).toString();
             if (!record.value(u"encryptBackups"_s).toBool()) {

@@ -939,6 +939,10 @@ void LayoutController::refresh()
         });
     }
     zones_.setRows(std::move(rows));
+    if (const QVariantMap colors = l.theme.extra.value(u"status").toObject().toVariantMap(); colors != statusColors_) {
+        statusColors_ = colors;
+        emit statusColorsChanged();
+    }
 }
 
 void LayoutController::setStatus(const QString &text)

@@ -24,7 +24,19 @@ Rectangle {
     readonly property bool portrait: height > width * 1.15
     // One unit: about 6 mm on a 21.5" portrait kiosk (26 px of 1080), 20 px
     // on a 1280x800 landscape screen.
-    readonly property real u: portrait ? Math.max(14, width / 42) : Math.max(12, Math.min(width / 64, height / 40))
+    readonly property real u: look.size * (portrait ? Math.max(14, width / 42) : Math.max(12, Math.min(width / 64, height / 40)))
+
+    // The store's look for its kiosk (Store Settings -> Self-order kiosk).
+    readonly property var lookSet: info.look ?? ({})
+    readonly property var look: ({ size: lookSet.size || 1 })
+    readonly property color bg: lookSet.background || "#14181f"
+    readonly property color card: lookSet.card || "#2a313d"
+    readonly property color panel: lookSet.card ? Qt.darker(card, 1.25) : "#1d232c"
+    readonly property color go: lookSet.go || "#1f8a4c"
+    readonly property color ink: lookSet.text || "white"
+    readonly property color muted: Qt.rgba(ink.r, ink.g, ink.b, 0.62)
+    readonly property color soft: Qt.rgba(ink.r, ink.g, ink.b, 0.8)
+    readonly property string face: lookSet.font || Qt.application.font.family
 
     readonly property var lastOrder: info.lastOrder ?? ({})
     readonly property bool done: (lastOrder.number ?? 0) > 0
@@ -41,7 +53,7 @@ Rectangle {
     readonly property var choosing: pos ? pos.choosing : ({})
     readonly property string total: pos ? (pos.totals.total ?? "") : ""
 
-    color: "#14181f"
+    color: k.bg
     onOrderingChanged: {
         if (ordering) {
             choosingType = false
@@ -89,13 +101,14 @@ Rectangle {
     component Big: Rectangle {
         id: big
         property string text
-        property color base: "#2a313d"
+        property color base: k.card
         property real size: 1.4
         signal clicked()
         radius: k.u * 0.6
         color: !enabled ? "#20252e" : tap.pressed ? Qt.lighter(base, 1.3) : base
         implicitHeight: k.u * 3.4
         Text {
+            font.family: k.face
             anchors.fill: parent
             anchors.margins: k.u * 0.4
             text: big.text
@@ -121,7 +134,7 @@ Rectangle {
             anchors.fill: parent
             anchors.margins: k.u * 0.35
             radius: k.u * 0.6
-            color: cardTap.pressed ? "#323b49" : "#232a35"
+            color: cardTap.pressed ? "#323b49" : k.panel
             clip: true
             Rectangle {
                 id: photo
@@ -131,6 +144,7 @@ Rectangle {
                 height: parent.height * (k.portrait ? 0.58 : 0.5)
                 color: Qt.darker(k.accent, 2.2)
                 Text {
+                    font.family: k.face
                     anchors.centerIn: parent
                     visible: !card.modelData.image || picture.status !== Image.Ready
                     text: card.modelData.name.charAt(0)
@@ -156,24 +170,27 @@ Rectangle {
                 anchors.margins: k.u * 0.5
                 spacing: k.u * 0.15
                 Text {
+                    font.family: k.face
                     Layout.fillWidth: true
                     text: card.modelData.name
-                    color: "white"
+                    color: k.ink
                     font.pixelSize: k.u * 1.05
                     font.bold: true
                     elide: Text.ElideRight
                 }
                 Text {
+                    font.family: k.face
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     text: card.modelData.description
-                    color: "#9aa4b5"
+                    color: k.muted
                     font.pixelSize: k.u * 0.75
                     wrapMode: Text.WordWrap
                     elide: Text.ElideRight
                     maximumLineCount: 2
                 }
                 Text {
+                    font.family: k.face
                     text: card.modelData.price
                     color: Qt.lighter(k.accent, 1.5)
                     font.pixelSize: k.u * 1.05
@@ -186,6 +203,7 @@ Rectangle {
                 visible: !card.modelData.available
                 color: "#c0141820"
                 Text {
+                    font.family: k.face
                     anchors.centerIn: parent
                     text: qsTr("SOLD OUT")
                     color: "#ff9a9e"
@@ -221,22 +239,24 @@ Rectangle {
                 Layout.fillWidth: true
                 spacing: 0
                 Text {
+                    font.family: k.face
                     Layout.fillWidth: true
                     text: row.modelData.name
-                    color: "white"
+                    color: k.ink
                     font.pixelSize: k.u * 0.95
                     wrapMode: Text.WordWrap
                 }
                 Text {
+                    font.family: k.face
                     Layout.fillWidth: true
                     visible: text !== ""
                     text: (row.modelData.modifiers ?? []).map(m => m.name).join(", ")
-                    color: "#9aa4b5"
+                    color: k.muted
                     font.pixelSize: k.u * 0.75
                     wrapMode: Text.WordWrap
                 }
             }
-            Text { text: row.modelData.price; color: "white"; font.pixelSize: k.u * 0.95 }
+            Text { font.family: k.face; text: row.modelData.price; color: k.ink; font.pixelSize: k.u * 0.95 }
             Big {
                 objectName: "kioskRemove"
                 Layout.preferredWidth: k.u * 2.6
@@ -312,11 +332,12 @@ Rectangle {
                 fillMode: Image.PreserveAspectFit
             }
             Text {
+                font.family: k.face
                 visible: k.logo === ""
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 text: k.pos ? k.pos.storeName : ""
-                color: "white"
+                color: k.ink
                 font.pixelSize: k.u * 3
                 font.bold: true
                 wrapMode: Text.WordWrap
@@ -329,11 +350,12 @@ Rectangle {
             anchors.margins: k.u * 2
             spacing: k.u * 1.5
             Text {
+                font.family: k.face
                 Layout.fillWidth: true
                 visible: attract.caption !== ""
                 horizontalAlignment: Text.AlignHCenter
                 text: attract.caption
-                color: "white"
+                color: k.ink
                 font.pixelSize: k.u * 2
                 font.bold: true
                 wrapMode: Text.WordWrap
@@ -351,15 +373,20 @@ Rectangle {
                     NumberAnimation { from: 1.05; to: 1; duration: 900; easing.type: Easing.InOutQuad }
                 }
                 Text {
+                    font.family: k.face
                     anchors.centerIn: parent
-                    text: qsTr("Touch to Order")
-                    color: "white"
+                    text: k.lookSet.welcome || qsTr("Touch to Order")
+                    color: k.ink
                     font.pixelSize: k.u * 2
                     font.bold: true
                 }
             }
         }
-        MouseArea { anchors.fill: parent; onClicked: k.choosingType = true }
+        // Straight to the menu when the store doesn't ask For Here or To Go.
+        MouseArea {
+            anchors.fill: parent
+            onClicked: k.lookSet.askWhere === false ? k.pos.kioskStart(false) : k.choosingType = true
+        }
     }
 
     // --- the stage: everything a guest touches; Easy Reach puts it in the lower part ----------
@@ -381,10 +408,11 @@ Rectangle {
             anchors.bottomMargin: k.portrait ? parent.height * 0.18 : k.u * 4
             spacing: k.u * 1.5
             Text {
+                font.family: k.face
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 text: qsTr("Where will you eat?")
-                color: "white"
+                color: k.ink
                 font.pixelSize: k.u * 2.2
                 font.bold: true
             }
@@ -434,7 +462,7 @@ Rectangle {
                     // "burgers" -> "Burgers" (and in the guest's language when it has the phrase)
                     text: qsTranslate("Page", modelData.charAt(0).toUpperCase() + modelData.slice(1))
                     size: 1.2
-                    base: modelData === k.shownFamily ? k.accent : "#2a313d"
+                    base: modelData === k.shownFamily ? k.accent : k.card
                     onClicked: k.family = modelData
                 }
             }
@@ -455,32 +483,34 @@ Rectangle {
                 Layout.preferredWidth: k.u * 19
                 Layout.fillHeight: true
                 radius: k.u * 0.6
-                color: "#1d232c"
+                color: k.panel
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: k.u * 0.7
                     spacing: k.u * 0.4
                     Text {
+                        font.family: k.face
                         Layout.fillWidth: true
                         text: k.info.toGo ? qsTr("Your order · to go") : qsTr("Your order · for here")
-                        color: "white"
+                        color: k.ink
                         font.pixelSize: k.u * 1.2
                         font.bold: true
                         elide: Text.ElideRight
                     }
                     OrderList { Layout.fillWidth: true; Layout.fillHeight: true }
                     Text {
+                        font.family: k.face
                         visible: k.lines.length === 0
                         Layout.fillWidth: true
                         text: qsTr("Touch something on the menu to add it.")
-                        color: "#9aa4b5"
+                        color: k.muted
                         font.pixelSize: k.u * 0.9
                         wrapMode: Text.WordWrap
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        Text { text: qsTr("Total"); color: "white"; font.pixelSize: k.u * 1.2; font.bold: true; Layout.fillWidth: true }
-                        Text { text: k.total; color: "white"; font.pixelSize: k.u * 1.4; font.bold: true }
+                        Text { font.family: k.face; text: qsTr("Total"); color: k.ink; font.pixelSize: k.u * 1.2; font.bold: true; Layout.fillWidth: true }
+                        Text { font.family: k.face; text: k.total; color: k.ink; font.pixelSize: k.u * 1.4; font.bold: true }
                     }
                     RowLayout {
                         Layout.fillWidth: true
@@ -499,7 +529,7 @@ Rectangle {
                             Layout.preferredHeight: k.u * 3.4
                             enabled: k.lines.length > 0
                             text: qsTr("Done ›")
-                            base: "#1f8a4c"
+                            base: k.go
                             onClicked: k.reviewing = true
                         }
                     }
@@ -519,16 +549,18 @@ Rectangle {
                 Layout.fillHeight: false   // nested layouts fill by default
                 visible: !k.easyReach
                 Text {
+                    font.family: k.face
                     Layout.fillWidth: true
                     text: k.pos ? k.pos.storeName : ""
-                    color: "white"
+                    color: k.ink
                     font.pixelSize: k.u * 1.4
                     font.bold: true
                     elide: Text.ElideRight
                 }
                 Text {
+                    font.family: k.face
                     text: k.info.toGo ? qsTr("To Go") : qsTr("For Here")
-                    color: "#9aa4b5"
+                    color: k.muted
                     font.pixelSize: k.u
                 }
             }
@@ -558,7 +590,7 @@ Rectangle {
                     height: k.u * 3.4
                     text: qsTranslate("Page", modelData.charAt(0).toUpperCase() + modelData.slice(1))
                     size: 1.1
-                    base: modelData === k.shownFamily ? k.accent : "#2a313d"
+                    base: modelData === k.shownFamily ? k.accent : k.card
                     onClicked: k.family = modelData
                 }
             }
@@ -577,11 +609,12 @@ Rectangle {
                 }
                 Big {
                     objectName: "kioskEasyReach"
+                    visible: k.lookSet.easyReach !== false
                     Layout.preferredWidth: k.u * 6
                     Layout.fillHeight: true
                     text: k.easyReach ? qsTr("Full Screen") : qsTr("Easy Reach")
                     size: 0.85
-                    base: k.easyReach ? Qt.darker(k.accent, 1.3) : "#2a313d"
+                    base: k.easyReach ? Qt.darker(k.accent, 1.3) : k.card
                     onClicked: k.easyReach = !k.easyReach
                 }
                 Big {
@@ -592,7 +625,7 @@ Rectangle {
                     text: k.lines.length === 0 ? qsTr("Touch a dish to add it")
                           : (k.lines.length === 1 ? qsTr("1 item") : qsTr("%1 items").arg(k.lines.length)) + "  ·  " + k.total
                     size: 1
-                    base: "#232a35"
+                    base: k.panel
                     onClicked: k.orderOpen = true
                 }
                 Big {
@@ -601,7 +634,7 @@ Rectangle {
                     Layout.fillHeight: true
                     enabled: k.lines.length > 0
                     text: qsTr("Done ›")
-                    base: "#1f8a4c"
+                    base: k.go
                     onClicked: k.reviewing = true
                 }
             }
@@ -619,23 +652,24 @@ Rectangle {
                 anchors.bottom: parent.bottom
                 height: Math.min(parent.height * 0.75, k.u * 8 + Math.max(k.u * 6, k.lines.length * k.u * 3.4) + k.u * 8)
                 radius: k.u
-                color: "#1d232c"
+                color: k.panel
                 MouseArea { anchors.fill: parent }   // touches on the sheet stay here
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: k.u
                     spacing: k.u * 0.5
                     Text {
+                        font.family: k.face
                         text: k.info.toGo ? qsTr("Your order · to go") : qsTr("Your order · for here")
-                        color: "white"
+                        color: k.ink
                         font.pixelSize: k.u * 1.4
                         font.bold: true
                     }
                     OrderList { Layout.fillWidth: true; Layout.fillHeight: true }
                     RowLayout {
                         Layout.fillWidth: true
-                        Text { text: qsTr("Total"); color: "white"; font.pixelSize: k.u * 1.3; font.bold: true; Layout.fillWidth: true }
-                        Text { text: k.total; color: "white"; font.pixelSize: k.u * 1.5; font.bold: true }
+                        Text { font.family: k.face; text: qsTr("Total"); color: k.ink; font.pixelSize: k.u * 1.3; font.bold: true; Layout.fillWidth: true }
+                        Text { font.family: k.face; text: k.total; color: k.ink; font.pixelSize: k.u * 1.5; font.bold: true }
                     }
                     RowLayout {
                         Layout.fillWidth: true
@@ -652,7 +686,7 @@ Rectangle {
                             Layout.preferredHeight: k.u * 3.8
                             enabled: k.lines.length > 0
                             text: qsTr("Done ›")
-                            base: "#1f8a4c"
+                            base: k.go
                             onClicked: { k.orderOpen = false; k.reviewing = true }
                         }
                     }
@@ -668,24 +702,27 @@ Rectangle {
             spacing: k.u * 0.8
             Item { Layout.fillHeight: true; visible: k.portrait && !k.easyReach }   // in reach: at the bottom
             Text {
+                font.family: k.face
                 text: qsTr("Almost done: %1").arg(k.total)
-                color: "white"
+                color: k.ink
                 font.pixelSize: k.u * 2
                 font.bold: true
             }
             Text {
+                font.family: k.face
                 Layout.fillWidth: true
                 text: k.lines.map(l => l.name).join(" · ")
-                color: "#9aa4b5"
+                color: k.muted
                 font.pixelSize: k.u
                 wrapMode: Text.WordWrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
             }
-            Text { text: qsTr("Your name, so we can call your order"); color: "white"; font.pixelSize: k.u * 1.2 }
+            Text { font.family: k.face; visible: k.lookSet.askName !== false; text: qsTr("Your name, so we can call your order"); color: k.ink; font.pixelSize: k.u * 1.2 }
             TextField {
                 id: nameField
                 objectName: "kioskName"
+                visible: k.lookSet.askName !== false
                 Layout.fillWidth: true
                 implicitHeight: k.u * 3.4
                 font.pixelSize: k.u * 1.6
@@ -695,6 +732,7 @@ Rectangle {
                 onAccepted: place.clicked()
             }
             TouchKeyboard {
+                visible: k.lookSet.askName !== false
                 Layout.fillWidth: true
                 Layout.fillHeight: !k.portrait || k.easyReach
                 Layout.preferredHeight: k.portrait && !k.easyReach ? k.u * 16 : -1
@@ -717,7 +755,7 @@ Rectangle {
                     Layout.preferredHeight: k.u * 3.6
                     enabled: nameField.text.trim().length > 0
                     text: qsTr("Place My Order")
-                    base: "#1f8a4c"
+                    base: k.go
                     onClicked: k.pos.kioskFinish({ name: nameField.text })
                 }
             }
@@ -730,16 +768,18 @@ Rectangle {
             width: Math.min(parent.width * 0.85, k.u * 50)
             spacing: k.u
             Text {
+                font.family: k.face
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 text: qsTr("Thank you, %1!").arg(k.lastOrder.name ?? "")
-                color: "white"
+                color: k.ink
                 font.pixelSize: k.u * 2.4
                 font.bold: true
                 wrapMode: Text.WordWrap
             }
-            Text { Layout.alignment: Qt.AlignHCenter; text: qsTr("Your order number"); color: "#c9d1de"; font.pixelSize: k.u * 1.4 }
+            Text { font.family: k.face; Layout.alignment: Qt.AlignHCenter; text: qsTr("Your order number"); color: k.soft; font.pixelSize: k.u * 1.4 }
             Text {
+                font.family: k.face
                 objectName: "kioskNumber"
                 Layout.alignment: Qt.AlignHCenter
                 text: String(k.lastOrder.number ?? "")
@@ -748,11 +788,12 @@ Rectangle {
                 font.bold: true
             }
             Text {
+                font.family: k.face
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 text: k.lastOrder.sent ? qsTr("We're making it now. Please pay at the counter.")
                                        : qsTr("Please pay at the counter (%1), and we'll start making it.").arg(k.lastOrder.total ?? "")
-                color: "white"
+                color: k.ink
                 font.pixelSize: k.u * 1.4
                 wrapMode: Text.WordWrap
             }
@@ -779,15 +820,16 @@ Rectangle {
                 width: k.portrait ? parent.width : Math.min(parent.width * 0.92, k.u * 46)
                 height: Math.min(parent.height * (k.portrait ? 0.75 : 0.9), choicesColumn.implicitHeight + k.u * 2)
                 radius: k.u * 0.8
-                color: "#1d232c"
+                color: k.panel
                 ColumnLayout {
                     id: choicesColumn
                     anchors.fill: parent
                     anchors.margins: k.u
                     spacing: k.u * 0.6
                     Text {
+                        font.family: k.face
                         text: k.choosing.item ?? ""
-                        color: "white"
+                        color: k.ink
                         font.pixelSize: k.u * 1.6
                         font.bold: true
                     }
@@ -804,8 +846,9 @@ Rectangle {
                                 Layout.fillWidth: true
                                 spacing: k.u * 0.3
                                 Text {
+                                    font.family: k.face
                                     text: group.modelData.name + "  ·  " + group.modelData.rule
-                                    color: group.modelData.done ? "#c9d1de" : "#f5b940"
+                                    color: group.modelData.done ? k.soft : "#f5b940"
                                     font.pixelSize: k.u * 1.1
                                     font.bold: true
                                 }
@@ -823,7 +866,7 @@ Rectangle {
                                             enabled: !modelData.soldOut || modelData.chosen
                                             opacity: enabled ? 1 : 0.4
                                             size: 0.95
-                                            base: modelData.chosen ? k.accent : "#2a313d"
+                                            base: modelData.chosen ? k.accent : k.card
                                             onClicked: k.pos.chooseOption(group.modelData.id, modelData.index)
                                         }
                                     }
@@ -848,7 +891,7 @@ Rectangle {
                             Layout.preferredHeight: k.u * 3.4
                             enabled: (k.choosing.groups ?? []).every(g => g.done)
                             text: qsTr("Add to My Order")
-                            base: "#1f8a4c"
+                            base: k.go
                             onClicked: k.pos.finishChoosing()
                         }
                     }
@@ -870,18 +913,20 @@ Rectangle {
                 anchors.bottomMargin: parent.height * 0.2
                 spacing: k.u
                 Text {
+                    font.family: k.face
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
                     text: qsTr("Are you still there?")
-                    color: "white"
+                    color: k.ink
                     font.pixelSize: k.u * 2.4
                     font.bold: true
                 }
                 Text {
+                    font.family: k.face
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
                     text: qsTr("Your order will be cleared in %1 seconds.").arg(k.idleLeft)
-                    color: "#c9d1de"
+                    color: k.soft
                     font.pixelSize: k.u * 1.3
                     wrapMode: Text.WordWrap
                 }
@@ -899,6 +944,7 @@ Rectangle {
 
     // Easy Reach: the top of the screen just shows who we are.
     Text {
+        font.family: k.face
         visible: k.easyReach && k.ordering
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.top

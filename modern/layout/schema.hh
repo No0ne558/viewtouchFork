@@ -38,6 +38,8 @@ struct BuiltIn {
     QString id;
     QString label;
     QString command;   // the action command that does the same ("" = none)
+    // Can be moved among the buttons of its row (props.buttons.<id>.order).
+    bool orderable = false;
 };
 QList<BuiltIn> builtInButtons(const QString &kind);
 QJsonArray pageFields();

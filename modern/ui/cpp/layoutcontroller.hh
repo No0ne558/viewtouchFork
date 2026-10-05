@@ -51,6 +51,8 @@ class LayoutController : public QObject {
     Q_PROPERTY(QString formFactor READ formFactor NOTIFY formFactorChanged)
     // Breakfast, lunch, dinner... now (zones can show only during one).
     Q_PROPERTY(QString mealPeriod READ mealPeriod NOTIFY mealPeriodChanged)
+    // The theme's status colors (theme "status": tableMine, kitchenLate...).
+    Q_PROPERTY(QVariantMap statusColors READ statusColors NOTIFY statusColorsChanged)
 
 public:
     // Persists a layout; false (with a message) when it could not.
@@ -105,6 +107,7 @@ public:
 
     QString formFactor() const { return formFactor_; }
     QString mealPeriod() const { return nav_.mealPeriod(); }
+    QVariantMap statusColors() const { return statusColors_; }
     // A zone's "showWhen" rules hold now (login, check, check type, meal period, screen).
     bool ruleShows(const QJsonObject &rule) const;
     // Force "phone" or "standard" (command line); empty: the terminal's
@@ -161,6 +164,7 @@ signals:
     void editingChanged();
     void asleepChanged();
     void mealPeriodChanged();
+    void statusColorsChanged();
     // A command for the widgets on the page (kitchenStation, kitchenAllDay...).
     void widgetCommand(const QString &name, const QVariantMap &args);
     void editorChanged();
@@ -215,6 +219,7 @@ private:
     // Idle log-out: restarted by every touch, key or click (eventFilter).
     QTimer idleTimer_;
     QTimer sleepTimer_;
+    QVariantMap statusColors_;
     bool asleep_ = false;
     int sleepOverrideMs_ = 0;
     void restartSleep();

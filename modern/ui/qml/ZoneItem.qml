@@ -48,6 +48,24 @@ Item {
         const b = props.buttons ? props.buttons[id] : undefined
         return !(b && b.hide === true)
     }
+    // Where built-in button `id` goes among `ids` (their usual order):
+    // props.buttons.<id>.order (1 = first) moves it ahead of any button in
+    // that place; the others keep their usual order.
+    function keyOrder(id, ids) {
+        const set = x => {
+            const b = props && props.buttons ? props.buttons[x] : undefined
+            return b && b.order ? b.order : 0
+        }
+        const at = x => set(x) || ids.indexOf(x) + 1
+        const sorted = ids.slice().sort((a, b) => at(a) - at(b) || (set(b) ? 1 : 0) - (set(a) ? 1 : 0)
+                                                  || ids.indexOf(a) - ids.indexOf(b))
+        return sorted.indexOf(id)
+    }
+    // A status color from the theme (Theme -> Status colors), else the usual one.
+    function statusColor(name, usual) {
+        const c = controller ? controller.statusColors : null
+        return c && c[name] ? c[name] : usual
+    }
     function keyText(id, usual) {
         const b = props && props.buttons ? props.buttons[id] : undefined
         return b && b.label ? qsTranslate("Page", b.label) : usual
@@ -207,7 +225,7 @@ Item {
             height: soldOutText.implicitHeight + 10
             radius: 6
             rotation: -8
-            color: "#b83232"
+            color: zone.statusColor("soldOut", "#b83232")
             Text {
                 id: soldOutText
                 anchors.centerIn: parent

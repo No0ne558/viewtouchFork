@@ -167,6 +167,17 @@ struct PosSettings {
     // untouched order waits before it is cleared.
     bool kioskSendNow = false;
     int kioskIdleSeconds = 90;
+    // How the self-order kiosk looks and what it asks (its accent color,
+    // logo and pictures are the customer display's). Colors "#rrggbb";
+    // empty = the usual.
+    struct KioskLook {
+        std::string background, card, go, text, font, welcome;
+        int sizePercent = 100;
+        bool askWhere = true;    // For Here / To Go
+        bool askName = true;     // the name for calling the order
+        bool easyReach = true;   // the Easy Reach button
+        bool operator==(const KioskLook &) const = default;
+    } kioskLook;
     int serverTerm = 0;
     // Log a screen out after this many idle minutes (0: never).
     int autoLogoutMinutes = 0;

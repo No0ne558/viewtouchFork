@@ -162,22 +162,22 @@ void appendKeyStyleFields(QJsonArray &out)
 QList<BuiltIn> builtInButtons(const QString &kind)
 {
     static const QHash<QString, QList<BuiltIn>> buttons = {
-        {u"kitchenDisplay"_s, {{u"station"_s, u"Station…"_s, u"kitchenStation"_s},
-                               {u"message"_s, u"Message…"_s, QString()},
-                               {u"allDay"_s, u"All Day"_s, u"kitchenAllDay"_s},
-                               {u"recall"_s, u"Recall"_s, u"recallTicket"_s}}},
+        {u"kitchenDisplay"_s, {{u"station"_s, u"Station…"_s, u"kitchenStation"_s, true},
+                               {u"message"_s, u"Message…"_s, QString(), true},
+                               {u"allDay"_s, u"All Day"_s, u"kitchenAllDay"_s, true},
+                               {u"recall"_s, u"Recall"_s, u"recallTicket"_s, true}}},
         {u"orderList"_s, {{u"seat"_s, u"Seat − / +"_s, u"seatNext"_s},
                           {u"course"_s, u"Course 1 2 3"_s, u"courseNext"_s},
                           {u"fire"_s, u"Fire Course"_s, u"fireCourse"_s}}},
         {u"paymentPanel"_s, {{u"tips"_s, u"Tip buttons"_s, u"addTip"_s},
                              {u"gratuity"_s, u"Gratuity"_s, u"gratuity"_s}}},
-        {u"modifierPicker"_s, {{u"cancel"_s, u"Cancel Item"_s, u"cancelChoosing"_s},
-                               {u"done"_s, u"Done"_s, u"finishChoosing"_s}}},
+        {u"modifierPicker"_s, {{u"cancel"_s, u"Cancel Item"_s, u"cancelChoosing"_s, true},
+                               {u"done"_s, u"Done"_s, u"finishChoosing"_s, true}}},
         {u"guestCount"_s, {{u"fewer"_s, u"−"_s, u"guestsFewer"_s}, {u"more"_s, u"+"_s, u"guestsMore"_s}}},
-        {u"drawerPanel"_s, {{u"drawer"_s, u"Start / Count Drawer"_s, u"countDrawer"_s},
-                            {u"noSale"_s, u"No Sale"_s, u"noSale"_s},
-                            {u"payOut"_s, u"Pay Out"_s, u"payout"_s},
-                            {u"paidIn"_s, u"Paid In"_s, u"paidIn"_s}}},
+        {u"drawerPanel"_s, {{u"drawer"_s, u"Start / Count Drawer"_s, u"countDrawer"_s, true},
+                            {u"noSale"_s, u"No Sale"_s, u"noSale"_s, true},
+                            {u"payOut"_s, u"Pay Out"_s, u"payout"_s, true},
+                            {u"paidIn"_s, u"Paid In"_s, u"paidIn"_s, true}}},
         {u"endOfDay"_s, {{u"backup"_s, u"Back Up Now"_s, u"backupNow"_s}}},
     };
     return buttons.value(kind);
@@ -292,6 +292,9 @@ QJsonArray zoneFields(const QString &kind)
                                 u"hint"_s, b.command.isEmpty() ? QString() : u"Command: %1"_s.arg(b.command)));
                 out.append(with(field(u"props.buttons."_s + b.id + u".label"_s, u"“%1” says"_s.arg(b.label),
                                       u"string"_s, g), u"hint"_s, u"Empty: the usual words"_s));
+                if (b.orderable)
+                    out.append(with(intField(u"props.buttons."_s + b.id + u".order"_s, u"“%1” position"_s.arg(b.label), g, 0, 9),
+                                    u"hint"_s, u"1 = first in its row. 0 or empty: the usual place."_s));
             }
         }
         appendKeyStyleFields(out);
@@ -357,6 +360,21 @@ QJsonArray themeFields()
     out.append(with(field(u"background.fill"_s, u"Background color"_s, u"color"_s, u"Theme"_s), u"inheritable"_s, true));
     out.append(with(field(u"background.texture"_s, u"Background texture"_s, u"texture"_s, u"Theme"_s), u"inheritable"_s, true));
     appendStyleGroups(out, u"style."_s, true);
+    // Colors that mean something: table states, kitchen ticket ages, sold out.
+    const QString g = u"Status colors"_s;
+    const auto color = [&](const char *key, const char *label, const char *usual) {
+        out.append(with(with(field(u"status."_s + QLatin1String(key), QString::fromLatin1(label), u"color"_s, g),
+                             u"inheritable"_s, true), u"hint"_s, u"Usually %1"_s.arg(QLatin1String(usual))));
+    };
+    color("tableOpen", "Table with a check", "#a86a12");
+    color("tableMine", "Table with my check", "#1f8a4c");
+    color("tableCurrent", "Table being worked on", "#2f6fd6");
+    color("tableLong", "Table seated a long time (border)", "#ff4d4d");
+    color("kitchenNew", "Kitchen ticket: new", "#1f8a4c");
+    color("kitchenWarn", "Kitchen ticket: getting old", "#b7791f");
+    color("kitchenLate", "Kitchen ticket: late", "#c53030");
+    color("kitchenReady", "Expediter: order ready", "#1f6fd6");
+    color("soldOut", "Sold out badge", "#b83232");
     return out;
 }
 

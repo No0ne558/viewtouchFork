@@ -92,6 +92,8 @@ Item {
         readonly property int shown: (w.zone.keyShown("cancel") ? 1 : 0) + (w.zone.keyShown("done") ? 1 : 0)
         height: shown > 0 ? w.unit * 2.6 : 0
         spacing: w.unit * 0.4
+        // Done first, if the editor says so.
+        layoutDirection: w.zone.keyOrder("cancel", ["cancel", "done"]) === 1 ? Qt.RightToLeft : Qt.LeftToRight
         WidgetKey {
             width: (parent.width - parent.spacing * (buttons.shown - 1)) / Math.max(1, buttons.shown)
             height: parent.height

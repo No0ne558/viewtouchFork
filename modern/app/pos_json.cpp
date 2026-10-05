@@ -665,7 +665,12 @@ QJsonObject toJson(const PosSettings &s)
                  a.append(qs(c));
              return a;
          }()},
-        {u"kioskSendNow"_s, s.kioskSendNow}, {u"kioskIdleSeconds"_s, s.kioskIdleSeconds}, {u"serverTerm"_s, s.serverTerm},
+        {u"kioskSendNow"_s, s.kioskSendNow}, {u"kioskIdleSeconds"_s, s.kioskIdleSeconds},
+        {u"kioskLook"_s, QJsonObject{{u"background"_s, qs(s.kioskLook.background)}, {u"card"_s, qs(s.kioskLook.card)},
+                                     {u"go"_s, qs(s.kioskLook.go)}, {u"text"_s, qs(s.kioskLook.text)},
+                                     {u"font"_s, qs(s.kioskLook.font)}, {u"welcome"_s, qs(s.kioskLook.welcome)},
+                                     {u"sizePercent"_s, s.kioskLook.sizePercent}, {u"askWhere"_s, s.kioskLook.askWhere},
+                                     {u"askName"_s, s.kioskLook.askName}, {u"easyReach"_s, s.kioskLook.easyReach}}}, {u"serverTerm"_s, s.serverTerm},
         {u"display"_s, [&] {
              QJsonArray slides;
              for (const std::string &sl : s.displaySlides) slides.append(qs(sl));
@@ -772,6 +777,20 @@ PosSettings settingsFromJson(const QJsonObject &o)
     }
     s.kioskSendNow = o.value(u"kioskSendNow").toBool(false);
     s.kioskIdleSeconds = std::clamp(o.value(u"kioskIdleSeconds").toInt(90), 30, 600);
+    {
+        const QJsonObject k = o.value(u"kioskLook").toObject();
+        auto &l = s.kioskLook;
+        l.background = ss(k.value(u"background").toString());
+        l.card = ss(k.value(u"card").toString());
+        l.go = ss(k.value(u"go").toString());
+        l.text = ss(k.value(u"text").toString());
+        l.font = ss(k.value(u"font").toString());
+        l.welcome = ss(k.value(u"welcome").toString());
+        l.sizePercent = std::clamp(k.value(u"sizePercent").toInt(100), 60, 200);
+        l.askWhere = k.value(u"askWhere").toBool(true);
+        l.askName = k.value(u"askName").toBool(true);
+        l.easyReach = k.value(u"easyReach").toBool(true);
+    }
     s.serverTerm = o.value(u"serverTerm").toInt(0);
     s.tableLongMinutes = std::clamp(o.value(u"tableLongMinutes").toInt(90), 10, 600);
     const QJsonObject display = o.value(u"display").toObject();

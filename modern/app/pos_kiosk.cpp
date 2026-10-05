@@ -175,7 +175,15 @@ QVariantMap PosService::selfOrderInfo() const
     const Check *c = currentCheck();
     return {{u"on"_s, true}, {u"ordering"_s, c != nullptr}, {u"toGo"_s, kioskToGo_},
             {u"idleSeconds"_s, s_->settings.kioskIdleSeconds}, {u"lastOrder"_s, lastKioskOrder_},
-            {u"items"_s, c ? qint64(c->lines.size()) : 0}};
+            {u"items"_s, c ? qint64(c->lines.size()) : 0},
+            {u"look"_s, QVariantMap{{u"background"_s, qs(s_->settings.kioskLook.background)},
+                                    {u"card"_s, qs(s_->settings.kioskLook.card)}, {u"go"_s, qs(s_->settings.kioskLook.go)},
+                                    {u"text"_s, qs(s_->settings.kioskLook.text)}, {u"font"_s, qs(s_->settings.kioskLook.font)},
+                                    {u"welcome"_s, qs(s_->settings.kioskLook.welcome)},
+                                    {u"size"_s, s_->settings.kioskLook.sizePercent / 100.0},
+                                    {u"askWhere"_s, s_->settings.kioskLook.askWhere},
+                                    {u"askName"_s, s_->settings.kioskLook.askName},
+                                    {u"easyReach"_s, s_->settings.kioskLook.easyReach}}}};
 }
 
 QString PosService::storeImage(const QString &path) const
