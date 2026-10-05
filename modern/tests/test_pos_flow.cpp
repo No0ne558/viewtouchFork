@@ -665,6 +665,33 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: a takeout ready later, picked by day, hour and minutes", "[flow][ui][later]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.activate(u"takeout"_s);
+    CHECK(s.c.pageId() == u"customer"_s);
+    s.c.activate(u"later"_s);
+    CHECK(s.c.pageId() == u"order-later"_s);
+    QTest::qWait(50);
+    const auto key = [&](const QString &name) {
+        QQuickItem *k = Screen::findBy(s.window->contentItem(), "objectName", name);
+        REQUIRE(k);
+        return k;
+    };
+    s.tapItem(key(u"laterDay-1"_s));      // tomorrow
+    s.tapItem(key(u"laterHour-18"_s));    // 6 PM
+    s.tapItem(key(u"laterMinute-30"_s));
+    const QDateTime due = QDateTime::fromMSecsSinceEpoch(s.pos.checkInfo()[u"dueAt"_s].toLongLong());
+    CHECK(due == QDateTime(QDate::currentDate().addDays(1), QTime(18, 30)));
+    QTest::qWait(50);
+    CHECK(key(u"laterDue"_s)->property("text").toString().contains(u"tomorrow"_s));
+    s.shot("28-order-later");
+    s.tapItem(key(u"laterAsap"_s));
+    CHECK(s.pos.checkInfo()[u"dueAt"_s].toLongLong() == 0);
+}
+
 TEST_CASE("UI: opening a bar tab and finding it on the tabs screen", "[flow][ui][tabs]")
 {
     Screen s;

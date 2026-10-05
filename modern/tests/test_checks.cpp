@@ -289,3 +289,61 @@ TEST_CASE("Bar tabs: opened under a name, kept open, found again", "[checks][tab
     CHECK(pos.lines().size() == 1);
     CHECK(app::checkFromJson(app::toJson(pos.shared()->open.at(mike)))->type == core::CheckType::Tab);
 }
+
+TEST_CASE("Orders for later: held, sent by themselves before they're due, another day's wait", "[checks][later]")
+{
+    app::PosService pos(test::seedPosData(), nullptr);
+    const QDate today = QDate::currentDate();
+    const auto at = [](QDate d, int h, int m) { return QDateTime(d, QTime(h, m)).toMSecsSinceEpoch(); };
+    qint64 clock = at(today, 12, 0);
+    pos.setClock([&] { return clock; });
+    QStringList notices;
+    QObject::connect(&pos, &app::PosService::notice, [&](const QString &n) { notices << n; });
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    const qint64 id = pos.checkInfo()[u"id"_s].toLongLong();
+    pos.addItem(u"cobb"_s);
+    CHECK_FALSE(pos.setDueAt(at(today, 11, 0)));                // already past
+    REQUIRE(pos.setDueAt(at(today, 18, 30)));
+    CHECK(pos.checkInfo()[u"due"_s].toString().contains(u"6:30"_s));
+    REQUIRE(pos.sendOrder());                                    // saved, not sent
+    CHECK(notices.last().contains(u"6:10"_s));
+    CHECK(pos.shared()->open.at(id).unsentCount() == 1);
+    CHECK_FALSE(pos.closeCheck());                               // not until it's picked up
+    pos.releaseCheck();
+
+    CHECK(pos.fireDueOrders() == 0);
+    clock = at(today, 18, 9);
+    CHECK(pos.fireDueOrders() == 0);
+    clock = at(today, 18, 10);                                   // 20 minutes before
+    CHECK(pos.fireDueOrders() == 1);
+    CHECK(pos.shared()->open.at(id).unsentCount() == 0);
+    CHECK(notices.last().contains(u"sent to the kitchen"_s));
+    CHECK(pos.fireDueOrders() == 0);                             // once
+    CHECK(pos.kitchenTickets().last().toMap()[u"due"_s].toString().contains(u"6:30"_s));
+    print::TicketContext ctx{pos.shared()->settings, [](std::int64_t) { return std::string("1/1"); },
+                             [](std::int64_t) { return std::string("6:30 PM"); }, 0};
+    const core::Check &later = pos.shared()->open.at(id);
+    CHECK(print::renderText(print::kitchenTicket(later, later.lines, "Kitchen", false, ctx), 42).find("READY AT 6:30 PM")
+          != std::string::npos);
+
+    REQUIRE(pos.openCheck(id));
+    CHECK_FALSE(pos.setDueAt(at(today, 19, 0)));                 // the kitchen has it
+    REQUIRE(pos.tender(u"credit"_s));
+    REQUIRE(pos.closeCheck());
+
+    // Tomorrow's: paid tomorrow, and it doesn't hold up tonight's end of day.
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    const qint64 tomorrow = pos.checkInfo()[u"id"_s].toLongLong();
+    pos.addItem(u"caesar"_s);
+    REQUIRE(pos.setDueAt(at(today.addDays(1), 12, 0)));
+    CHECK(pos.checkInfo()[u"due"_s].toString().startsWith(u"tomorrow"_s));
+    CHECK_FALSE(pos.tender(u"credit"_s));
+    CHECK(app::checkFromJson(app::toJson(pos.shared()->open.at(tomorrow)))->dueAt == at(today.addDays(1), 12, 0));
+    pos.releaseCheck();
+    notices.clear();
+    pos.endOfDay();
+    CHECK_FALSE(notices.join(u'|').contains(u"open check"_s));
+    CHECK(pos.shared()->open.contains(tomorrow));
+}

@@ -93,6 +93,7 @@ Item {
                            ? card.modelData.customer + " · " : "")
                           + (w.mode === "closed"
                              ? qsTr("%1 · closed %2 · #%3").arg(card.modelData.server).arg(card.modelData.closed).arg(card.modelData.id)
+                             : card.modelData.due ? qsTr("%1 · ready %2").arg(card.modelData.server).arg(card.modelData.due)
                              : qsTr("%1 · %2 min").arg(card.modelData.server).arg(card.modelData.minutes))
                           + (card.modelData.busyOn ? " · " + qsTr("on %1").arg(card.modelData.busyOn) : "")
                     color: "#b8c0cc"

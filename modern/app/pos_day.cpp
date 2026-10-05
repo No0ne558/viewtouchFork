@@ -729,9 +729,11 @@ bool PosService::endOfDay()
             ++it;
         }
     }
-    if (!s_->open.empty())
-        return fail(s_->open.size() == 1 ? tr("Settle the open check first.")
-                                      : tr("Settle the %1 open checks first.").arg(s_->open.size()));
+    // Orders for another day wait for their day.
+    const auto stillOpen = std::ranges::count_if(s_->open, [this](const auto &kv) { return !forAnotherDay(kv.second); });
+    if (stillOpen > 0)
+        return fail(stillOpen == 1 ? tr("Settle the open check first.")
+                                   : tr("Settle the %1 open checks first.").arg(stillOpen));
     for (const DrawerSession &d : s_->drawers) {
         if (d.open())
             return fail(tr("Count %1 first.").arg(qs(d.name)));

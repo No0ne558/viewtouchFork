@@ -179,10 +179,11 @@ Item {
                         anchors.margins: 14
                         spacing: 4
                         Text {
-                            visible: card.modelData.rush || card.modelData.vip
+                            visible: card.modelData.rush || card.modelData.vip || !!card.modelData.due
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
-                            text: [card.modelData.rush ? qsTr("RUSH") : "", card.modelData.vip ? qsTr("VIP") : ""]
+                            text: [card.modelData.rush ? qsTr("RUSH") : "", card.modelData.vip ? qsTr("VIP") : "",
+                                   card.modelData.due ? qsTr("READY %1").arg(card.modelData.due) : ""]
                                   .filter(s => s).join("  ·  ")
                             color: card.modelData.rush ? "#d62828" : "#9a7b12"
                             font.family: w.face

@@ -53,7 +53,7 @@ Item {
             visible: w.pos && w.pos.hasCheck
             text: (w.check.server ?? "") + "  ·  "
                   + ((w.check.guests ?? 1) === 1 ? qsTr("1 guest") : qsTr("%1 guests").arg(w.check.guests))
-                  + "  ·  " + (w.check.opened ?? "")
+                  + "  ·  " + (w.check.due ? qsTr("ready %1").arg(w.check.due) : (w.check.opened ?? ""))
             color: "#8a94a6"
             font.family: w.face
             font.pixelSize: w.unit * 0.7

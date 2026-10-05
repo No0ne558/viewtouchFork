@@ -291,6 +291,11 @@ public:
     void selectPayment(qint64 paymentId) override;
     bool voidItem();
     bool sendOrder();
+    // Orders for later: ready at `at` (epoch ms; 0 = as soon as possible).
+    bool setDueAt(qint64 at);
+    // Sends the orders for later whose time has come (the server calls it
+    // every half minute); returns how many went.
+    int fireDueOrders();
     bool addComment();
     // Amount: explicit cents, else the keypad entry, else the balance due.
     bool tender(const QString &tenderId, std::optional<std::int64_t> amountCents = std::nullopt);
@@ -668,6 +673,9 @@ private:
     bool lockCheck(std::int64_t checkId);   // false: open on another terminal
     void unlockCheck(std::int64_t checkId);
     QString lockHolder(std::int64_t checkId) const;
+    QString dueText(std::int64_t at) const;                 // "6:30 PM", "tomorrow 6:30 PM"
+    bool waitingForLater(const core::Check &c) const;       // not the kitchen's yet
+    bool forAnotherDay(const core::Check &c) const;
     void noteEvent(core::Check &c, const QString &what, const char *kind);
     bool mayManage(const core::Check &c, const QString &action);
     core::ReportContext reportContext(const QString &period) const;

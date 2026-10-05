@@ -214,6 +214,8 @@ struct PosSettings {
     // Kitchen display: a ticket turns yellow after warn minutes, red after late.
     int kitchenWarnMinutes = 8;
     int kitchenLateMinutes = 15;
+    // Orders for later go to the kitchen this long before they're due.
+    int laterLeadMinutes = 20;
     // Tip choices offered to the guest (percent of the check before gratuity).
     std::vector<int> tipPercents{15, 18, 20, 25};
     std::string tableReadyText = "Hi {name}, your table at {store} is ready! Please come to the host stand.";

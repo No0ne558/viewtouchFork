@@ -268,6 +268,8 @@ public:
     Q_INVOKABLE void setExpenseCategory(const QString &category) { invoke(QStringLiteral("setExpenseCategory"), {category}); }
     Q_INVOKABLE void receiveDelivery(const QVariantMap &delivery) { invoke(QStringLiteral("receiveDelivery"), {delivery}); }
     Q_INVOKABLE void searchChecks(const QString &query) { invoke(QStringLiteral("searchChecks"), {query}); }
+    // Orders for later: ready at this time (ms since 1970; 0 = as soon as possible).
+    Q_INVOKABLE void setDueAt(double at) { invoke(QStringLiteral("setDueAt"), {qint64(at)}); }
     Q_INVOKABLE void selectFoundCheck(qint64 id) { invoke(QStringLiteral("selectFoundCheck"), {id}); }
     Q_INVOKABLE void reprintCheck(qint64 id) { invoke(QStringLiteral("reprintCheck"), {id}); }
     Q_INVOKABLE void cancelClockIn() { invoke(QStringLiteral("cancelClockIn")); }

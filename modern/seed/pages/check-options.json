@@ -16,12 +16,37 @@
       "rect": {
         "x": 16,
         "y": 16,
-        "w": 900,
+        "w": 440,
         "h": 80
       },
       "shape": "rect",
       "behavior": "none",
       "label": "This check"
+    },
+    {
+      "id": "later",
+      "kind": "button",
+      "rect": {
+        "x": 472,
+        "y": 16,
+        "w": 444,
+        "h": 80
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Ready Later\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "order-later"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
     },
     {
       "id": "rush",

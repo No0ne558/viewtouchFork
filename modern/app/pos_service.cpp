@@ -23,6 +23,11 @@ QString timeOfDay(std::int64_t ms)
     return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
 }
 
+QDate dateOf(std::int64_t ms)
+{
+    return QDateTime::fromMSecsSinceEpoch(ms).date();
+}
+
 } // namespace
 
 PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
@@ -798,11 +803,90 @@ bool PosService::voidItem()
     return true;
 }
 
+QString PosService::dueText(std::int64_t at) const
+{
+    const QDate today = dateOf(now());
+    const QDate day = dateOf(at);
+    if (day == today)
+        return timeOfDay(at);
+    if (day == today.addDays(1))
+        return tr("tomorrow %1").arg(timeOfDay(at));
+    return tr("%1, %2").arg(QLocale().toString(day, u"ddd MMM d"_s), timeOfDay(at));
+}
+
+bool PosService::waitingForLater(const Check &c) const
+{
+    return c.dueAt > 0 && now() < c.dueAt - std::int64_t(s_->settings.laterLeadMinutes) * 60'000;
+}
+
+bool PosService::forAnotherDay(const Check &c) const
+{
+    return c.dueAt > 0 && dateOf(c.dueAt) > dateOf(now());
+}
+
+bool PosService::setDueAt(qint64 at)
+{
+    if (!require(perm::Order, tr("Orders for later")))
+        return false;
+    Check *c = current();
+    if (!c)
+        return fail(tr("Start the order first."));
+    if (at <= 0) {
+        c->dueAt = 0;
+        emit notice(tr("As soon as possible"));
+        changed(*c);
+        return true;
+    }
+    if (at <= now())
+        return fail(tr("Pick a time that hasn't passed."));
+    if (at > now() + std::int64_t(60) * 24 * 3600 * 1000)
+        return fail(tr("Orders can be taken up to 60 days ahead."));
+    if (forAnotherDay(Check{.dueAt = at}) && !c->payments.empty())
+        return fail(tr("This order is already paid: it can only be for today."));
+    if (std::ranges::any_of(c->lines, [](const OrderLine &l) { return l.sent && !l.voided; }))
+        return fail(tr("Part of this order is already in the kitchen."));
+    c->dueAt = at;
+    emit notice(tr("Ready %1. It goes to the kitchen %2 minutes before.").arg(dueText(at)).arg(s_->settings.laterLeadMinutes));
+    changed(*c);
+    return true;
+}
+
+int PosService::fireDueOrders()
+{
+    int fired = 0;
+    for (auto &[id, c] : s_->open) {
+        if (c.dueAt <= 0 || c.unsentCount() == 0 || waitingForLater(c) || c.training)
+            continue;
+        if (s_->lockedBy.contains(id))   // someone is still on it: when they let go
+            continue;
+        const std::vector<OrderLine> fresh = c.sendable(true);
+        if (const QString missing = missingChoice(fresh); !missing.isEmpty()) {
+            emit notice(tr("Order for later %1 can't go to the kitchen: %2").arg(qs(c.label), missing));
+            continue;
+        }
+        c.sendAll(now(), true);
+        takeStock(fresh, 1);
+        if (s_->printer)
+            s_->printer->printKitchen(s_->settings, c, fresh, false);
+        emit notice(tr("Order for later sent to the kitchen: %1 (ready %2)").arg(qs(c.label), dueText(c.dueAt)));
+        changed(c);
+        ++fired;
+    }
+    return fired;
+}
+
 bool PosService::sendOrder()
 {
     Check *c = current();
     if (!c)
         return fail(tr("No check is open."));
+    if (waitingForLater(*c) && c->unsentCount() > 0) {   // the kitchen gets it in time, by itself
+        if (const QString missing = missingChoice(c->sendable(true)); !missing.isEmpty())
+            return fail(missing);
+        emit notice(tr("Saved for later: ready %1, it goes to the kitchen at %2.")
+                        .arg(dueText(c->dueAt), timeOfDay(c->dueAt - std::int64_t(s_->settings.laterLeadMinutes) * 60'000)));
+        return true;
+    }
     const std::vector<OrderLine> fresh = c->sendable();
     if (const QString missing = missingChoice(fresh); !missing.isEmpty())
         return fail(missing);   // the kitchen needs the whole order
@@ -857,6 +941,8 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
     const Tender *t = s_->settings.tender(ss(tenderId));
     if (!t)
         return fail(tr("Payment type '%1' is not set up.").arg(tenderId));
+    if (forAnotherDay(*c))   // the money goes in that day's drawer
+        return fail(tr("This order is for %1: take the payment that day.").arg(dueText(c->dueAt)));
     if (t->kind == TenderKind::GiftCard)   // needs the card: the Gift Card page
         return giftCardNumber_.isEmpty() ? fail(tr("Open Gift Card and enter or swipe the card first."))
                                          : payWithGiftCard({}, amountCents.value_or(0));
@@ -949,6 +1035,8 @@ bool PosService::closeCheck()
     if (cash && !drawer)
         return fail(noDrawerMessage());
 
+    if (waitingForLater(*c) && c->unsentCount() > 0)
+        return fail(tr("This order is for %1: close it when it's picked up.").arg(dueText(c->dueAt)));
     if (c->unsentCount() > 0) {
         // Closing sends whatever is left, held courses too.
         const std::vector<OrderLine> fresh = c->sendable(true);
@@ -1091,6 +1179,7 @@ QVariantMap PosService::checkInfo() const
         {u"seat"_s, seat_}, {u"course"_s, course_}, {u"firedCourse"_s, c->firedCourse},
         {u"heldCount"_s, c->heldCount()}, {u"rush"_s, c->rush}, {u"vip"_s, c->vip},
         {u"opened"_s, timeOfDay(c->openedAt)},
+        {u"dueAt"_s, qint64(c->dueAt)}, {u"due"_s, c->dueAt ? dueText(c->dueAt) : QString()},
         {u"customer"_s, QVariantMap{{u"name"_s, qs(c->customer.name)}, {u"phone"_s, qs(c->customer.phone)},
                                     {u"address"_s, qs(c->customer.address)}, {u"note"_s, qs(c->customer.note)}}},
     };
@@ -1186,7 +1275,7 @@ QVariantList PosService::openChecks() const
             {u"openedAt"_s, qint64(c.openedAt)}, {u"longAfter"_s, s_->settings.tableLongMinutes},
             {u"mine"_s, user() && c.serverId == user()->id}, {u"current"_s, id == currentId_},
             {u"lineCount"_s, int(c.lines.size())}, {u"busyOn"_s, lockHolder(id)},
-            {u"customer"_s, qs(c.customer.name)},
+            {u"customer"_s, qs(c.customer.name)}, {u"due"_s, c.dueAt ? dueText(c.dueAt) : QString()},
         });
     }
     return out;
@@ -1271,6 +1360,7 @@ QVariantList PosService::kitchenTickets() const
             {u"type"_s, qs(toString(t.check->type))}, {u"customer"_s, qs(t.check->customer.name)},
             {u"note"_s, qs(t.check->customer.note)}, {u"lines"_s, lines},
             {u"rush"_s, t.check->rush}, {u"vip"_s, t.check->vip},
+            {u"due"_s, t.check->dueAt ? dueText(t.check->dueAt) : QString()},
             {u"warnMinutes"_s, s_->settings.kitchenWarnMinutes}, {u"lateMinutes"_s, s_->settings.kitchenLateMinutes},
         });
     }
@@ -1493,6 +1583,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"setCheckFilter"_s, [](PosService &p, const QVariantList &a) { p.setCheckFilter(a.value(0).toString()); return QVariant(true); }},
         {u"voidItem"_s, [](PosService &p, const QVariantList &) { return QVariant(p.voidItem()); }},
         {u"sendOrder"_s, [](PosService &p, const QVariantList &) { return QVariant(p.sendOrder()); }},
+        {u"setDueAt"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setDueAt(a.value(0).toLongLong())); }},
         {u"addComment"_s, [](PosService &p, const QVariantList &) { return QVariant(p.addComment()); }},
         {u"tender"_s, [](PosService &p, const QVariantList &a) {
              const QVariant amount = a.value(1);

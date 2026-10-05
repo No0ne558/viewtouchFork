@@ -804,6 +804,11 @@ int runStore(const Args &cli, const Options &o)
     }
     vt::app::PosService pos(std::move(*posData), sink.get());
     vt::app::PosShared *shared = pos.shared();
+    // Orders for later go to the kitchen by themselves, from the store's computer.
+    QTimer laterOrders;
+    laterOrders.setInterval(30'000);
+    QObject::connect(&laterOrders, &QTimer::timeout, &pos, [&pos] { pos.fireDueOrders(); });
+    laterOrders.start();
     if (QFile::exists(dbPath + u".took-over"_s)) {   // this was the standby until a moment ago
         QFile marker(dbPath + u".took-over"_s);
         const QString by = marker.open(QIODevice::ReadOnly) ? QString::fromUtf8(marker.readAll()) : QString();

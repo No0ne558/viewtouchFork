@@ -143,6 +143,7 @@ if(Qt6_FOUND)
             ui/qml/WidgetNetwork.qml
             ui/qml/WidgetReceiveDelivery.qml
             ui/qml/WidgetCheckSearch.qml
+            ui/qml/WidgetOrderLater.qml
             ui/qml/CustomerDisplay.qml
             ui/qml/CustomerDisplayWindow.qml
             ui/qml/WidgetLoginPad.qml

@@ -178,6 +178,9 @@ struct Check {
     bool rush = false;                // the kitchen does it first
     bool vip = false;                 // the kitchen takes extra care
     bool kiosk = false;               // a guest ordered it on the self-order kiosk
+    // An order for later: ready at this time (epoch ms; 0 = now). It goes to
+    // the kitchen by itself shortly before (PosSettings::laterLeadMinutes).
+    std::int64_t dueAt = 0;
 
     void note(std::int64_t at, const std::string &who, const std::string &what, const std::string &kind = {})
     {

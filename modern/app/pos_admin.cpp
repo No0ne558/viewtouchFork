@@ -299,6 +299,8 @@ QVariantList PosService::adminFields(const QString &panel)
                       u"min"_s, 1), u"max"_s, 120),
             with(with(field(u"kitchenLateMinutes"_s, tr("Kitchen: ticket is late (red) after (minutes)"), u"int"_s,
                             tr("Late tickets are counted in the Kitchen report.")), u"min"_s, 1), u"max"_s, 240),
+            with(with(field(u"laterLeadMinutes"_s, tr("Orders for later go to the kitchen (minutes before)"), u"int"_s,
+                            tr("An order for 6:30 with 20 here reaches the kitchen at 6:10.")), u"min"_s, 0), u"max"_s, 240),
             with(with(field(u"screenSaverMinutes"_s, tr("Dim the screen after (minutes)"), u"int"_s,
                             tr("Untouched screens dim; a touch wakes them (and does nothing else). 0 = never. "
                                "Kitchen, bar and expo screens stay on.")), u"min"_s, 0), u"max"_s, 240),
@@ -502,6 +504,7 @@ QVariantList PosService::adminRecords(const QString &panel)
               }()},
              {u"kitchenWarnMinutes"_s, s_->settings.kitchenWarnMinutes},
              {u"kitchenLateMinutes"_s, s_->settings.kitchenLateMinutes},
+             {u"laterLeadMinutes"_s, s_->settings.laterLeadMinutes},
              {u"tipPercents"_s, [&] { QStringList l; for (int p : s_->settings.tipPercents) l << QString::number(p); return l.join(u", "_s); }()},
              {u"tableReadyText"_s, qs(s_->settings.tableReadyText)}, {u"textWebhook"_s, qs(s_->settings.textWebhook)},
              {u"paidBreaks"_s, s_->settings.paidBreaks}, {u"overtimeDailyHours"_s, s_->settings.overtimeDailyHours},
@@ -810,6 +813,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         }
         if (record.contains(u"kitchenWarnMinutes"_s))
             s_->settings.kitchenWarnMinutes = std::clamp(record.value(u"kitchenWarnMinutes"_s).toInt(), 1, 120);
+        if (record.contains(u"laterLeadMinutes"_s))
+            s_->settings.laterLeadMinutes = std::clamp(record.value(u"laterLeadMinutes"_s).toInt(), 0, 240);
         if (record.contains(u"kitchenLateMinutes"_s))
             s_->settings.kitchenLateMinutes =
                 std::clamp(record.value(u"kitchenLateMinutes"_s).toInt(), s_->settings.kitchenWarnMinutes, 240);

@@ -323,7 +323,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -499,8 +499,17 @@ page("customer", "Customer", "custom", [
     label("title", 16, 16, 1888, 80, "Who is the order for?"),
     zone("customer", 16, 112, 1888, 800, kind="customerInfo"),
     zone("cancel", 16, 944, 432, 120, "Cancel", actions=[command("releaseCheck"), jump(mode="back")]),
+    zone("later", 1024, 944, 432, 120, "Ready Later…", actions=[jump(page="order-later")], style=fill(TEAL)),
     zone("menu", 1472, 944, 432, 120, "Continue to Menu ›", actions=[jump(mode="index")], style=fill(GREEN)),
 ])
+
+# Orders for later: the day and time it should be ready.
+page("order-later", "Order for Later", "custom", [
+    label("title", 16, 16, 1888, 80, "When should it be ready?"),
+    zone("when", 16, 112, 1888, 816, kind="orderLater"),
+    zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+    zone("done", 1472, 944, 432, 120, "Done", actions=[jump(mode="back")], style=fill(GREEN)),
+], permission="order")
 
 # Choices for the item just ordered (its modifier groups). Inside the order
 # screen, like item pages, so phones frame it too.
@@ -539,7 +548,8 @@ page("gift-card", "Gift Card", "custom", [
 
 # --- managing a check (from the order screen's Check… tab) ---
 page("check-options", "Check Options", "custom", [
-    label("title", 16, 16, 900, 80, "This check"),
+    label("title", 16, 16, 440, 80, "This check"),
+    zone("later", 472, 16, 444, 80, "Ready Later…", actions=[jump(page="order-later")], style=fill(TEAL)),
     zone("rush", 932, 16, 478, 80, "Rush", actions=[command("rush")], style=fill(RED)),
     zone("vip", 1426, 16, 478, 80, "VIP", actions=[command("vip")], style=fill(AMBER)),
     zone("history", 16, 112, 900, 952, kind="checkHistory"),

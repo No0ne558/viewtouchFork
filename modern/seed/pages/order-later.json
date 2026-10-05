@@ -1,13 +1,14 @@
 {
   "schemaVersion": 1,
-  "id": "customer",
-  "name": "Customer",
+  "id": "order-later",
+  "name": "Order for Later",
   "kind": "custom",
   "canvas": {
     "w": 1920,
     "h": 1080
   },
   "grid": 8,
+  "permission": "order",
   "zones": [
     {
       "id": "title",
@@ -20,22 +21,22 @@
       },
       "shape": "rect",
       "behavior": "none",
-      "label": "Who is the order for?"
+      "label": "When should it be ready?"
     },
     {
-      "id": "customer",
-      "kind": "customerInfo",
+      "id": "when",
+      "kind": "orderLater",
       "rect": {
         "x": 16,
         "y": 112,
         "w": 1888,
-        "h": 800
+        "h": 816
       },
       "shape": "rect",
       "behavior": "none"
     },
     {
-      "id": "cancel",
+      "id": "back",
       "kind": "button",
       "rect": {
         "x": 16,
@@ -45,12 +46,8 @@
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "Cancel",
+      "label": "\u2039 Back",
       "actions": [
-        {
-          "type": "command",
-          "name": "releaseCheck"
-        },
         {
           "type": "jump",
           "mode": "back"
@@ -58,32 +55,7 @@
       ]
     },
     {
-      "id": "later",
-      "kind": "button",
-      "rect": {
-        "x": 1024,
-        "y": 944,
-        "w": 432,
-        "h": 120
-      },
-      "shape": "rect",
-      "behavior": "blink",
-      "label": "Ready Later\u2026",
-      "actions": [
-        {
-          "type": "jump",
-          "mode": "push",
-          "page": "order-later"
-        }
-      ],
-      "style": {
-        "normal": {
-          "fill": "#1f6f73"
-        }
-      }
-    },
-    {
-      "id": "menu",
+      "id": "done",
       "kind": "button",
       "rect": {
         "x": 1472,
@@ -93,11 +65,11 @@
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "Continue to Menu \u203a",
+      "label": "Done",
       "actions": [
         {
           "type": "jump",
-          "mode": "index"
+          "mode": "back"
         }
       ],
       "style": {

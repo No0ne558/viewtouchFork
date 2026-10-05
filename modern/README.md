@@ -183,6 +183,12 @@ Reports have a row of periods: *Day* (one business day, as before), *This Week*,
 - **Manager approval:** when someone may not do something on their own (void a sent item, a discount, a manager action), a PIN pad appears on the same screen. A manager types their PIN and it goes through once; the check's history says who approved it. *Cancel* puts it away. No logging out and back in.
 - **Practice mode** (training): mark a person *In training* (Manager → Employees), or a manager touches **Practice Mode** on the Log Out page to switch their own screen. A yellow *PRACTICE* banner shows. Practice checks are labelled "(practice)" and leave real tables free; they never reach the kitchen screens or printers, stock, drawers, banks, reports, points, gift cards or house accounts. Closing one says "not a sale"; any left open are cleared at End of Day.
 
+## Orders for later
+
+On the takeout or delivery customer page (or Check… on any order), **Ready Later…** picks the day, hour and minutes it should be ready: up to 60 days ahead. Send saves it without bothering the kitchen. The store's computer sends it to the kitchen by itself 20 minutes before it's due (Store Settings → *Orders for later go to the kitchen*). The ticket and the kitchen screen say **READY AT 6:30 PM**.
+- It can't be closed until the kitchen has it.
+- An order for another day is paid on that day, and it doesn't hold up tonight's end of day.
+
 ## Combos
 
 A combo is a menu item whose choices are other menu items. In Manager → Modifier Groups, turn on **Options are menu items** and list items by name ("Soda", "Fries + 0.00", "Draft Beer + 3.00"). Then give the combo item those groups. Its side and drink use up their own stock, can't be chosen while sold out, and are counted on the Items report under *Chosen with other items*. The demo's **Burger Combo** ($16.95) asks for the temperature, a side and a drink.

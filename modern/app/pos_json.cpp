@@ -106,7 +106,7 @@ QJsonObject toJson(const Check &c)
         {u"customer"_s, QJsonObject{{u"name"_s, qs(c.customer.name)}, {u"phone"_s, qs(c.customer.phone)},
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
         {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse}, {u"customerId"_s, qs(c.customerId)},
-        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"kiosk"_s, c.kiosk}, {u"pointsEarned"_s, c.pointsEarned}, {u"training"_s, c.training},
+        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"kiosk"_s, c.kiosk}, {u"dueAt"_s, qint64(c.dueAt)}, {u"pointsEarned"_s, c.pointsEarned}, {u"training"_s, c.training},
     };
 }
 
@@ -186,6 +186,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     c.customerId = ss(o.value(u"customerId").toString());
     c.rush = o.value(u"rush").toBool();
     c.kiosk = o.value(u"kiosk").toBool();
+    c.dueAt = o.value(u"dueAt").toInteger(0);
     c.vip = o.value(u"vip").toBool();
     c.pointsEarned = o.value(u"pointsEarned").toInt();
     c.training = o.value(u"training").toBool();
@@ -693,6 +694,7 @@ QJsonObject toJson(const PosSettings &s)
              return a;
          }()},
         {u"kitchenWarnMinutes"_s, s.kitchenWarnMinutes}, {u"kitchenLateMinutes"_s, s.kitchenLateMinutes},
+        {u"laterLeadMinutes"_s, s.laterLeadMinutes},
         {u"tipPercents"_s, [&] { QJsonArray a; for (int p : s.tipPercents) a.append(p); return a; }()}, {u"tableReadyText"_s, qs(s.tableReadyText)},
         {u"textWebhook"_s, qs(s.textWebhook)},
     };
@@ -798,6 +800,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
     }
     s.kitchenWarnMinutes = std::clamp(o.value(u"kitchenWarnMinutes").toInt(8), 1, 120);
     s.kitchenLateMinutes = std::clamp(o.value(u"kitchenLateMinutes").toInt(15), s.kitchenWarnMinutes, 240);
+    s.laterLeadMinutes = std::clamp(o.value(u"laterLeadMinutes").toInt(20), 0, 240);
     if (o.value(u"tipPercents").isArray()) {
         s.tipPercents.clear();
         for (const QJsonValue &v : o.value(u"tipPercents").toArray()) {
