@@ -7,7 +7,7 @@
 #include <functional>
 
 // Languages. The screens' words come from phrase files (i18n/<lang>.json,
-// English phrase -> translation), applied by a translator installed on the
+// English phrase -> translation; en.json only has English plural forms), applied by a translator installed on the
 // app, so qsTr() in QML and tr() in C++ work as usual. A store can add or
 // change phrases in <data dir>/translations/<lang>.json (its own button
 // labels, say), which win over the built-in ones.

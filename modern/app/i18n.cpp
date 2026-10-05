@@ -70,7 +70,7 @@ public:
     QString translate(const char *context, const char *sourceText, const char *, int n) const override
     {
         const QString code = forGuests(context) ? guest() : current();
-        if (code == u"en" || !sourceText)
+        if (!sourceText)
             return {};
         return lookup(code, QString::fromUtf8(sourceText), n);
     }
@@ -86,9 +86,8 @@ QList<Language> languages()
 void install(const QString &overridesDir)
 {
     static Translator *translator = nullptr;
+    // English too: its plural forms ("1 guest", "2 guests").
     for (const Language &l : languages()) {
-        if (l.code == u"en")
-            continue;
         dictionaries().remove(l.code);
         merge(l.code, u":/i18n/%1.json"_s.arg(l.code));
         if (!overridesDir.isEmpty())

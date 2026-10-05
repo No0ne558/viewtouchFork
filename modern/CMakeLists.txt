@@ -62,7 +62,7 @@ if(Qt6_FOUND)
     )
     target_link_libraries(vtm_pos PUBLIC vtm_core Qt6::Core)
     # Phrase files for the screens' languages (see app/i18n.hh)
-    qt_add_resources(vtm_pos "vtm_i18n" PREFIX "/i18n" BASE i18n FILES i18n/es.json)
+    qt_add_resources(vtm_pos "vtm_i18n" PREFIX "/i18n" BASE i18n FILES i18n/en.json i18n/es.json)
     # PosService is exposed to QML via QML_FOREIGN (ui/cpp/posforeign.hh),
     # which needs its type information.
     qt_extract_metatypes(vtm_pos)

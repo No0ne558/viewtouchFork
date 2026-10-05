@@ -35,6 +35,8 @@ TEST_CASE("Languages: phrases, plurals, and English when there is none", "[i18n]
 {
     Spanish es;
     CHECK(tr("Send") == u"Send"_s);   // English until asked
+    CHECK(tr("%n guest(s)", 1) == u"1 guest"_s);   // English plurals
+    CHECK(tr("%n guest(s)", 3) == u"3 guests"_s);
     REQUIRE(i18n::setLanguage(u"es"_s));
     CHECK_FALSE(i18n::setLanguage(u"es"_s));   // no change
     CHECK(tr("Send") == u"Enviar"_s);

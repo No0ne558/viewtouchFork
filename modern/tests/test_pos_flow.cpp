@@ -1053,6 +1053,20 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     go("expo", "m23-expo");
     go("logout", "m24-logout");
 
+    // Jo bartends, and serves some nights: clocking in asks which.
+    s.pos.logout();
+    const auto pin = [&](const char *digits) {
+        for (const char *d = digits; *d; ++d)
+            s.pos.pinKey(QString(QChar(*d)));
+    };
+    pin("4444");
+    s.pos.clockOut();
+    pin("4444");
+    REQUIRE(s.pos.clockIn());
+    go("login", "m78-which-job");
+    REQUIRE(s.pos.clockInAs(u"bartender"_s));
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+
     // Manager.
     s.pos.logout();
     REQUIRE(s.pos.loginWithPin(u"1234"_s));
@@ -1085,6 +1099,24 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     go("sold-out", "m43-sold-out");
     go("drawer", "m44-drawer");
     go("end-of-day", "m45-end-of-day");
+    // A delivery received and a pay out for ice, for the Purchases and Expenses reports.
+    REQUIRE(s.pos.receiveDelivery({{u"vendor"_s, u"valley-foods"_s}, {u"invoice"_s, u"VF-20931"_s},
+                                   {u"lines"_s, QVariantList{
+                                        QVariantMap{{u"ingredient"_s, u"patty"_s}, {u"qty"_s, 40}, {u"cost"_s, 1.65}},
+                                        QVariantMap{{u"ingredient"_s, u"cheese"_s}, {u"qty"_s, 80}},
+                                        QVariantMap{{u"ingredient"_s, u"eggs"_s}, {u"qty"_s, 90}}}}}));
+    if (s.pos.drawerInfo()[u"open"_s].toBool()) {
+        s.pos.entryKey(u"1800"_s);
+        s.pos.setExpenseCategory(u"Ice"_s);
+        s.pos.payout(core::CashMovement::Kind::Payout);
+    }
+    go("receive-delivery", "m76-receive-delivery");
+    REQUIRE(s.pos.searchChecks(u"cobb"_s));
+    for (int i = 0; i < 200 && s.pos.checkSearch()[u"loading"_s].toBool(); ++i)
+        QTest::qWait(20);
+    if (const QVariantList found = s.pos.checkSearch()[u"results"_s].toList(); !found.isEmpty())
+        s.pos.selectFoundCheck(found.first().toMap()[u"id"_s].toLongLong());
+    go("find-check", "m77-find-check");
     go("reports", "m46-report-sales");
     s.tapKey(u"Items"_s);
     s.tapKey(u"Last Month"_s);                                  // both years have the whole month
@@ -1094,7 +1126,7 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     QTest::qWait(80);
     snap("m47-report-month-vs-last-year");
     s.tapKey(u"Day"_s);
-    for (const char *r : {"Labor", "Kitchen", "Food Cost", "Tips", "Gift Cards"}) {
+    for (const char *r : {"Labor", "Kitchen", "Food Cost", "Tips", "Gift Cards", "Expenses", "Purchases"}) {
         s.tapKey(QString::fromLatin1(r));
         QTest::qWait(80);
         snap(QString(u"m48-report-%1"_s).arg(QString::fromLatin1(r).toLower().replace(u' ', u'-')).toLatin1().constData());

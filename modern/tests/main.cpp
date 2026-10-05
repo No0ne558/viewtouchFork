@@ -1,5 +1,7 @@
 #include <catch2/catch_session.hpp>
 
+#include "app/i18n.hh"
+
 #include <QGuiApplication>
 #include <QQuickStyle>
 #include <QtQml/qqmlextensionplugin.h>
@@ -14,5 +16,6 @@ int main(int argc, char *argv[])
         qputenv("QT_QPA_PLATFORM", "offscreen");
     QGuiApplication app(argc, argv);
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
+    vt::i18n::install();   // as the app does: English plurals, Spanish for those who use it
     return Catch::Session().run(argc, argv);
 }
