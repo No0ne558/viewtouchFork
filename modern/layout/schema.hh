@@ -30,6 +30,16 @@ QStringList pageKinds();
 QStringList pageRoles();
 
 QJsonArray zoneFields(const QString &kind);
+
+// A widget's own buttons (id, label), for showing, hiding and renaming them
+// (props.buttons.<id>.hide / .label); each also has a command, so a regular
+// button can do the same anywhere on the page.
+struct BuiltIn {
+    QString id;
+    QString label;
+    QString command;   // the action command that does the same ("" = none)
+};
+QList<BuiltIn> builtInButtons(const QString &kind);
 QJsonArray pageFields();
 QJsonArray themeFields();
 

@@ -39,6 +39,19 @@ Item {
     property LayoutController controller
     property PosService pos
 
+    // A widget's own buttons, hidden or renamed in the editor
+    // (props.hideButtons, props.buttons.<id>.hide / .label).
+    function keyShown(id) {
+        if (!props) return true
+        if (props.hideButtons === true) return false
+        const b = props.buttons ? props.buttons[id] : undefined
+        return !(b && b.hide === true)
+    }
+    function keyText(id, usual) {
+        const b = props && props.buttons ? props.buttons[id] : undefined
+        return b && b.label ? qsTranslate("Page", b.label) : usual
+    }
+
     // Set by PageView for behavior "select" (one lit zone per page).
     property string selectedZoneId: ""
 
@@ -145,10 +158,16 @@ Item {
         }
     }
 
+    // The window's own palette, for what the zone's style leaves unset.
+    Item { id: plain; visible: false }
     Loader {
         id: widget
         anchors.fill: parent
         active: zone.hasWidget
+        // Its form buttons take the built-in button look (style keyFill...).
+        palette.button: zone.st.keyFill ?? plain.palette.button
+        palette.buttonText: zone.st.keyTextColor ?? plain.palette.buttonText
+        palette.highlight: zone.st.keyLitFill ?? plain.palette.highlight
         enabled: !zone.editing   // arranging a page must not ring up sales
         onActiveChanged: load()
         Component.onCompleted: load()

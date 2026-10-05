@@ -792,7 +792,33 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
         {u"selfOrder"_s, {u"setSelfOrder"_s, {true}}},
         {u"rush"_s, {u"toggleFlag"_s, {u"rush"_s}}}, {u"vip"_s, {u"toggleFlag"_s, {u"vip"_s}}},
         {u"startBreak"_s, {u"toggleBreak"_s, {}}}, {u"toggleBreak"_s, {u"toggleBreak"_s, {}}},
+        // What widgets' own buttons do, for buttons placed anywhere.
+        {u"expoRecall"_s, {u"expoRecall"_s, {}}}, {u"fireCourse"_s, {u"fireCourse"_s, {}}},
+        {u"guestsMore"_s, {u"adjustGuests"_s, {1}}}, {u"guestsFewer"_s, {u"adjustGuests"_s, {-1}}},
     };
+    // Widgets' own buttons that change the screen, not the store: the widget does them.
+    if (name == u"kitchenStation" || name == u"kitchenAllDay") {
+        emit widgetCommand(name, args);
+        return done(true);
+    }
+    if (name == u"finishChoosing") {
+        finishChoosing();
+        return done(true);
+    }
+    if (pos_ && name == u"cancelChoosing")
+        return call(u"cancelChoosing"_s, {}, [this, done](const QVariant &ok) {
+            goBack();
+            done(ok.toBool());
+        });
+    if (pos_ && (name == u"seatNext" || name == u"seatPrev")) {
+        const int seat = pos_->checkInfo().value(u"seat"_s).toInt();
+        return call(u"setSeat"_s, {std::max(0, seat + (name == u"seatNext" ? 1 : -1))},
+                    [done](const QVariant &ok) { done(ok.toBool()); });
+    }
+    if (pos_ && name == u"courseNext") {   // 1, 2, 3 and around
+        const int course = std::max(1, pos_->checkInfo().value(u"course"_s).toInt());
+        return call(u"setCourse"_s, {course % 3 + 1}, [done](const QVariant &ok) { done(ok.toBool()); });
+    }
     // Commands that carry arguments.
     if (pos_ && name == u"addTip")   // args.percent: 15, 18...; none = keypad amount
         return call(u"addTip"_s, {qint64(args.value(u"percent"_s).toDouble() * 100 + 0.5)},

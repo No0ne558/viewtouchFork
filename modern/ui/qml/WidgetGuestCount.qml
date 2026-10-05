@@ -15,7 +15,8 @@ Item {
         WidgetKey {
             Layout.preferredWidth: w.height * 0.8
             Layout.fillHeight: true
-            text: "−"
+            visible: w.zone.keyShown("fewer")
+            text: w.zone.keyText("fewer", "−")
             textColor: w.zone.st.textColor ?? "white"
             onClicked: w.pos.adjustGuests(-1)
         }
@@ -44,7 +45,8 @@ Item {
         WidgetKey {
             Layout.preferredWidth: w.height * 0.8
             Layout.fillHeight: true
-            text: "+"
+            visible: w.zone.keyShown("more")
+            text: w.zone.keyText("more", "+")
             textColor: w.zone.st.textColor ?? "white"
             onClicked: w.pos.adjustGuests(1)
         }

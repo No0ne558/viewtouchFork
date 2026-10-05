@@ -157,6 +157,7 @@ Item {
             WidgetKey {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                visible: w.zone.keyShown("drawer")
                 text: w.bank ? (w.d.open ? qsTr("Check Out") : qsTr("Start Bank"))
                              : w.d.open ? qsTr("Count Drawer") : qsTr("Start Drawer")
                 accent: true
@@ -164,10 +165,10 @@ Item {
                 onClicked: w.d.open ? w.pos.countDrawer() : w.pos.openDrawerSession()
             }
             WidgetKey {
-                visible: !w.bank   // server banks: no drawer to open
+                visible: !w.bank && w.zone.keyShown("noSale")   // server banks: no drawer to open
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                text: qsTr("No Sale")
+                text: w.zone.keyText("noSale", qsTr("No Sale"))
                 fontScale: 0.34
                 onClicked: w.pos.noSale()
             }
@@ -202,14 +203,16 @@ Item {
             WidgetKey {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                text: qsTr("Pay Out")
+                visible: w.zone.keyShown("payOut")
+                text: w.zone.keyText("payOut", qsTr("Pay Out"))
                 fontScale: 0.34
                 onClicked: w.pos.payout("payout")
             }
             WidgetKey {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                text: qsTr("Paid In")
+                visible: w.zone.keyShown("paidIn")
+                text: w.zone.keyText("paidIn", qsTr("Paid In"))
                 fontScale: 0.34
                 onClicked: w.pos.payout("paidIn")
             }

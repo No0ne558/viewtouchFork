@@ -457,6 +457,7 @@ Press **F1** or **Ctrl+E** (no Fn needed), or touch **Manager → Edit Pages**. 
 **Panels**
 - **Left: page list.** Create, copy or delete pages. Delete lists the buttons that lead to the page first.
 - **Right: inspector, for the zone, the page, or the theme.** Every field is built from `layout/schema.cpp`, so a new property needs one line there and no QML. Style fields show the inherited value until you override them, and ↺ resets them. "When touched" edits the action list.
+- **Panels (widgets).** Selecting one shows its **Settings** (a kitchen screen's station or expo mode, a check list's mode, the report to open, table columns…), its **Built-in buttons** (hide each one, all of them, or rename them: `props.buttons.<id>.hide / .label`, `props.hideButtons`) and their **Built-in button look** (`keyFill`, `keyTextColor`, `keyLitFill`, `keyFont`, `keyRadius`, inherited from the page and the theme like any style; form buttons follow it through the palette). Every built-in button has a command for a regular button placed anywhere: `kitchenStation`, `kitchenAllDay`, `recallTicket`, `expoRecall`, `seatNext`, `seatPrev`, `courseNext`, `fireCourse`, `finishChoosing`, `cancelChoosing`, `guestsMore`, `guestsFewer`, `noSale`, `countDrawer`, `payout`, `paidIn`, `backupNow`. The list is `schema::builtInButtons()`.
 - **Toolbar.** Add a button, text, image, note or panel; undo and redo; arrange (align, space evenly, match size); and File, which exports or imports one page (`.vtpage.json`) or every page (`.vtlayout.json`).
 
 ## Layout

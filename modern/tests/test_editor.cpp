@@ -321,3 +321,38 @@ TEST_CASE("Tables are zones: added, duplicated and pasted with free names", "[ed
     CHECK(e.layout().validate().contains(u"table 'T1' is on the floor more than once"_s));
     CHECK(schema::isWidgetKind(u"table"_s));
 }
+
+TEST_CASE("Widgets: their settings, built-in buttons and button look are in the inspector", "[editor][builtins]")
+{
+    using namespace vt::layout;
+    const auto paths = [](const QString &kind) {
+        QStringList out;
+        for (const QJsonValue &f : schema::zoneFields(kind))
+            out << f.toObject().value(u"path").toString();
+        return out;
+    };
+    const QStringList kds = paths(u"kitchenDisplay"_s);
+    CHECK(kds.contains(u"props.mode"_s));
+    CHECK(kds.contains(u"props.station"_s));
+    CHECK(kds.contains(u"props.hideButtons"_s));
+    CHECK(kds.contains(u"props.buttons.recall.hide"_s));
+    CHECK(kds.contains(u"props.buttons.recall.label"_s));
+    CHECK(kds.contains(u"style.normal.keyFill"_s));
+    CHECK(paths(u"checkList"_s).contains(u"props.mode"_s));
+    CHECK(paths(u"reportView"_s).contains(u"props.report"_s));
+    CHECK_FALSE(paths(u"button"_s).contains(u"style.normal.keyFill"_s));   // plain buttons have no built-ins
+
+    // Every built-in button's command is one a regular button can pick.
+    QStringList commands;
+    for (const QJsonValue &t : schema::actionTypes()) {
+        if (t.toObject().value(u"type").toString() != u"command")
+            continue;
+        for (const QJsonValue &f : t.toObject().value(u"fields").toArray())
+            for (const QJsonValue &o : f.toObject().value(u"options").toArray())
+                commands << o.toObject().value(u"value").toString();
+    }
+    for (const QString &kind : schema::widgetKinds())
+        for (const schema::BuiltIn &b : schema::builtInButtons(kind))
+            if (!b.command.isEmpty())
+                CHECK(commands.contains(b.command));
+}

@@ -85,18 +85,21 @@ Item {
                 height: parent.height
                 spacing: bar.key * 0.15
                 Text {
+                    visible: w.zone.keyShown("seat")
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Seat")
+                    text: w.zone.keyText("seat", qsTr("Seat"))
                     color: "#8a94a6"
                     font.family: w.face
                     font.pixelSize: bar.key * 0.45
                 }
                 WidgetKey {
+                    visible: w.zone.keyShown("seat")
                     width: bar.key; height: parent.height
                     text: "−"
                     onClicked: w.pos.setSeat(Math.max(0, (w.check.seat ?? 0) - 1))
                 }
                 Text {
+                    visible: w.zone.keyShown("seat")
                     width: bar.key * 0.8
                     anchors.verticalCenter: parent.verticalCenter
                     horizontalAlignment: Text.AlignHCenter
@@ -107,14 +110,16 @@ Item {
                     font.bold: true
                 }
                 WidgetKey {
+                    visible: w.zone.keyShown("seat")
                     width: bar.key; height: parent.height
                     text: "+"
                     onClicked: w.pos.setSeat((w.check.seat ?? 0) + 1)
                 }
-                Item { width: bar.key * 0.3; height: 1 }
+                Item { visible: w.zone.keyShown("seat"); width: bar.key * 0.3; height: 1 }
                 Text {
+                    visible: w.zone.keyShown("course")
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Course")
+                    text: w.zone.keyText("course", qsTr("Course"))
                     color: "#8a94a6"
                     font.family: w.face
                     font.pixelSize: bar.key * 0.45
@@ -123,6 +128,7 @@ Item {
                     model: [1, 2, 3]
                     delegate: WidgetKey {
                         required property int modelData
+                        visible: w.zone.keyShown("course")
                         width: bar.key; height: parent.height
                         text: modelData
                         accent: (w.check.course ?? 1) === modelData
@@ -131,11 +137,11 @@ Item {
                 }
             }
             WidgetKey {
-                visible: w.nextCourse > 0
+                visible: w.nextCourse > 0 && w.zone.keyShown("fire")
                 anchors.right: parent.right
                 width: bar.key * 3.4
                 height: parent.height
-                text: qsTr("Fire Course %1").arg(w.nextCourse)
+                text: w.zone.keyText("fire", qsTr("Fire Course %1").arg(w.nextCourse))
                 baseColor: "#a86a12"
                 fontScale: 0.28
                 onClicked: w.pos.fireCourse()

@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "layoutcontroller.hh"
+#include "editorcontroller.hh"
+#include <QColor>
 #include "app/i18n.hh"
 #include "language.hh"
 #include "pos_fixture.hh"
@@ -665,6 +667,70 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: a widget's own buttons hidden, renamed, restyled; their commands on buttons of your own",
+          "[flow][ui][builtins]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"kitchen"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    REQUIRE(e);
+    e->selectOnly({u"tickets"_s});
+    REQUIRE(e->setField(u"zone"_s, u"props.buttons.recall.hide"_s, true));
+    REQUIRE(e->setField(u"zone"_s, u"props.buttons.allDay.label"_s, u"Everything"_s));
+    REQUIRE(e->setField(u"zone"_s, u"style.normal.keyFill"_s, u"#aa2200"_s));
+    QTest::qWait(150);
+    s.shot("32-inspector");
+    // A button of our own, anywhere: it does what All Day does.
+    const QString mine = e->addZone(u"button"_s);
+    REQUIRE_FALSE(mine.isEmpty());
+    e->selectOnly({mine});
+    e->setActions({QVariantMap{{u"type"_s, u"command"_s}, {u"name"_s, u"kitchenAllDay"_s}}});
+    REQUIRE(s.c.leaveEditMode(true));
+    QTest::qWait(100);
+
+    const auto find = [&](const char *name) {
+        return Screen::findBy(s.window->contentItem(), "objectName", QString::fromLatin1(name));
+    };
+    CHECK_FALSE(find("kdsRecall"));                     // hidden (only shown items are found)
+    QQuickItem *allDay = find("kdsAllDay");
+    REQUIRE(allDay);
+    CHECK(allDay->property("text").toString() == u"Everything"_s);
+    CHECK(allDay->property("color").value<QColor>() == QColor(u"#aa2200"_s));
+    s.shot("31-builtins");
+
+    s.c.activate(mine);
+    QTest::qWait(50);
+    CHECK(find("kdsAllDay")->property("text").toString() == u"Hide All Day"_s);
+
+    // Seats, courses and guests from buttons too.
+    REQUIRE(s.pos.selectTable(u"T3"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    REQUIRE(s.c.jumpTo(u"index-lunch"_s));
+    s.c.enterEditMode();
+    e = s.c.editor();
+    const auto button = [&](const char *command) {
+        const QString id = e->addZone(u"button"_s);
+        e->selectOnly({id});
+        e->setActions({QVariantMap{{u"type"_s, u"command"_s}, {u"name"_s, QString::fromLatin1(command)}}});
+        return id;
+    };
+    const QString seat = button("seatNext"), course = button("courseNext"), guests = button("guestsMore");
+    REQUIRE(s.c.leaveEditMode(true));
+    s.c.activate(seat);
+    s.c.activate(seat);
+    QTest::qWait(30);
+    CHECK(s.pos.checkInfo()[u"seat"_s] == 2);
+    s.c.activate(course);
+    QTest::qWait(30);
+    CHECK(s.pos.checkInfo()[u"course"_s] == 2);
+    const int entered = s.pos.property("entryGuests").toInt();   // the guest count page's number
+    s.c.activate(guests);
+    QTest::qWait(30);
+    CHECK(s.pos.property("entryGuests").toInt() == entered + 1);
+}
+
 TEST_CASE("UI: a kitchen screen picks its station; the fries show at the fryer", "[flow][ui][stations]")
 {
     Screen s;
@@ -1268,6 +1334,17 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     REQUIRE(s.pos.setKitchenStation(u"fryer"_s));
     go("kitchen", "m83-station-fryer");
     REQUIRE(s.pos.setKitchenStation(QString()));
+    {   // The kitchen screen's own buttons: red, Recall hidden, All Day renamed.
+        s.c.enterEditMode();
+        EditorController *e = s.c.editor();
+        e->selectOnly({u"tickets"_s});
+        e->setField(u"zone"_s, u"props.buttons.recall.hide"_s, true);
+        e->setField(u"zone"_s, u"props.buttons.allDay.label"_s, u"Everything"_s);
+        e->setField(u"zone"_s, u"style.normal.keyFill"_s, u"#aa2200"_s);
+        QTest::qWait(150);
+        snap("m84-builtins");
+        REQUIRE(s.c.leaveEditMode(false));
+    }
     s.c.setScreenSaverForTesting(100);
     QTest::qWait(300);
     snap("m82-screen-saver");

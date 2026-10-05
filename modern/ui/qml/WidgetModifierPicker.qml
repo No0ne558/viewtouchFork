@@ -89,12 +89,14 @@ Item {
     Row {
         id: buttons
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 16 }
-        height: w.unit * 2.6
+        readonly property int shown: (w.zone.keyShown("cancel") ? 1 : 0) + (w.zone.keyShown("done") ? 1 : 0)
+        height: shown > 0 ? w.unit * 2.6 : 0
         spacing: w.unit * 0.4
         WidgetKey {
-            width: (parent.width - parent.spacing) / 2
+            width: (parent.width - parent.spacing * (buttons.shown - 1)) / Math.max(1, buttons.shown)
             height: parent.height
-            text: qsTr("Cancel Item")
+            visible: w.zone.keyShown("cancel")
+            text: w.zone.keyText("cancel", qsTr("Cancel Item"))
             baseColor: "#5a2a2a"
             fontScale: 0.32
             onClicked: {
@@ -103,9 +105,10 @@ Item {
             }
         }
         WidgetKey {
-            width: (parent.width - parent.spacing) / 2
+            width: (parent.width - parent.spacing * (buttons.shown - 1)) / Math.max(1, buttons.shown)
             height: parent.height
-            text: qsTr("Done")
+            visible: w.zone.keyShown("done")
+            text: w.zone.keyText("done", qsTr("Done"))
             accent: true
             fontScale: 0.32
             // Back only once the required choices are made.

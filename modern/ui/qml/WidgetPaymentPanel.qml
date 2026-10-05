@@ -118,13 +118,13 @@ Item {
 
         // Tips go on card payments: percentages, or the keypad amount.
         RowLayout {
-            visible: w.totals.hasCard ?? false
+            visible: (w.totals.hasCard ?? false) && w.zone.keyShown("tips")
             Layout.fillWidth: true
             Layout.preferredHeight: w.unit * 2.4
             Layout.fillHeight: false   // nested layouts fill by default
             spacing: w.unit * 0.3
             Text {
-                text: qsTr("Tip")
+                text: w.zone.keyText("tips", qsTr("Tip"))
                 color: w.ink
                 font.family: w.face
                 font.pixelSize: w.unit
@@ -149,11 +149,11 @@ Item {
             }
         }
         WidgetKey {
-            visible: w.pos && w.pos.hasCheck
+            visible: w.pos && w.pos.hasCheck && w.zone.keyShown("gratuity")
             Layout.fillWidth: true
             Layout.preferredHeight: w.unit * 2
-            text: (w.totals.hasGratuity ?? false) ? qsTr("Remove gratuity") : qsTr("Add %1% gratuity").arg(w.totals.storeGratuityPercent ?? 18)
-            baseColor: "#2d3440"
+            text: (w.totals.hasGratuity ?? false) ? qsTr("Remove gratuity")
+                : w.zone.keyText("gratuity", qsTr("Add %1% gratuity").arg(w.totals.storeGratuityPercent ?? 18))
             fontScale: 0.4
             onClicked: w.pos.setGratuity((w.totals.hasGratuity ?? false) ? 0 : (w.totals.storeGratuityPercent ?? 18))
         }

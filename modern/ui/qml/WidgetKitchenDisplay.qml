@@ -55,6 +55,17 @@ Item {
 
     Timer { id: disarmExpo; interval: 3000; onTriggered: w.armed = null }
 
+    // The same from buttons placed anywhere on the page.
+    Connections {
+        target: w.zone ? w.zone.controller : null
+        function onWidgetCommand(name) {
+            if (name === "kitchenAllDay")
+                w.showAllDay = !w.showAllDay
+            else if (name === "kitchenStation" && !w.expo && w.stations.length > 0)
+                w.nextStation()
+        }
+    }
+
     Timer {
         interval: 1000
         running: true
@@ -103,31 +114,36 @@ Item {
             }
             WidgetKey {
                 objectName: "kdsStation"
-                visible: !w.expo && w.stations.length > 0
+                visible: !w.expo && w.stations.length > 0 && w.zone.keyShown("station")
                 Layout.preferredWidth: 240
                 Layout.fillHeight: true
-                text: qsTr("Station…")
+                text: w.zone.keyText("station", qsTr("Station…"))
                 fontScale: 0.4
                 onClicked: w.nextStation()
             }
             WidgetKey {
+                visible: w.zone.keyShown("message")
                 Layout.preferredWidth: 240
                 Layout.fillHeight: true
-                text: qsTr("Message…")
+                text: w.zone.keyText("message", qsTr("Message…"))
                 fontScale: 0.4
                 onClicked: w.zone.controller.jumpTo("message")
             }
             WidgetKey {
+                objectName: "kdsAllDay"
+                visible: w.zone.keyShown("allDay")
                 Layout.preferredWidth: 240
                 Layout.fillHeight: true
-                text: w.showAllDay ? qsTr("Hide All Day") : qsTr("All Day")
+                text: w.showAllDay ? qsTr("Hide All Day") : w.zone.keyText("allDay", qsTr("All Day"))
                 fontScale: 0.4
                 onClicked: w.showAllDay = !w.showAllDay
             }
             WidgetKey {
+                objectName: "kdsRecall"
+                visible: w.zone.keyShown("recall")
                 Layout.preferredWidth: 240
                 Layout.fillHeight: true
-                text: qsTr("Recall")
+                text: w.zone.keyText("recall", qsTr("Recall"))
                 fontScale: 0.4
                 onClicked: w.expo ? w.pos.expoRecall() : w.pos.recallTicket()
             }

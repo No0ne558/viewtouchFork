@@ -81,8 +81,8 @@ Item {
             WidgetKey {
                 Layout.preferredWidth: w.unit * 8
                 Layout.preferredHeight: Math.max(w.unit * 2, w.zone ? w.zone.touch(46) : 0)
-                text: qsTr("Back Up Now")
-                baseColor: "#343c49"
+                visible: w.zone.keyShown("backup")
+                text: w.zone.keyText("backup", qsTr("Back Up Now"))
                 fontScale: 0.3
                 onClicked: w.pos.backupNow()
             }

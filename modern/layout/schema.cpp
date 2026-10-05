@@ -1,6 +1,8 @@
 #include "layout/schema.hh"
 
+#include <QHash>
 #include <QJsonObject>
+#include <QList>
 
 using namespace Qt::StringLiterals;
 
@@ -97,7 +99,89 @@ void appendStyleGroups(QJsonArray &out, const QString &prefix, bool allStates)
     }
 }
 
+// Settings of each widget (its props), in the inspector's "Settings" section.
+QJsonArray widgetSettings(const QString &kind)
+{
+    const QString g = u"Settings"_s;
+    QJsonArray out;
+    auto hint = [](QJsonObject f, const QString &h) { return with(std::move(f), u"hint"_s, h); };
+    if (kind == u"kitchenDisplay") {
+        out.append(hint(with(field(u"props.mode"_s, u"Shows"_s, u"enum"_s, g), u"options"_s,
+                             options({{"", "A station's orders"}, {"expo", "The expediter (every station)"}})),
+                        u"The expediter sees what each station has made and sends orders out."_s));
+        out.append(hint(field(u"props.station"_s, u"Station"_s, u"string"_s, g),
+                        u"A printer (kitchen, bar) or a kitchen station id (grill, fryer). Empty: everything. "
+                        u"The screen's Station button can pick another."_s));
+    } else if (kind == u"checkList") {
+        out.append(with(field(u"props.mode"_s, u"Lists"_s, u"enum"_s, g), u"options"_s,
+                        options({{"", "Open checks (touch to open)"}, {"tabs", "Bar tabs"},
+                                 {"merge", "Checks to merge into this one"}, {"closed", "Today's closed checks (reopen)"}})));
+    } else if (kind == u"tableGrid") {
+        out.append(intField(u"props.columns"_s, u"Columns"_s, g, 1, 12));
+        out.append(with(field(u"props.action"_s, u"Touching a table"_s, u"enum"_s, g), u"options"_s,
+                        options({{"", "Opens it"}, {"move", "Moves this check there"}})));
+    } else if (kind == u"numPad") {
+        out.append(with(field(u"props.mode"_s, u"Enters"_s, u"enum"_s, g), u"options"_s,
+                        options({{"number", "A number"}, {"amount", "Money (with a 00 key)"}})));
+    } else if (kind == u"keyboard") {
+        out.append(hint(field(u"props.placeholder"_s, u"Hint text"_s, u"string"_s, g), u"Shown while nothing is typed"_s));
+    } else if (kind == u"reportView") {
+        out.append(with(field(u"props.report"_s, u"Opens on"_s, u"enum"_s, g), u"options"_s,
+                        options({{"sales", "Sales"}, {"items", "Items"}, {"categories", "Categories"},
+                                 {"hourly", "By hour"}, {"servers", "Servers"}, {"tips", "Tips"}, {"labor", "Labor"},
+                                 {"drawer", "Drawer"}, {"expenses", "Expenses"}, {"purchases", "Purchases"},
+                                 {"audit", "Audit"}, {"accounts", "Gift cards"}, {"kitchen", "Kitchen"},
+                                 {"foodcost", "Food cost"}})));
+    } else if (kind == u"adminPanel") {
+        out.append(with(field(u"props.panel"_s, u"Edits"_s, u"enum"_s, g), u"options"_s,
+                        options({{"menu", "Menu"}, {"employees", "Employees"}, {"tenders", "Payment types"},
+                                 {"taxes", "Taxes"}, {"printers", "Printers"}, {"terminals", "Terminals"},
+                                 {"store", "Store settings"}, {"mealPeriods", "Meal periods"},
+                                 {"modifierGroups", "Modifier groups"}, {"inventory", "Inventory"},
+                                 {"promotions", "Promotions"}, {"vendors", "Vendors"}})));
+    }
+    return out;
+}
+
+// The look of a widget's own buttons: inherited like any style (zone ->
+// page -> theme), under keys of their own in the normal state.
+void appendKeyStyleFields(QJsonArray &out)
+{
+    const QString g = u"Built-in button look"_s;
+    const QString p = u"style.normal."_s;
+    auto inh = [](QJsonObject f) { return with(std::move(f), u"inheritable"_s, true); };
+    out.append(inh(field(p + u"keyFill"_s, u"Button color"_s, u"color"_s, g)));
+    out.append(inh(field(p + u"keyTextColor"_s, u"Button text color"_s, u"color"_s, g)));
+    out.append(inh(field(p + u"keyLitFill"_s, u"Pressed / chosen color"_s, u"color"_s, g)));
+    out.append(inh(field(p + u"keyFont"_s, u"Button font"_s, u"font"_s, g)));
+    out.append(inh(intField(p + u"keyRadius"_s, u"Button corner radius"_s, g, 0, 60)));
+}
+
 } // namespace
+
+QList<BuiltIn> builtInButtons(const QString &kind)
+{
+    static const QHash<QString, QList<BuiltIn>> buttons = {
+        {u"kitchenDisplay"_s, {{u"station"_s, u"Station…"_s, u"kitchenStation"_s},
+                               {u"message"_s, u"Message…"_s, QString()},
+                               {u"allDay"_s, u"All Day"_s, u"kitchenAllDay"_s},
+                               {u"recall"_s, u"Recall"_s, u"recallTicket"_s}}},
+        {u"orderList"_s, {{u"seat"_s, u"Seat − / +"_s, u"seatNext"_s},
+                          {u"course"_s, u"Course 1 2 3"_s, u"courseNext"_s},
+                          {u"fire"_s, u"Fire Course"_s, u"fireCourse"_s}}},
+        {u"paymentPanel"_s, {{u"tips"_s, u"Tip buttons"_s, u"addTip"_s},
+                             {u"gratuity"_s, u"Gratuity"_s, u"gratuity"_s}}},
+        {u"modifierPicker"_s, {{u"cancel"_s, u"Cancel Item"_s, u"cancelChoosing"_s},
+                               {u"done"_s, u"Done"_s, u"finishChoosing"_s}}},
+        {u"guestCount"_s, {{u"fewer"_s, u"−"_s, u"guestsFewer"_s}, {u"more"_s, u"+"_s, u"guestsMore"_s}}},
+        {u"drawerPanel"_s, {{u"drawer"_s, u"Start / Count Drawer"_s, u"countDrawer"_s},
+                            {u"noSale"_s, u"No Sale"_s, u"noSale"_s},
+                            {u"payOut"_s, u"Pay Out"_s, u"payout"_s},
+                            {u"paidIn"_s, u"Paid In"_s, u"paidIn"_s}}},
+        {u"endOfDay"_s, {{u"backup"_s, u"Back Up Now"_s, u"backupNow"_s}}},
+    };
+    return buttons.value(kind);
+}
 
 QStringList basicKinds()
 {
@@ -175,6 +259,24 @@ QJsonArray zoneFields(const QString &kind)
 
     if (touchable)
         out.append(field(u"actions"_s, u"When touched"_s, u"actions"_s, u"Actions"_s));
+
+    if (isWidgetKind(kind)) {
+        for (const QJsonValue &f : widgetSettings(kind))
+            out.append(f);
+        const QList<BuiltIn> keys = builtInButtons(kind);
+        if (!keys.isEmpty()) {
+            const QString g = u"Built-in buttons"_s;
+            out.append(with(field(u"props.hideButtons"_s, u"Hide all its buttons"_s, u"bool"_s, g), u"hint"_s,
+                            u"Put your own buttons anywhere instead: each has a command that does the same."_s));
+            for (const BuiltIn &b : keys) {
+                out.append(with(field(u"props.buttons."_s + b.id + u".hide"_s, u"Hide “%1”"_s.arg(b.label), u"bool"_s, g),
+                                u"hint"_s, b.command.isEmpty() ? QString() : u"Command: %1"_s.arg(b.command)));
+                out.append(with(field(u"props.buttons."_s + b.id + u".label"_s, u"“%1” says"_s.arg(b.label),
+                                      u"string"_s, g), u"hint"_s, u"Empty: the usual words"_s));
+            }
+        }
+        appendKeyStyleFields(out);
+    }
 
     appendStyleGroups(out, u"style."_s, touchable);
     return out;
@@ -282,6 +384,12 @@ QJsonArray actionTypes()
         {"toggleTraining", "Practice mode on / off for this screen (manager)"},
         {"selfOrder", "Make this screen a self-order kiosk for guests (manager)"},
         {"rush", "Rush this check (kitchen does it first)"}, {"vip", "Mark this check VIP"}, {"clearText", "Clear typed text"}, {"recallTicket", "Recall kitchen ticket"},
+        {"openTab", "Open a bar tab (the name typed)"},
+        {"kitchenStation", "Kitchen screen: next station"}, {"kitchenAllDay", "Kitchen screen: show / hide All Day"},
+        {"expoRecall", "Expediter: bring back the last order sent out"},
+        {"seatNext", "Next seat"}, {"seatPrev", "Previous seat"}, {"courseNext", "Next course"},
+        {"fireCourse", "Fire the next course"}, {"cancelChoosing", "Cancel the item being chosen"},
+        {"finishChoosing", "Done choosing"}, {"guestsMore", "One more guest"}, {"guestsFewer", "One fewer guest"},
                             {"startDelivery", "Start delivery"}}))}),
     };
 }

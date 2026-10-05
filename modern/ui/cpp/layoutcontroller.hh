@@ -155,6 +155,8 @@ signals:
     void statusChanged();
     void editingChanged();
     void asleepChanged();
+    // A command for the widgets on the page (kitchenStation, kitchenAllDay...).
+    void widgetCommand(const QString &name, const QVariantMap &args);
     void editorChanged();
     void posChanged();
     void busyChanged();
