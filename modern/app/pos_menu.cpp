@@ -121,6 +121,13 @@ bool PosService::chooseOption(const QString &groupId, int index)
         m.group = g->id;
         m.kitchenName = o.kitchenName;
         m.kitchenHide = o.kitchenHide;
+        // A combo's part goes on the combo's ticket only if it is made there
+        // too: a drink poured at the counter (or the bar) isn't the kitchen's.
+        if (linked) {
+            const auto where = [](const std::string &p) { return p.empty() ? std::string("kitchen") : p; };
+            if (linked->kitchenHide || where(linked->printer) != where(l->printer))
+                m.kitchenHide = true;
+        }
         // Keep the group's choices together, in the order of the groups.
         l->modifiers.push_back(m);
     }

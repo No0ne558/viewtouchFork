@@ -2,6 +2,8 @@
 
 #include "app/pos_json.hh"
 #include "pos_fixture.hh"
+#include "print/document.hh"
+#include "print/tickets.hh"
 #include "qt_catch.hh"
 #include "storage/async_writer.hh"
 #include "storage/pos_store.hh"
@@ -92,8 +94,23 @@ TEST_CASE("Combos: a side and a drink from the menu, their stock, sold out, the 
     CHECK(line.total() == Money::fromCents(1695 + 30));
     CHECK(line.modifiers[1].itemId == "fries");
     CHECK(line.modifiers[2].itemId == "lemonade");
+    CHECK_FALSE(line.modifiers[1].kitchenHide);          // the fries are made in the kitchen
+    CHECK(line.modifiers[2].kitchenHide);                 // the lemonade isn't
 
     REQUIRE(pos.sendOrder());
+    QStringList made;
+    for (const QVariant &l : pos.kitchenTickets().last().toMap()[u"lines"_s].toList())
+        made << l.toMap()[u"modifiers"_s].toStringList();
+    CHECK(made.join(u'|').contains(u"Fries"_s));
+    CHECK_FALSE(made.join(u'|').contains(u"Lemonade"_s));
+    {
+        const core::Check &c = pos.shared()->open.begin()->second;
+        print::TicketContext ctx{pos.shared()->settings, [](std::int64_t) { return std::string("1/1"); },
+                                 [](std::int64_t) { return std::string("12:00"); }, 0};
+        const std::string ticket = print::renderText(print::kitchenTicket(c, c.lines, "Kitchen", false, ctx), 42);
+        CHECK(ticket.find("Fries") != std::string::npos);
+        CHECK(ticket.find("Lemonade") == std::string::npos);
+    }
     CHECK(onHand(pos, "bun") == buns - 1);               // the burger's own recipe
     CHECK(onHand(pos, "potatoes") == potatoes - 6);      // and the fries'
 

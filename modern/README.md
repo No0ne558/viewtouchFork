@@ -191,7 +191,7 @@ On the takeout or delivery customer page (or Check… on any order), **Ready Lat
 
 ## Combos
 
-A combo is a menu item whose choices are other menu items. In Manager → Modifier Groups, turn on **Options are menu items** and list items by name ("Soda", "Fries + 0.00", "Draft Beer + 3.00"). Then give the combo item those groups. Its side and drink use up their own stock, can't be chosen while sold out, and are counted on the Items report under *Chosen with other items*. The demo's **Burger Combo** ($16.95) asks for the temperature, a side and a drink.
+A combo is a menu item whose choices are other menu items. In Manager → Modifier Groups, turn on **Options are menu items** and list items by name ("Soda", "Fries + 0.00", "Draft Beer + 3.00"). Then give the combo item those groups. Its side and drink use up their own stock, can't be chosen while sold out, and are counted on the Items report under *Chosen with other items*. Only parts made where the combo is made go on its ticket: a drink whose menu item goes to the bar (or nowhere) is left off the kitchen ticket and screen. The demo's **Burger Combo** ($16.95) asks for the temperature, a side and a drink.
 
 ## Bar tabs
 
