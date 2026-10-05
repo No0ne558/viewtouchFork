@@ -35,6 +35,7 @@ public:
         StyleDisabledRole,
         PropsRole,
         SoldOutRole,   // orders an item that is 86'd
+        ShowWhenRole,  // show/hide rules (zone "showWhen"): see ZoneItem.qml
     };
 
     using Row = QHash<int, QVariant>;

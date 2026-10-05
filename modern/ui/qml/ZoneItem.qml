@@ -23,6 +23,7 @@ Item {
     required property var styleDisabled
     required property var props
     required property bool soldOut   // its item is 86'd: shown, not orderable
+    required property var showWhen   // show/hide rules (LayoutController::ruleShows does the same)
 
     // POS session and controller, for widgets.
     // Screen pixels per canvas unit (the page is scaled to fit the screen).
@@ -66,6 +67,64 @@ Item {
     signal selectRequested()
 
     readonly property bool isWidget: !["button", "label", "image", "comment"].includes(kind)
+
+    // Live text in a label: {check.total}, {user.name}, {time}... filled in
+    // and kept up to date. Unknown names stay as typed.
+    property date now: new Date()
+    Timer {
+        interval: 15000
+        repeat: true
+        running: zone.label.indexOf("{time}") >= 0 || zone.label.indexOf("{date}") >= 0
+        onTriggered: zone.now = new Date()
+    }
+    function fill(text) {
+        if (text.indexOf("{") < 0)
+            return text
+        const p = pos
+        const c = p ? p.check : ({})
+        const t = p && p.hasCheck ? p.totals : ({})
+        const values = {
+            "store.name": p ? p.storeName : "",
+            "user.name": p ? p.userName : "",
+            "user.role": p ? p.userRole : "",
+            "terminal": p ? p.terminalName : "",
+            "check.label": c.label ?? "",
+            "check.number": c.id ?? "",
+            "check.server": c.server ?? "",
+            "check.guests": c.guests ?? "",
+            "check.customer": c.customer ? c.customer.name : "",
+            "check.due": c.due ?? "",
+            "check.items": p && p.hasCheck ? p.lines.length : "",
+            "check.subtotal": t.subtotal ?? "",
+            "check.tax": t.tax ?? "",
+            "check.total": t.total ?? "",
+            "check.balance": t.balance ?? "",
+            "entry": p ? p.entryAmount : "",
+            "typed": p ? p.textEntry : "",
+            "time": Qt.formatTime(zone.now, "h:mm AP"),
+            "date": Qt.locale().toString(zone.now, "ddd MMM d"),
+            "mealPeriod": controller ? controller.mealPeriod : "",
+        }
+        return text.replace(/\{([a-zA-Z.]+)\}/g, (m, k) => k in values ? String(values[k]) : m)
+    }
+
+    // Its "Show only when" rules hold now.
+    readonly property bool ruleShows: {
+        const r = showWhen
+        if (!r || Object.keys(r).length === 0) return true
+        const p = pos
+        const loggedIn = !!p && p.loggedIn
+        if (r.login === "loggedIn" && !loggedIn) return false
+        if (r.login === "loggedOut" && loggedIn) return false
+        if (r.login === "manager" && !(p && p.permissions.includes("manager"))) return false
+        const open = !!p && p.hasCheck
+        if (r.check === "open" && !open) return false
+        if (r.check === "none" && open) return false
+        if (r.checkType && (!open || p.check.type !== r.checkType)) return false
+        if (r.mealPeriod && (!controller || controller.mealPeriod !== r.mealPeriod)) return false
+        if (r.screen && (!controller || controller.formFactor !== r.screen)) return false
+        return true
+    }
     // Widgets with a working implementation (Widget<Kind>.qml); the rest
     // show a placeholder until their milestone.
     readonly property var builtWidgets: ["table", "tableGrid", "staffPicker", "checkHistory", "modifierPicker",
@@ -90,9 +149,10 @@ Item {
     y: previewRect ? previewRect.y : zoneY + (editSelected ? dragDY : 0)
     width: previewRect ? previewRect.w : zoneW
     height: previewRect ? previewRect.h : zoneH
-    visible: kind !== "comment" || editing   // notes are for the editor only
-    // Template zones are dimmed while editing: they belong to another page.
-    opacity: (st.opacity ?? 1) * (editing && inherited ? 0.45 : 1)
+    visible: (kind !== "comment" || editing) && (ruleShows || editing)   // notes are for the editor only
+    // Template zones are dimmed while editing: they belong to another page;
+    // so are zones whose rules hide them right now.
+    opacity: (st.opacity ?? 1) * (editing && (inherited || !ruleShows) ? 0.45 : 1)
 
     ZoneShape {
         anchors.fill: parent
@@ -115,7 +175,9 @@ Item {
         id: caption
         visible: text !== "" && !zone.hasWidget
         // Page text is translated too (i18n/<lang>.json, or the store's own phrases).
-        text: zone.isWidget ? zone.kind + (zone.label ? "\n" + zone.label : "") : qsTranslate("Page", zone.label)
+        text: zone.isWidget ? zone.kind + (zone.label ? "\n" + zone.label : "")
+            : zone.editing ? qsTranslate("Page", zone.label)   // the editor shows {check.total} as typed
+            : zone.fill(qsTranslate("Page", zone.label))
         anchors.fill: parent
         anchors.margins: (zone.st.frameWidth ?? 3) + 8
         anchors.topMargin: picture.visible ? parent.height * 0.7 : anchors.margins

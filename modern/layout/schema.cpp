@@ -233,7 +233,10 @@ QJsonArray zoneFields(const QString &kind)
                         u"Shown while the table is free. 0 hides it."_s));
     } else {
         out.append(with(field(u"label"_s, kind == u"comment" ? u"Note"_s : u"Text"_s, u"text"_s, general),
-                        u"hint"_s, isWidgetKind(kind) ? u"Optional caption"_s : QString()));
+                        u"hint"_s, isWidgetKind(kind) ? u"Optional caption"_s
+                                   : kind == u"comment" ? QString()
+                                   : u"Live text: {check.total} {check.balance} {check.label} {check.guests} "
+                                     u"{check.items} {check.due} {user.name} {store.name} {time} {date}…"_s));
     }
     out.append(with(field(u"name"_s, u"Name"_s, u"string"_s, general), u"hint"_s, u"For your reference only"_s));
     if (touchable) {
@@ -249,6 +252,22 @@ QJsonArray zoneFields(const QString &kind)
     } else if (kind != u"comment" && kind != u"label") {
         out.append(with(field(u"shape"_s, u"Shape"_s, u"enum"_s, general), u"options"_s, kShapes));
     }
+
+    // Show/hide rules: the zone is on the page only while all of these hold.
+    const QString when = u"Show only when"_s;
+    out.append(with(with(field(u"showWhen.login"_s, u"Who"_s, u"enum"_s, when), u"options"_s,
+                         options({{"", "Always"}, {"loggedIn", "Someone is logged in"},
+                                  {"loggedOut", "Nobody is logged in"}, {"manager", "A manager is logged in"}})),
+                    u"hint"_s, u"In edit mode every zone shows (dimmed when its rules hide it now)."_s));
+    out.append(with(field(u"showWhen.check"_s, u"Check"_s, u"enum"_s, when), u"options"_s,
+                    options({{"", "Either way"}, {"open", "A check is open"}, {"none", "No check is open"}})));
+    out.append(with(field(u"showWhen.checkType"_s, u"Kind of check"_s, u"enum"_s, when), u"options"_s,
+                    options({{"", "Any"}, {"dineIn", "Dine in"}, {"takeout", "Takeout"}, {"delivery", "Delivery"},
+                             {"tab", "Bar tab"}, {"quick", "Quick order"}})));
+    out.append(with(field(u"showWhen.mealPeriod"_s, u"Meal period"_s, u"enum"_s, when), u"options"_s,
+                    options({{"", "Any time"}, {"breakfast", "Breakfast"}, {"lunch", "Lunch"}, {"dinner", "Dinner"}})));
+    out.append(with(field(u"showWhen.screen"_s, u"Screen"_s, u"enum"_s, when), u"options"_s,
+                    options({{"", "Any"}, {"standard", "Standard screens"}, {"phone", "Phones"}})));
 
     const QString geo = u"Position and size"_s;
     out.append(intField(u"rect.x"_s, u"X"_s, geo, 0, 7680));

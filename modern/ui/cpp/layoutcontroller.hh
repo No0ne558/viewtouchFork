@@ -49,6 +49,8 @@ class LayoutController : public QObject {
     // "phone": phone versions of pages (and phone-sized layouts) are shown;
     // "standard": pages as designed.
     Q_PROPERTY(QString formFactor READ formFactor NOTIFY formFactorChanged)
+    // Breakfast, lunch, dinner... now (zones can show only during one).
+    Q_PROPERTY(QString mealPeriod READ mealPeriod NOTIFY mealPeriodChanged)
 
 public:
     // Persists a layout; false (with a message) when it could not.
@@ -102,6 +104,9 @@ public:
     static QString mealPeriodAt(const QVariantList &periods, QTime time);
 
     QString formFactor() const { return formFactor_; }
+    QString mealPeriod() const { return nav_.mealPeriod(); }
+    // A zone's "showWhen" rules hold now (login, check, check type, meal period, screen).
+    bool ruleShows(const QJsonObject &rule) const;
     // Force "phone" or "standard" (command line); empty: the terminal's
     // setting, else automatic.
     void setFormFactorOverride(const QString &formFactor);
@@ -155,6 +160,7 @@ signals:
     void statusChanged();
     void editingChanged();
     void asleepChanged();
+    void mealPeriodChanged();
     // A command for the widgets on the page (kitchenStation, kitchenAllDay...).
     void widgetCommand(const QString &name, const QVariantMap &args);
     void editorChanged();

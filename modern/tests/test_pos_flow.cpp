@@ -667,6 +667,58 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: zones shown only when their rules hold; live text in labels", "[flow][ui][rules]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));               // a manager arranges the page
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    const auto add = [&](const QString &label, const QString &rule, const QString &value) {
+        const QString id = e->addZone(u"button"_s);
+        e->selectOnly({id});
+        REQUIRE(e->setField(u"zone"_s, u"label"_s, label));
+        if (!rule.isEmpty())
+            REQUIRE(e->setField(u"zone"_s, u"showWhen."_s + rule, value));
+        return id;
+    };
+    const QString due = add(u"Due {check.balance} · {user.name}"_s, u"check"_s, u"open"_s);
+    const QString boss = add(u"Boss Button"_s, u"login"_s, u"manager"_s);
+    REQUIRE(e->setField(u"zone"_s, u"hotkey"_s, u"m"_s));
+    const QString lunch = add(u"Lunch Special"_s, u"mealPeriod"_s, u"lunch"_s);
+    const QString takeout = add(u"Takeout {check.label}"_s, u"checkType"_s, u"takeout"_s);
+    REQUIRE(s.c.leaveEditMode(true));
+    s.c.setMealPeriod(u"lunch"_s);
+    QTest::qWait(60);
+
+    const auto shown = [&](const QString &text) {
+        return Screen::findBy(s.window->contentItem(), "text", text) != nullptr;
+    };
+    CHECK(shown(u"Boss Button"_s));
+    CHECK(shown(u"Lunch Special"_s));
+    CHECK_FALSE(shown(u"Due  · Morgan (Manager)"_s));   // no check open
+
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));                // Sam, a server
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    QTest::qWait(60);
+    CHECK_FALSE(shown(u"Boss Button"_s));
+    CHECK_FALSE(s.c.triggerHotkey(u"m"_s));                 // hidden: its key does nothing either
+
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    s.pos.addItem(u"cobb"_s);
+    QTest::qWait(60);
+    const QString balance = s.pos.totals()[u"balance"_s].toString();
+    CHECK(shown(u"Due %1 · Sam"_s.arg(balance)));
+    CHECK(shown(u"Takeout %1"_s.arg(s.pos.checkInfo()[u"label"_s].toString())));
+    s.shot("33-rules");
+
+    s.c.setMealPeriod(u"dinner"_s);
+    QTest::qWait(30);
+    CHECK_FALSE(shown(u"Lunch Special"_s));
+    Q_UNUSED(due); Q_UNUSED(boss); Q_UNUSED(lunch); Q_UNUSED(takeout);
+}
+
 TEST_CASE("UI: a widget's own buttons hidden, renamed, restyled; their commands on buttons of your own",
           "[flow][ui][builtins]")
 {

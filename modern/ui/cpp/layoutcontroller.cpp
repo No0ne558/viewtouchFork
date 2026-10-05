@@ -172,6 +172,7 @@ void LayoutController::setMealPeriod(const QString &period)
 {
     mealPeriodFixed_ = true;
     nav_.setMealPeriod(period);
+    emit mealPeriodChanged();
 }
 
 void LayoutController::updateMealPeriod()
@@ -179,7 +180,10 @@ void LayoutController::updateMealPeriod()
     if (mealPeriodFixed_)
         return;
     const QTime now = QTime::currentTime();
+    const QString before = nav_.mealPeriod();
     nav_.setMealPeriod(pos_ ? mealPeriodAt(pos_->mealPeriods(), now) : mealPeriodAt(now));
+    if (nav_.mealPeriod() != before)
+        emit mealPeriodChanged();
 }
 
 void LayoutController::setStore(vt::storage::LayoutStore *store)
@@ -569,6 +573,30 @@ bool LayoutController::showPage(const QString &pageId)
     return navigate(Navigator::Mode::Replace, pageId) || nav_.current() == pageId;
 }
 
+// A zone's show/hide rules (its "showWhen"), as ZoneItem.qml applies them.
+bool LayoutController::ruleShows(const QJsonObject &rule) const
+{
+    if (rule.isEmpty())
+        return true;
+    const QString login = rule.value(u"login").toString();
+    const bool in = pos_ && pos_->loggedIn();
+    if ((login == u"loggedIn" && !in) || (login == u"loggedOut" && in)
+        || (login == u"manager" && !(pos_ && pos_->can(QString::fromLatin1(vt::core::perm::Manager)))))
+        return false;
+    const QString check = rule.value(u"check").toString();
+    const bool open = pos_ && pos_->hasCheck();
+    if ((check == u"open" && !open) || (check == u"none" && open))
+        return false;
+    const QString type = rule.value(u"checkType").toString();
+    if (!type.isEmpty() && (!open || pos_->checkInfo().value(u"type"_s).toString() != type))
+        return false;
+    const QString period = rule.value(u"mealPeriod").toString();
+    if (!period.isEmpty() && period != mealPeriod())
+        return false;
+    const QString screen = rule.value(u"screen").toString();
+    return screen.isEmpty() || screen == formFactor();
+}
+
 bool LayoutController::triggerHotkey(const QString &key)
 {
     if (key.isEmpty() || editing())
@@ -576,7 +604,8 @@ bool LayoutController::triggerHotkey(const QString &key)
     const auto zones = shown().zones;
     // Topmost zone wins, matching touch order.
     for (auto it = zones.rbegin(); it != zones.rend(); ++it) {
-        if (it->zone->enabled && it->zone->hotkey.compare(key, Qt::CaseInsensitive) == 0) {
+        if (it->zone->enabled && it->zone->hotkey.compare(key, Qt::CaseInsensitive) == 0
+            && ruleShows(it->zone->extra.value(u"showWhen").toObject())) {
             activate(it->zone->id);
             return true;
         }
@@ -906,6 +935,7 @@ void LayoutController::refresh()
             {ZoneModel::StyleDisabledRole, l.resolveStyle(z, stylePage, ZoneState::Disabled).toVariantMap()},
             {ZoneModel::PropsRole, z.props.toVariantMap()},
             {ZoneModel::SoldOutRole, soldOut},
+            {ZoneModel::ShowWhenRole, z.extra.value(u"showWhen").toObject().toVariantMap()},
         });
     }
     zones_.setRows(std::move(rows));
