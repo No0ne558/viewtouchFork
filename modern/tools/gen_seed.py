@@ -129,7 +129,20 @@ INGREDIENTS = [
     ("potatoes", "Fries (potatoes)", "oz", 400, 80, 0.05),
     ("onions", "Onion Rings", "each", 120, 30, 0.08),
 ]
-write("pos/ingredients.json", [{"id": i, "name": n, "unit": u, "onHand": h, "lowAt": lo, "cost": c}
+# Who delivers what (Manager -> Vendors; Inventory -> Receive a Delivery).
+VENDORS = [
+    {"id": "valley-foods", "name": "Valley Foods", "phone": "555-0140", "account": "VT-2210",
+     "note": "Meat, cheese, eggs, dry goods. Delivers Tue and Fri; order by noon the day before."},
+    {"id": "green-farms", "name": "Green Farms Produce", "phone": "555-0172", "account": "GF-881",
+     "note": "Produce, daily except Sunday."},
+    {"id": "city-bakery", "name": "City Bakery", "phone": "555-0119", "account": "",
+     "note": "Buns and bread every morning before 8."},
+]
+VENDOR_OF = {"bun": "city-bakery", "bread": "city-bakery",
+             "lettuce": "green-farms", "romaine": "green-farms", "mushrooms": "green-farms", "potatoes": "green-farms",
+             "onions": "green-farms"}
+write("pos/ingredients.json", [{"id": i, "name": n, "unit": u, "onHand": h, "lowAt": lo, "cost": c,
+                                "vendor": VENDOR_OF.get(i, "valley-foods")}
                                for i, n, u, h, lo, c in INGREDIENTS], versioned=False)
 RECIPES = {
     "classic-burger": [("bun", 1), ("patty", 1), ("lettuce", 0.5)],
@@ -179,6 +192,7 @@ write("pos/employees.json", [
 ], versioned=False)
 
 write("pos/settings.json", {
+    "vendors": VENDORS,
     "storeName": "ViewTouch Café",
     "currencySymbol": "$",
     "autoLogoutMinutes": 3,
@@ -285,7 +299,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -615,12 +629,24 @@ for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees
                          ("admin-meal-periods", "Meal Periods", "mealPeriods"),
                          ("admin-modifier-groups", "Modifier Groups", "modifierGroups"),
                          ("admin-inventory", "Inventory", "inventory"),
+                         ("admin-vendors", "Vendors", "vendors"),
                          ("admin-promotions", "Promotions", "promotions")]:
+    # Inventory: vendors, and receiving what they deliver.
+    extra = [zone("vendors", 1008, 944, 432, 120, "Vendors…", actions=[command("openAdmin", panel="vendors")]),
+             zone("receive", 1472, 944, 432, 120, "Receive a Delivery…", actions=[jump(page="receive-delivery")],
+                  style=fill(GREEN))] if panel == "inventory" else []
     page(pid, name, "manager", [
         label("title", 16, 16, 1888, 80, name),
         zone("editor", 16, 112, 1888, 816, kind="adminPanel", props={"panel": panel}),
         zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
+        *extra,
     ], permission="manager")
+
+page("receive-delivery", "Receive a Delivery", "manager", [
+    label("title", 16, 16, 1888, 80, "Receive a delivery"),
+    zone("receive", 16, 112, 1888, 816, kind="receiveDelivery"),
+    zone("back", 16, 944, 432, 120, "‹ Inventory", actions=[jump(mode="back")]),
+], permission="manager")
 
 page("factory-reset", "Factory Reset", "manager", [
     label("title", 16, 16, 1888, 80, "Factory reset"),

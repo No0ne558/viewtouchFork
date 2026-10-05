@@ -634,6 +634,13 @@ QJsonObject toJson(const PosSettings &s)
              return QJsonObject{{u"enabled"_s, s.loyaltyEnabled}, {u"pointsPerDollar"_s, s.pointsPerDollar},
                                 {u"rewards"_s, rewards}};
          }()},
+        {u"vendors"_s, [&] {
+             QJsonArray a;
+             for (const Vendor &v : s.vendors)
+                 a.append(QJsonObject{{u"id"_s, qs(v.id)}, {u"name"_s, qs(v.name)}, {u"phone"_s, qs(v.phone)},
+                                      {u"account"_s, qs(v.account)}, {u"note"_s, qs(v.note)}});
+             return a;
+         }()},
         {u"promotions"_s, [&] {
              QJsonArray a;
              for (const PosSettings::Promotion &p : s.promotions) {
@@ -724,6 +731,11 @@ PosSettings settingsFromJson(const QJsonObject &o)
         const QJsonObject r = v.toObject();
         if (r.value(u"points").toInt() > 0)
             s.rewards.push_back({r.value(u"points").toInt(), Money::fromCents(centsFromDecimal(r.value(u"value").toDouble()))});
+    }
+    for (const QJsonValue &v : o.value(u"vendors").toArray()) {
+        const QJsonObject x = v.toObject();
+        s.vendors.push_back({ss(x.value(u"id").toString()), ss(x.value(u"name").toString()), ss(x.value(u"phone").toString()),
+                             ss(x.value(u"account").toString()), ss(x.value(u"note").toString())});
     }
     for (const QJsonValue &v : o.value(u"promotions").toArray()) {
         const QJsonObject p = v.toObject();
@@ -908,7 +920,7 @@ Party partyFromJson(const QJsonObject &o)
 QJsonObject toJson(const Ingredient &i)
 {
     return {{u"id"_s, qs(i.id)}, {u"name"_s, qs(i.name)}, {u"unit"_s, qs(i.unit)}, {u"onHand"_s, i.onHand},
-            {u"lowAt"_s, i.lowAt}, {u"cost"_s, decimalFromCents(i.cost.cents())}};
+            {u"lowAt"_s, i.lowAt}, {u"cost"_s, decimalFromCents(i.cost.cents())}, {u"vendor"_s, qs(i.vendor)}};
 }
 
 Ingredient ingredientFromJson(const QJsonObject &o)
@@ -922,7 +934,37 @@ Ingredient ingredientFromJson(const QJsonObject &o)
     i.onHand = o.value(u"onHand").toDouble();
     i.lowAt = o.value(u"lowAt").toDouble();
     i.cost = Money::fromCents(centsFromDecimal(o.value(u"cost").toDouble()));
+    i.vendor = ss(o.value(u"vendor").toString());
     return i;
+}
+
+QJsonObject toJson(const Delivery &d)
+{
+    QJsonArray lines;
+    for (const Delivery::Line &l : d.lines)
+        lines.append(QJsonObject{{u"ingredientId"_s, qs(l.ingredientId)}, {u"name"_s, qs(l.name)}, {u"unit"_s, qs(l.unit)},
+                                 {u"qty"_s, l.qty}, {u"unitCost"_s, qint64(l.unitCost.cents())}});
+    return {{u"id"_s, qint64(d.id)}, {u"at"_s, qint64(d.at)}, {u"vendorId"_s, qs(d.vendorId)},
+            {u"vendorName"_s, qs(d.vendorName)}, {u"invoice"_s, qs(d.invoice)}, {u"by"_s, qs(d.by)},
+            {u"lines"_s, lines}};
+}
+
+Delivery deliveryFromJson(const QJsonObject &o)
+{
+    Delivery d;
+    d.id = i64(o.value(u"id"));
+    d.at = i64(o.value(u"at"));
+    d.vendorId = ss(o.value(u"vendorId").toString());
+    d.vendorName = ss(o.value(u"vendorName").toString());
+    d.invoice = ss(o.value(u"invoice").toString());
+    d.by = ss(o.value(u"by").toString());
+    for (const QJsonValue &v : o.value(u"lines").toArray()) {
+        const QJsonObject l = v.toObject();
+        d.lines.push_back({ss(l.value(u"ingredientId").toString()), ss(l.value(u"name").toString()),
+                           ss(l.value(u"unit").toString()), l.value(u"qty").toDouble(),
+                           Money::fromCents(i64(l.value(u"unitCost")))});
+    }
+    return d;
 }
 
 std::vector<Ingredient> ingredientsFromJson(const QJsonArray &a)

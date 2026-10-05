@@ -160,9 +160,22 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"days"_s, tr("Days"), u"string"_s, tr("e.g. Mon-Fri, or Tue, or Sat, Sun. Empty: every day.")),
         };
     }
-    if (panel == u"inventory") {
+    if (panel == u"vendors") {
         return {
             field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
+            field(u"phone"_s, tr("Phone"), u"string"_s),
+            field(u"account"_s, tr("Our account number"), u"string"_s),
+            field(u"note"_s, tr("Note"), u"text"_s, tr("Delivery days, the rep, order cut-off…")),
+        };
+    }
+    if (panel == u"inventory") {
+        QVariantList vendorOptions{QVariantMap{{u"value"_s, QString()}, {u"text"_s, tr("(none)")}}};
+        for (const Vendor &v : s_->settings.vendors)
+            vendorOptions.append(QVariantMap{{u"value"_s, qs(v.id)}, {u"text"_s, qs(v.name)}});
+        return {
+            field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
+            with(field(u"vendor"_s, tr("Vendor"), u"enum"_s, tr("Who it usually comes from (Manager -> Vendors).")),
+                 u"options"_s, vendorOptions),
             field(u"unit"_s, tr("Unit"), u"string"_s, tr("each, oz, lb, slice…")),
             field(u"onHand"_s, tr("On hand"), u"number"_s, tr("Count it, or add what was delivered.")),
             field(u"lowAt"_s, tr("Low at"), u"number"_s, tr("Warn when it gets down to this.")),
@@ -478,6 +491,11 @@ QVariantList PosService::adminRecords(const QString &panel)
                            : tr("%1% off").arg(double(p.percentBp) / 100.0))
                     + (p.startMinute != p.endMinute ? u" · "_s + clockText(p.startMinute) + u"-"_s + clockText(p.endMinute) : QString())
                     + (p.active ? QString() : tr(" · off")));
+    } else if (panel == u"vendors") {
+        for (const Vendor &v : s_->settings.vendors)
+            add({{u"id"_s, qs(v.id)}, {u"name"_s, qs(v.name)}, {u"phone"_s, qs(v.phone)}, {u"account"_s, qs(v.account)},
+                 {u"note"_s, qs(v.note)}},
+                qs(v.name), qs(v.phone));
     } else if (panel == u"inventory") {
         for (const Ingredient &g : s_->ingredients)
             add(toJson(g).toVariantMap(), qs(g.name),
@@ -537,7 +555,10 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
         return promotionRecord({});
     if (panel == u"inventory")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"unit"_s, u"each"_s}, {u"onHand"_s, 0.0},
-                {u"lowAt"_s, 0.0}, {u"cost"_s, 0.0}};
+                {u"lowAt"_s, 0.0}, {u"cost"_s, 0.0}, {u"vendor"_s, QString()}};
+    if (panel == u"vendors")
+        return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"phone"_s, QString()}, {u"account"_s, QString()},
+                {u"note"_s, QString()}};
     if (panel == u"printers")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"type"_s, u"network"_s}, {u"host"_s, QString()},
                 {u"port"_s, 9100}, {u"path"_s, QString()}, {u"format"_s, QString()}, {u"width"_s, 42},
@@ -566,6 +587,25 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         ok = saveModifierGroupRecord(index, record);
     } else if (panel == u"promotions") {
         ok = savePromotionRecord(index, record);
+    } else if (panel == u"vendors") {
+        auto &list = s_->settings.vendors;
+        const QString name = record.value(u"name"_s).toString().trimmed();
+        if (name.isEmpty())
+            return fail(tr("The vendor needs a name."));
+        if (index >= int(list.size()))
+            return false;
+        Vendor v{std::string(), ss(name), ss(record.value(u"phone"_s).toString().trimmed()),
+                 ss(record.value(u"account"_s).toString().trimmed()), ss(record.value(u"note"_s).toString().trimmed())};
+        if (index >= 0) {
+            v.id = list[index].id;
+            list[index] = v;
+        } else {
+            const QString wanted = record.value(u"id"_s).toString().trimmed();
+            v.id = ss(uniqueId(wanted.isEmpty() ? name : wanted, list, [](const Vendor &x) { return x.id; }, -1));
+            list.push_back(v);
+        }
+        settingsChanged();
+        ok = true;
     } else if (panel == u"inventory") {
         const QString name = record.value(u"name"_s).toString().trimmed();
         if (name.isEmpty())
@@ -1264,6 +1304,9 @@ bool PosService::adminDelete(const QString &panel, int index)
         emit s_->staffChanged();
     } else if (panel == u"tenders" && index >= 0 && index < int(s_->settings.tenders.size())) {
         s_->settings.tenders.erase(s_->settings.tenders.begin() + index);
+        settingsChanged();
+    } else if (panel == u"vendors" && index >= 0 && index < int(s_->settings.vendors.size())) {
+        s_->settings.vendors.erase(s_->settings.vendors.begin() + index);
         settingsChanged();
     } else if (panel == u"promotions" && index >= 0 && index < int(s_->settings.promotions.size())) {
         s_->settings.promotions.erase(s_->settings.promotions.begin() + index);

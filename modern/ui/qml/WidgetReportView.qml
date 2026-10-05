@@ -17,7 +17,7 @@ Item {
         { id: "categories", label: qsTr("Categories") }, { id: "hourly", label: qsTr("By Hour") },
         { id: "servers", label: qsTr("Servers") }, { id: "tips", label: qsTr("Tips") },
         { id: "labor", label: qsTr("Labor") },
-        { id: "drawer", label: qsTr("Drawer") }, { id: "expenses", label: qsTr("Expenses") }, { id: "audit", label: qsTr("Audit") },
+        { id: "drawer", label: qsTr("Drawer") }, { id: "expenses", label: qsTr("Expenses") }, { id: "purchases", label: qsTr("Purchases") }, { id: "audit", label: qsTr("Audit") },
         { id: "accounts", label: qsTr("Gift Cards") },
         { id: "kitchen", label: qsTr("Kitchen") },
         { id: "foodcost", label: qsTr("Food Cost") },

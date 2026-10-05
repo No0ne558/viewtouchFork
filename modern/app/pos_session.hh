@@ -87,6 +87,10 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantMap kioskMenu READ kioskMenu NOTIFY adminChanged)
     // Clocking in with more than one job: {who, jobs: [{role, name}]}, else empty.
     Q_PROPERTY(QVariantMap clockInJobs READ clockInJobs NOTIFY sessionChanged)
+    // Receiving deliveries (managers): {vendors: [{id, name}], ingredients:
+    // [{id, name, unit, onHand, cost, vendor}], recent: [{when, vendor,
+    // invoice, items, total, by}]}.
+    Q_PROPERTY(QVariantMap receiving READ receiving NOTIFY adminChanged)
     // Manager -> Network: {role: main|single, term, terminals: [{name,
     // address, user, since}], standby: {address, since} | null, printers:
     // [{name, type, where, status: ok|failed|unknown, error, at}]}.
@@ -178,6 +182,7 @@ public:
     virtual QVariantMap selfOrderInfo() const = 0;
     virtual QVariantMap kioskMenu() const = 0;
     virtual QVariantMap clockInJobs() const = 0;
+    virtual QVariantMap receiving() const = 0;
     virtual QVariantMap networkInfo() const = 0;
     virtual bool training() const = 0;
     virtual QStringList soldOut() const = 0;
@@ -255,6 +260,7 @@ public:
     Q_INVOKABLE void leaveSelfOrder(const QString &pin) { invoke(QStringLiteral("leaveSelfOrder"), {pin}); }
     Q_INVOKABLE void clockInAs(const QString &role) { invoke(QStringLiteral("clockInAs"), {role}); }
     Q_INVOKABLE void setExpenseCategory(const QString &category) { invoke(QStringLiteral("setExpenseCategory"), {category}); }
+    Q_INVOKABLE void receiveDelivery(const QVariantMap &delivery) { invoke(QStringLiteral("receiveDelivery"), {delivery}); }
     Q_INVOKABLE void cancelClockIn() { invoke(QStringLiteral("cancelClockIn")); }
     Q_INVOKABLE void kioskStart(bool toGo) { invoke(QStringLiteral("kioskStart"), {toGo}); }
     Q_INVOKABLE void kioskAdd(const QString &itemId) { invoke(QStringLiteral("kioskAdd"), {itemId}); }

@@ -59,6 +59,8 @@ core::GiftCard giftCardFromJson(const QJsonObject &o);
 
 QJsonObject toJson(const core::Shift &s);
 core::Shift shiftFromJson(const QJsonObject &o);
+QJsonObject toJson(const core::Delivery &d);
+core::Delivery deliveryFromJson(const QJsonObject &o);
 
 QJsonObject toJson(const core::Ingredient &i);
 core::Ingredient ingredientFromJson(const QJsonObject &o);

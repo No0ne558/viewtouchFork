@@ -203,3 +203,112 @@ TEST_CASE("Inventory is saved and comes back; starter stock on a new store", "[i
     CHECK(data->ingredients[0].id == "bun");
     CHECK(data->ingredients[0].onHand == seed.ingredients[0].onHand - 1);
 }
+
+TEST_CASE("Vendors, and which vendor each ingredient comes from", "[inventory][vendors]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    CHECK(pos.adminRecords(u"vendors"_s).size() == 3);               // the demo's
+    QVariantMap v = pos.adminNewRecord(u"vendors"_s);
+    v[u"name"_s] = u"Ice House"_s;
+    v[u"phone"_s] = u"555-0101"_s;
+    REQUIRE(pos.adminSave(u"vendors"_s, -1, v));
+    REQUIRE(pos.adminRecords(u"vendors"_s).size() == 4);
+    CHECK(pos.shared()->settings.vendors.back().id == "ice-house");
+    v[u"name"_s] = u""_s;
+    CHECK_FALSE(pos.adminSave(u"vendors"_s, -1, v));                 // needs a name
+
+    // An ingredient's vendor is chosen from them.
+    bool listed = false;
+    for (const QVariant &f : pos.adminFields(u"inventory"_s))
+        if (f.toMap()[u"path"_s] == u"vendor"_s)
+            for (const QVariant &o : f.toMap()[u"options"_s].toList())
+                listed = listed || o.toMap()[u"text"_s] == u"Ice House"_s;
+    CHECK(listed);
+    const int bun = indexOf(pos, "bun");
+    QVariantMap r = pos.adminRecords(u"inventory"_s)[bun].toMap();
+    CHECK(r[u"vendor"_s] == u"city-bakery"_s);
+    r[u"vendor"_s] = u"valley-foods"_s;
+    REQUIRE(pos.adminSave(u"inventory"_s, bun, r));
+    CHECK(pos.shared()->ingredient("bun")->vendor == "valley-foods");
+
+    REQUIRE(pos.adminDelete(u"vendors"_s, 3));
+    CHECK(pos.adminRecords(u"vendors"_s).size() == 3);
+}
+
+TEST_CASE("Receiving a delivery: stock up, costs updated, kept for Purchases", "[inventory][vendors]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1111"_s));                            // servers can't
+    CHECK_FALSE(pos.receiveDelivery({{u"vendor"_s, u"city-bakery"_s},
+                                     {u"lines"_s, QVariantList{QVariantMap{{u"ingredient"_s, u"bun"_s}, {u"qty"_s, 24}}}}}));
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    // Out of buns: every burger is sold out until they come.
+    setOnHand(pos, "bun", 0);
+    CHECK_FALSE(pos.shared()->menu[0].available);
+
+    CHECK_FALSE(pos.receiveDelivery({{u"vendor"_s, u"nobody"_s}, {u"lines"_s, QVariantList{}}}));
+    CHECK_FALSE(pos.receiveDelivery({{u"vendor"_s, u"city-bakery"_s}, {u"lines"_s, QVariantList{}}}));   // nothing came
+    CHECK_FALSE(pos.receiveDelivery({{u"vendor"_s, u"city-bakery"_s},
+                                     {u"lines"_s, QVariantList{QVariantMap{{u"ingredient"_s, u"bun"_s}, {u"qty"_s, -2}}}}}));
+    const double bread = onHand(pos, "bread");
+    REQUIRE(pos.receiveDelivery({{u"vendor"_s, u"city-bakery"_s}, {u"invoice"_s, u"A-1001"_s},
+                                 {u"lines"_s, QVariantList{
+                                      QVariantMap{{u"ingredient"_s, u"bun"_s}, {u"qty"_s, 48}, {u"cost"_s, 0.40}},
+                                      QVariantMap{{u"ingredient"_s, u"bread"_s}, {u"qty"_s, 20}}}}}));   // its usual cost
+    CHECK(onHand(pos, "bun") == 48);
+    CHECK(onHand(pos, "bread") == bread + 20);
+    CHECK(pos.shared()->ingredient("bun")->cost.cents() == 40);       // the new cost
+    CHECK(pos.shared()->ingredient("bread")->cost.cents() == 12);
+    CHECK(pos.shared()->menu[0].available);                          // burgers are back
+    REQUIRE(pos.shared()->deliveries.size() == 1);
+    const core::Delivery &d = pos.shared()->deliveries.front();
+    CHECK(d.vendorName == "City Bakery");
+    CHECK(d.invoice == "A-1001");
+    CHECK(d.by == "Morgan (Manager)");
+    CHECK(d.total().cents() == 48 * 40 + 20 * 12);                   // $21.60
+    CHECK(app::deliveryFromJson(app::toJson(d)) == d);
+
+    // What the Receive screen shows.
+    const QVariantMap info = pos.receiving();
+    CHECK(info[u"vendors"_s].toList().size() == 3);
+    CHECK(info[u"recent"_s].toList().size() == 1);
+    CHECK(info[u"recent"_s].toList()[0].toMap()[u"total"_s] == u"$21.60"_s);
+
+    // Reports -> Purchases.
+    const QVariantMap report = pos.report(u"purchases"_s);
+    CHECK(cellsOf(report, u"City Bakery"_s).value(3) == u"$21.60"_s);
+    CHECK(cellsOf(report, u"Total received"_s).value(3) == u"$21.60"_s);
+    CHECK(cellsOf(report, u"Burger Buns"_s).value(1) == u"48 each"_s);
+}
+
+TEST_CASE("Deliveries are saved and come back", "[inventory][vendors][store]")
+{
+    QTemporaryDir dir;
+    const QString path = dir.filePath(u"vt.db"_s);
+    const auto seed = test::seedPosData();
+    {
+        storage::PosStore store(path);
+        REQUIRE(store.open());
+        REQUIRE(store.seed(seed.settings, seed.menu, seed.employees, nullptr, seed.ingredients));
+    }
+    {
+        storage::PosStore store(path);
+        REQUIRE(store.open());
+        storage::AsyncWriter writer(path);
+        storage::SqlPosSink sink(writer);
+        PosService pos(*store.load(), &sink);
+        REQUIRE(pos.loginWithPin(u"1234"_s));
+        REQUIRE(pos.receiveDelivery({{u"vendor"_s, u"green-farms"_s},
+                                     {u"lines"_s, QVariantList{QVariantMap{{u"ingredient"_s, u"lettuce"_s}, {u"qty"_s, 40}}}}}));
+    }
+    storage::PosStore store(path);
+    REQUIRE(store.open());
+    const auto data = store.load();
+    REQUIRE(data);
+    REQUIRE(data->deliveries.size() == 1);
+    CHECK(data->deliveries[0].vendorName == "Green Farms Produce");
+    CHECK(data->lastDeliveryId == 1);
+    CHECK(data->settings.vendors.size() == 3);
+}

@@ -1,5 +1,28 @@
 {
   "schemaVersion": 1,
+  "vendors": [
+    {
+      "id": "valley-foods",
+      "name": "Valley Foods",
+      "phone": "555-0140",
+      "account": "VT-2210",
+      "note": "Meat, cheese, eggs, dry goods. Delivers Tue and Fri; order by noon the day before."
+    },
+    {
+      "id": "green-farms",
+      "name": "Green Farms Produce",
+      "phone": "555-0172",
+      "account": "GF-881",
+      "note": "Produce, daily except Sunday."
+    },
+    {
+      "id": "city-bakery",
+      "name": "City Bakery",
+      "phone": "555-0119",
+      "account": "",
+      "note": "Buns and bread every morning before 8."
+    }
+  ],
   "storeName": "ViewTouch Caf\u00e9",
   "currencySymbol": "$",
   "autoLogoutMinutes": 3,

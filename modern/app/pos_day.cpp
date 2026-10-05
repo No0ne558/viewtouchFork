@@ -41,7 +41,7 @@ QVariantMap toVariant(const Report &r)
 }
 
 const QStringList kReportIds = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s, u"tips"_s,
-                                u"labor"_s, u"drawer"_s, u"expenses"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s};
+                                u"labor"_s, u"drawer"_s, u"expenses"_s, u"purchases"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s};
 
 } // namespace
 
@@ -785,6 +785,8 @@ Report PosService::buildReport(const QString &id) const
         return drawerReport(s_->drawers, s_->closedToday, ctx);
     if (id == u"expenses")
         return expensesReport(s_->drawers, ctx);
+    if (id == u"purchases")
+        return purchasesReport(ctx);
     if (id == u"tips")
         return tipsReport(allTipShares(), ctx);
     if (id == u"hourly")

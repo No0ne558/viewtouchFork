@@ -218,6 +218,11 @@ bool PosStore::open(QString *error)
             return false;
         }
     }
+    if (version < 10) {   // deliveries received from vendors
+        if (!run(q, u"CREATE TABLE IF NOT EXISTS deliveries (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, json TEXT NOT NULL)"_s, error)
+            || !run(q, u"UPDATE meta SET value = '10' WHERE key = 'pos_schema_version'"_s, error))
+            return false;
+    }
     return true;
 }
 
@@ -346,6 +351,15 @@ std::optional<app::PosData> PosStore::load(QStringList *errors) const
     }
     if (q.exec(u"SELECT COALESCE(MAX(id), 0) FROM shifts"_s) && q.next())
         data.lastShiftId = q.value(0).toLongLong();
+    // Deliveries from the last 60 days.
+    q.prepare(u"SELECT json FROM deliveries WHERE at >= ? ORDER BY at"_s);
+    q.addBindValue(QDateTime::currentMSecsSinceEpoch() - 60LL * 24 * 3'600'000);
+    if (q.exec()) {
+        while (q.next())
+            data.deliveries.push_back(app::deliveryFromJson(parse(q.value(0))));
+    }
+    if (q.exec(u"SELECT COALESCE(MAX(id), 0) FROM deliveries"_s) && q.next())
+        data.lastDeliveryId = q.value(0).toLongLong();
     if (data.currentDay) {
         q.prepare(u"SELECT json FROM checks WHERE status = 'closed' AND business_day = ? ORDER BY id"_s);
         q.addBindValue(qint64(data.currentDay->id));
@@ -494,6 +508,12 @@ void SqlPosSink::saveShift(const core::Shift &s)
 {
     writer_.upsert(u"shifts"_s, QString::number(s.id),
                    {{u"id"_s, qint64(s.id)}, {u"start"_s, qint64(s.start)}, {u"json"_s, compact(app::toJson(s))}});
+}
+
+void SqlPosSink::saveDelivery(const core::Delivery &d)
+{
+    writer_.upsert(u"deliveries"_s, QString::number(d.id),
+                   {{u"id"_s, qint64(d.id)}, {u"at"_s, qint64(d.at)}, {u"json"_s, compact(app::toJson(d))}});
 }
 
 void SqlPosSink::deleteShift(std::int64_t id)

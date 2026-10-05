@@ -665,6 +665,32 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: receiving a delivery by touch", "[flow][ui][vendors]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"receive-delivery"_s));
+    QTest::qWait(80);
+    auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    s.tapItem(find(u"vendor-city-bakery"_s));
+    QTest::qWait(60);
+    CHECK_FALSE(find(u"qty-lettuce"_s));                 // only City Bakery's items
+    s.tapItem(find(u"qty-bun"_s));
+    for (const char ch : {'2', '4'})
+        QTest::keyClick(s.window, ch);
+    s.tapItem(find(u"cost-bun"_s));
+    for (const char ch : {'0', '.', '4', '2'})
+        QTest::keyClick(s.window, ch);
+    QTest::qWait(60);
+    s.shot("25-receive-delivery");
+    const double before = s.pos.shared()->ingredient("bun")->onHand;
+    s.tapItem(find(u"receiveDelivery"_s));
+    QTest::qWait(80);
+    CHECK(s.pos.shared()->ingredient("bun")->onHand == before + 24);
+    CHECK(s.pos.shared()->ingredient("bun")->cost.cents() == 42);
+    CHECK(find(u"qty-bun"_s)->property("text").toString().isEmpty());   // ready for the next one
+}
+
 TEST_CASE("UI: clocking in with two jobs asks which one", "[flow][ui][pay]")
 {
     Screen s;

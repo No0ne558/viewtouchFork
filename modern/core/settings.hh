@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/check.hh"
+#include "core/inventory.hh"
 #include "core/tax.hh"
 
 #include <string>
@@ -143,6 +144,7 @@ struct PosSettings {
     // The store's language: screens without anyone logged in (and people
     // without their own), the customer display, receipts and tickets.
     std::string language = "en";
+    std::vector<Vendor> vendors;
     // What cash paid out of a drawer is for, for the Expenses report.
     std::vector<std::string> expenseCategories{"Food & supplies", "Produce", "Ice", "Cleaning", "Repairs", "Other"};
     // Self-order kiosk: send orders to the kitchen as soon as the guest

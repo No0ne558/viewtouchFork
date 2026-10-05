@@ -47,6 +47,7 @@ public:
     virtual void deleteIngredient(const std::string &id) { Q_UNUSED(id) }
     virtual void saveShift(const core::Shift &) {}
     virtual void deleteShift(std::int64_t id) { Q_UNUSED(id) }
+    virtual void saveDelivery(const core::Delivery &) {}
 };
 
 // Where tickets go. Implementations must not block (see print::PrintSpooler).
@@ -89,6 +90,8 @@ struct PosData {
     std::vector<core::Ingredient> ingredients;
     std::vector<core::Shift> shifts;
     std::int64_t lastShiftId = 0;
+    std::vector<core::Delivery> deliveries;       // the last 60 days
+    std::int64_t lastDeliveryId = 0;
     std::int64_t lastCheckId = 0;
     std::int64_t lastPunchId = 0;
     std::optional<core::BusinessDay> currentDay;  // none: the service opens one
@@ -130,6 +133,8 @@ public:
     std::function<std::vector<core::Check>(std::int64_t from, std::int64_t to)> history;
     std::vector<core::Shift> shifts;   // from two weeks back on
     std::int64_t lastShiftId = 0;
+    std::vector<core::Delivery> deliveries;
+    std::int64_t lastDeliveryId = 0;
     // Texts a guest (set up by main when a texting service is configured).
     std::function<void(const QString &phone, const QString &message)> sendText;
     core::CustomerRecord *customer(const std::string &id);
@@ -251,6 +256,10 @@ public:
     // What the next pay out is for (Store Settings: expense categories);
     // touching the chosen one again clears it.
     void setExpenseCategory(const QString &category);
+    // A delivery from a vendor (managers): {vendor, invoice, lines: [{ingredient,
+    // qty, cost}]}. Adds to stock and sets each ingredient's cost per unit.
+    bool receiveDelivery(const QVariantMap &delivery);
+    QVariantMap receiving() const override;
     void cancelClockIn();
     QVariantMap clockInJobs() const override;
     bool clockOut();
@@ -527,6 +536,8 @@ public:
     // Ingredients at or below their low mark.
     QVariantList lowStock() const;
     core::Report foodCostReport(const std::vector<core::Check> &closed, const core::ReportContext &ctx) const;
+    // Deliveries received today: by vendor, then each one.
+    core::Report purchasesReport(const core::ReportContext &ctx) const;
 
     // --- the schedule (pos_schedule.cpp) ----------------------------------------
     // {employeeId, start, end (ms or "yyyy-MM-dd HH:mm"; an end before the

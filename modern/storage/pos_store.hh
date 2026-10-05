@@ -18,7 +18,7 @@ class AsyncWriter;
 // service go through AsyncWriter via SqlPosSink.
 class PosStore {
 public:
-    static constexpr int DbSchemaVersion = 9;
+    static constexpr int DbSchemaVersion = 10;
 
     explicit PosStore(QString databasePath);
     ~PosStore();
@@ -64,6 +64,7 @@ public:
     void saveIngredient(const core::Ingredient &ingredient, int position) override;
     void deleteIngredient(const std::string &id) override;
     void saveShift(const core::Shift &shift) override;
+    void saveDelivery(const core::Delivery &delivery) override;
     void deleteShift(std::int64_t id) override;
 
 private:

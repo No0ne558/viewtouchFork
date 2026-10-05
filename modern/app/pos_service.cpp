@@ -39,6 +39,8 @@ PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
     , ingredients(std::move(data.ingredients))
     , shifts(std::move(data.shifts))
     , lastShiftId(data.lastShiftId)
+    , deliveries(std::move(data.deliveries))
+    , lastDeliveryId(data.lastDeliveryId)
     , lastCheckId(data.lastCheckId)
     , lastPunchId(data.lastPunchId)
     , sink(sink)
@@ -1426,6 +1428,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"loginWithPin"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.loginWithPin(a.value(0).toString())); }},
         {u"logout"_s, [](PosService &p, const QVariantList &) { p.logout(); return QVariant(true); }},
         {u"clockIn"_s, [](PosService &p, const QVariantList &) { return QVariant(p.clockIn()); }},
+        {u"receiveDelivery"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.receiveDelivery(a.value(0).toMap())); }},
         {u"setExpenseCategory"_s, [](PosService &p, const QVariantList &a) { p.setExpenseCategory(a.value(0).toString()); return QVariant(true); }},
         {u"clockInAs"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.clockInAs(a.value(0).toString())); }},
         {u"cancelClockIn"_s, [](PosService &p, const QVariantList &) { p.cancelClockIn(); return QVariant(true); }},

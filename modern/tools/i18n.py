@@ -5,6 +5,7 @@
   python3 tools/i18n.py missing es      phrases i18n/es.json doesn't have yet
   python3 tools/i18n.py stale es        entries no longer used anywhere
   python3 tools/i18n.py check es        missing phrases, or translations that lose a %1
+  python3 tools/i18n.py add es < new.json   add or change translations ({"English": "Español", ...})
 
 Phrases come from qsTr("...") in QML, tr("...") / translate("main", "...") in
 C++, and the button and label text of the starter pages (seed/pages).
@@ -87,6 +88,12 @@ def main():
         print(json.dumps(missing, ensure_ascii=False, indent=1))
         print(f"{len(missing)} of {len(all_)} missing", file=sys.stderr)
         return 1 if missing else 0
+    if cmd == "add":
+        new = json.loads(sys.stdin.read())
+        have.update(new)
+        (ROOT / f"i18n/{lang}.json").write_text(json.dumps(have, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
+        print(f"{lang}: {len(have)} phrases ({len(new)} added or changed)", file=sys.stderr)
+        return 0
     if cmd == "check":
         bad = [p for p in all_ if p not in have]
         for key, value in have.items():

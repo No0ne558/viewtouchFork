@@ -161,6 +161,7 @@ Reports have a row of periods: *Day* (one business day, as before), *This Week*,
 - Stock goes down when an order is sent to the kitchen (or fired, or closed), and comes back when a sent item is voided.
 - An item whose ingredients run short is **sold out by itself**, and comes back when restocked. An item a person 86'd stays sold out until they bring it back. Crossing the low mark shows *Running low: …*.
 - **Reports → Food Cost:** each item sold today with its sales, recipe cost and cost %, then every ingredient's stock (low and out marked).
+- **Vendors and deliveries:** Manager → Inventory → **Vendors…** lists who the store buys from (phone, account number, delivery days), and each ingredient can name its usual vendor. **Receive a Delivery…**: touch the vendor, type how much came of each item (and its cost if it changed) and the invoice number, then **Receive Delivery**. Stock goes up, costs are updated, sold-out items come back, and the delivery is kept (60 days loaded). Reports → **Purchases** shows today's deliveries by vendor. The demo has three vendors.
 - New stores start with demo stock and recipes for the burgers, salads, breakfast, coffee and sides. An existing store starts with an empty inventory (or `--reset-menu` for the demo set).
 
 ## Kitchen display

@@ -7,6 +7,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <map>
+
+#include <QDateTime>
 
 using namespace Qt::StringLiterals;
 using namespace vt::core;
@@ -198,6 +202,121 @@ QVariantList PosService::lowStock() const
                                    {u"unit"_s, qs(g.unit)}, {u"out"_s, g.onHand <= 0}});
     }
     return out;
+}
+
+// --- deliveries ------------------------------------------------------------------------
+
+bool PosService::receiveDelivery(const QVariantMap &r)
+{
+    if (!require(perm::Manager, tr("Receiving deliveries")))
+        return false;
+    Delivery d;
+    const QString vendorId = r.value(u"vendor"_s).toString();
+    if (!vendorId.isEmpty()) {
+        const auto v = std::ranges::find_if(s_->settings.vendors, [&](const Vendor &x) { return qs(x.id) == vendorId; });
+        if (v == s_->settings.vendors.end())
+            return fail(tr("There is no vendor '%1'.").arg(vendorId));
+        d.vendorId = v->id;
+        d.vendorName = v->name;
+    }
+    d.invoice = ss(r.value(u"invoice"_s).toString().trimmed());
+    for (const QVariant &v : r.value(u"lines"_s).toList()) {
+        const QVariantMap l = v.toMap();
+        const double qty = l.value(u"qty"_s).toDouble();
+        if (qty == 0)
+            continue;
+        const auto g = std::ranges::find_if(s_->ingredients, [&](const Ingredient &x) { return qs(x.id) == l.value(u"ingredient"_s).toString(); });
+        if (g == s_->ingredients.end())
+            return fail(tr("There is no ingredient '%1' (see Manager → Inventory).").arg(l.value(u"ingredient"_s).toString()));
+        if (qty < 0)
+            return fail(tr("Amounts received can't be negative: %1.").arg(qs(g->name)));
+        const double cost = l.contains(u"cost"_s) ? l.value(u"cost"_s).toDouble() : double(g->cost.cents()) / 100.0;
+        if (cost < 0)
+            return fail(tr("Costs can't be negative: %1.").arg(qs(g->name)));
+        d.lines.push_back({g->id, g->name, g->unit, qty, Money::fromCents(std::llround(cost * 100))});
+    }
+    if (d.lines.empty())
+        return fail(tr("Type how much came of each item."));
+    // On the shelf now, at the latest cost.
+    for (const Delivery::Line &l : d.lines) {
+        const auto g = std::ranges::find_if(s_->ingredients, [&](const Ingredient &x) { return x.id == l.ingredientId; });
+        g->onHand += l.qty;
+        if (l.unitCost.cents() > 0)
+            g->cost = l.unitCost;
+        if (s_->sink)
+            s_->sink->saveIngredient(*g, int(g - s_->ingredients.begin()));
+    }
+    d.id = ++s_->lastDeliveryId;
+    d.at = now();
+    d.by = user()->name;
+    s_->deliveries.push_back(d);
+    if (s_->sink)
+        s_->sink->saveDelivery(d);
+    refreshSoldOut();   // what was out is back
+    ++s_->adminRevision;
+    emit s_->adminChanged();
+    emit notice(d.vendorName.empty()
+                    ? tr("Received %n item(s): %1", "", int(d.lines.size())).arg(format(d.total()))
+                    : tr("Received %n item(s) from %1: %2", "", int(d.lines.size())).arg(qs(d.vendorName), format(d.total())));
+    return true;
+}
+
+QVariantMap PosService::receiving() const
+{
+    if (!can(u"manager"_s))
+        return {};
+    QVariantList vendors;
+    for (const Vendor &v : s_->settings.vendors)
+        vendors.append(QVariantMap{{u"id"_s, qs(v.id)}, {u"name"_s, qs(v.name)}});
+    QVariantList ingredients;
+    for (const Ingredient &g : s_->ingredients)
+        ingredients.append(QVariantMap{{u"id"_s, qs(g.id)}, {u"name"_s, qs(g.name)}, {u"unit"_s, qs(g.unit)},
+                                       {u"onHand"_s, g.onHand}, {u"cost"_s, double(g.cost.cents()) / 100.0},
+                                       {u"vendor"_s, qs(g.vendor)}, {u"low"_s, g.low()}});
+    QVariantList recent;
+    for (auto it = s_->deliveries.rbegin(); it != s_->deliveries.rend() && recent.size() < 15; ++it)
+        recent.append(QVariantMap{{u"when"_s, QDateTime::fromMSecsSinceEpoch(it->at).toString(u"ddd M/d h:mm AP"_s)},
+                                  {u"vendor"_s, qs(it->vendorName)}, {u"invoice"_s, qs(it->invoice)},
+                                  {u"items"_s, int(it->lines.size())}, {u"total"_s, format(it->total())},
+                                  {u"by"_s, qs(it->by)}});
+    return {{u"vendors"_s, vendors}, {u"ingredients"_s, ingredients}, {u"recent"_s, recent}};
+}
+
+Report PosService::purchasesReport(const ReportContext &ctx) const
+{
+    Report r;
+    r.id = "purchases";
+    r.title = "Purchases";
+    r.subtitle = ctx.period;
+    r.columns = {"", "Items", "Invoice", "Total"};
+    std::vector<const Delivery *> today;
+    for (const Delivery &d : s_->deliveries)
+        if (d.at >= s_->day.openedAt)
+            today.push_back(&d);
+    if (today.empty()) {
+        r.note("No deliveries received today (Manager -> Inventory -> Receive a Delivery).");
+        return r;
+    }
+    std::map<std::string, Money> byVendor;
+    Money total;
+    for (const Delivery *d : today) {
+        byVendor[d->vendorName.empty() ? "(no vendor)" : d->vendorName] += d->total();
+        total += d->total();
+    }
+    r.section("By vendor");
+    for (const auto &[vendor, amount] : byVendor)
+        r.line({vendor, "", "", ctx.money(amount)});
+    r.total({"Total received", "", "", ctx.money(total)});
+    for (const Delivery *d : today) {
+        r.section((d->vendorName.empty() ? std::string("Delivery") : d->vendorName) + ", " + ctx.clock(d->at) + ", " + d->by);
+        for (const Delivery::Line &l : d->lines) {
+            char qty[32];
+            std::snprintf(qty, sizeof qty, "%g %s", l.qty, l.unit.c_str());
+            r.line({l.name, qty, ctx.money(l.unitCost) + " each", ctx.money(l.total())});
+        }
+        r.total({"Total", "", d->invoice.empty() ? "" : "#" + d->invoice, ctx.money(d->total())});
+    }
+    return r;
 }
 
 } // namespace vt::app
