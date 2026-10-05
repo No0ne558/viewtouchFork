@@ -111,6 +111,7 @@ public:
     QVariantMap kioskMenu() const override;
     QVariantMap clockInJobs() const override { return v(u"clockInJobs").toMap(); }
     QVariantMap receiving() const override { return v(u"receiving").toMap(); }
+    QVariantMap checkSearch() const override { return v(u"checkSearch").toMap(); }
     // Where pictures from the server are kept on this device (tests set it).
     void setImageCache(const QString &dir) { imageCache_ = dir; }
     void takeOver(const QString &pin) override;

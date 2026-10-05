@@ -303,7 +303,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -533,6 +533,7 @@ page("closed-checks", "Closed Checks", "custom", [
     label("title", 16, 16, 1888, 80, "Checks closed today: touch one to reopen it"),
     zone("list", 16, 112, 1888, 816, kind="checkList", props={"mode": "closed"}),
     zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+    zone("find", 1472, 944, 432, 120, "Find an Older Check…", actions=[jump(page="find-check")]),
 ], permission="manager")
 
 page("check-list", "Open Checks", "custom", [
@@ -626,6 +627,7 @@ mgr.append(zone("back", 160, 940, 384, 120, "‹ Back", actions=[jump(mode="back
 mgr.append(zone("network", 568, 940, 384, 120, "Network…", actions=[jump(page="network")]))
 # This screen becomes a kiosk for guests; a manager's PIN ends it.
 mgr.append(zone("self-order", 976, 940, 384, 120, "Self-Order Kiosk", actions=[command("selfOrder")], style=fill(BLUE)))
+mgr.append(zone("find-check", 1384, 940, 384, 120, "Find a Check…", actions=[jump(page="find-check")]))
 page("manager", "Manager", "manager", mgr, role="manager", permission="manager")
 
 # Manager screens (reached through openAdmin from the Manager page)
@@ -648,6 +650,13 @@ for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees
         zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
         *extra,
     ], permission="manager")
+
+# Any check, today's or earlier: by number, amount, name, phone, table, item...
+page("find-check", "Find a Check", "custom", [
+    label("title", 16, 16, 1888, 80, "Find a check"),
+    zone("search", 16, 112, 1888, 816, kind="checkSearch"),
+    zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+], permission="check.settle")
 
 page("receive-delivery", "Receive a Delivery", "manager", [
     label("title", 16, 16, 1888, 80, "Receive a delivery"),

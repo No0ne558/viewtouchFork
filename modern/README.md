@@ -124,6 +124,10 @@ Every page is designed on a 1920 × 1080 landscape canvas and scaled to the scre
 
 Each backup is a complete SQLite copy. Checks, pages, menu, staff, settings and past days are all in it.
 
+## Finding any check
+
+Manager → **Find a Check…** (or *Find an Older Check…* on the Reopen page) searches every check from the last year, open or closed: a check number (`#123`), an amount (`17.62`, with or without the tip), or part of a name, phone number (digits), table, server, item or gift card number. Earlier days are read in the background, so the screen never waits. Touch a result to see its items and payments; **Reprint Receipt** prints a copy. Staff who can take payments can search.
+
 ## Customers, gift cards and house accounts
 
 - **Customers** (Check… → Customer…, or Manager → Customers…): find someone by any part of their phone number or by name, see their visits, what they've spent and their last visit, edit their details and notes, and put them on the check. Takeout and delivery customers go on file by themselves when their check closes, and the customer form suggests regulars as you type.

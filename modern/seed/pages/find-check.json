@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "id": "closed-checks",
-  "name": "Closed Checks",
+  "id": "find-check",
+  "name": "Find a Check",
   "kind": "custom",
   "canvas": {
     "w": 1920,
     "h": 1080
   },
   "grid": 8,
-  "permission": "manager",
+  "permission": "check.settle",
   "zones": [
     {
       "id": "title",
@@ -21,11 +21,11 @@
       },
       "shape": "rect",
       "behavior": "none",
-      "label": "Checks closed today: touch one to reopen it"
+      "label": "Find a check"
     },
     {
-      "id": "list",
-      "kind": "checkList",
+      "id": "search",
+      "kind": "checkSearch",
       "rect": {
         "x": 16,
         "y": 112,
@@ -33,10 +33,7 @@
         "h": 816
       },
       "shape": "rect",
-      "behavior": "none",
-      "props": {
-        "mode": "closed"
-      }
+      "behavior": "none"
     },
     {
       "id": "back",
@@ -54,26 +51,6 @@
         {
           "type": "jump",
           "mode": "back"
-        }
-      ]
-    },
-    {
-      "id": "find",
-      "kind": "button",
-      "rect": {
-        "x": 1472,
-        "y": 944,
-        "w": 432,
-        "h": 120
-      },
-      "shape": "rect",
-      "behavior": "blink",
-      "label": "Find an Older Check\u2026",
-      "actions": [
-        {
-          "type": "jump",
-          "mode": "push",
-          "page": "find-check"
         }
       ]
     }

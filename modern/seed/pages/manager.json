@@ -609,6 +609,26 @@
           "fill": "#2b62b0"
         }
       }
+    },
+    {
+      "id": "find-check",
+      "kind": "button",
+      "rect": {
+        "x": 1384,
+        "y": 940,
+        "w": 384,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Find a Check\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "find-check"
+        }
+      ]
     }
   ]
 }

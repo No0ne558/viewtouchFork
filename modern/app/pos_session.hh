@@ -91,6 +91,9 @@ class PosSession : public QObject {
     // [{id, name, unit, onHand, cost, vendor}], recent: [{when, vendor,
     // invoice, items, total, by}]}.
     Q_PROPERTY(QVariantMap receiving READ receiving NOTIFY adminChanged)
+    // Finding checks: {query, loading, more, results: [{id, label, when,
+    // server, customer, total, status}], selected: {..., lines, payments}}.
+    Q_PROPERTY(QVariantMap checkSearch READ checkSearch NOTIFY sessionChanged)
     // Manager -> Network: {role: main|single, term, terminals: [{name,
     // address, user, since}], standby: {address, since} | null, printers:
     // [{name, type, where, status: ok|failed|unknown, error, at}]}.
@@ -183,6 +186,7 @@ public:
     virtual QVariantMap kioskMenu() const = 0;
     virtual QVariantMap clockInJobs() const = 0;
     virtual QVariantMap receiving() const = 0;
+    virtual QVariantMap checkSearch() const = 0;
     virtual QVariantMap networkInfo() const = 0;
     virtual bool training() const = 0;
     virtual QStringList soldOut() const = 0;
@@ -261,6 +265,9 @@ public:
     Q_INVOKABLE void clockInAs(const QString &role) { invoke(QStringLiteral("clockInAs"), {role}); }
     Q_INVOKABLE void setExpenseCategory(const QString &category) { invoke(QStringLiteral("setExpenseCategory"), {category}); }
     Q_INVOKABLE void receiveDelivery(const QVariantMap &delivery) { invoke(QStringLiteral("receiveDelivery"), {delivery}); }
+    Q_INVOKABLE void searchChecks(const QString &query) { invoke(QStringLiteral("searchChecks"), {query}); }
+    Q_INVOKABLE void selectFoundCheck(qint64 id) { invoke(QStringLiteral("selectFoundCheck"), {id}); }
+    Q_INVOKABLE void reprintCheck(qint64 id) { invoke(QStringLiteral("reprintCheck"), {id}); }
     Q_INVOKABLE void cancelClockIn() { invoke(QStringLiteral("cancelClockIn")); }
     Q_INVOKABLE void kioskStart(bool toGo) { invoke(QStringLiteral("kioskStart"), {toGo}); }
     Q_INVOKABLE void kioskAdd(const QString &itemId) { invoke(QStringLiteral("kioskAdd"), {itemId}); }

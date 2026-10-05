@@ -259,6 +259,13 @@ public:
     // A delivery from a vendor (managers): {vendor, invoice, lines: [{ingredient,
     // qty, cost}]}. Adds to stock and sets each ingredient's cost per unit.
     bool receiveDelivery(const QVariantMap &delivery);
+    // Find checks, open or closed, from the last `days`: "#123", "17.62",
+    // or text (table, customer, phone, server, item, gift card). Results
+    // arrive in checkSearch (loading until then).
+    bool searchChecks(const QString &query, int days = 365);
+    void selectFoundCheck(qint64 id);
+    bool reprintCheck(qint64 id);   // a copy of a found check's receipt
+    QVariantMap checkSearch() const override;
     QVariantMap receiving() const override;
     void cancelClockIn();
     QVariantMap clockInJobs() const override;
@@ -576,6 +583,10 @@ private:
     int scheduleWeek_ = 0;
     QVariantMap rangeReport_;
     int rangeRequest_ = 0;
+    QVariantMap checkSearch_;
+    std::vector<core::Check> searchHits_;
+    qint64 selectedHit_ = 0;
+    int searchRequest_ = 0;
     // A report that can cover several days, over `closed`.
     core::Report rangeCapableReport(const QString &id, const std::vector<core::Check> &closed,
                                     const core::ReportContext &ctx) const;
