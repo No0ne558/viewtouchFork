@@ -168,6 +168,30 @@
       }
     },
     {
+      "id": "combo",
+      "kind": "button",
+      "rect": {
+        "x": 924,
+        "y": 596,
+        "w": 300,
+        "h": 180
+      },
+      "shape": "rounded",
+      "behavior": "blink",
+      "label": "Burger Combo",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "burger-combo"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f8a4c"
+        }
+      }
+    },
+    {
       "id": "burger-photo",
       "kind": "image",
       "rect": {

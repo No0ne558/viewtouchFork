@@ -589,5 +589,35 @@
     "printer": "kitchen",
     "modifier": true,
     "kitchenHide": true
+  },
+  {
+    "id": "burger-combo",
+    "name": "Burger Combo",
+    "price": 16.95,
+    "family": "combos",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "modifierGroups": [
+      "temperature",
+      "side",
+      "combo-drink"
+    ],
+    "description": "Classic burger, a side and a drink",
+    "kitchenName": "COMBO BGR",
+    "kitchenColor": "orange",
+    "recipe": [
+      {
+        "ingredient": "bun",
+        "qty": 1
+      },
+      {
+        "ingredient": "patty",
+        "qty": 1
+      },
+      {
+        "ingredient": "lettuce",
+        "qty": 0.5
+      }
+    ]
   }
 ]

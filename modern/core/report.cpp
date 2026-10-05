@@ -216,6 +216,28 @@ Report itemSales(const std::vector<Check> &closed, const std::vector<MenuItem> &
         r.note("No sales yet.");
     else
         r.total({"All items", count(grandQty), ctx.money(grand)});
+
+    // Menu items chosen with another (a combo's side and drink): how many
+    // went out, and what they added (already in the items above).
+    std::map<std::string, Tally> chosen;
+    for (const Check &c : closed) {
+        for (const OrderLine &l : c.lines) {
+            if (l.voided || l.isComment())
+                continue;
+            for (const Modifier &m : l.modifiers) {
+                if (m.itemId.empty() || m.group.empty() || m.qualifier == Qualifier::No)
+                    continue;
+                Tally &t = chosen[m.name];
+                t.qty += l.quantity;
+                t.sales += m.price() * l.quantity;
+            }
+        }
+    }
+    if (!chosen.empty()) {
+        r.section("Chosen with other items");
+        for (const auto &[name, t] : chosen)
+            r.line({name, count(t.qty), ctx.money(t.sales)});
+    }
     return r;
 }
 

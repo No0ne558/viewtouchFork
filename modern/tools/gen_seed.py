@@ -110,6 +110,11 @@ for bid, price in (("classic-burger", 12.50), ("bacon-burger", 14.50), ("house-w
     item(bid)["periodPrices"] = {"dinner": price}
 for n in TEMPS: menu(n, 0.00, "temperature", modifier=True)
 for n, p in SIDES: menu(n, p, "sides", modifier=True)
+# A combo: the burger, a side and a drink for one price (the choices are
+# the menu's own items, so they use up their stock).
+menu("Burger Combo", 16.95, "combos")
+item("burger-combo")["modifierGroups"] = ["temperature", "side", "combo-drink"]
+item("burger-combo")["description"] = "Classic burger, a side and a drink"
 
 # Inventory: what's on the shelf (Manager -> Inventory), and what each item
 # uses up. Items sell out by themselves when an ingredient runs short.
@@ -179,6 +184,9 @@ item("kids-burger")["kitchenColor"] = "blue"
 item("kids-burger")["kitchenName"] = "KIDS BGR"
 for iid in ("water", "no-side"):
     item(iid)["kitchenHide"] = True
+RECIPES["burger-combo"] = RECIPES["classic-burger"]   # its side and drink count on their own
+item("burger-combo")["kitchenName"] = "COMBO BGR"
+item("burger-combo")["kitchenColor"] = "orange"
 for iid, recipe in RECIPES.items():
     item(iid)["recipe"] = [{"ingredient": g, "qty": q} for g, q in recipe]
 write("pos/menu.json", MENU, versioned=False)
@@ -193,6 +201,15 @@ write("pos/employees.json", [
     {"id": "casey", "name": "Casey", "role": "cashier", "pin": "2222", "payRate": 15.50},
     {"id": "rosa", "name": "Rosa", "role": "server", "pin": "5555", "language": "es", "payRate": 7.25},   # screens in Spanish
 ], versioned=False)
+
+# Groups whose options are menu items (combos): each option is that item.
+def link_items(groups):
+    by_name = {m["name"].lower(): m["id"] for m in MENU}
+    for grp in groups:
+        if grp.get("menuItems"):
+            for o in grp["options"]:
+                o["item"] = by_name[o["name"].lower()]
+    return groups
 
 write("pos/settings.json", {
     "vendors": VENDORS,
@@ -242,7 +259,7 @@ write("pos/settings.json", {
     "terminals": [],
     # Servers carry their own bank; terminals need no drawer of their own.
     "cashMode": "serverBank",
-    "modifierGroups": [
+    "modifierGroups": link_items([
         {"id": "dressing", "name": "Dressing", "min": 1, "max": 1,
          "options": [{"name": n, "price": 0, "kitchenName": k} for n, k in
                      (("Ranch", "RNCH"), ("Blue Cheese", "BLU CHZ"), ("Balsamic", "BALS"), ("Caesar", "CAES"),
@@ -264,9 +281,12 @@ write("pos/settings.json", {
         {"id": "temperature", "name": "Temperature", "min": 1, "max": 1,
          "options": [{"name": n, "price": 0, "kitchenName": k} for n, k in
                      zip(TEMPS, ("RARE", "MR", "MED", "MW", "WELL"))]},
-        {"id": "side", "name": "Side", "min": 1, "max": 1,   # "No Side": nothing for the kitchen
+        {"id": "side", "name": "Side", "min": 1, "max": 1, "menuItems": True,   # "No Side": nothing for the kitchen
          "options": [dict({"name": n, "price": p}, **({"kitchenHide": True} if n == "No Side" else {}))
                      for n, p in SIDES]},
+        {"id": "combo-drink", "name": "Drink", "min": 1, "max": 1, "menuItems": True,
+         "options": [{"name": "Soda", "price": 0}, {"name": "Tea", "price": 0}, {"name": "Lemonade", "price": 0.30},
+                     {"name": "Juice", "price": 0.55}, {"name": "Draft Beer", "price": 3.00}]},
         {"id": "kids-side", "name": "Kids Side", "min": 1, "max": 1,
          "options": [{"name": n, "price": 0} for n in ("Fries", "Apple Slices", "Fruit Cup", "Carrot Sticks")]},
         {"id": "kids-drink", "name": "Kids Drink", "min": 0, "max": 1,
@@ -292,7 +312,7 @@ write("pos/settings.json", {
          "options": [{"name": "Cheese", "price": 0}, {"name": "Ham", "price": 1.00}, {"name": "Mushrooms", "price": 0},
                      {"name": "Peppers", "price": 0}, {"name": "Onions", "price": 0}, {"name": "Spinach", "price": 0},
                      {"name": "Bacon", "price": 1.50}]},
-    ],
+    ]),
     "mealPeriods": [{"id": "breakfast", "name": "Breakfast", "start": "04:00"},
                     {"id": "lunch", "name": "Lunch", "start": "11:00"},
                     {"id": "dinner", "name": "Dinner", "start": "16:00"}],
@@ -393,7 +413,9 @@ def item_page(id, name, items, color, shape="rounded", cols=4, cell=(316, 180), 
     page(id, name, "items", zs, templateId="order-template")
 
 item_page("items-burgers", "Burgers", [(n, None) for n, _ in BURGERS[:6]], AMBER,
-          extra=[zone("burger-photo", 592, 596, 316, 260, "Burger of the Day", kind="image",
+          extra=[zone("combo", 924, 596, 300, 180, "Burger Combo", actions=[add("Burger Combo")],
+                      shape="rounded", style=fill(GREEN)),
+                 zone("burger-photo", 592, 596, 316, 260, "Burger of the Day", kind="image",
                       imagePath="qrc:/images/burger.png", actions=[add("Burger of the Day")]),
                  zone("note", 1240, 596, 664, 120,
                       "Burgers ask for Temperature and Side (Manager -> Modifier Groups).", kind="comment")])

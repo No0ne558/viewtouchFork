@@ -818,7 +818,10 @@ Rectangle {
                                             required property var modelData
                                             width: k.u * 10
                                             height: k.u * 3.2
-                                            text: modelData.name + (modelData.price ? "\n+" + modelData.price : "")
+                                            text: modelData.name + (modelData.soldOut ? "\n" + qsTr("sold out")
+                                                                    : modelData.price ? "\n+" + modelData.price : "")
+                                            enabled: !modelData.soldOut || modelData.chosen
+                                            opacity: enabled ? 1 : 0.4
                                             size: 0.95
                                             base: modelData.chosen ? k.accent : "#2a313d"
                                             onClicked: k.pos.chooseOption(group.modelData.id, modelData.index)

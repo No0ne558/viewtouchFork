@@ -362,6 +362,9 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"options"_s, tr("Options"), u"text"_s,
                   tr("One per line; a price after +, e.g. \"Onion Rings + 1.50\". After |, what the kitchen sees "
                      "(\"Ranch | RNCH\"), or - to leave it off the kitchen ticket (\"No dressing | -\").")),
+            field(u"menuItems"_s, tr("Options are menu items"), u"bool"_s,
+                  tr("For combos: each option is the menu item of that name (\"Soda\", \"Fries\"). It uses up "
+                     "that item's stock, can't be chosen while it's sold out, and shows on the Items report.")),
         };
     }
     if (panel == u"mealPeriods") {
@@ -529,8 +532,9 @@ QVariantList PosService::adminRecords(const QString &panel)
                 lines << (o.price.cents() ? u"%1 + %2"_s.arg(qs(o.name), qs(o.price.toString())) : qs(o.name))
                              + (o.kitchenHide ? u" | -"_s : o.kitchenName.empty() ? QString() : u" | "_s + qs(o.kitchenName));
             add({{u"id"_s, qs(g.id)}, {u"name"_s, qs(g.name)}, {u"min"_s, g.min}, {u"max"_s, g.max},
-                 {u"options"_s, lines.join(u'\n')}},
-                qs(g.name), tr("%1 options").arg(g.options.size()) + (g.min > 0 ? tr(" · required") : QString()));
+                 {u"options"_s, lines.join(u'\n')}, {u"menuItems"_s, g.menuItems}},
+                qs(g.name), tr("%1 options").arg(g.options.size()) + (g.min > 0 ? tr(" · required") : QString())
+                                + (g.menuItems ? tr(" · menu items") : QString()));
         }
     } else if (panel == u"mealPeriods") {
         for (const MealPeriod &m : s_->settings.mealPeriods)
@@ -573,7 +577,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"mealPeriods")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"modifierGroups")
-        return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"min"_s, 1}, {u"max"_s, 1}, {u"options"_s, QString()}};
+        return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"min"_s, 1}, {u"max"_s, 1}, {u"options"_s, QString()},
+                {u"menuItems"_s, false}};
     if (panel == u"promotions")
         return promotionRecord({});
     if (panel == u"inventory")
@@ -1205,6 +1210,7 @@ bool PosService::saveModifierGroupRecord(int index, const QVariantMap &record)
     g.name = ss(name);
     g.min = std::max(0, record.value(u"min"_s).toInt());
     g.max = std::max(0, record.value(u"max"_s).toInt());
+    g.menuItems = record.value(u"menuItems"_s).toBool();
     if (g.max > 0 && g.min > g.max)
         return fail(tr("It can't require more choices than it allows."));
     for (QString line : record.value(u"options"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
@@ -1224,8 +1230,22 @@ bool PosService::saveModifierGroupRecord(int index, const QVariantMap &record)
                 return fail(tr("Write option prices like \"Onion Rings + 1.50\"."));
             price = Money::fromCents(std::llround(p * 100.0));
         }
+        // A combo's choices are menu items, by name.
+        std::string itemId;
+        if (g.menuItems && !optName.isEmpty()) {
+            for (const MenuItem &m : s_->menu) {
+                if (QString::compare(qs(m.name), optName, Qt::CaseInsensitive) == 0) {
+                    itemId = m.id;
+                    break;
+                }
+            }
+            if (itemId.empty())
+                return fail(tr("\"%1\" isn't on the menu. Use a menu item's name, or turn off "
+                               "\"Options are menu items\".").arg(optName));
+        }
         if (!optName.isEmpty())
-            g.options.push_back({ss(optName), price, kitchen == u"-" ? std::string() : ss(kitchen), kitchen == u"-"});
+            g.options.push_back({ss(optName), price, kitchen == u"-" ? std::string() : ss(kitchen), kitchen == u"-",
+                                 itemId});
     }
     if (g.options.empty())
         return fail(tr("Add the options, one per line."));

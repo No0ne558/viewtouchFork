@@ -372,27 +372,67 @@
       "name": "Side",
       "min": 1,
       "max": 1,
+      "menuItems": true,
       "options": [
         {
           "name": "Fries",
-          "price": 0.0
+          "price": 0.0,
+          "item": "fries"
         },
         {
           "name": "Side Salad",
-          "price": 0.0
+          "price": 0.0,
+          "item": "side-salad"
         },
         {
           "name": "Onion Rings",
-          "price": 1.0
+          "price": 1.0,
+          "item": "onion-rings"
         },
         {
           "name": "Sweet Potato Fries",
-          "price": 1.5
+          "price": 1.5,
+          "item": "sweet-potato-fries"
         },
         {
           "name": "No Side",
           "price": 0.0,
-          "kitchenHide": true
+          "kitchenHide": true,
+          "item": "no-side"
+        }
+      ]
+    },
+    {
+      "id": "combo-drink",
+      "name": "Drink",
+      "min": 1,
+      "max": 1,
+      "menuItems": true,
+      "options": [
+        {
+          "name": "Soda",
+          "price": 0,
+          "item": "soda"
+        },
+        {
+          "name": "Tea",
+          "price": 0,
+          "item": "tea"
+        },
+        {
+          "name": "Lemonade",
+          "price": 0.3,
+          "item": "lemonade"
+        },
+        {
+          "name": "Juice",
+          "price": 0.55,
+          "item": "juice"
+        },
+        {
+          "name": "Draft Beer",
+          "price": 3.0,
+          "item": "draft-beer"
         }
       ]
     },

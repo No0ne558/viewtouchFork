@@ -71,8 +71,11 @@ Item {
                                 required property var modelData
                                 width: (groups.width - w.unit * 0.9) / 4
                                 height: w.unit * 2.6
-                                text: modelData.name + (modelData.price ? "\n+" + modelData.price : "")
+                                text: modelData.name + (modelData.soldOut ? "\n" + qsTr("sold out")
+                                                        : modelData.price ? "\n+" + modelData.price : "")
                                 accent: modelData.chosen
+                                enabled: !modelData.soldOut || modelData.chosen
+                                opacity: enabled ? 1 : 0.4
                                 fontScale: 0.3
                                 onClicked: w.pos.chooseOption(group.modelData.id, modelData.index)
                             }

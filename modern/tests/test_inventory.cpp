@@ -49,7 +49,78 @@ QStringList cellsOf(const QVariantMap &report, const QString &first)
     return {};
 }
 
+std::vector<std::string> rowIn(const core::Report &r, const std::string &section, const std::string &first)
+{
+    std::string current;
+    for (const core::ReportRow &x : r.rows) {
+        if (x.kind == core::ReportRow::Kind::Section)
+            current = x.cells.empty() ? std::string() : x.cells.front();
+        else if (current == section && !x.cells.empty() && x.cells.front() == first)
+            return x.cells;
+    }
+    return {};
+}
+
 } // namespace
+
+TEST_CASE("Combos: a side and a drink from the menu, their stock, sold out, the Items report", "[inventory][combo]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const double buns = onHand(pos, "bun");
+    const double potatoes = onHand(pos, "potatoes");
+
+    REQUIRE(pos.selectTable(u"T1"_s) == PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    pos.addItem(u"burger-combo"_s);
+    QVariantMap choosing = pos.choosingInfo();
+    REQUIRE(choosing[u"active"_s].toBool());
+    CHECK(choosing[u"groups"_s].toList().size() == 3);   // Temperature, Side, Drink
+
+    // A sold-out drink can't be picked.
+    REQUIRE(pos.setAvailable(u"lemonade"_s, false));
+    const QVariantList drinks = pos.choosingInfo()[u"groups"_s].toList()[2].toMap()[u"options"_s].toList();
+    CHECK(drinks[2].toMap()[u"soldOut"_s].toBool());
+    CHECK_FALSE(pos.chooseOption(u"combo-drink"_s, 2));
+    REQUIRE(pos.setAvailable(u"lemonade"_s, true));
+
+    REQUIRE(pos.chooseOption(u"temperature"_s, 2));      // Medium
+    REQUIRE(pos.chooseOption(u"side"_s, 0));             // Fries
+    REQUIRE(pos.chooseOption(u"combo-drink"_s, 2));      // Lemonade + 0.30
+    REQUIRE(pos.finishChoosing());
+    const core::OrderLine &line = pos.shared()->open.at(pos.checkInfo()[u"id"_s].toLongLong()).lines.front();
+    CHECK(line.total() == Money::fromCents(1695 + 30));
+    CHECK(line.modifiers[1].itemId == "fries");
+    CHECK(line.modifiers[2].itemId == "lemonade");
+
+    REQUIRE(pos.sendOrder());
+    CHECK(onHand(pos, "bun") == buns - 1);               // the burger's own recipe
+    CHECK(onHand(pos, "potatoes") == potatoes - 6);      // and the fries'
+
+    REQUIRE(pos.tender(u"credit"_s));
+    REQUIRE(pos.closeCheck());
+    const core::Report r = pos.buildReport(u"items"_s);
+    CHECK(rowIn(r, "Chosen with other items", "Fries") == std::vector<std::string>{"Fries", "1", "$0.00"});
+    CHECK(rowIn(r, "Chosen with other items", "Lemonade") == std::vector<std::string>{"Lemonade", "1", "$0.30"});
+    CHECK(rowIn(r, "Chosen with other items", "Medium").empty());   // not a menu-item group
+}
+
+TEST_CASE("Combos: a group of menu items only takes names on the menu", "[inventory][combo]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    QVariantMap g{{u"name"_s, u"Combo Side"_s}, {u"min"_s, 1}, {u"max"_s, 1}, {u"menuItems"_s, true},
+                  {u"options"_s, u"Fries\nOnion Rings + 1.00\nTater Tots"_s}};
+    CHECK_FALSE(pos.adminSave(u"modifierGroups"_s, -1, g));        // no Tater Tots on the menu
+    g[u"options"_s] = u"fries\nOnion Rings + 1.00"_s;
+    REQUIRE(pos.adminSave(u"modifierGroups"_s, -1, g));
+    const core::ModifierGroup &saved = pos.shared()->settings.modifierGroups.back();
+    CHECK(saved.menuItems);
+    CHECK(saved.options[0].itemId == "fries");
+    CHECK(saved.options[1].itemId == "onion-rings");
+    CHECK(saved.options[1].price == Money::fromCents(100));
+    CHECK(app::settingsFromJson(app::toJson(pos.shared()->settings)).modifierGroups.back() == saved);
+}
 
 TEST_CASE("Inventory: sending uses stock, a void gives it back, modifiers count", "[inventory]")
 {

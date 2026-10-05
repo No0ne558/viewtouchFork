@@ -76,6 +76,9 @@ struct ModifierOption {
     Money price;
     std::string kitchenName;   // what the kitchen sees instead
     bool kitchenHide = false;  // "No dressing": nothing for the kitchen
+    // The menu item it is (ModifierGroup::menuItems): it uses up the item's
+    // stock and can't be chosen while it's sold out.
+    std::string itemId;
 
     bool operator==(const ModifierOption &) const = default;
 };
@@ -89,6 +92,9 @@ struct ModifierGroup {
     int min = 0;
     int max = 1;
     std::vector<ModifierOption> options;
+    // Each option is the menu item of that name. That's how a combo works:
+    // "Burger Combo" asks for a side and a drink from the menu.
+    bool menuItems = false;
 
     bool operator==(const ModifierGroup &) const = default;
 };

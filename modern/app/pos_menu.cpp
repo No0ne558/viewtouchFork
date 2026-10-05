@@ -44,9 +44,10 @@ QVariantMap PosService::choosingInfo() const
             const bool chosen = std::ranges::any_of(l->modifiers, [&](const Modifier &m) {
                 return m.group == g->id && m.name == o.name;
             });
+            const MenuItem *linked = o.itemId.empty() ? nullptr : findItem(qs(o.itemId));
             options.append(QVariantMap{{u"index"_s, i}, {u"name"_s, qs(o.name)},
                                        {u"price"_s, o.price.cents() ? format(o.price) : QString()},
-                                       {u"chosen"_s, chosen}});
+                                       {u"chosen"_s, chosen}, {u"soldOut"_s, linked && !linked->available}});
         }
         const int n = chosenIn(*l, g->id);
         const QString rule = g->min == 1 && g->max == 1 ? tr("Choose 1")
@@ -101,6 +102,7 @@ bool PosService::chooseOption(const QString &groupId, int index)
     if (!g || index < 0 || index >= int(g->options.size()))
         return false;
     const ModifierOption &o = g->options[index];
+    const MenuItem *linked = o.itemId.empty() ? nullptr : findItem(qs(o.itemId));
     // Touching a chosen option takes it off.
     auto same = [&](const Modifier &m) { return m.group == g->id && m.name == o.name; };
     if (std::ranges::any_of(l->modifiers, same)) {
@@ -110,7 +112,10 @@ bool PosService::chooseOption(const QString &groupId, int index)
             std::erase_if(l->modifiers, [&](const Modifier &m) { return m.group == g->id; });
         else if (g->max > 1 && chosenIn(*l, g->id) >= g->max)
             return fail(tr("%1: up to %2.").arg(qs(g->name)).arg(g->max));
+        if (linked && !linked->available)
+            return fail(tr("%1 is sold out.").arg(qs(o.name)));
         Modifier m;
+        m.itemId = o.itemId;   // its stock (a combo's side or drink)
         m.name = o.name;
         m.unitPrice = o.price;
         m.group = g->id;
