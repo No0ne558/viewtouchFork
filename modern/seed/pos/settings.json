@@ -127,6 +127,13 @@
       "name": "Comp",
       "kind": "discount",
       "percent": 100
+    },
+    {
+      "id": "staff-meal",
+      "name": "Staff Meal",
+      "kind": "discount",
+      "percent": 50,
+      "staffMeal": true
     }
   ],
   "printers": [

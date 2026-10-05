@@ -335,7 +335,7 @@ TEST_CASE("UI flow: keypad login, table map, guest pad, menu, pay", "[flow][ui]"
 
     s.tapCanvas(16 + 7 * 237 + 110, 980 + 42);   // Pay
     CHECK(s.c.pageId() == u"settle"_s);
-    s.tapCanvas(1468 + 218, 16 + 126 + 55);      // Credit Card (exact balance)
+    s.tapCanvas(1468 + 218, 16 + 86 + 38);       // Credit Card, the second payment type (exact balance)
     CHECK(s.pos.totals()[u"balanceCents"_s].toLongLong() == 0);
     s.shot("3-settle");
     s.tapCanvas(932 + 260, 788 + 60);            // Close Check

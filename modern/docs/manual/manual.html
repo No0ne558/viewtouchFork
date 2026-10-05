@@ -329,6 +329,8 @@
 <tr><td>Available</td><td>Untick when sold out (86).</td></tr>
 <tr><td>Modifier groups</td><td>The choices it asks for, by group ID.</td></tr>
 <tr><td>Prices by meal period</td><td>e.g. <code>dinner = 14.50</code>.</td></tr>
+<tr><td>Takeout price, Delivery price</td><td>A different price on takeout or delivery checks (0 = the regular price).</td></tr>
+<tr><td>No discounts, No staff discount</td><td>Discounts and comps leave it out; staff meals leave it out (alcohol, say).</td></tr>
 <tr><td>Kitchen name, highlight, don't show</td><td>How it looks on the kitchen screen and tickets.</td></tr>
 <tr><td>Recipe</td><td>What one uses up, e.g. <code>bun 1</code>, <code>lettuce 0.5</code> (Inventory).</td></tr>
 <tr><td>Not on the self-order kiosk</td><td>Guests can't order it on their own (alcohol never shows there).</td></tr>
@@ -376,6 +378,7 @@
 </tr></table>
 <ul>
 <li><b>Taxes</b> also sets <b>Cash rounding</b> where pennies are gone: a check paid in cash is rounded to the nearest 5 (or 10) cents and shows a <i>Cash rounding</i> line; cards stay exact.</li>
+<li><b>Payment types</b>: a discount can be a <b>Staff meal</b> (the demo has <i>Staff Meal</i>, 50%). Ring your meal, touch Staff Meal on the payment screen, and it records who ate; the Sales report counts staff meals.</li>
 <li><b>Printers</b>: network (TCP 9100, ESC/POS), CUPS, or a text file for testing.</li>
 <li><b>Terminals</b>: each screen's receipt printer, cash drawer and screen layout (standard, phone, or <b>Self-order kiosk</b>), and <b>Pair a Device</b>.</li>
 </ul>

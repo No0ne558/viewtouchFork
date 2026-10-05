@@ -91,7 +91,8 @@ Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx)
     r.subtitle = ctx.period;
     r.columns = {"", "Amount"};
 
-    Money items, discounts, net, tax, total, change, rounding, gratuity, tips;
+    Money items, discounts, net, tax, total, change, rounding, gratuity, tips, staffMeals;
+    std::int64_t staffMealChecks = 0;
     std::map<TaxClass, Money> taxByClass;
     std::map<std::string, Money> byTender;           // tender name -> amount
     std::vector<std::string> tenderOrder;
@@ -107,6 +108,9 @@ Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx)
         total += t.total;
         change += t.change;
         rounding += t.rounding;
+        staffMeals += t.staffMeals;
+        if (t.staffMeals.cents() > 0)
+            ++staffMealChecks;
         gratuity += t.gratuity;
         tips += t.tips;
         guests += c.guests;
@@ -134,6 +138,8 @@ Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx)
     r.line({"Guests", count(guests)});
     r.line({"Item sales", ctx.money(items)});
     r.line({"Discounts & comps", ctx.money(-discounts)});
+    if (staffMeals.cents() > 0)
+        r.line({"  of which staff meals (" + count(staffMealChecks) + ")", ctx.money(-staffMeals)});
     r.total({"Net sales", ctx.money(net)});
     for (const auto &[cls, amount] : taxByClass)
         r.line({capitalized(toString(cls)) + " tax", ctx.money(amount)});

@@ -251,6 +251,8 @@ OrderLine &Check::addItem(const MenuItem &item, Qualifier q)
     l.kitchenName = item.kitchenName;
     l.kitchenColor = item.kitchenColor;
     l.kitchenHide = item.kitchenHide;
+    l.noDiscount = item.noDiscount;
+    l.noStaffDiscount = item.noStaffDiscount;
     lines.push_back(l);
     return lines.back();
 }
@@ -388,8 +390,10 @@ Payment &Check::addPayment(const Tender &tender, Money amount)
     p.tenderId = tender.id;
     p.tenderName = tender.name;
     p.kind = tender.kind;
-    if (tender.kind == TenderKind::Discount)
+    if (tender.kind == TenderKind::Discount) {
         p.percentBp = tender.percentBp;
+        p.staffMeal = tender.staffMeal;
+    }
     else
         p.amount = amount;
     payments.push_back(p);
@@ -406,9 +410,14 @@ Totals Check::totals(const TaxRates &rates) const
     Totals t;
 
     std::map<TaxClass, Money> byClass;
+    Money discountable, staffDiscountable;   // what percent discounts and staff meals apply to
     for (const OrderLine &l : lines) {
         const Money lt = l.total();
         t.items += lt;
+        if (!l.isGiftCard() && !l.noDiscount)
+            discountable += lt;
+        if (!l.isGiftCard() && !l.noDiscount && !l.noStaffDiscount)
+            staffDiscountable += lt;
         if (l.taxClass != TaxClass::None)
             byClass[l.taxClass] += lt;
     }
@@ -416,8 +425,13 @@ Totals Check::totals(const TaxRates &rates) const
     // Discounts: each is a share of the items total; together they never
     // exceed it.
     for (const Payment &p : payments) {
-        if (p.kind == TenderKind::Discount)
-            t.discounts += t.items.percent(p.percentBp) + p.amount;   // percent off, or a fixed amount (rewards, promotions)
+        if (p.kind != TenderKind::Discount)
+            continue;
+        // Percent off what may be discounted, or a fixed amount (rewards, promotions).
+        const Money off = (p.staffMeal ? staffDiscountable : discountable).percent(p.percentBp) + p.amount;
+        t.discounts += off;
+        if (p.staffMeal)
+            t.staffMeals += off;
     }
     if (t.discounts > t.items)
         t.discounts = t.items;

@@ -690,8 +690,8 @@ bool PosService::addItem(const QString &idOrName)
             return fail(tr("Order an item before adding %1.").arg(qs(item->name)));
         selectedLine_ = target->id;
     } else {
-        MenuItem priced = *item;   // the price for this meal period (dinner, happy hour...)
-        priced.price = item->priceDuring(currentMealPeriod());
+        MenuItem priced = *item;   // the price for this meal period (dinner, happy hour...) and order type
+        priced.price = item->priceFor(currentMealPeriod(), c.type == CheckType::Takeout, c.type == CheckType::Delivery);
         OrderLine &line = c.addItem(priced, q);
         line.seat = seat_;
         line.course = course_;
@@ -865,6 +865,10 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
     if (t->kind == TenderKind::Discount && !require(perm::Discount, tr("Discounts and comps")))
         return false;
     Payment &paid = c->addPayment(*t, amount);
+    if (t->staffMeal) {   // whose meal: the person ringing it in
+        paid.reference = user()->name;
+        noteEvent(*c, tr("Staff meal: %1").arg(qs(user()->name)), "discount");
+    }
     // A tip the guest chose on the customer display goes on their card.
     if (t->kind == TenderKind::Card && tipChoice_.chosen && tipChoice_.checkId == c->id)
         paid.tip = tipFor(*c);

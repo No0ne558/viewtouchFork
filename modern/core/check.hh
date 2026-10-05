@@ -49,6 +49,8 @@ struct OrderLine {
     std::string kitchenName;     // instead of the name ("BCN BGR")
     std::string kitchenColor;    // highlight on the kitchen screen: red, orange...
     bool kitchenHide = false;    // nothing for the kitchen (water, merchandise)
+    bool noDiscount = false;      // from the menu item: discounts leave it out
+    bool noStaffDiscount = false; // ...and staff meals
     bool served = false;         // the expediter sent it out (after it was made)
     std::int64_t servedAt = 0;
 
@@ -75,6 +77,7 @@ struct Tender {
     std::string name;
     TenderKind kind = TenderKind::Cash;
     std::int64_t percentBp = 0;   // Discount: share of the items total (10000 = comp)
+    bool staffMeal = false;       // Discount: a staff meal (records who ate; items marked "no staff discount" pay full)
 
     bool operator==(const Tender &) const = default;
 };
@@ -87,7 +90,8 @@ struct Payment {
     Money amount;                 // Cash/Card: what it pays toward the check; Discount: a fixed amount off
     std::int64_t percentBp = 0;   // Discount, applied to the current items total
     Money tip;                    // Card: tip on top of the amount (owed to the server)
-    std::string reference;        // GiftCard: the card number; HouseAccount: the customer id
+    std::string reference;        // GiftCard: the card number; HouseAccount: the customer id; staff meal: who ate
+    bool staffMeal = false;
 
     bool operator==(const Payment &) const = default;
 };
@@ -137,6 +141,7 @@ struct Totals {
     Money paid;          // cash + card toward the total (tips not included)
     Money tips;          // card tips, on top of the total
     Money cashPaid;      // cash tendered
+    Money staffMeals;    // the part of `discounts` that is staff meals
     Money rounding;      // cash rounding (TaxRates::cashRoundingCents): -2 to +2 cents...
     Money balance;       // total + rounding - paid (negative = change owed)
     Money change;        // max(0, -balance), always given in cash

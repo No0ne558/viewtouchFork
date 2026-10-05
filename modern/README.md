@@ -287,6 +287,12 @@ Run the main server and the standby as headless services on two computers, both 
   - Paid-first counter orders stay on screen until they are bumped.
 - **Takeout / Delivery** (floor plan) asks for the customer: name, phone, address and a note. The details save as you type. They print on the receipt and kitchen tickets and show on the order, the kitchen card and the check list. A takeout or delivery that is put away with nothing ordered is discarded.
 
+## Prices by order type, staff meals
+
+- **Takeout and delivery prices:** Manager → Menu → *Takeout price* and *Delivery price* (0 = the regular price; delivery falls back on the takeout price). An item rung on a takeout or delivery check takes that price; the kiosk's *To Go* orders too.
+- **Staff meals:** a discount payment type can be a *Staff meal* (Manager → Payment Types). The demo has **Staff Meal**, 50% off: ring the meal and touch Staff Meal on the payment screen. It records who ate (the person ringing it), and the Sales report shows *of which staff meals* under discounts.
+- **Items that aren't discounted:** *No discounts* (discounts and comps leave it out) and *No staff discount* (staff pay full price; the demo's beer and wine).
+
 ## Cash rounding
 
 Where pennies are gone (Canada, and elsewhere): Manager → Taxes → *Cash rounding* → nearest 5 or 10 cents. A check paid in cash is rounded (what is owed when the cash comes: $17.62 → $17.60, $17.63 → $17.65); touching **Cash** with no amount typed takes the rounded balance. The check, the receipt and the Sales report show a *Cash rounding* line. Card payments are exact; a check paid partly by card rounds only what cash pays.

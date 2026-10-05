@@ -46,11 +46,26 @@ struct MenuItem {
     std::string description;
     std::string image;
     bool kioskHide = false;
+    // Prices by order type (0: the regular price), and who may not discount it.
+    Money takeoutPrice;
+    Money deliveryPrice;
+    bool noDiscount = false;        // no discounts or comps
+    bool noStaffDiscount = false;   // no staff meal discount (alcohol, say)
 
     Money priceDuring(const std::string &mealPeriod) const
     {
         const auto it = periodPrices.find(mealPeriod);
         return it == periodPrices.end() ? price : it->second;
+    }
+    // Takeout and delivery have their own price when set (delivery falls
+    // back on the takeout price); otherwise the meal period's.
+    Money priceFor(const std::string &mealPeriod, bool takeout, bool delivery) const
+    {
+        if (delivery && deliveryPrice.cents() > 0)
+            return deliveryPrice;
+        if ((takeout || delivery) && takeoutPrice.cents() > 0)
+            return takeoutPrice;
+        return priceDuring(mealPeriod);
     }
     bool operator==(const MenuItem &) const = default;
 };

@@ -45,7 +45,7 @@
         "x": 1468,
         "y": 16,
         "w": 436,
-        "h": 92
+        "h": 76
       },
       "shape": "rect",
       "behavior": "blink",
@@ -67,9 +67,9 @@
       "kind": "button",
       "rect": {
         "x": 1468,
-        "y": 120,
+        "y": 102,
         "w": 436,
-        "h": 92
+        "h": 76
       },
       "shape": "rect",
       "behavior": "blink",
@@ -91,9 +91,9 @@
       "kind": "button",
       "rect": {
         "x": 1468,
-        "y": 224,
+        "y": 188,
         "w": 436,
-        "h": 92
+        "h": 76
       },
       "shape": "rect",
       "behavior": "blink",
@@ -116,9 +116,9 @@
       "kind": "button",
       "rect": {
         "x": 1468,
-        "y": 328,
+        "y": 274,
         "w": 436,
-        "h": 92
+        "h": 76
       },
       "shape": "rect",
       "behavior": "blink",
@@ -140,9 +140,9 @@
       "kind": "button",
       "rect": {
         "x": 1468,
-        "y": 432,
+        "y": 360,
         "w": 436,
-        "h": 92
+        "h": 76
       },
       "shape": "rect",
       "behavior": "blink",
@@ -164,9 +164,9 @@
       "kind": "button",
       "rect": {
         "x": 1468,
-        "y": 536,
+        "y": 446,
         "w": 436,
-        "h": 92
+        "h": 76
       },
       "shape": "rect",
       "behavior": "blink",
@@ -175,6 +175,30 @@
         {
           "type": "tender",
           "tender": "comp"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#6b46c1"
+        }
+      }
+    },
+    {
+      "id": "tender-staff-meal",
+      "kind": "button",
+      "rect": {
+        "x": 1468,
+        "y": 532,
+        "w": 436,
+        "h": 76
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Staff Meal",
+      "actions": [
+        {
+          "type": "tender",
+          "tender": "staff-meal"
         }
       ],
       "style": {

@@ -128,6 +128,10 @@ QVariantList PosService::adminFields(const QString &panel)
                           {"blue", "Blue"}, {"purple", "Purple"}})),
             field(u"kitchenHide"_s, tr("Don't show in the kitchen"), u"bool"_s,
                   tr("Nothing to make (water, a gift card...). As a modifier: left off the kitchen ticket.")),
+            field(u"takeoutPrice"_s, tr("Takeout price"), u"money"_s, tr("0 = the regular price.")),
+            field(u"deliveryPrice"_s, tr("Delivery price"), u"money"_s, tr("0 = the takeout price (or the regular one).")),
+            field(u"noDiscount"_s, tr("No discounts"), u"bool"_s, tr("Discounts and comps leave it out.")),
+            field(u"noStaffDiscount"_s, tr("No staff discount"), u"bool"_s, tr("Staff pay full price for it (alcohol, say).")),
             field(u"kioskHide"_s, tr("Not on the self-order kiosk"), u"bool"_s,
                   tr("Guests can't order it on their own. Alcohol never shows there.")),
             field(u"description"_s, tr("Description (self-order kiosk)"), u"text"_s,
@@ -224,6 +228,9 @@ QVariantList PosService::adminFields(const QString &panel)
                           {"card", "Card (capped at the balance)"},
                           {"discount", "Discount / comp"}})),
             field(u"percent"_s, tr("Discount %"), u"percent"_s, tr("Discounts only. 100 = comp.")),
+            field(u"staffMeal"_s, tr("Staff meal"), u"bool"_s,
+                  tr("Discounts only: records who ate it, leaves out items marked \"No staff discount\", "
+                     "and shows on the Sales report.")),
         };
     }
     if (panel == u"printers") {
@@ -417,7 +424,7 @@ QVariantList PosService::adminRecords(const QString &panel)
     } else if (panel == u"tenders") {
         for (const Tender &t : s_->settings.tenders) {
             QVariantMap r{{u"id"_s, qs(t.id)}, {u"name"_s, qs(t.name)}, {u"kind"_s, qs(toString(t.kind))},
-                          {u"percent"_s, double(t.percentBp) / 100.0}};
+                          {u"percent"_s, double(t.percentBp) / 100.0}, {u"staffMeal"_s, t.staffMeal}};
             add(r, qs(t.name), t.kind == TenderKind::Discount ? u"%1%"_s.arg(double(t.percentBp) / 100.0)
                                                                 : qs(toString(t.kind)));
         }
@@ -538,7 +545,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"modifier"_s, false}, {u"available"_s, true},
                 {u"modifierGroups"_s, QString()}, {u"periodPrices"_s, QString()}, {u"recipe"_s, QString()},
                 {u"kitchenName"_s, QString()}, {u"kitchenColor"_s, QString()}, {u"kitchenHide"_s, false},
-                {u"kioskHide"_s, false}, {u"description"_s, QString()}, {u"image"_s, QString()}};
+                {u"kioskHide"_s, false}, {u"description"_s, QString()}, {u"image"_s, QString()},
+                {u"takeoutPrice"_s, 0.0}, {u"deliveryPrice"_s, 0.0}, {u"noDiscount"_s, false}, {u"noStaffDiscount"_s, false}};
     if (panel == u"employees")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
                 {u"active"_s, true}, {u"training"_s, false}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()},
@@ -546,7 +554,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"perm:order"_s, QString()}, {u"perm:check.settle"_s, QString()}, {u"perm:check.discount"_s, QString()},
                 {u"perm:order.void"_s, QString()}, {u"perm:manager"_s, QString()}, {u"perm:layout.edit"_s, QString()}};
     if (panel == u"tenders")
-        return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"kind"_s, u"card"_s}, {u"percent"_s, 0.0}};
+        return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"kind"_s, u"card"_s}, {u"percent"_s, 0.0},
+                {u"staffMeal"_s, false}};
     if (panel == u"terminals")
         return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}, {u"drawer"_s, QString()},
                 {u"screen"_s, QString()}};
@@ -1025,6 +1034,10 @@ QVariantMap PosService::menuRecord(const MenuItem &m) const
     r.insert(u"kitchenColor"_s, qs(m.kitchenColor));
     r.insert(u"kitchenHide"_s, m.kitchenHide);
     r.insert(u"kioskHide"_s, m.kioskHide);
+    r.insert(u"takeoutPrice"_s, m.takeoutPrice.cents() / 100.0);
+    r.insert(u"deliveryPrice"_s, m.deliveryPrice.cents() / 100.0);
+    r.insert(u"noDiscount"_s, m.noDiscount);
+    r.insert(u"noStaffDiscount"_s, m.noStaffDiscount);
     r.insert(u"description"_s, qs(m.description));
     r.insert(u"image"_s, qs(m.image));
     for (const char16_t *k : {u"family", u"printer"}) {
@@ -1253,6 +1266,7 @@ bool PosService::saveTenderRecord(int index, const QVariantMap &record)
     t.name = ss(name);
     t.kind = kind;
     t.percentBp = kind == TenderKind::Discount ? std::llround(percent * 100.0) : 0;
+    t.staffMeal = kind == TenderKind::Discount && record.value(u"staffMeal"_s).toBool();
     if (index >= 0) {
         t.id = s_->settings.tenders[index].id;
         s_->settings.tenders[index] = t;

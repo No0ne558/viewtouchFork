@@ -102,6 +102,9 @@ item("coffee")["modifierGroups"] = ["coffee-extras"]
 item("tea")["modifierGroups"] = ["hot-or-iced"]
 item("draft-beer")["modifierGroups"] = ["draft"]
 item("house-wine")["modifierGroups"] = ["wine", "wine-pour"]
+# Staff pay full price for drinks from the bar.
+for aid in ("draft-beer", "house-wine"):
+    item(aid)["noStaffDiscount"] = True
 # Dinner portions and the evening wine price.
 for bid, price in (("classic-burger", 12.50), ("bacon-burger", 14.50), ("house-wine", 9.00)):
     item(bid)["periodPrices"] = {"dinner": price}
@@ -222,6 +225,7 @@ write("pos/settings.json", {
         {"id": "house", "name": "House Account", "kind": "house"},
         {"id": "discount", "name": "10% Discount", "kind": "discount", "percent": 10},
         {"id": "comp", "name": "Comp", "kind": "discount", "percent": 100},
+        {"id": "staff-meal", "name": "Staff Meal", "kind": "discount", "percent": 50, "staffMeal": True},
     ],
     # "file" printers write text under <app data>/printouts so tickets can be
     # seen without hardware. Switch them to network/CUPS in Manager -> Printers.
@@ -548,15 +552,18 @@ page("guest-count", "Guest Count", "guestCount", [
 
 # Gift Card opens its page (the card number first); the rest pay right away.
 tenders = [("Cash", "cash", GREEN), ("Credit Card", "credit", BLUE), ("Gift Card…", "gift", TEAL),
-           ("House Account", "house", TEAL), ("10% Off", "discount", AMBER), ("Comp", "comp", PURPLE)]
+           ("House Account", "house", TEAL), ("10% Off", "discount", AMBER), ("Comp", "comp", PURPLE),
+           ("Staff Meal", "staff-meal", PURPLE)]
 
 
 def tender_action(tid):
     return [jump(page="gift-card")] if tid == "gift" else [{"type": "tender", "tender": tid}]
 settle = [zone("payment", 16, 16, 900, 1048, kind="paymentPanel"),
           zone("pad", 932, 16, 520, 620, kind="numPad", props={"mode": "amount"})]
+# The payment types share the column above Split / Ask Guest for Tip.
+step = (624 - 16) // len(tenders)
 for i, (text, tid, color) in enumerate(tenders):
-    settle.append(zone(f"tender-{tid}", 1468, 16 + i * 104, 436, 92, text,
+    settle.append(zone(f"tender-{tid}", 1468, 16 + i * step, 436, step - 10, text,
                        actions=tender_action(tid), style=fill(color)))
 settle += [
     zone("receipt", 932, 652, 520, 120, "Print Receipt", actions=[command("printReceipt")]),

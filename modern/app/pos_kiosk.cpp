@@ -211,7 +211,7 @@ QVariantMap PosService::kioskMenu() const
             families << family;
         items.append(QVariantMap{
             {u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"family"_s, family},
-            {u"price"_s, format(m.priceDuring(period))}, {u"description"_s, qs(m.description)},
+            {u"price"_s, format(m.priceFor(period, kioskToGo_, false))}, {u"description"_s, qs(m.description)},
             {u"image"_s, m.image.empty() ? QString() : QUrl::fromLocalFile(qs(m.image)).toString()},
             {u"available"_s, m.available}, {u"choices"_s, !m.modifierGroups.empty()}});
     }

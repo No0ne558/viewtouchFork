@@ -71,6 +71,10 @@ QJsonObject toJson(const Check &c)
             lo.insert(u"kitchenColor"_s, qs(l.kitchenColor));
         if (l.kitchenHide)
             lo.insert(u"kitchenHide"_s, true);
+        if (l.noDiscount)
+            lo.insert(u"noDiscount"_s, true);
+        if (l.noStaffDiscount)
+            lo.insert(u"noStaffDiscount"_s, true);
         if (l.served) {
             lo.insert(u"served"_s, true);
             lo.insert(u"servedAt"_s, qint64(l.servedAt));
@@ -82,7 +86,7 @@ QJsonObject toJson(const Check &c)
         payments.append(QJsonObject{
             {u"id"_s, qint64(p.id)}, {u"tenderId"_s, qs(p.tenderId)}, {u"tenderName"_s, qs(p.tenderName)},
             {u"kind"_s, qs(toString(p.kind))}, {u"amount"_s, qint64(p.amount.cents())}, {u"percentBp"_s, qint64(p.percentBp)},
-            {u"tip"_s, qint64(p.tip.cents())}, {u"reference"_s, qs(p.reference)},
+            {u"tip"_s, qint64(p.tip.cents())}, {u"reference"_s, qs(p.reference)}, {u"staffMeal"_s, p.staffMeal},
         });
     }
     QJsonArray events;
@@ -141,6 +145,8 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
         l.kitchenName = ss(lo.value(u"kitchenName").toString());
         l.kitchenColor = ss(lo.value(u"kitchenColor").toString());
         l.kitchenHide = lo.value(u"kitchenHide").toBool();
+        l.noDiscount = lo.value(u"noDiscount").toBool();
+        l.noStaffDiscount = lo.value(u"noStaffDiscount").toBool();
         l.served = lo.value(u"served").toBool();
         l.servedAt = i64(lo.value(u"servedAt"));
         for (const QJsonValue &mv : lo.value(u"modifiers").toArray()) {
@@ -164,6 +170,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
         p.percentBp = i64(po.value(u"percentBp"));
         p.tip = money(po.value(u"tip"));
         p.reference = ss(po.value(u"reference").toString());
+        p.staffMeal = po.value(u"staffMeal").toBool();
         c.payments.push_back(p);
     }
     c.nextLineId = std::max<std::int64_t>(i64(o.value(u"nextLineId")), 1);
@@ -230,6 +237,14 @@ QJsonObject toJson(const MenuItem &m)
         o.insert(u"kitchenHide"_s, true);
     if (!m.description.empty())
         o.insert(u"description"_s, qs(m.description));
+    if (m.takeoutPrice.cents() > 0)
+        o.insert(u"takeoutPrice"_s, decimalFromCents(m.takeoutPrice.cents()));
+    if (m.deliveryPrice.cents() > 0)
+        o.insert(u"deliveryPrice"_s, decimalFromCents(m.deliveryPrice.cents()));
+    if (m.noDiscount)
+        o.insert(u"noDiscount"_s, true);
+    if (m.noStaffDiscount)
+        o.insert(u"noStaffDiscount"_s, true);
     if (!m.image.empty())
         o.insert(u"image"_s, qs(m.image));
     if (m.kioskHide)
@@ -264,6 +279,10 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     m.kitchenColor = ss(o.value(u"kitchenColor").toString());
     m.kitchenHide = o.value(u"kitchenHide").toBool();
     m.description = ss(o.value(u"description").toString().trimmed());
+    m.takeoutPrice = Money::fromCents(centsFromDecimal(o.value(u"takeoutPrice").toDouble()));
+    m.deliveryPrice = Money::fromCents(centsFromDecimal(o.value(u"deliveryPrice").toDouble()));
+    m.noDiscount = o.value(u"noDiscount").toBool();
+    m.noStaffDiscount = o.value(u"noStaffDiscount").toBool();
     m.image = ss(o.value(u"image").toString().trimmed());
     m.kioskHide = o.value(u"kioskHide").toBool();
     return m;
@@ -583,6 +602,8 @@ QJsonObject toJson(const PosSettings &s)
         QJsonObject o{{u"id"_s, qs(t.id)}, {u"name"_s, qs(t.name)}, {u"kind"_s, qs(toString(t.kind))}};
         if (t.kind == TenderKind::Discount)
             o.insert(u"percent"_s, double(t.percentBp) / 100.0);
+        if (t.staffMeal)
+            o.insert(u"staffMeal"_s, true);
         tenders.append(o);
     }
     QJsonArray mealPeriods;
@@ -790,6 +811,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
         tender.name = ss(t.value(u"name").toString());
         tender.kind = tenderKindFromString(ss(t.value(u"kind").toString()));
         tender.percentBp = std::llround(t.value(u"percent").toDouble() * 100.0);
+        tender.staffMeal = t.value(u"staffMeal").toBool();
         s.tenders.push_back(tender);
     }
     // Settings from before gift cards and house accounts (once; afterwards

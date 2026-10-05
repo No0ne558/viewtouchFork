@@ -294,3 +294,102 @@ TEST_CASE("Send, Fire and Close wait for required choices", "[menu][modifiers]")
     REQUIRE(pos.tender(u"cash"_s));                         // the lemonade
     REQUIRE(pos.closeCheck());
 }
+
+TEST_CASE("Prices by order type: takeout and delivery prices", "[menu][prices]")
+{
+    app::PosData data = test::seedPosData();
+    for (core::MenuItem &m : data.menu) {
+        if (m.id == "cobb") {                       // $12.50 here
+            m.takeoutPrice = Money::fromCents(1350);
+            m.deliveryPrice = Money::fromCents(1450);
+        }
+        if (m.id == "caesar")                       // $9.75 here
+            m.takeoutPrice = Money::fromCents(1050);
+    }
+    app::PosService pos(data, nullptr);
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    const auto priceOf = [&](core::CheckType type, const char *item) {
+        REQUIRE(pos.startCheck(type));
+        pos.addItem(QString::fromLatin1(item));
+        pos.finishChoosing();
+        const QString price = pos.lines().last().toMap()[u"price"_s].toString();
+        pos.voidItem();
+        pos.releaseCheck();
+        return price;
+    };
+    CHECK(priceOf(core::CheckType::Quick, "cobb") == u"$12.50"_s);
+    CHECK(priceOf(core::CheckType::Takeout, "cobb") == u"$13.50"_s);
+    CHECK(priceOf(core::CheckType::Delivery, "cobb") == u"$14.50"_s);
+    CHECK(priceOf(core::CheckType::Delivery, "caesar") == u"$10.50"_s);   // no delivery price: the takeout one
+    CHECK(priceOf(core::CheckType::Takeout, "soda") == u"$2.95"_s);       // none set: the regular price
+
+    // Manager -> Menu: the fields, saved with the item.
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    int cobb = -1;
+    const QVariantList items = pos.adminRecords(u"menu"_s);
+    for (int i = 0; i < items.size(); ++i)
+        if (items[i].toMap()[u"id"_s] == u"cobb"_s)
+            cobb = i;
+    REQUIRE(cobb >= 0);
+    QVariantMap r = items[cobb].toMap();
+    CHECK(r[u"takeoutPrice"_s].toDouble() == 13.5);
+    r[u"deliveryPrice"_s] = 15.0;
+    r[u"noDiscount"_s] = true;
+    REQUIRE(pos.adminSave(u"menu"_s, cobb, r));
+    const core::MenuItem *m = nullptr;
+    for (const core::MenuItem &x : pos.shared()->menu)
+        if (x.id == "cobb")
+            m = &x;
+    REQUIRE(m);
+    CHECK(m->deliveryPrice.cents() == 1500);
+    CHECK(m->noDiscount);
+    CHECK(app::menuItemFromJson(app::toJson(*m)) == *m);
+}
+
+TEST_CASE("Staff meals, and items discounts leave out", "[menu][prices][discounts]")
+{
+    app::PosData data = test::seedPosData();
+    data.settings.tax = {};                         // no tax: easy totals
+    for (core::MenuItem &m : data.menu)
+        if (m.id == "caesar")
+            m.noDiscount = true;                    // never discounted
+    app::PosService pos(data, nullptr);
+    REQUIRE(pos.loginWithPin(u"1111"_s));           // Sam's meal
+
+    // A cobb ($12.50) and a beer ($6.00, no staff discount): half off the cobb.
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    pos.addItem(u"cobb"_s);
+    pos.finishChoosing();
+    pos.addItem(u"draft-beer"_s);
+    pos.finishChoosing();
+    REQUIRE(pos.tender(u"staff-meal"_s));
+    QVariantMap t = pos.totals();
+    CHECK(t[u"total"_s] == u"$12.25"_s);           // 18.50 - 6.25
+    const core::Check *c = nullptr;
+    for (const auto &[id, x] : pos.shared()->open)
+        c = &x;
+    REQUIRE(c);
+    CHECK(c->payments.back().staffMeal);
+    CHECK(c->payments.back().reference == "Sam");
+    CHECK(c->totals(pos.shared()->settings.tax).staffMeals.cents() == 625);
+    REQUIRE(pos.openDrawerSession());
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+
+    // "No discounts": 10% off leaves the caesar out.
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    pos.addItem(u"cobb"_s);
+    pos.finishChoosing();
+    pos.addItem(u"caesar"_s);
+    pos.finishChoosing();
+    REQUIRE(pos.tender(u"discount"_s));            // 10% of the cobb only
+    t = pos.totals();
+    CHECK(t[u"discounts"_s] == u"-$1.25"_s);
+
+    // The Sales report counts staff meals.
+    bool line = false;
+    for (const core::ReportRow &row : pos.buildReport(u"sales"_s).rows)
+        line = line || (row.cells.size() == 2 && row.cells[0] == "  of which staff meals (1)" && row.cells[1] == "-$6.25");
+    CHECK(line);
+}

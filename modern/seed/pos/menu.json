@@ -370,7 +370,8 @@
     "printer": "bar",
     "modifierGroups": [
       "draft"
-    ]
+    ],
+    "noStaffDiscount": true
   },
   {
     "id": "house-wine",
@@ -383,6 +384,7 @@
       "wine",
       "wine-pour"
     ],
+    "noStaffDiscount": true,
     "periodPrices": {
       "dinner": 9.0
     }
