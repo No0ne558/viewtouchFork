@@ -682,16 +682,20 @@ bool PosService::addItem(const QString &idOrName)
     Check &c = *current();
 
     const Qualifier q = qualifier_;
+    // "Extra" costs what the store says (Store Settings), on top of the price.
+    const auto extra = [&](Money price) { return q == Qualifier::Extra ? s_->settings.withExtra(price) : price; };
     if (item->isModifier) {
         OrderLine *target = c.line(selectedLine_);
         if (!target || target->sent || target->isComment())
             target = c.lastItemLine();
-        if (!target || !c.addModifier(target->id, *item, q))
+        MenuItem modifier = *item;
+        modifier.price = extra(item->price);
+        if (!target || !c.addModifier(target->id, modifier, q))
             return fail(tr("Order an item before adding %1.").arg(qs(item->name)));
         selectedLine_ = target->id;
     } else {
         MenuItem priced = *item;   // the price for this meal period (dinner, happy hour...) and order type
-        priced.price = item->priceFor(currentMealPeriod(), c.type == CheckType::Takeout, c.type == CheckType::Delivery);
+        priced.price = extra(item->priceFor(currentMealPeriod(), c.type == CheckType::Takeout, c.type == CheckType::Delivery));
         OrderLine &line = c.addItem(priced, q);
         line.seat = seat_;
         line.course = course_;

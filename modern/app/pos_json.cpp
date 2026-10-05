@@ -636,6 +636,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"waitMinutesPerParty"_s, s.waitMinutesPerParty},
         {u"autoLogoutMinutes"_s, s.autoLogoutMinutes}, {u"tableLongMinutes"_s, s.tableLongMinutes},
         {u"replicaKey"_s, qs(s.replicaKey)}, {u"language"_s, qs(s.language)},
+        {u"extraPercent"_s, s.extraPercent}, {u"extraCharge"_s, decimalFromCents(s.extraCharge.cents())},
         {u"expenseCategories"_s, [&] {
              QJsonArray a;
              for (const std::string &c : s.expenseCategories)
@@ -732,6 +733,8 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.autoLogoutMinutes = std::clamp(o.value(u"autoLogoutMinutes").toInt(0), 0, 120);
     s.replicaKey = ss(o.value(u"replicaKey").toString());
     s.language = ss(o.value(u"language").toString(u"en"_s));
+    s.extraPercent = std::clamp(o.value(u"extraPercent").toInt(0), 0, 500);
+    s.extraCharge = Money::fromCents(centsFromDecimal(o.value(u"extraCharge").toDouble()));
     if (o.contains(u"expenseCategories")) {
         s.expenseCategories.clear();
         for (const QJsonValue &v : o.value(u"expenseCategories").toArray())

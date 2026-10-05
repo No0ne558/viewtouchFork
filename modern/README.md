@@ -291,6 +291,7 @@ Run the main server and the standby as headless services on two computers, both 
 
 - **Takeout and delivery prices:** Manager → Menu → *Takeout price* and *Delivery price* (0 = the regular price; delivery falls back on the takeout price). An item rung on a takeout or delivery check takes that price; the kiosk's *To Go* orders too.
 - **Staff meals:** a discount payment type can be a *Staff meal* (Manager → Payment Types). The demo has **Staff Meal**, 50% off: ring the meal and touch Staff Meal on the payment screen. It records who ate (the person ringing it), and the Sales report shows *of which staff meals* under discounts.
+- **Extra costs extra:** Store Settings → *Extra: percent added* (50 = half again) and/or *Extra: amount added* (e.g. $0.75, even on a free choice). Touching **Extra** before an item or a modifier charges it; the line keeps that price.
 - **Items that aren't discounted:** *No discounts* (discounts and comps leave it out) and *No staff discount* (staff pay full price; the demo's beer and wine).
 
 ## Cash rounding

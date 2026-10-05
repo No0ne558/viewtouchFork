@@ -393,3 +393,34 @@ TEST_CASE("Staff meals, and items discounts leave out", "[menu][prices][discount
         line = line || (row.cells.size() == 2 && row.cells[0] == "  of which staff meals (1)" && row.cells[1] == "-$6.25");
     CHECK(line);
 }
+
+TEST_CASE("Extra costs what the store says", "[menu][prices][extra]")
+{
+    app::PosData data = test::seedPosData();
+    data.settings.extraPercent = 50;
+    app::PosService pos(data, nullptr);
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    pos.addItem(u"classic-burger"_s);                 // $11.50
+    pos.finishChoosing();
+    pos.setQualifier(u"extra"_s);
+    pos.addItem(u"onion-rings"_s);                    // a $1.00 modifier: Extra = $1.50
+    CHECK(pos.lines().last().toMap()[u"price"_s] == u"$13.00"_s);
+    pos.setQualifier(u"extra"_s);
+    pos.addItem(u"cobb"_s);                           // Extra on an item: $12.50 + 50%
+    pos.finishChoosing();
+    CHECK(pos.lines().last().toMap()[u"price"_s] == u"$18.75"_s);
+    pos.addItem(u"cobb"_s);                           // without Extra: as usual
+    pos.finishChoosing();
+    CHECK(pos.lines().last().toMap()[u"price"_s] == u"$12.50"_s);
+
+    // A fixed charge: even a free choice costs it.
+    pos.shared()->settings.extraPercent = 0;
+    pos.shared()->settings.extraCharge = Money::fromCents(75);
+    pos.addItem(u"classic-burger"_s);
+    pos.finishChoosing();
+    pos.setQualifier(u"extra"_s);
+    pos.addItem(u"medium"_s);                         // $0 + $0.75
+    CHECK(pos.lines().last().toMap()[u"price"_s] == u"$12.25"_s);
+    CHECK(app::settingsFromJson(app::toJson(pos.shared()->settings)).extraCharge.cents() == 75);
+}

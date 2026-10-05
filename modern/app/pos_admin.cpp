@@ -324,6 +324,11 @@ QVariantList PosService::adminFields(const QString &panel)
                   tr("Texts are POSTed here as JSON {\"to\", \"message\"} (your SMS provider or a relay). Empty: no texts; the host tells the guest.")),
             field(u"backupCopyDir"_s, tr("Also copy backups to"), u"text"_s,
                   tr("A USB drive or network folder on the server, e.g. /media/usb/viewtouch. Empty = no second copy.")),
+            with(with(field(u"extraPercent"_s, tr("Extra: percent added"), u"int"_s,
+                            tr("What \"Extra\" adds to an item's or a choice's price: 50 = half again. 0 = nothing.")),
+                      u"min"_s, 0), u"max"_s, 500),
+            field(u"extraCharge"_s, tr("Extra: amount added"), u"money"_s,
+                  tr("And/or a fixed amount for Extra, e.g. 0.75. Charged even on choices that are free.")),
             field(u"expenseCategories"_s, tr("Expense categories"), u"text"_s,
                   tr("What cash paid out of a drawer can be for, one per line (Produce, Ice, Repairs...). "
                      "Each pay out picks one; Reports -> Expenses adds them up.")),
@@ -459,6 +464,8 @@ QVariantList PosService::adminRecords(const QString &panel)
                       lines << qs(c);
                   return lines.join(u'\n');
               }()},
+             {u"extraPercent"_s, s_->settings.extraPercent},
+             {u"extraCharge"_s, s_->settings.extraCharge.cents() / 100.0},
              {u"kioskSendNow"_s, s_->settings.kioskSendNow}, {u"kioskIdleSeconds"_s, s_->settings.kioskIdleSeconds},
              {u"encryptBackups"_s, !s_->settings.backupKey.empty()}, {u"backupPassword"_s, QString()},
              {u"waitMinutesPerParty"_s, s_->settings.waitMinutesPerParty},
@@ -809,6 +816,14 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
                 if (!line.trimmed().isEmpty())
                     categories.push_back(ss(line.trimmed()));
             s_->settings.expenseCategories = categories;
+        }
+        if (record.contains(u"extraPercent"_s))
+            s_->settings.extraPercent = std::clamp(record.value(u"extraPercent"_s).toInt(), 0, 500);
+        if (record.contains(u"extraCharge"_s)) {
+            const double extra = record.value(u"extraCharge"_s).toDouble();
+            if (extra < 0)
+                return fail(tr("The Extra charge can't be negative."));
+            s_->settings.extraCharge = Money::fromCents(std::llround(extra * 100));
         }
         if (record.contains(u"kioskSendNow"_s))
             s_->settings.kioskSendNow = record.value(u"kioskSendNow"_s).toBool();

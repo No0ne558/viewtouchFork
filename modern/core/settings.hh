@@ -144,6 +144,11 @@ struct PosSettings {
     // The store's language: screens without anyone logged in (and people
     // without their own), the customer display, receipts and tickets.
     std::string language = "en";
+    // What "Extra" adds to an item's or a modifier's price: a percent of it
+    // and/or an amount (extra cheese: +50%, or +$0.75). 0 and 0: no charge.
+    int extraPercent = 0;
+    Money extraCharge;
+    Money withExtra(Money price) const { return price + price.percent(std::int64_t(extraPercent) * 100) + extraCharge; }
     std::vector<Vendor> vendors;
     // What cash paid out of a drawer is for, for the Expenses report.
     std::vector<std::string> expenseCategories{"Food & supplies", "Produce", "Ice", "Cleaning", "Repairs", "Other"};
