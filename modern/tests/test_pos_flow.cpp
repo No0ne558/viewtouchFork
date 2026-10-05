@@ -1200,6 +1200,33 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     if (const QVariantList found = s.pos.checkSearch()[u"results"_s].toList(); !found.isEmpty())
         s.pos.selectFoundCheck(found.first().toMap()[u"id"_s].toLongLong());
     go("find-check", "m77-find-check");
+
+    // A combo for tomorrow evening, two bar tabs, and the screen dimmed.
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    s.pos.addItem(u"burger-combo"_s);
+    s.pos.chooseOption(u"temperature"_s, 2);
+    s.pos.chooseOption(u"side"_s, 2);
+    s.pos.chooseOption(u"combo-drink"_s, 2);
+    go("modifiers", "m79-combo");
+    s.pos.finishChoosing();
+    REQUIRE(s.pos.setDueAt(QDateTime(QDate::currentDate().addDays(1), QTime(18, 30)).toMSecsSinceEpoch()));
+    go("order-later", "m80-order-later");
+    s.pos.sendOrder();
+    s.pos.releaseCheck();
+    for (const QString &who : {u"Mike"_s, u"Ana, red jacket"_s, u"Table of 4 by the TV"_s}) {
+        REQUIRE(s.pos.openTab(who));
+        s.pos.addItem(u"draft-beer"_s);
+        chooseRequired();
+        s.pos.sendOrder();
+        s.pos.releaseCheck();
+    }
+    go("tabs", "m81-bar-tabs");
+    go("tables", "m81-tables");
+    s.c.setScreenSaverForTesting(100);
+    QTest::qWait(300);
+    snap("m82-screen-saver");
+    s.c.setScreenSaverForTesting(3'600'000);
+    s.c.wake();
     go("reports", "m46-report-sales");
     s.tapKey(u"Items"_s);
     s.tapKey(u"Last Month"_s);                                  // both years have the whole month
