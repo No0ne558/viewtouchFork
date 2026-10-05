@@ -1323,7 +1323,7 @@ QVariantList PosService::kitchenTickets() const
     auto collect = [&](const Check &c) {
         std::map<std::int64_t, std::vector<const OrderLine *>> bySend;
         for (const OrderLine &l : c.lines) {
-            const bool partsLeft = std::ranges::any_of(l.modifiers, [&](const Modifier &m) { return l.isPart(m) && !m.made; });
+            const bool partsLeft = std::ranges::any_of(l.modifiers, [&](const Modifier &m) { return isPart(l, m) && !m.made; });
             if (l.sent && (!l.made || partsLeft) && !l.voided && (l.isComment() || l.forKitchen()))
                 bySend[l.sentAt].push_back(&l);
         }
@@ -1346,18 +1346,18 @@ QVariantList PosService::kitchenTickets() const
         for (const OrderLine *l : t.lines) {
             QStringList mods;
             for (const Modifier &m : l->modifiers) {
-                if (!m.kitchenHide && !l->isPart(m))
+                if (!m.kitchenHide && !isPart(*l, m))
                     mods << qs(m.kitchenText());
             }
             if (!l->made)
                 lines.append(QVariantMap{{u"name"_s, qs(l->isComment() ? l->name : l->kitchenText())},
                                          {u"color"_s, qs(l->kitchenColor)}, {u"quantity"_s, l->quantity},
                                          {u"modifiers"_s, mods}, {u"comment"_s, l->isComment()},
-                                         {u"printer"_s, qs(l->printerOf())}, {u"station"_s, qs(l->stationOf())},
+                                         {u"printer"_s, qs(l->printerOf())}, {u"station"_s, qs(stationOf(*l))},
                                          {u"seat"_s, l->seat}, {u"course"_s, l->course}});
             // Its parts made at other stations (a combo's fries): lines of their own there.
             for (const Modifier &m : l->modifiers) {
-                if (l->isPart(m) && !m.made)
+                if (isPart(*l, m) && !m.made)
                     lines.append(QVariantMap{{u"name"_s, qs(m.kitchenText())}, {u"color"_s, QString()},
                                              {u"quantity"_s, l->quantity},
                                              {u"modifiers"_s, QStringList{tr("with %1").arg(qs(l->kitchenText()))}},
@@ -1393,17 +1393,40 @@ Check *findAnyCheck(PosShared *s, std::int64_t id)
 }
 } // namespace
 
-namespace {
+// Stations count only while they're on the store's list: with none, the
+// kitchen is one screen and an item's parts stay with it.
+bool PosService::knownStation(const std::string &id) const
+{
+    return !id.empty() && std::ranges::any_of(s_->settings.stations, [&](const Station &x) { return x.id == id; });
+}
+
+std::string PosService::stationOf(const OrderLine &l) const
+{
+    return knownStation(l.station) ? l.station : l.printerOf();
+}
+
+// A modifier made at another station than its line (a combo's fries at the fryer).
+bool PosService::isPart(const OrderLine &l, const Modifier &m) const
+{
+    return knownStation(m.station) && m.station != stationOf(l) && !m.kitchenHide && m.qualifier != Qualifier::No;
+}
+
+// The line and its parts at other stations are all made.
+bool PosService::allMade(const OrderLine &l) const
+{
+    return l.made && std::ranges::all_of(l.modifiers, [&](const Modifier &m) { return !isPart(l, m) || m.made; });
+}
+
 // A screen for `station` (a station id, a printer id, or "" for all) makes this line / this part.
-bool atStation(const OrderLine &l, const std::string &station)
+bool PosService::atStation(const OrderLine &l, const std::string &station) const
 {
-    return station.empty() || l.stationOf() == station || l.printerOf() == station;
+    return station.empty() || stationOf(l) == station || l.printerOf() == station;
 }
-bool partAt(const OrderLine &l, const Modifier &m, const std::string &station)
+
+bool PosService::partAt(const OrderLine &l, const Modifier &m, const std::string &station) const
 {
-    return l.isPart(m) && (station.empty() || m.station == station || l.printerOf() == station);
+    return isPart(l, m) && (station.empty() || m.station == station || l.printerOf() == station);
 }
-} // namespace
 
 bool PosService::bumpTicket(qint64 checkId, qint64 sentAt, const QString &station)
 {
@@ -1468,21 +1491,21 @@ QVariantList PosService::expoTickets() const
         QStringList waitingOn;
         bool ready = true;
         for (const OrderLine *l : t.lines) {
-            const QString station = stationName(l->stationOf());
+            const QString station = stationName(stationOf(*l));
             QStringList mods;
             for (const Modifier &m : l->modifiers)
                 if (!m.kitchenHide)
                     mods << qs(m.kitchenText());
             lines.append(QVariantMap{{u"name"_s, qs(l->kitchenText())}, {u"quantity"_s, l->quantity},
-                                     {u"modifiers"_s, mods}, {u"station"_s, station}, {u"made"_s, l->allMade()},
+                                     {u"modifiers"_s, mods}, {u"station"_s, station}, {u"made"_s, allMade(*l)},
                                      {u"seat"_s, l->seat}, {u"color"_s, qs(l->kitchenColor)}});
             if (!l->made && !waitingOn.contains(station))
                 waitingOn << station;
             for (const Modifier &m : l->modifiers) {   // parts at other stations
-                if (l->isPart(m) && !m.made && !waitingOn.contains(stationName(m.station)))
+                if (isPart(*l, m) && !m.made && !waitingOn.contains(stationName(m.station)))
                     waitingOn << stationName(m.station);
             }
-            if (!l->allMade())
+            if (!allMade(*l))
                 ready = false;
         }
         out.append(QVariantMap{
@@ -1559,7 +1582,7 @@ bool PosService::expoBump(qint64 checkId, qint64 sentAt)
                 l.madeAt = now();
             }
             for (Modifier &m : l.modifiers) {
-                if (l.isPart(m) && !m.made) {
+                if (isPart(l, m) && !m.made) {
                     m.made = true;
                     m.madeAt = now();
                 }

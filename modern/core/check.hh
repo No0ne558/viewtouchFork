@@ -63,17 +63,6 @@ struct OrderLine {
 
     bool isComment() const { return itemId.empty(); }
     std::string printerOf() const { return printer.empty() ? std::string("kitchen") : printer; }
-    std::string stationOf() const { return station.empty() ? printerOf() : station; }
-    // A modifier made at another station than this line (see Modifier::station).
-    bool isPart(const Modifier &m) const
-    {
-        return !m.station.empty() && m.station != stationOf() && !m.kitchenHide && m.qualifier != Qualifier::No;
-    }
-    // This line and its parts at other stations are all made.
-    bool allMade() const
-    {
-        return made && std::ranges::all_of(modifiers, [this](const Modifier &m) { return !isPart(m) || m.made; });
-    }
     std::string kitchenText() const { return qualifierPrefix(qualifier) + (kitchenName.empty() ? name : kitchenName); }
     // Something the kitchen sees (not a gift card or a hidden item).
     bool forKitchen() const { return !kitchenHide && !itemId.starts_with("giftcard:"); }

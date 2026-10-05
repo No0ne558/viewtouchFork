@@ -189,6 +189,7 @@ Store Settings → **Kitchen stations** lists the stations (the demo: Grill, Fry
 - A combo's part made elsewhere shows on its own at that station: the fryer sees "Fries, with COMBO BGR", and bumps it on its own.
 - The expediter waits for every station: "Waiting on: Grill, Fryer".
 - Printed tickets don't change.
+- One screen for everything: leave *Kitchen stations* empty. The Station button goes away, and items' *Made at* is ignored, so a burger's fries stay under it and one touch bumps the whole order.
 
 ## Orders for later
 

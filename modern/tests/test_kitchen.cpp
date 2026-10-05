@@ -291,3 +291,35 @@ TEST_CASE("Stations: a screen keeps the station it was set to", "[kitchen][stati
     CHECK(pos.shared()->settings.stations.back().id == "pizza-oven");
     CHECK(pos.shared()->settings.stations.front().id == "grill");
 }
+
+TEST_CASE("Stations: with none listed, the kitchen is one screen and parts stay with their item",
+          "[kitchen][stations]")
+{
+    app::PosService pos(test::seedPosData(), nullptr);
+    pos.shared()->settings.stations.clear();          // the menu still says grill, fryer...
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    for (const QVariant &v : pos.kitchenStations())   // only printers: no Station button
+        CHECK(v.toMap()[u"printer"_s].toBool());
+    REQUIRE(pos.selectTable(u"T1"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    pos.addItem(u"burger-combo"_s);
+    REQUIRE(pos.chooseOption(u"temperature"_s, 2));
+    REQUIRE(pos.chooseOption(u"side"_s, 0));
+    REQUIRE(pos.chooseOption(u"combo-drink"_s, 0));
+    REQUIRE(pos.finishChoosing());
+    pos.addItem(u"cobb"_s);
+    REQUIRE(pos.sendOrder());
+    const qint64 id = pos.checkInfo()[u"id"_s].toLongLong();
+
+    const QVariantMap t = pos.kitchenTickets().first().toMap();
+    const QVariantList lines = t[u"lines"_s].toList();
+    REQUIRE(lines.size() == 2);                       // the burger (fries under it) and the salad
+    CHECK(lines[0].toMap()[u"modifiers"_s].toStringList().contains(u"Fries"_s));
+    CHECK(lines[0].toMap()[u"station"_s] == u"kitchen"_s);
+    CHECK(lines[1].toMap()[u"station"_s] == u"kitchen"_s);
+    CHECK(pos.expoTickets().first().toMap()[u"waitingOn"_s].toStringList() == QStringList{u"Kitchen"_s});
+
+    REQUIRE(pos.bumpTicket(id, t[u"sentAt"_s].toLongLong(), u"kitchen"_s));   // one touch: all done
+    CHECK(pos.kitchenTickets().isEmpty());
+    CHECK(pos.expoTickets().first().toMap()[u"ready"_s].toBool());
+}

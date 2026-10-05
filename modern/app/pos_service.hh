@@ -301,6 +301,12 @@ public:
     QString kitchenStation() const override;
     bool setKitchenStation(const QString &station);
     QString stationName(const std::string &id) const;
+    bool knownStation(const std::string &id) const;
+    std::string stationOf(const core::OrderLine &l) const;
+    bool isPart(const core::OrderLine &l, const core::Modifier &m) const;
+    bool allMade(const core::OrderLine &l) const;
+    bool atStation(const core::OrderLine &l, const std::string &station) const;
+    bool partAt(const core::OrderLine &l, const core::Modifier &m, const std::string &station) const;
     bool addComment();
     // Amount: explicit cents, else the keypad entry, else the balance due.
     bool tender(const QString &tenderId, std::optional<std::int64_t> amountCents = std::nullopt);
