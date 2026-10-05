@@ -299,6 +299,9 @@ QVariantList PosService::adminFields(const QString &panel)
                       u"min"_s, 1), u"max"_s, 120),
             with(with(field(u"kitchenLateMinutes"_s, tr("Kitchen: ticket is late (red) after (minutes)"), u"int"_s,
                             tr("Late tickets are counted in the Kitchen report.")), u"min"_s, 1), u"max"_s, 240),
+            with(with(field(u"screenSaverMinutes"_s, tr("Dim the screen after (minutes)"), u"int"_s,
+                            tr("Untouched screens dim; a touch wakes them (and does nothing else). 0 = never. "
+                               "Kitchen, bar and expo screens stay on.")), u"min"_s, 0), u"max"_s, 240),
             with(with(field(u"autoLogoutMinutes"_s, tr("Log out idle screens after (minutes)"), u"int"_s,
                             tr("0 = never. Kitchen, bar and expo screens don't need a login.")), u"min"_s, 0), u"max"_s, 120),
             with(with(field(u"tableLongMinutes"_s, tr("Mark tables seated longer than (minutes)"), u"int"_s),
@@ -470,6 +473,7 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"encryptBackups"_s, !s_->settings.backupKey.empty()}, {u"backupPassword"_s, QString()},
              {u"waitMinutesPerParty"_s, s_->settings.waitMinutesPerParty},
              {u"autoLogoutMinutes"_s, s_->settings.autoLogoutMinutes},
+             {u"screenSaverMinutes"_s, s_->settings.screenSaverMinutes},
              {u"tableLongMinutes"_s, s_->settings.tableLongMinutes},
              {u"loyaltyEnabled"_s, s_->settings.loyaltyEnabled}, {u"pointsPerDollar"_s, s_->settings.pointsPerDollar},
              {u"rewards"_s, [&] {
@@ -741,6 +745,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             if (!tips.empty())
                 s_->settings.tipPercents = tips;
         }
+        if (record.contains(u"screenSaverMinutes"_s))
+            s_->settings.screenSaverMinutes = std::clamp(record.value(u"screenSaverMinutes"_s).toInt(), 0, 240);
         if (record.contains(u"autoLogoutMinutes"_s))
             s_->settings.autoLogoutMinutes = std::clamp(record.value(u"autoLogoutMinutes"_s).toInt(), 0, 120);
         if (record.contains(u"tableLongMinutes"_s))

@@ -127,6 +127,7 @@ ApplicationWindow {
                 controller: root.controller
                 editor: root.editing ? root.editor : null
                 focus: true
+                enabled: !root.controller.asleep   // the touch that wakes it does nothing here
 
                 Keys.onPressed: event => {
                     if (root.editing)
@@ -323,6 +324,49 @@ ApplicationWindow {
         visible: !root.editing && root.controller.pos !== null && ((root.controller.pos as PosService).selfOrder.on ?? false)
         pos: root.controller.pos as PosService
         onManagerExit: approvalPad.leavingKiosk = true
+    }
+
+    // Screen saver: dimmed after no touches; the first touch only wakes it.
+    Rectangle {
+        id: screenSaver
+        objectName: "screenSaver"
+        anchors.fill: parent
+        z: 90
+        visible: root.controller.asleep
+        color: "#f2050608"
+        Column {
+            anchors.centerIn: parent
+            spacing: 12
+            opacity: 0.55
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: root.controller.pos ? root.controller.pos.storeName : ""
+                color: "white"
+                font.pixelSize: Math.min(root.width, root.height) * 0.06
+                font.bold: true
+            }
+            Text {
+                id: saverClock
+                anchors.horizontalCenter: parent.horizontalCenter
+                color: "#c9d1de"
+                font.pixelSize: Math.min(root.width, root.height) * 0.1
+                Timer {
+                    interval: 1000
+                    repeat: true
+                    triggeredOnStart: true
+                    running: screenSaver.visible
+                    onTriggered: saverClock.text = Qt.formatTime(new Date(), "h:mm AP")
+                }
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: qsTr("Touch to wake")
+                color: "#8a94a6"
+                font.pixelSize: Math.min(root.width, root.height) * 0.03
+            }
+        }
+        // Wakes when the finger lifts: the page is still off during the press.
+        MouseArea { anchors.fill: parent; onReleased: root.controller.wake() }
     }
 
     JobChooser {

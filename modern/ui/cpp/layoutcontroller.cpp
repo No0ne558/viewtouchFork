@@ -69,6 +69,8 @@ LayoutController::LayoutController(Layout layout, QObject *parent)
     mealTimer_.start();
     idleTimer_.setSingleShot(true);
     connect(&idleTimer_, &QTimer::timeout, this, &LayoutController::idleTimeout);
+    sleepTimer_.setSingleShot(true);
+    connect(&sleepTimer_, &QTimer::timeout, this, &LayoutController::sleepTimeout);
     if (QCoreApplication::instance())
         QCoreApplication::instance()->installEventFilter(this);
     nav_.reset(homePageOf(layout_));
@@ -83,6 +85,8 @@ bool LayoutController::eventFilter(QObject *watched, QEvent *event)
     case QEvent::KeyPress:
     case QEvent::Wheel:
         restartIdle();
+        if (!asleep_)   // asleep: the dim layer takes this touch and wakes it
+            restartSleep();
         break;
     default:
         break;
@@ -99,6 +103,40 @@ void LayoutController::restartIdle()
         return;
     }
     idleTimer_.start(ms);
+}
+
+void LayoutController::restartSleep()
+{
+    const int minutes = pos_ ? pos_->screenSaverMinutes() : 0;
+    const int ms = sleepOverrideMs_ > 0 ? sleepOverrideMs_ : minutes * 60 * 1000;
+    if (ms <= 0) {
+        sleepTimer_.stop();
+        return;
+    }
+    sleepTimer_.start(ms);
+}
+
+void LayoutController::sleepTimeout()
+{
+    // Screens people watch stay on: kitchen, bar and expo; the kiosk has its own pictures.
+    const vt::layout::Page *page = activeLayout().page(pageId());
+    const bool watched = page && page->kind == u"kitchen";
+    const bool kiosk = pos_ && pos_->selfOrderInfo().value(u"on"_s).toBool();
+    if (watched || kiosk || editing()) {
+        restartSleep();
+        return;
+    }
+    asleep_ = true;
+    emit asleepChanged();
+}
+
+void LayoutController::wake()
+{
+    if (!asleep_)
+        return;
+    asleep_ = false;
+    emit asleepChanged();
+    restartSleep();
 }
 
 void LayoutController::idleTimeout()
@@ -181,6 +219,8 @@ void LayoutController::setPos(PosSession *pos)
         connect(pos_, &PosSession::adminChanged, this, [this] {
             updateMealPeriod();
             updateFormFactor();
+            if (!asleep_)
+                restartSleep();   // the setting may have changed
             refresh();   // sold-out marks
             if (editor_)
                 editor_->setMealPeriods(pos_->mealPeriods());
@@ -199,6 +239,7 @@ void LayoutController::setPos(PosSession *pos)
     updateFormFactor();
     emit posChanged();
     refresh();
+    restartSleep();
 }
 
 void LayoutController::call(const QString &method, const QVariantList &args,

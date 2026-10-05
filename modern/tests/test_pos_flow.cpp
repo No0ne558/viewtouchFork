@@ -665,6 +665,36 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: the screen dims when untouched; the first touch only wakes it", "[flow][ui][saver]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.setScreenSaverForTesting(200);
+    QTest::qWait(400);
+    REQUIRE(s.c.asleep());
+    QQuickItem *saver = Screen::findBy(s.window->contentItem(), "objectName", u"screenSaver"_s);
+    REQUIRE(saver);
+    CHECK(saver->isVisible());
+    s.shot("26-screen-saver");
+
+    // A touch on Quick Order while dim: awake, and no order started.
+    s.c.setScreenSaverForTesting(60'000);
+    s.tapItem(Screen::findBy(s.window->contentItem(), "text", u"Quick Order"_s));
+    CHECK_FALSE(s.c.asleep());
+    CHECK_FALSE(saver->isVisible());
+    CHECK_FALSE(s.pos.hasCheck());
+    CHECK(s.c.pageId() == u"tables"_s);
+    s.tapItem(Screen::findBy(s.window->contentItem(), "text", u"Quick Order"_s));   // now it works
+    CHECK(s.pos.hasCheck());
+
+    // Kitchen screens stay on.
+    REQUIRE(s.c.jumpTo(u"kitchen"_s));
+    s.c.setScreenSaverForTesting(150);
+    QTest::qWait(400);
+    CHECK_FALSE(s.c.asleep());
+}
+
 TEST_CASE("UI: receiving a delivery by touch", "[flow][ui][vendors]")
 {
     Screen s;

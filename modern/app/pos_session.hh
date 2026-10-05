@@ -73,6 +73,7 @@ class PosSession : public QObject {
     // This screen's checks are practice (training).
     Q_PROPERTY(bool training READ training NOTIFY sessionChanged)
     Q_PROPERTY(int autoLogoutMinutes READ autoLogoutMinutes NOTIFY adminChanged)
+    Q_PROPERTY(int screenSaverMinutes READ screenSaverMinutes NOTIFY adminChanged)
     // Messages between screens, the last hour's, newest first.
     Q_PROPERTY(QVariantList messages READ messages NOTIFY dayChanged)
     Q_PROPERTY(bool standbyReady READ standbyReady NOTIFY sessionChanged)
@@ -177,6 +178,7 @@ public:
     virtual QVariantMap rangeReport() const = 0;
     virtual QVariantMap approvalInfo() const = 0;
     virtual int autoLogoutMinutes() const = 0;
+    virtual int screenSaverMinutes() const = 0;
     virtual QVariantList messages() const = 0;
     // A screen that lost its server: the store's standby is there, ready.
     virtual bool standbyReady() const { return false; }

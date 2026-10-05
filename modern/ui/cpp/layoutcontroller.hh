@@ -41,6 +41,8 @@ class LayoutController : public QObject {
     Q_PROPERTY(ZoneModel *zones READ zones CONSTANT)
     Q_PROPERTY(QString statusText READ statusText NOTIFY statusChanged)
     Q_PROPERTY(bool editing READ editing NOTIFY editingChanged)
+    // Screen saver: dimmed after no touches for a while (Store Settings).
+    Q_PROPERTY(bool asleep READ asleep NOTIFY asleepChanged)
     Q_PROPERTY(EditorController *editor READ editor NOTIFY editorChanged)
     Q_PROPERTY(vt::app::PosSession *pos READ pos NOTIFY posChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
@@ -81,6 +83,10 @@ public:
     ZoneModel *zones() { return &zones_; }
     QString statusText() const { return status_; }
     bool editing() const { return editing_; }
+    bool asleep() const { return asleep_; }
+    // The touch that wakes the screen does nothing else (Main.qml's dim layer takes it).
+    Q_INVOKABLE void wake();
+    void setScreenSaverForTesting(int ms) { sleepOverrideMs_ = ms; restartSleep(); }
     EditorController *editor() const { return editor_; }
     bool busy() const { return pending_ > 0; }
 
@@ -148,6 +154,7 @@ signals:
     void closeRequested();
     void statusChanged();
     void editingChanged();
+    void asleepChanged();
     void editorChanged();
     void posChanged();
     void busyChanged();
@@ -199,6 +206,11 @@ private:
     QTimer mealTimer_;
     // Idle log-out: restarted by every touch, key or click (eventFilter).
     QTimer idleTimer_;
+    QTimer sleepTimer_;
+    bool asleep_ = false;
+    int sleepOverrideMs_ = 0;
+    void restartSleep();
+    void sleepTimeout();
     int idleOverrideMs_ = 0;
     void restartIdle();
     void idleTimeout();

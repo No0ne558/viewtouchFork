@@ -470,6 +470,7 @@ public:
     bool cancelApproval();
     QVariantMap approvalInfo() const override { return approval_; }
     int autoLogoutMinutes() const override { return s_->settings.autoLogoutMinutes; }
+    int screenSaverMinutes() const override { return s_->settings.screenSaverMinutes; }
 
     // --- practice (training) --------------------------------------------------------
     // This screen's checks are practice: the person is in training, or a

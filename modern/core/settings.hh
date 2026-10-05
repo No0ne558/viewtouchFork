@@ -160,6 +160,9 @@ struct PosSettings {
     int serverTerm = 0;
     // Log a screen out after this many idle minutes (0: never).
     int autoLogoutMinutes = 0;
+    // Dim a screen nobody has touched for this long (0: never). Kitchen,
+    // bar and expo screens and the self-order kiosk stay on.
+    int screenSaverMinutes = 10;
     // A table seated longer than this is marked on the floor plan.
     int tableLongMinutes = 90;
     // Clock in only near a scheduled shift (managers excepted), from this

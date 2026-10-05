@@ -102,6 +102,7 @@ public:
     QVariantMap approvalInfo() const override { return v(u"approval").toMap(); }
     bool training() const override { return v(u"training").toBool(); }
     int autoLogoutMinutes() const override { return v(u"autoLogoutMinutes").toInt(); }
+    int screenSaverMinutes() const override { return v(u"screenSaverMinutes").toInt(); }
     QVariantList messages() const override { return v(u"messages").toList(); }
     bool standbyReady() const override { return !welcomed_ && !standbyHost_.isEmpty(); }
     QVariantMap networkInfo() const override { return v(u"network").toMap(); }

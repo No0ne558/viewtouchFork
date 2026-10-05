@@ -635,6 +635,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"backupKey"_s, qs(s.backupKey)}, {u"backupSalt"_s, qs(s.backupSalt)},
         {u"waitMinutesPerParty"_s, s.waitMinutesPerParty},
         {u"autoLogoutMinutes"_s, s.autoLogoutMinutes}, {u"tableLongMinutes"_s, s.tableLongMinutes},
+        {u"screenSaverMinutes"_s, s.screenSaverMinutes},
         {u"replicaKey"_s, qs(s.replicaKey)}, {u"language"_s, qs(s.language)},
         {u"extraPercent"_s, s.extraPercent}, {u"extraCharge"_s, decimalFromCents(s.extraCharge.cents())},
         {u"expenseCategories"_s, [&] {
@@ -731,6 +732,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.backupSalt = ss(o.value(u"backupSalt").toString());
     s.waitMinutesPerParty = std::clamp(o.value(u"waitMinutesPerParty").toInt(10), 1, 120);
     s.autoLogoutMinutes = std::clamp(o.value(u"autoLogoutMinutes").toInt(0), 0, 120);
+    s.screenSaverMinutes = std::clamp(o.value(u"screenSaverMinutes").toInt(10), 0, 240);
     s.replicaKey = ss(o.value(u"replicaKey").toString());
     s.language = ss(o.value(u"language").toString(u"en"_s));
     s.extraPercent = std::clamp(o.value(u"extraPercent").toInt(0), 0, 500);
