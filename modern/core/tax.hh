@@ -21,6 +21,9 @@ struct TaxRates {
     std::int64_t roomPpm = 0;
     // Legacy tax_takeout_food: when false, takeout food is not taxed.
     bool taxTakeoutFood = true;
+    // Where pennies are gone: a check paid in cash is rounded to the
+    // nearest 5 (or 10) cents. 0: no rounding. Cards are never rounded.
+    int cashRoundingCents = 0;
 
     constexpr std::int64_t ratePpm(TaxClass c) const
     {

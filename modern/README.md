@@ -287,6 +287,10 @@ Run the main server and the standby as headless services on two computers, both 
   - Paid-first counter orders stay on screen until they are bumped.
 - **Takeout / Delivery** (floor plan) asks for the customer: name, phone, address and a note. The details save as you type. They print on the receipt and kitchen tickets and show on the order, the kitchen card and the check list. A takeout or delivery that is put away with nothing ordered is discarded.
 
+## Cash rounding
+
+Where pennies are gone (Canada, and elsewhere): Manager → Taxes → *Cash rounding* → nearest 5 or 10 cents. A check paid in cash is rounded (what is owed when the cash comes: $17.62 → $17.60, $17.63 → $17.65); touching **Cash** with no amount typed takes the rounded balance. The check, the receipt and the Sales report show a *Cash rounding* line. Card payments are exact; a check paid partly by card rounds only what cash pays.
+
 ## Tips and cash handling
 
 - **Tips** go on card payments. On the settle page, touch 15%, 18% or 20%, or type an amount and touch Amount. The receipt, the Tips report and the server's "tips owed" show them.

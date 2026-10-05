@@ -846,6 +846,11 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
             amount = Money::fromCents(entry_.toLongLong());
         else
             amount = before.balance;
+        // Cash where pennies are gone: the balance, rounded.
+        if (t->kind == TenderKind::Cash && !amountCents && entry_.isEmpty() && s_->settings.tax.cashRoundingCents > 1) {
+            const std::int64_t step = s_->settings.tax.cashRoundingCents;
+            amount = Money::fromCents((amount.cents() + step / 2) / step * step);
+        }
         if (amount.cents() <= 0)
             return fail(tr("Enter an amount."));
         // Only cash can be over-tendered (to give change).
@@ -1109,6 +1114,7 @@ QVariantMap PosService::totals() const
         {u"balance"_s, format(t.balance.cents() > 0 ? t.balance : Money())},
         {u"balanceCents"_s, qint64(t.balance.cents())},
         {u"change"_s, format(t.change)}, {u"hasChange"_s, t.change.cents() > 0},
+        {u"rounding"_s, format(t.rounding)}, {u"hasRounding"_s, t.rounding.cents() != 0},
         {u"gratuity"_s, format(t.gratuity)}, {u"hasGratuity"_s, t.gratuity.cents() > 0},
         {u"gratuityPercent"_s, double(c->gratuityBp) / 100.0}, {u"autoGratuity"_s, c->autoGratuity},
         // What the Add gratuity key offers: the store's party rate, else 18%.

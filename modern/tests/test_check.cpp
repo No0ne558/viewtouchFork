@@ -210,3 +210,56 @@ TEST_CASE("Each send gets its own time, even within one millisecond", "[check]")
     CHECK(c.lines[0].sentAt == 1000);
     CHECK(c.lines[1].sentAt == 1001);
 }
+
+TEST_CASE("Cash rounding: to the nearest 5 cents when paid in cash, cards exact", "[check][rounding]")
+{
+    TaxRates r;   // no tax: the totals are the prices
+    r.cashRoundingCents = 5;
+    Tender cash;
+    cash.id = "cash";
+    cash.name = "Cash";
+    cash.kind = TenderKind::Cash;
+    Tender card;
+    card.id = "card";
+    card.name = "Card";
+    card.kind = TenderKind::Card;
+
+    // $17.62 in cash: $17.60 settles it, 2 cents rounded away.
+    Check down;
+    down.addItem(item("Plate", 1762, TaxClass::None));
+    CHECK(down.totals(r).rounding.cents() == 0);              // nothing paid yet
+    down.addPayment(cash, usd(1760));
+    Totals t = down.totals(r);
+    CHECK(t.rounding.cents() == -2);
+    CHECK(t.balance.cents() == 0);
+    CHECK(t.cashNet().cents() == 1760);
+
+    // $17.63 rounds up to $17.65; a $20 bill gets $2.35 back.
+    Check up;
+    up.addItem(item("Plate", 1763, TaxClass::None));
+    up.addPayment(cash, usd(2000));
+    t = up.totals(r);
+    CHECK(t.rounding.cents() == 2);
+    CHECK(t.change.cents() == 235);
+
+    // Card for part, cash for the rest: only what cash pays is rounded.
+    Check split;
+    split.addItem(item("Plate", 1762, TaxClass::None));
+    split.addPayment(card, usd(1000));
+    split.addPayment(cash, usd(760));
+    t = split.totals(r);
+    CHECK(t.rounding.cents() == -2);
+    CHECK(t.balance.cents() == 0);
+
+    // All on a card: exact.
+    Check exact;
+    exact.addItem(item("Plate", 1762, TaxClass::None));
+    exact.addPayment(card, usd(1762));
+    CHECK(exact.totals(r).rounding.cents() == 0);
+    CHECK(exact.totals(r).balance.cents() == 0);
+
+    // No rounding set: to the cent.
+    r.cashRoundingCents = 0;
+    CHECK(down.totals(r).rounding.cents() == 0);
+    CHECK(down.totals(r).balance.cents() == 2);
+}

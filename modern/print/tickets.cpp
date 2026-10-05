@@ -92,6 +92,8 @@ Document receipt(const Check &check, const TicketContext &ctx)
         if (p.tip.cents() != 0)
             d.columns("  Tip", ctx.money(p.tip));
     }
+    if (t.rounding.cents() != 0)
+        d.columns("Cash rounding", ctx.money(t.rounding));
     if (t.tips.cents() != 0)
         d.columns("Total with tip", ctx.money(t.total + t.tips), true);
     if (t.change.cents() > 0)

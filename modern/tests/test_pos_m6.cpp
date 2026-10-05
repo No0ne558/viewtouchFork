@@ -231,3 +231,43 @@ TEST_CASE("Admin: gratuity rules and terminal printers", "[m6][admin]")
     CHECK(pos.settings().receiptPrinterFor("Front") == "receipt");
     CHECK_FALSE(pos.adminSave(u"terminals"_s, -1, t));   // duplicate name
 }
+
+TEST_CASE("Cash rounding at the register: Cash takes the rounded balance; the report shows it", "[m6][rounding]")
+{
+    app::PosData data = test::seedPosData();
+    data.settings.tax = {};                      // no tax: easy totals
+    data.settings.tax.cashRoundingCents = 5;
+    PosService pos(data, nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.openDrawerSession());
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(u"soda"_s);                      // $2.95
+    pos.finishChoosing();
+    pos.addItem(u"coffee"_s);                    // $2.75: $5.70
+    pos.finishChoosing();
+    pos.addItem(u"juice"_s);                     // $3.50: $9.20
+    pos.finishChoosing();
+    pos.addItem(u"lemonade"_s);                  // $3.25: $12.45
+    pos.finishChoosing();
+    pos.addItem(u"tea"_s);                       // $2.50: $14.95
+    pos.finishChoosing();
+    pos.addItem(u"water"_s);
+    // Make it end in 3 cents: a $0.08 item.
+    core::MenuItem mint;
+    mint.id = "mint";
+    mint.name = "Mint";
+    mint.price = Money::fromCents(8);
+    pos.shared()->menu.push_back(mint);
+    pos.addItem(u"mint"_s);                      // $15.03
+    REQUIRE(pos.totals()[u"total"_s] == u"$15.03"_s);
+    REQUIRE(pos.tender(u"cash"_s));              // takes $15.05
+    const QVariantMap t = pos.totals();
+    CHECK(t[u"hasRounding"_s].toBool());
+    CHECK(t[u"rounding"_s] == u"$0.02"_s);
+    CHECK(t[u"balanceCents"_s].toLongLong() == 0);
+    REQUIRE(pos.closeCheck());
+    bool line = false;
+    for (const core::ReportRow &row : pos.buildReport(u"sales"_s).rows)
+        line = line || (row.cells.size() == 2 && row.cells[0] == "Cash rounding" && row.cells[1] == "$0.02");
+    CHECK(line);
+}

@@ -91,7 +91,7 @@ Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx)
     r.subtitle = ctx.period;
     r.columns = {"", "Amount"};
 
-    Money items, discounts, net, tax, total, change, gratuity, tips;
+    Money items, discounts, net, tax, total, change, rounding, gratuity, tips;
     std::map<TaxClass, Money> taxByClass;
     std::map<std::string, Money> byTender;           // tender name -> amount
     std::vector<std::string> tenderOrder;
@@ -106,6 +106,7 @@ Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx)
         tax += t.tax;
         total += t.total;
         change += t.change;
+        rounding += t.rounding;
         gratuity += t.gratuity;
         tips += t.tips;
         guests += c.guests;
@@ -145,6 +146,8 @@ Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx)
         r.line({name, ctx.money(byTender[name])});
     if (change.cents() > 0)
         r.line({"Change given", ctx.money(-change)});
+    if (rounding.cents() != 0)
+        r.line({"Cash rounding", ctx.money(rounding)});
     Money collected = -change;
     for (const auto &[name, amount] : byTender)
         collected += amount;

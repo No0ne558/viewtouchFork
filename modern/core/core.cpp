@@ -472,7 +472,15 @@ Totals Check::totals(const TaxRates &rates) const
         if (p.kind == TenderKind::Cash)
             t.cashPaid += p.amount;
     }
-    t.balance = t.total - t.paid;
+    // Paid in cash where pennies are gone: what was owed when the cash came
+    // is rounded to the nearest 5 (10) cents.
+    if (rates.cashRoundingCents > 1 && t.cashPaid.cents() > 0) {
+        const std::int64_t step = rates.cashRoundingCents;
+        const std::int64_t due = (t.total - (t.paid - t.cashPaid)).cents();
+        if (due > 0)
+            t.rounding = Money::fromCents((due + step / 2) / step * step - due);
+    }
+    t.balance = t.total + t.rounding - t.paid;
     t.change = t.balance.cents() < 0 ? -t.balance : Money();
     return t;
 }

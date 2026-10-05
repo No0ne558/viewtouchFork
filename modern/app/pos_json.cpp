@@ -595,7 +595,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"tax"_s, QJsonObject{
              {u"food"_s, percentFromPpm(s.tax.foodPpm)}, {u"alcohol"_s, percentFromPpm(s.tax.alcoholPpm)},
              {u"merchandise"_s, percentFromPpm(s.tax.merchandisePpm)}, {u"room"_s, percentFromPpm(s.tax.roomPpm)},
-             {u"taxTakeoutFood"_s, s.tax.taxTakeoutFood}}},
+             {u"taxTakeoutFood"_s, s.tax.taxTakeoutFood}, {u"cashRounding"_s, s.tax.cashRoundingCents}}},
         {u"tenders"_s, tenders}, {u"tendersV2"_s, true},
         {u"printers"_s, printers},
         {u"receiptHeader"_s, qs(s.receiptHeader)},
@@ -679,6 +679,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.tax.merchandisePpm = ppmFromPercent(tax.value(u"merchandise").toDouble());
     s.tax.roomPpm = ppmFromPercent(tax.value(u"room").toDouble());
     s.tax.taxTakeoutFood = tax.value(u"taxTakeoutFood").toBool(true);
+    s.tax.cashRoundingCents = tax.value(u"cashRounding").toInt(0);
     for (const QJsonValue &v : o.value(u"printers").toArray())
         s.printers.push_back(printerFromJson(v.toObject()));
     s.receiptHeader = ss(o.value(u"receiptHeader").toString());

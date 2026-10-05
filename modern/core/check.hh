@@ -137,7 +137,8 @@ struct Totals {
     Money paid;          // cash + card toward the total (tips not included)
     Money tips;          // card tips, on top of the total
     Money cashPaid;      // cash tendered
-    Money balance;       // total - paid (negative = change owed)
+    Money rounding;      // cash rounding (TaxRates::cashRoundingCents): -2 to +2 cents...
+    Money balance;       // total + rounding - paid (negative = change owed)
     Money change;        // max(0, -balance), always given in cash
     Money cashNet() const { return cashPaid - change; }   // what stays in the drawer
 

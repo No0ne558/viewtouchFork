@@ -77,6 +77,7 @@ Item {
                 value: w.totals.gratuity ?? ""
             }
             Line { name: qsTr("Total"); value: w.totals.total ?? ""; strong: true; size: w.unit * 1.2 }
+            Line { name: qsTr("Cash rounding"); value: w.totals.rounding ?? ""; visible: w.totals.hasRounding ?? false }
             Line {
                 visible: w.totals.hasTips ?? false
                 name: qsTr("Tips")

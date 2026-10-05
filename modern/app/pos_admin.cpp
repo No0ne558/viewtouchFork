@@ -249,6 +249,9 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"merchandise"_s, tr("Merchandise tax %"), u"percent"_s),
             field(u"room"_s, tr("Room tax %"), u"percent"_s),
             field(u"taxTakeoutFood"_s, tr("Tax takeout food"), u"bool"_s),
+            with(field(u"cashRounding"_s, tr("Cash rounding"), u"enum"_s,
+                       tr("Where pennies are gone: checks paid in cash are rounded to the nearest 5 or 10 cents. Cards are exact.")),
+                 u"options"_s, options({{"0", "None (to the cent)"}, {"5", "Nearest 5 cents"}, {"10", "Nearest 10 cents"}})),
         };
     }
     if (panel == u"store") {
@@ -432,7 +435,7 @@ QVariantList PosService::adminRecords(const QString &panel)
         const TaxRates &t = s_->settings.tax;
         add({{u"food"_s, percentFromPpm(t.foodPpm)}, {u"alcohol"_s, percentFromPpm(t.alcoholPpm)},
              {u"merchandise"_s, percentFromPpm(t.merchandisePpm)}, {u"room"_s, percentFromPpm(t.roomPpm)},
-             {u"taxTakeoutFood"_s, t.taxTakeoutFood}},
+             {u"taxTakeoutFood"_s, t.taxTakeoutFood}, {u"cashRounding"_s, QString::number(t.cashRoundingCents)}},
             tr("Tax rates"), QString());
     } else if (panel == u"store") {
         add({{u"storeName"_s, qs(s_->settings.storeName)}, {u"language"_s, qs(s_->settings.language)}, {u"currencySymbol"_s, qs(s_->settings.currencySymbol)},
@@ -671,6 +674,12 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         s_->settings.tax.merchandisePpm = ppmFromPercent(rates[2]);
         s_->settings.tax.roomPpm = ppmFromPercent(rates[3]);
         s_->settings.tax.taxTakeoutFood = record.value(u"taxTakeoutFood"_s).toBool();
+        if (record.contains(u"cashRounding"_s)) {
+            const int step = record.value(u"cashRounding"_s).toInt();
+            if (step != 0 && step != 5 && step != 10)
+                return fail(tr("Cash rounding is to 5 or 10 cents, or none."));
+            s_->settings.tax.cashRoundingCents = step;
+        }
         settingsChanged();
         ok = true;
     } else if (panel == u"store") {
