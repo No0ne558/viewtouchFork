@@ -665,6 +665,32 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: opening a bar tab and finding it on the tabs screen", "[flow][ui][tabs]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"4444"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.activate(u"tabs"_s);
+    CHECK(s.c.pageId() == u"tabs"_s);
+    s.c.activate(u"new"_s);
+    CHECK(s.c.pageId() == u"new-tab"_s);
+    for (const char ch : {'M', 'i', 'k', 'e'})
+        s.pos.textKey(QString(QChar(ch)));
+    s.c.activate(u"open"_s);                          // Open Tab, then the menu
+    CHECK(s.c.pageId() == u"index-lunch"_s);
+    CHECK(s.pos.checkInfo()[u"label"_s] == u"Mike"_s);
+    s.c.activate(u"flow-tables"_s);
+    REQUIRE(s.pos.openTab(u"Ana"_s));
+    s.pos.releaseCheck();
+    REQUIRE(s.c.jumpTo(u"tabs"_s));
+    QTest::qWait(60);
+    s.shot("27-bar-tabs");
+    QQuickItem *ana = Screen::findBy(s.window->contentItem(), "text", u"Ana"_s);
+    REQUIRE(ana);
+    s.tapItem(ana);
+    CHECK(s.pos.checkInfo()[u"label"_s] == u"Ana"_s);
+}
+
 TEST_CASE("UI: the screen dims when untouched; the first touch only wakes it", "[flow][ui][saver]")
 {
     Screen s;

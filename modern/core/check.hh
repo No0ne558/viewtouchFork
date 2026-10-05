@@ -96,7 +96,8 @@ struct Payment {
     bool operator==(const Payment &) const = default;
 };
 
-enum class CheckType { DineIn, Takeout, Quick, Delivery };
+// Tab: a bar tab, opened under the guest's name and kept open all night.
+enum class CheckType { DineIn, Takeout, Quick, Delivery, Tab };
 
 // Who a takeout / delivery order is for.
 struct Customer {

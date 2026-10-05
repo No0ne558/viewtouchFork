@@ -130,6 +130,7 @@ std::string toString(CheckType t)
     case CheckType::Takeout: return "takeout";
     case CheckType::Quick: return "quick";
     case CheckType::Delivery: return "delivery";
+    case CheckType::Tab: return "tab";
     }
     return "dineIn";
 }
@@ -139,6 +140,7 @@ CheckType checkTypeFromString(const std::string &s)
     if (s == "takeout") return CheckType::Takeout;
     if (s == "quick") return CheckType::Quick;
     if (s == "delivery") return CheckType::Delivery;
+    if (s == "tab") return CheckType::Tab;
     return CheckType::DineIn;
 }
 

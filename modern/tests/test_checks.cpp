@@ -250,3 +250,42 @@ TEST_CASE("Closing a check sends courses still on hold", "[checks][courses]")
     REQUIRE(pos.closeCheck());
     CHECK(pos.kitchenTickets().size() == 1);               // it went out on close
 }
+
+TEST_CASE("Bar tabs: opened under a name, kept open, found again", "[checks][tabs]")
+{
+    app::PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"4444"_s));                 // Jo, the bartender
+    CHECK_FALSE(pos.openTab());                           // needs a name
+    for (const char ch : {'M', 'i', 'k', 'e'})
+        pos.textKey(QString(QChar(ch)));
+    REQUIRE(pos.openTab());
+    CHECK(pos.checkInfo()[u"label"_s] == u"Mike"_s);
+    CHECK(pos.textEntry().isEmpty());
+    const qint64 mike = pos.checkInfo()[u"id"_s].toLongLong();
+    pos.releaseCheck();                                   // empty, but a tab stays open
+    REQUIRE(pos.shared()->open.contains(mike));
+    CHECK(pos.shared()->open.at(mike).type == core::CheckType::Tab);
+
+    REQUIRE(pos.openTab(u"Ana"_s));
+    pos.addItem(u"draft-beer"_s);
+    pos.chooseOption(u"draft"_s, 0);
+    pos.finishChoosing();
+    REQUIRE(pos.sendOrder());
+    pos.releaseCheck();
+
+    // Both on the list as tabs; a dinner table isn't.
+    REQUIRE(pos.selectTable(u"T1"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    pos.releaseCheck();
+    int tabs = 0;
+    for (const QVariant &c : pos.openChecks())
+        tabs += c.toMap()[u"type"_s] == u"tab"_s;
+    CHECK(tabs == 2);
+
+    // Back to Mike's tab later.
+    REQUIRE(pos.openCheck(mike));
+    pos.addItem(u"soda"_s);
+    pos.finishChoosing();
+    CHECK(pos.lines().size() == 1);
+    CHECK(app::checkFromJson(app::toJson(pos.shared()->open.at(mike)))->type == core::CheckType::Tab);
+}

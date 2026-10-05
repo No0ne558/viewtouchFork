@@ -5,6 +5,7 @@ import QtQuick.Controls.Fusion
 //   (none)  open it
 //   merge   merge it into the check you are on, then go back
 //   closed  checks closed today (managers): reopen one and go to Settle
+//   tabs    the bar's open tabs: open one
 Item {
     id: w
     property ZoneItem zone
@@ -15,6 +16,7 @@ Item {
         if (!pos) return []
         if (mode === "closed") return pos.closedChecks
         if (mode === "merge") return pos.openChecks.filter(c => !c.current)
+        if (mode === "tabs") return pos.openChecks.filter(c => c.type === "tab")
         return filter === "" ? pos.openChecks : pos.openChecks.filter(c => c.label === filter)
     }
     // A table with several checks (after a split) shows only its checks.
@@ -87,7 +89,8 @@ Item {
                 }
                 Text {
                     width: parent.width
-                    text: (card.modelData.customer ? card.modelData.customer + " · " : "")
+                    text: (card.modelData.customer && card.modelData.customer !== card.modelData.label
+                           ? card.modelData.customer + " · " : "")
                           + (w.mode === "closed"
                              ? qsTr("%1 · closed %2 · #%3").arg(card.modelData.server).arg(card.modelData.closed).arg(card.modelData.id)
                              : qsTr("%1 · %2 min").arg(card.modelData.server).arg(card.modelData.minutes))
@@ -118,6 +121,7 @@ Item {
             anchors.centerIn: parent
             visible: grid.count === 0
             text: w.mode === "closed" ? qsTr("No checks closed today")
+                 : w.mode === "tabs" ? qsTr("No tabs open. Touch New Tab… to start one.")
                  : w.mode === "merge" ? qsTr("No other open checks") : qsTr("No open checks")
             color: "#8a94a6"
             font.family: w.face

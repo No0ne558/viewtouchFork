@@ -183,6 +183,10 @@ Reports have a row of periods: *Day* (one business day, as before), *This Week*,
 - **Manager approval:** when someone may not do something on their own (void a sent item, a discount, a manager action), a PIN pad appears on the same screen. A manager types their PIN and it goes through once; the check's history says who approved it. *Cancel* puts it away. No logging out and back in.
 - **Practice mode** (training): mark a person *In training* (Manager → Employees), or a manager touches **Practice Mode** on the Log Out page to switch their own screen. A yellow *PRACTICE* banner shows. Practice checks are labelled "(practice)" and leave real tables free; they never reach the kitchen screens or printers, stock, drawers, banks, reports, points, gift cards or house accounts. Closing one says "not a sale"; any left open are cleared at End of Day.
 
+## Bar tabs
+
+Tables → **Bar Tabs** lists the open tabs. *New Tab…* asks for the name on it ("Mike, red jacket"), then goes to the menu. A tab stays open even with nothing on it, until it is paid; touch it on the list to add another round.
+
 ## Screen saver
 
 Store Settings → *Dim the screen after (minutes)* (10 to start; 0 = never). A screen nobody touches dims to the store's name and the time. The first touch only wakes it: it never presses the button underneath. Kitchen, bar and expo screens stay on, and the self-order kiosk shows its own pictures instead.

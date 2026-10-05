@@ -281,6 +281,8 @@ public:
     TableResult selectTable(const QString &label);
     bool startCheck(core::CheckType type);   // dine-in uses the pending table + guest entry
     bool openCheck(std::int64_t checkId);
+    // A bar tab under this name (empty: the name typed on the keyboard).
+    bool openTab(const QString &name = {});
     void releaseCheck();
 
     bool addItem(const QString &idOrName);

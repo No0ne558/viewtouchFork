@@ -296,6 +296,31 @@
       }
     },
     {
+      "id": "tabs",
+      "kind": "button",
+      "rect": {
+        "x": 1056,
+        "y": 748,
+        "w": 400,
+        "h": 150
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Bar Tabs",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "tabs"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#a86a12"
+        }
+      }
+    },
+    {
       "id": "status",
       "kind": "logoutPanel",
       "rect": {

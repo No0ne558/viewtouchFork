@@ -599,6 +599,9 @@ bool PosService::startCheck(CheckType type)
     case CheckType::Delivery:
         c.label = ss(tr("Delivery %1").arg(c.id));
         break;
+    case CheckType::Tab:
+        c.label = ss(tr("Tab %1").arg(c.id));   // openTab names it
+        break;
     }
     pendingTable_.clear();
     entry_.clear();
@@ -613,6 +616,24 @@ bool PosService::startCheck(CheckType type)
     selectedLine_ = 0;
     selectedPayment_ = 0;
     changed(s_->open.at(id));
+    return true;
+}
+
+bool PosService::openTab(const QString &name)
+{
+    // The name typed on the keyboard page, or given.
+    const QString who = (name.isEmpty() ? text_ : name).trimmed();
+    if (who.isEmpty())
+        return fail(tr("Type the name for the tab."));
+    if (!startCheck(CheckType::Tab))
+        return false;
+    Check &c = *current();
+    c.label = ss(who.left(30));
+    c.customer.name = c.label;
+    text_.clear();
+    emit entryChanged();
+    emit notice(tr("Tab open: %1").arg(who.left(30)));
+    changed(c);
     return true;
 }
 
@@ -646,7 +667,8 @@ void PosService::releaseCheck()
     // An empty takeout / delivery / quick check that is put away was never
     // really started: discard it instead of leaving it open. (An empty table
     // check stays: the guests may be seated before they order.)
-    if (Check *c = current(); c && c->type != CheckType::DineIn && c->lines.empty() && c->payments.empty()) {
+    if (Check *c = current(); c && c->type != CheckType::DineIn && c->type != CheckType::Tab && c->lines.empty()
+                              && c->payments.empty()) {
         c->status = CheckStatus::Discarded;
         c->closedAt = now();
         if (s_->sink)
@@ -1454,6 +1476,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"startCheck"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.startCheck(checkTypeFromString(ss(a.value(0).toString())))); }},
         {u"openCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.openCheck(a.value(0).toLongLong())); }},
+        {u"openTab"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.openTab(a.value(0).toString())); }},
         {u"releaseCheck"_s, [](PosService &p, const QVariantList &) { p.releaseCheck(); return QVariant(true); }},
         {u"addItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addItem(a.value(0).toString())); }},
         {u"setSelfOrder"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setSelfOrder(a.value(0, true).toBool())); }},

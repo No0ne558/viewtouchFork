@@ -452,10 +452,26 @@ page("tables", "Tables", "tables", [
     zone("delivery", 1696, 182, 208, 150, "Delivery", actions=[command("startDelivery"), jump(page="customer")]),
     zone("checks", 1472, 348, 432, 150, "Open Checks", actions=[jump(role="checkList")]),
     zone("host", 1056, 914, 400, 150, "Waitlist", actions=[jump(page="host")], style=fill(TEAL)),
+    zone("tabs", 1056, 748, 400, 150, "Bar Tabs", actions=[jump(page="tabs")], style=fill(AMBER)),
     zone("status", 1472, 514, 432, 218, kind="logoutPanel"),
     zone("manager", 1472, 748, 432, 150, "Manager", actions=[jump(role="manager")]),
     zone("logout", 1472, 914, 432, 150, "Log Out", actions=[jump(role="logout")], style=fill(RED)),
 ], role="tables", background={"texture": "woodfloor", "fill": "#3b2a1a"})
+
+# Bar tabs: open under the guest's name, kept open all night.
+page("tabs", "Bar Tabs", "custom", [
+    label("title", 16, 16, 1888, 80, "Bar tabs"),
+    zone("list", 16, 112, 1888, 816, kind="checkList", props={"mode": "tabs"}),
+    zone("back", 16, 944, 432, 120, "‹ Tables", actions=[jump(role="tables")]),
+    zone("new", 1472, 944, 432, 120, "New Tab…", actions=[command("clearText"), jump(page="new-tab")],
+         style=fill(GREEN)),
+], permission="order")
+page("new-tab", "New Tab", "custom", [
+    label("title", 16, 16, 1888, 80, "Name on the tab"),
+    zone("keyboard", 16, 112, 1888, 760, kind="keyboard", props={"placeholder": "Mike, red jacket…"}),
+    zone("cancel", 16, 944, 432, 120, "Cancel", actions=[command("clearText"), jump(mode="back")]),
+    zone("open", 1472, 944, 432, 120, "Open Tab", actions=[command("openTab"), jump(mode="index")], style=fill(GREEN)),
+], permission="order")
 
 page("customer", "Customer", "custom", [
     label("title", 16, 16, 1888, 80, "Who is the order for?"),
