@@ -476,6 +476,10 @@ Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose button
 
 Once drinks have been sent on a check, **Another Round** appears beside its name: it orders the drinks of the latest Send again (same choices and quantities) as new lines, ready for Send. Drinks are what the bar prints, or items in a drinks family; sold-out ones are skipped and named. Command `anotherRound`; the order list's built-in "round" button.
 
+## Dashboard
+
+Manager → **Dashboard** (first on the Manager page): today so far. Net sales against the same weekday last week by this time (read from the store, cached five minutes), checks, guests and the average check, labor cost as a share of sales (amber over 28%, red over 35%), open checks and what's still due on them, the kitchen's average sent-to-made time and what's waiting, who's on the clock, the five best sellers, and ingredients running low with what's sold out. Managers only (`PosSession::dashboard`, the `dashboard` panel); it updates as checks close and orders go out.
+
 ## Running low
 
 When an ingredient is down to its *Low at* (Manager → Inventory), every dish that uses it shows **N left** on its button (and in the self-filling menu): how many can still be made from what's on hand. It counts down as orders are sent; at zero the dish sells out by itself, and comes back when stock is received (as before). `PosSession::stockLeft`, the zone's `itemId` role.

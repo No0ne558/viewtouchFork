@@ -356,7 +356,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock", "dashboard"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -745,7 +745,9 @@ admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"),
          ("Promotions", "promotions")]
 mgr = [label("title", 160, 24, 1600, 100, "Manager")]
 # The Manager screens, then the rest.
-slots = [zone(f"admin-{panel}", 0, 0, 0, 0, text, actions=[command("openAdmin", panel=panel)]) for text, panel in admin]
+# Today at a glance first.
+slots = [zone("dashboard", 0, 0, 0, 0, "Dashboard", actions=[jump(page="dashboard")], style=fill(BLUE))]
+slots += [zone(f"admin-{panel}", 0, 0, 0, 0, text, actions=[command("openAdmin", panel=panel)]) for text, panel in admin]
 slots += [
     zone("kitchen-display", 0, 0, 0, 0, "Kitchen Display", actions=[jump(page="kitchen")]),
     zone("bar-display", 0, 0, 0, 0, "Bar Display", actions=[jump(page="bar-display")]),
@@ -760,10 +762,10 @@ slots += [
          style=fill(RED)),
     zone("factory-reset", 0, 0, 0, 0, "Factory Reset…", actions=[jump(page="factory-reset")], style=fill(RED)),
 ]
-# Five across (the bottom row has its own four).
+# Five across, six rows (the bottom row has its own four).
 for i, z in enumerate(slots):
     col, row = i % 5, i // 5
-    z["rect"] = rect(160 + col * 324, 124 + row * 160, 300, 140)
+    z["rect"] = rect(160 + col * 324, 124 + row * 134, 300, 120)
     mgr.append(z)
 mgr.append(zone("back", 160, 940, 384, 120, "‹ Back", actions=[jump(mode="back")]))
 mgr.append(zone("network", 568, 940, 384, 120, "Network…", actions=[jump(page="network")]))
@@ -818,6 +820,15 @@ page("network", "Network", "manager", [
     label("title", 16, 16, 1888, 80, "Network"),
     zone("network", 16, 112, 1888, 816, kind="network"),
     zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
+], permission="manager")
+
+# Today so far, at a glance.
+page("dashboard", "Dashboard", "manager", [
+    label("title", 16, 16, 1400, 80, "Today"),
+    zone("clock", 1432, 16, 472, 80, kind="clock"),
+    zone("dashboard", 16, 112, 1888, 816, kind="dashboard"),
+    zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
+    zone("reports", 1472, 944, 432, 120, "Reports…", actions=[command("openAdmin", panel="reports")]),
 ], permission="manager")
 
 page("admin-schedule", "Schedule", "manager", [

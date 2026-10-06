@@ -1009,6 +1009,63 @@ TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labo
     CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
 }
 
+TEST_CASE("UI: the manager's dashboard: today so far", "[flow][ui][dashboard]")
+{
+    Screen s;
+    const std::int64_t now = QDateTime::currentMSecsSinceEpoch();
+    const std::int64_t hour = 3'600'000;
+    // Sam on the clock 4 hours at $12; buns running low.
+    s.pos.shared()->punches.push_back({921, "sam", now - 4 * hour, 0, {}, "server", vt::Money::fromCents(1200)});
+    for (core::Ingredient &g : s.pos.shared()->ingredients)
+        if (g.id == "bun")
+            g.onHand = 4;
+    // A cobb sold ($12.50), and a check still open.
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    CHECK_FALSE(s.pos.dashboard().isEmpty());
+    REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+    s.pos.addItem(u"cobb"_s);
+    s.pos.finishChoosing();
+    REQUIRE(s.pos.sendOrder());
+    REQUIRE(s.pos.tender(u"credit"_s));
+    REQUIRE(s.pos.closeCheck());
+    // Last week by this time: half as much.
+    core::Check lastWeek = s.pos.shared()->closedToday.back();
+    lastWeek.payments.clear();
+    for (core::OrderLine &l : lastWeek.lines)
+        l.unitPrice = vt::Money::fromCents(625);
+    s.pos.shared()->history = [lastWeek](std::int64_t, std::int64_t) { return std::vector<core::Check>{lastWeek}; };
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    s.pos.addItem(u"water"_s);
+    s.pos.releaseCheck();
+
+    const QVariantMap d = s.pos.dashboard();
+    const QVariantMap sales = d[u"sales"_s].toMap();
+    CHECK(sales[u"net"_s] == u"$12.50"_s);
+    CHECK(sales[u"checks"_s].toInt() == 1);
+    CHECK(sales[u"change"_s].toInt() == 100);                    // twice last week's
+    const QVariantMap labor = d[u"labor"_s].toMap();
+    CHECK(labor[u"cost"_s] == u"$48.00"_s);                      // 4 h x $12
+    CHECK(labor[u"percent"_s].toInt() == 384);
+    CHECK(labor[u"onClock"_s].toList().size() == 1);
+    CHECK(d[u"open"_s].toMap()[u"count"_s].toInt() == 1);
+    CHECK(d[u"top"_s].toList().value(0).toMap()[u"name"_s] == u"Cobb"_s);
+    bool bun = false;
+    for (const QVariant &v : d[u"low"_s].toList())
+        bun = bun || v.toMap()[u"name"_s].toString().contains(u"un"_s);
+    CHECK(bun);
+
+    // Manager -> Dashboard; not for servers.
+    REQUIRE(s.c.jumpTo(u"manager"_s));
+    s.c.activate(u"dashboard"_s);
+    QTest::qWait(80);
+    REQUIRE(s.c.pageId() == u"dashboard"_s);
+    REQUIRE(Screen::findBy(s.window->contentItem(), "objectName", u"dashSales"_s));
+    s.shot("70-dashboard");
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    CHECK(s.pos.dashboard().isEmpty());
+}
+
 TEST_CASE("UI: dishes running low show how many are left", "[flow][ui][stock]")
 {
     Screen s;

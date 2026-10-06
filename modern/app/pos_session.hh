@@ -132,6 +132,9 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantList expoTickets READ expoTickets NOTIFY kitchenChanged)
     Q_PROPERTY(QVariantMap drawer READ drawerInfo NOTIFY drawerChanged)
     Q_PROPERTY(QVariantMap day READ dayInfo NOTIFY dayChanged)
+    // Manager -> Dashboard: today so far (sales vs last week, labor, open
+    // checks, kitchen times, who's on, best sellers, what's running low).
+    Q_PROPERTY(QVariantMap dashboard READ dashboard NOTIFY dayChanged)
     Q_PROPERTY(QVariantList days READ days NOTIFY dayChanged)
     Q_PROPERTY(int adminRevision READ adminRevision NOTIFY adminChanged)
     // The store's pictures: [{name, ref ("store:logo.png"), hash, bytes, url}].
@@ -237,6 +240,7 @@ public:
     virtual QVariantMap checkSearch() const = 0;
     virtual QVariantMap networkInfo() const = 0;
     virtual bool training() const = 0;
+    virtual QVariantMap dashboard() const = 0;
     virtual QVariantMap stockLeft() const = 0;
     virtual QStringList soldOut() const = 0;
     virtual QVariantList menuItems() const = 0;

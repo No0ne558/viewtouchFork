@@ -501,6 +501,7 @@ public:
     QVariantList openChecks() const override;
     QStringList popularItems() const override;
     QVariantMap stockLeft() const override;
+    QVariantMap dashboard() const override;
     QVariantList closedChecks() const override;
     QVariantList staff() const override;
     QVariantList checkHistory() const override;
@@ -751,7 +752,11 @@ private:
     // Start a shift: the job and its pay recorded on the punch.
     bool punchIn(const core::Employee &e, const core::Job &job, const QString &by = {});
     std::string jobChoice_;   // waiting for this person to pick a job
-    std::string clockWho_;    // the Time Clock screen: whose PIN was typed (not logged in)
+    std::string clockWho_;
+    // The dashboard's "same day last week, by this time" (read from the store; kept a few minutes).
+    mutable std::int64_t lastWeekAt_ = 0;
+    mutable Money lastWeekNet_;
+    mutable int lastWeekChecks_ = -1;    // the Time Clock screen: whose PIN was typed (not logged in)
     bool clockOutFor(const core::Employee &e);
     // Manager -> Time Punches: the last week's, newest first; change, add, remove.
     std::vector<core::TimePunch *> punchList();
