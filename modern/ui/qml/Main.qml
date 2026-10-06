@@ -99,6 +99,7 @@ ApplicationWindow {
             sourceComponent: EditorToolbar {
                 controller: root.controller
                 editor: root.editor
+                pageSurface: pageView.surfaceItem
                 onExitRequested: root.requestLeaveEdit()
             }
         }

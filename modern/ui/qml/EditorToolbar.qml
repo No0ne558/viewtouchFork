@@ -9,6 +9,7 @@ Rectangle {
 
     required property LayoutController controller
     required property EditorController editor
+    property Item pageSurface: null   // the page as drawn, for Preview
 
     signal exitRequested()
 
@@ -108,6 +109,12 @@ Rectangle {
             }
         }
         Tool {
+            objectName: "previewButton"
+            text: qsTr("Preview…")
+            tip: qsTr("This page on a phone, a tablet, a terminal and a kiosk")
+            onClicked: preview.open()
+        }
+        Tool {
             objectName: "layoutsButton"
             text: qsTr("Layouts…")
             tip: qsTr("Ready-made layouts for this page, and page files")
@@ -155,6 +162,12 @@ Rectangle {
         color: EditorStyle.border
     }
 
+    PagePreview {
+        id: preview
+        objectName: "pagePreview"
+        editor: bar.editor
+        source: bar.pageSurface
+    }
     LayoutGallery {
         id: gallery
         objectName: "layoutGallery"

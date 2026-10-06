@@ -6,6 +6,7 @@
 #include <QBuffer>
 #include <QColor>
 #include <QImage>
+#include <QRegularExpression>
 #include <QPainter>
 #include <QTemporaryDir>
 #include "app/i18n.hh"
@@ -2036,6 +2037,43 @@ TEST_CASE("UI: find an item by typing part of its name", "[flow][ui][find]")
         s.pos.textKey(QString(ch));
     QTest::qWait(60);
     CHECK(Screen::findBy(s.window->contentItem(), "text", u"Nothing on the menu has \"zzz\"."_s));
+}
+
+TEST_CASE("UI: Preview shows a page on a phone, a tablet, a terminal and a kiosk", "[flow][ui][preview]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    QVariantMap info = e->previewInfo();
+    CHECK(info[u"canvasW"_s].toInt() == 1920);
+    CHECK(info[u"smallest"_s].toInt() > 0);
+    CHECK(info[u"phone"_s].toString().contains(u"phone"_s, Qt::CaseInsensitive));   // Tables has a phone version
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QTest::qWait(50);
+    QObject *preview = s.window->findChild<QObject *>(u"pagePreview"_s);
+    REQUIRE(preview);
+    QMetaObject::invokeMethod(preview, "open");
+    QTest::qWait(300);
+    auto *content = preview->property("contentItem").value<QQuickItem *>();
+    REQUIRE(content);
+    for (const char *id : {"phone", "tablet", "terminal", "kiosk"})
+        CHECK(Screen::findBy(content, "objectName", u"preview-"_s + QLatin1StringView(id)));
+    QQuickItem *phone = Screen::findBy(content, "objectName", u"previewSize-phone"_s);
+    QQuickItem *terminal = Screen::findBy(content, "objectName", u"previewSize-terminal"_s);
+    REQUIRE(phone);
+    REQUIRE(terminal);
+    CHECK(phone->property("text").toString().contains(u"mm"_s));
+    // The same buttons are smaller on a phone than on a terminal.
+    const auto mm = [](QQuickItem *label) {
+        static const QRegularExpression n(u"([0-9]+\\.[0-9])"_s);
+        return n.match(label->property("text").toString()).captured(1).toDouble();
+    };
+    CHECK(mm(phone) < mm(terminal));
+    s.shot("79-preview");
+    QMetaObject::invokeMethod(preview, "close");
+    s.c.leaveEditMode(false);
 }
 
 TEST_CASE("UI: ready-made layouts for each screen, and page files", "[flow][ui][layouts]")

@@ -149,6 +149,7 @@ if(Qt6_FOUND)
             ui/qml/WidgetTimeClock.qml
             ui/qml/WidgetDashboard.qml
             ui/qml/WidgetChecklist.qml
+            ui/qml/PagePreview.qml
             ui/qml/SetupGuide.qml
             ui/qml/LayoutGallery.qml
             ui/qml/CustomerDisplay.qml

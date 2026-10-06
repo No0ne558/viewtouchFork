@@ -20,6 +20,9 @@ Item {
         function onPageChanged() { view.selectedZoneId = "" }
     }
 
+    // The page at canvas size (the editor's Preview shows it on other screens).
+    readonly property Item surfaceItem: surface
+
     Item {
         id: surface
         objectName: "pageSurface"   // tests map canvas coordinates through this

@@ -550,6 +550,28 @@ int EditorController::addPictures(QJsonObject *json)
     return added;
 }
 
+QVariantMap EditorController::previewInfo() const
+{
+    const Layout &l = editor_.layout();
+    const vt::layout::Page *page = l.page(pageId_);
+    if (!page)
+        return {};
+    int smallest = 0;
+    for (const Layout::PlacedZone &pz : l.effectiveZones(pageId_)) {
+        const vt::layout::Zone &z = *pz.zone;
+        if (z.kind != u"button" || z.actions.isEmpty() || z.rect.isEmpty())
+            continue;
+        const int side = std::min(z.rect.width(), z.rect.height());
+        smallest = smallest == 0 ? side : std::min(smallest, side);
+    }
+    QString phone;
+    for (const vt::layout::Page &p : l.pages)
+        if (p.variantOf == page->id && p.formFactor == u"phone")
+            phone = p.name;
+    return {{u"canvasW"_s, page->canvas.width()}, {u"canvasH"_s, page->canvas.height()}, {u"smallest"_s, smallest},
+            {u"phone"_s, phone}, {u"isPhone"_s, page->formFactor == u"phone"}};
+}
+
 bool EditorController::exportPage(const QUrl &file)
 {
     QString why;

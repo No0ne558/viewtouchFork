@@ -446,6 +446,10 @@ Manager widgets:
 | endOfDay | End of day |
 | splitCheck | Split a check |
 
+## Preview on other screens
+
+Edit mode → **Preview…** shows the page as drawn on a 6.1" phone, a 10.2" tablet, a 15.6" terminal and a 21.5" upright kiosk (fitted the way each would show it), with the size its smallest button comes out on each in millimeters (about 9 mm suits a finger) and whether the page has a phone version phones use instead (`EditorController::previewInfo`, `PagePreview.qml`).
+
 ## Ready-made layouts, and page files
 
 Edit mode → **Layouts…** shows five arrangements of the page being edited, with a preview of each: the login page, the tables, the order screen (from any menu page: the frame around it), Pay and the kitchen screen. They're the same buttons (same ids and actions) moved and resized, so nothing stops working; one touch applies one, Undo takes it back, Save keeps it. The kitchen's side-by-side layouts (Grill | Fryer, Grill | Fryer | Cold, Kitchen | Bar, Kitchen | Expo) keep each panel's station (`props.lockStation`). They're generated in `tools/gen_seed.py` into `seed/layouts/<page>.json`.

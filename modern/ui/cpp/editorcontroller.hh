@@ -121,6 +121,9 @@ public:
     Q_INVOKABLE bool exportPage(const QUrl &file);
     Q_INVOKABLE bool importPage(const QUrl &file);
     Q_INVOKABLE bool exportLayout(const QUrl &file);
+    // For Preview: this page's canvas, its smallest button (canvas units),
+    // and its phone version if it has one: {canvasW, canvasH, smallest, phone}.
+    Q_INVOKABLE QVariantMap previewInfo() const;
     // The store's pictures and fonts, for page and layout files to carry.
     void setPos(vt::app::PosSession *pos) { pos_ = pos; }
     Q_INVOKABLE bool importLayout(const QUrl &file);
