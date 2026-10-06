@@ -614,6 +614,17 @@
     "kitchenHide": true
   },
   {
+    "id": "wine-dinner-ticket",
+    "name": "Wine Dinner Ticket",
+    "price": 65.0,
+    "family": "events",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "ticketCapacity": 40,
+    "kitchenHide": true,
+    "description": "Five courses, five wines. Friday at 7."
+  },
+  {
     "id": "smoked-brisket",
     "name": "Smoked Brisket",
     "price": 22.0,

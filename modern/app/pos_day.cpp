@@ -745,6 +745,23 @@ bool PosService::endOfDay()
             ++it;
         }
     }
+    // Event tickets sold today stay sold (their checks leave closedToday).
+    for (int i = 0; i < int(s_->menu.size()); ++i) {
+        MenuItem &m = s_->menu[i];
+        if (m.ticketCapacity <= 0)
+            continue;
+        int today = 0;
+        for (const Check &c : s_->closedToday)
+            if (!c.training)
+                for (const OrderLine &l : c.lines)
+                    if (!l.voided && l.itemId == m.id)
+                        today += l.quantity;
+        if (today > 0) {
+            m.ticketsSoldBefore += today;
+            if (s_->sink)
+                s_->sink->saveMenuItem(m, i);
+        }
+    }
     // Orders for another day wait for their day.
     const auto stillOpen = std::ranges::count_if(s_->open, [this](const auto &kv) { return !forAnotherDay(kv.second); });
     if (stillOpen > 0)

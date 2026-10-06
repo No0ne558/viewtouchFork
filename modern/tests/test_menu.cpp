@@ -498,3 +498,53 @@ TEST_CASE("Substitutes: Sub puts an item in place of part of the one before it, 
     CHECK_FALSE(pos.addItem(u"cobb"_s));
     CHECK(app::menuItemFromJson(app::toJson(*pos.findItem(u"caesar"_s))).substitutePrice == Money::fromCents(350));
 }
+
+TEST_CASE("Event tickets: only as many as there are seats, kept across days, not after the event",
+          "[menu][tickets]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    qint64 clock = QDateTime(QDate::currentDate(), QTime(12, 0)).toMSecsSinceEpoch();
+    pos.setClock([&] { return clock; });
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    auto *dinner = const_cast<core::MenuItem *>(pos.findItem(u"wine-dinner-ticket"_s));
+    REQUIRE(dinner);
+    dinner->ticketCapacity = 3;
+    CHECK(pos.ticketsLeft(*dinner) == 3);
+
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    REQUIRE(pos.addItem(u"wine-dinner-ticket"_s));
+    REQUIRE(pos.addItem(u"wine-dinner-ticket"_s));
+    REQUIRE(pos.tender(u"credit"_s));
+    REQUIRE(pos.closeCheck());
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    REQUIRE(pos.addItem(u"wine-dinner-ticket"_s));     // the last seat (on an open check: held)
+    CHECK(pos.ticketsLeft(*dinner) == 0);
+    CHECK(pos.soldOut().contains(u"wine-dinner-ticket"_s));
+    CHECK_FALSE(pos.addItem(u"wine-dinner-ticket"_s));
+    REQUIRE(pos.voidItem());                           // changed their mind: the seat is free again
+    CHECK(pos.ticketsLeft(*dinner) == 1);
+    pos.releaseCheck();
+
+    // A new day: the two sold stay sold.
+    REQUIRE(pos.endOfDay());
+    CHECK(dinner->ticketsSoldBefore == 2);
+    CHECK(pos.ticketsLeft(*dinner) == 1);
+
+    // Editing the item keeps them; the date is typed; it can't be sold after.
+    const int at = int(std::ranges::find_if(pos.shared()->menu, [](const core::MenuItem &m) {
+                           return m.id == "wine-dinner-ticket"; }) - pos.shared()->menu.begin());
+    QVariantMap rec = pos.adminRecords(u"menu"_s)[at].toMap();
+    rec[u"eventAt"_s] = u"next friday"_s;
+    CHECK_FALSE(pos.adminSave(u"menu"_s, at, rec));
+    const QDateTime when(QDate::currentDate(), QTime(19, 0));
+    rec[u"eventAt"_s] = when.toString(u"yyyy-MM-dd HH:mm"_s);
+    REQUIRE(pos.adminSave(u"menu"_s, at, rec));
+    dinner = const_cast<core::MenuItem *>(pos.findItem(u"wine-dinner-ticket"_s));
+    CHECK(dinner->ticketsSoldBefore == 2);
+    CHECK(dinner->eventAt == when.toMSecsSinceEpoch());
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    REQUIRE(pos.addItem(u"wine-dinner-ticket"_s));
+    CHECK(pos.lines().last().toMap()[u"name"_s].toString().contains(u"7:00"_s));   // the ticket says when
+    clock = when.addSecs(60).toMSecsSinceEpoch();
+    CHECK_FALSE(pos.addItem(u"wine-dinner-ticket"_s));
+}

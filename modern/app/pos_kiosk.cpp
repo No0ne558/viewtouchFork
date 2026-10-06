@@ -221,7 +221,8 @@ QVariantMap PosService::kioskMenu() const
             {u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"family"_s, family},
             {u"price"_s, format(m.priceFor(period, kioskToGo_, false))}, {u"description"_s, qs(m.description)},
             {u"image"_s, m.image.empty() ? QString() : QUrl::fromLocalFile(qs(m.image)).toString()},
-            {u"available"_s, m.available}, {u"choices"_s, !m.modifierGroups.empty()}});
+            {u"available"_s, m.available && ticketsLeft(m) != 0}, {u"choices"_s, !m.modifierGroups.empty()},
+            {u"left"_s, ticketsLeft(m)}});
     }
     return {{u"families"_s, families}, {u"items"_s, items}};
 }

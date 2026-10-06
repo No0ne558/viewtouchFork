@@ -141,6 +141,11 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"deliveryPrice"_s, tr("Delivery price"), u"money"_s, tr("0 = the takeout price (or the regular one).")),
             field(u"noDiscount"_s, tr("No discounts"), u"bool"_s, tr("Discounts and comps leave it out.")),
             field(u"noStaffDiscount"_s, tr("No staff discount"), u"bool"_s, tr("Staff pay full price for it (alcohol, say).")),
+            with(with(field(u"ticketCapacity"_s, tr("Event tickets: seats"), u"int"_s,
+                            tr("Tickets to an event: it sells out when this many are sold. 0 = not an event.")),
+                      u"min"_s, 0), u"max"_s, 100000),
+            field(u"eventAt"_s, tr("Event date and time"), u"string"_s,
+                  tr("Like 2026-10-09 19:00. On the ticket and the receipt; it can't be sold after.")),
             field(u"substitute"_s, tr("Can be a substitute"), u"bool"_s,
                   tr("With Sub, it goes in place of part of the item before it (a house salad instead of fries).")),
             field(u"substitutePrice"_s, tr("Substitute price"), u"money"_s, tr("What it adds as a substitute, e.g. 3.00.")),
@@ -608,7 +613,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
 {
     if (panel == u"menu")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"price"_s, 0.0}, {u"family"_s, QString()},
-                {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"station"_s, QString()}, {u"byWeight"_s, false}, {u"weightUnit"_s, u"lb"_s}, {u"substitute"_s, false}, {u"substitutePrice"_s, 0.0}, {u"modifier"_s, false}, {u"available"_s, true},
+                {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"station"_s, QString()}, {u"byWeight"_s, false}, {u"weightUnit"_s, u"lb"_s}, {u"substitute"_s, false}, {u"substitutePrice"_s, 0.0}, {u"ticketCapacity"_s, 0}, {u"eventAt"_s, QString()}, {u"modifier"_s, false}, {u"available"_s, true},
                 {u"modifierGroups"_s, QString()}, {u"periodPrices"_s, QString()}, {u"recipe"_s, QString()},
                 {u"kitchenName"_s, QString()}, {u"kitchenColor"_s, QString()}, {u"kitchenHide"_s, false},
                 {u"kioskHide"_s, false}, {u"description"_s, QString()}, {u"image"_s, QString()},
@@ -1022,8 +1027,20 @@ bool PosService::saveMenuRecord(int index, const QVariantMap &record)
     }
     data.insert(u"recipe"_s, recipe);
     data.remove(u"autoSoldOut"_s);
+    // The event's date, typed: 2026-10-09 19:00.
+    if (const QString when = data.value(u"eventAt"_s).toString().trimmed(); when.isEmpty()) {
+        data.insert(u"eventAt"_s, 0);
+    } else {
+        const QDateTime at = QDateTime::fromString(when, u"yyyy-MM-dd HH:mm"_s);
+        if (!at.isValid())
+            return fail(tr("Write the event's date like 2026-10-09 19:00."));
+        data.insert(u"eventAt"_s, at.toMSecsSinceEpoch());
+    }
+    data.remove(u"ticketsSoldBefore"_s);
     MenuItem item = menuItemFromJson(QJsonObject::fromVariantMap(data));
     item.name = ss(name);
+    if (index >= 0 && index < int(s_->menu.size()))
+        item.ticketsSoldBefore = s_->menu[index].ticketsSoldBefore;   // sales already made stay
     if (index >= 0) {
         item.id = s_->menu[index].id;
         s_->menu[index] = item;
@@ -1160,6 +1177,9 @@ QVariantMap PosService::menuRecord(const MenuItem &m) const
     r.insert(u"noStaffDiscount"_s, m.noStaffDiscount);
     r.insert(u"description"_s, qs(m.description));
     r.insert(u"image"_s, qs(m.image));
+    r.insert(u"ticketCapacity"_s, m.ticketCapacity);
+    r.insert(u"eventAt"_s, m.eventAt > 0 ? QDateTime::fromMSecsSinceEpoch(m.eventAt).toString(u"yyyy-MM-dd HH:mm"_s)
+                                         : QString());
     for (const char16_t *k : {u"family", u"printer"}) {
         if (!r.contains(QString::fromUtf16(k)))
             r.insert(QString::fromUtf16(k), QString());

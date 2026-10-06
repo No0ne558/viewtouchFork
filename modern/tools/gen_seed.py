@@ -110,6 +110,10 @@ for bid, price in (("classic-burger", 12.50), ("bacon-burger", 14.50), ("house-w
     item(bid)["periodPrices"] = {"dinner": price}
 for n in TEMPS: menu(n, 0.00, "temperature", modifier=True)
 for n, p in SIDES: menu(n, p, "sides", modifier=True)
+# Tickets to an event: 40 seats, sold out by itself (Manager -> Menu sets the date).
+menu("Wine Dinner Ticket", 65.00, "events")
+item("wine-dinner-ticket").update({"ticketCapacity": 40, "kitchenHide": True,
+                                   "description": "Five courses, five wines. Friday at 7."})
 # Substitutes: Sub, then a salad, in place of the fries.
 for sid, extra in (("house-salad", 3.00), ("caesar", 3.50)):
     item(sid)["substitute"] = True
@@ -443,7 +447,9 @@ item_page("items-burgers", "Burgers", [(n, None) for n, _ in BURGERS[:6]], AMBER
                       "Burgers ask for Temperature and Side (Manager -> Modifier Groups).", kind="comment")])
 item_page("items-salads", "Salads", [(n, None) for n, _ in SALADS], GREEN, shape="hexagon")
 item_page("items-drinks", "Drinks", [(n, None) for n, _, _ in DRINKS], TEAL, shape="circle", cols=5,
-          cell=(200, 200))
+          cell=(200, 200),
+          extra=[zone("wine-dinner", 592, 640, 632, 150, "Wine Dinner Ticket\nFriday 7 PM · $65",
+                      actions=[add("Wine Dinner Ticket")], shape="rounded", style=fill(PURPLE))])
 item_page("items-breakfast", "Breakfast Plates", [(n, None) for n, _ in BREAKFAST], AMBER, shape="octagon",
           cell=(316, 220))
 

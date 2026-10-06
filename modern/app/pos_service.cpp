@@ -773,6 +773,12 @@ bool PosService::addItem(const QString &idOrName)
         return fail(tr("'%1' is not on the menu.").arg(idOrName));
     if (!item->available)
         return fail(tr("%1 is sold out.").arg(qs(item->name)));
+    if (item->ticketCapacity > 0) {   // tickets to an event: only as many as there are seats
+        if (item->eventAt > 0 && now() > item->eventAt)
+            return fail(tr("%1 has already taken place.").arg(qs(item->name)));
+        if (ticketsLeft(*item) < 1)
+            return fail(tr("%1 is sold out (%2 tickets).").arg(qs(item->name)).arg(item->ticketCapacity));
+    }
 
     if (!current() && !startCheck(CheckType::Quick))
         return false;
@@ -810,7 +816,12 @@ bool PosService::addItem(const QString &idOrName)
     } else {
         MenuItem priced = *item;   // the price for this meal period (dinner, happy hour...) and order type
         priced.price = extra(item->priceFor(currentMealPeriod(), c.type == CheckType::Takeout, c.type == CheckType::Delivery));
+        if (item->eventAt > 0)   // the ticket says when
+            priced.name += " (" + ss(QLocale().toString(QDateTime::fromMSecsSinceEpoch(item->eventAt),
+                                                         u"ddd MMM d, h:mm AP"_s)) + ")";
         OrderLine &line = c.addItem(priced, q);
+        if (item->ticketCapacity > 0)
+            emit notice(tr("%1: %2 tickets left").arg(qs(item->name)).arg(ticketsLeft(*item)));
         if (item->byWeight) {   // the weight typed: hundredths (125 = 1.25 lb)
             line.weight = entry_.toLongLong() * 10;
             entry_.clear();

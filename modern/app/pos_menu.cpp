@@ -188,11 +188,34 @@ bool PosService::setAvailable(const QString &itemId, bool available)
     return fail(tr("'%1' is not on the menu.").arg(itemId));
 }
 
+int PosService::ticketsSold(const MenuItem &item) const
+{
+    // Earlier days', plus every ticket on today's checks, open or closed.
+    int sold = item.ticketsSoldBefore;
+    const auto count = [&](const Check &c) {
+        if (c.training)
+            return;
+        for (const OrderLine &l : c.lines)
+            if (!l.voided && l.itemId == item.id)
+                sold += l.quantity;
+    };
+    for (const auto &[id, c] : s_->open)
+        count(c);
+    for (const Check &c : s_->closedToday)
+        count(c);
+    return sold;
+}
+
+int PosService::ticketsLeft(const MenuItem &item) const
+{
+    return item.ticketCapacity > 0 ? std::max(0, item.ticketCapacity - ticketsSold(item)) : -1;
+}
+
 QStringList PosService::soldOut() const
 {
     QStringList out;
     for (const MenuItem &m : s_->menu) {
-        if (!m.available)
+        if (!m.available || ticketsLeft(m) == 0)
             out << qs(m.id) << qs(m.name).toLower();
     }
     return out;

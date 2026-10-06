@@ -193,7 +193,7 @@ Rectangle {
                 }
                 Text {
                     font.family: k.face
-                    text: card.modelData.price
+                    text: card.modelData.price + ((card.modelData.left ?? -1) >= 0 ? "  ·  " + qsTr("%1 left").arg(card.modelData.left) : "")
                     color: Qt.lighter(k.accent, 1.5)
                     font.pixelSize: k.u * 1.05
                     font.bold: true

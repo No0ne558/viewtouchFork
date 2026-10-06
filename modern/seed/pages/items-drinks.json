@@ -214,6 +214,30 @@
           "fill": "#1f6f73"
         }
       }
+    },
+    {
+      "id": "wine-dinner",
+      "kind": "button",
+      "rect": {
+        "x": 592,
+        "y": 640,
+        "w": 632,
+        "h": 150
+      },
+      "shape": "rounded",
+      "behavior": "blink",
+      "label": "Wine Dinner Ticket\nFriday 7 PM \u00b7 $65",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "wine-dinner-ticket"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#6b46c1"
+        }
+      }
     }
   ]
 }

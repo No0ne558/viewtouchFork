@@ -203,6 +203,10 @@ On the takeout or delivery customer page (or Check… on any order), **Ready Lat
 - **Customers** (over any dates): each customer's visits, spending, average check, last visit and the item they order most, best customers first. Saved customers by their record; a name on a takeout or delivery counts too.
 - **Deposit** (today): each drawer or server bank, counted (or expected if not yet), less its starting cash, is the cash to deposit; the card batch (payments + tips); and the book balance, sold with tax against collected (cash, cards, gift cards, house accounts), with the drawers' over/short and what's still open.
 
+## Event tickets
+
+Manager → Menu → *Event tickets: seats* (and the *Event date and time*, like 2026-10-09 19:00) makes an item admission to an event. Each one sold, on an open or closed check, takes a seat; when they're gone it's sold out, and a void gives the seat back. Each sale says how many are left, and the self-order kiosk shows it. The date goes on the check and receipt ("Wine Dinner Ticket (Fri Oct 9, 7:00 PM)"), and nobody can sell it after. End of Day keeps the count. The demo has a *Wine Dinner Ticket* ($65, 40 seats) on the Drinks page.
+
 ## Substitutes
 
 Manager → Menu → *Can be a substitute* and its *Substitute price*. Touch **Sub** (in the order bar with No, Extra, Lite, Side), then the item: it goes on the item before it as "SUB House Salad" at the substitute price (+$3.00) instead of being its own $8.50 salad. Its stock and kitchen station count as usual. The demo's House Salad (+$3.00) and Caesar (+$3.50) can be substitutes.

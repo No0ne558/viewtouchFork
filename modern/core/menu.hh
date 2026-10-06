@@ -63,6 +63,12 @@ struct MenuItem {
     // (a house salad instead of fries, + $3.00).
     bool substitute = false;
     Money substitutePrice;
+    // The original's "Event Admission": tickets to an event with this many
+    // seats (0 = not an event), on this date (epoch ms, 0 = none given).
+    // ticketsSoldBefore: sold on earlier business days (End of Day adds them).
+    int ticketCapacity = 0;
+    std::int64_t eventAt = 0;
+    int ticketsSoldBefore = 0;
 
     Money priceDuring(const std::string &mealPeriod) const
     {

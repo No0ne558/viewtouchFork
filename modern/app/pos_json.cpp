@@ -229,6 +229,11 @@ QJsonObject toJson(const MenuItem &m)
     if (m.isModifier) o.insert(u"modifier"_s, true);
     if (!m.printer.empty()) o.insert(u"printer"_s, qs(m.printer));
     if (!m.station.empty()) o.insert(u"station"_s, qs(m.station));
+    if (m.ticketCapacity > 0) {
+        o.insert(u"ticketCapacity"_s, m.ticketCapacity);
+        o.insert(u"eventAt"_s, qint64(m.eventAt));
+        o.insert(u"ticketsSoldBefore"_s, m.ticketsSoldBefore);
+    }
     if (m.substitute) {
         o.insert(u"substitute"_s, true);
         o.insert(u"substitutePrice"_s, decimalFromCents(m.substitutePrice.cents()));
@@ -296,6 +301,9 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     m.station = ss(o.value(u"station").toString());
     m.byWeight = o.value(u"byWeight").toBool();
     m.substitute = o.value(u"substitute").toBool();
+    m.ticketCapacity = std::max(0, o.value(u"ticketCapacity").toInt());
+    m.eventAt = o.value(u"eventAt").toInteger(0);
+    m.ticketsSoldBefore = std::max(0, o.value(u"ticketsSoldBefore").toInt());
     m.substitutePrice = Money::fromCents(centsFromDecimal(o.value(u"substitutePrice").toDouble()));
     m.weightUnit = ss(o.value(u"weightUnit").toString(u"lb"_s));
     m.available = o.value(u"available").toBool(true);

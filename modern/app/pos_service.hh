@@ -301,6 +301,9 @@ public:
     QString kitchenStation() const override;
     bool setKitchenStation(const QString &station);
     QString stationName(const std::string &id) const;
+    // Event tickets: sold so far (all days), and left (-1: not an event).
+    int ticketsSold(const core::MenuItem &item) const;
+    int ticketsLeft(const core::MenuItem &item) const;
     bool knownStation(const std::string &id) const;
     std::string stationOf(const core::OrderLine &l) const;
     bool isPart(const core::OrderLine &l, const core::Modifier &m) const;
