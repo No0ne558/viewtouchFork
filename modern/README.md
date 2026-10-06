@@ -476,6 +476,10 @@ Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose button
 
 Once drinks have been sent on a check, **Another Round** appears beside its name: it orders the drinks of the latest Send again (same choices and quantities) as new lines, ready for Send. Drinks are what the bar prints, or items in a drinks family; sold-out ones are skipped and named. Command `anotherRound`; the order list's built-in "round" button.
 
+## Overtime warnings
+
+Using the store's overtime rules (Manager → Store: daily and weekly hours, pay week start), the Time Clock shows each person's hours this week and, within two hours of overtime, "1.5 h until overtime" (red once they're in it); clocking in that close says so on screen; and the dashboard's On the clock list marks them "OT in 1.5 h" or "overtime". `PosService::overtimeFor`.
+
 ## Ring items in by number
 
 Each menu item can have a **Number** (Manager → Menu; the demo's burgers are 101-107, salads 201-204, drinks 301-308, breakfast 401-404). On the order screen with a keyboard, type the number and press Enter (Backspace, Escape); on the Find page, typing digits puts the item with that number first. The self-filling menu shows each item's number in its corner.

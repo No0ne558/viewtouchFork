@@ -154,8 +154,11 @@ Item {
                     delegate: Row2 {
                         required property var modelData
                         label: modelData.name + "  ·  " + modelData.job
+                               + (modelData.overtime === "over" ? "  ·  " + qsTr("overtime")
+                                  : modelData.overtime === "soon" ? "  ·  " + qsTr("OT in %1 h").arg(modelData.overtimeLeft) : "")
                         value: modelData.onBreak ? qsTr("on break") : qsTr("since %1").arg(modelData.since)
-                        tint: modelData.long ? w.bad : modelData.onBreak ? w.warn : w.ink
+                        tint: modelData.long || modelData.overtime === "over" ? w.bad
+                            : modelData.onBreak || modelData.overtime === "soon" ? w.warn : w.ink
                     }
                 }
                 Small { visible: (w.labor.onClock ?? []).length === 0; text: qsTr("Nobody is clocked in.") }

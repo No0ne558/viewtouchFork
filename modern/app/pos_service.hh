@@ -758,6 +758,9 @@ private:
     mutable Money lastWeekNet_;
     mutable int lastWeekChecks_ = -1;    // the Time Clock screen: whose PIN was typed (not logged in)
     bool clockOutFor(const core::Employee &e);
+    // Hours this pay week and today, and how long until overtime (daily or
+    // weekly rule, whichever comes first): {weekHours, todayHours, leftMinutes, state ok|soon|over}.
+    QVariantMap overtimeFor(const std::string &employeeId) const;
     // Manager -> Time Punches: the last week's, newest first; change, add, remove.
     std::vector<core::TimePunch *> punchList();
     QVariantList punchFields();

@@ -545,6 +545,12 @@ bool PosService::punchIn(const Employee &e, const Job &job, const QString &by)
     const QString as = e.jobs().size() > 1 ? u" (%1)"_s.arg(roleName(qs(job.role))) : QString();
     emit notice(by.isEmpty() ? tr("%1 clocked in at %2").arg(qs(e.name) + as, timeOfDay(p.clockIn))
                              : tr("%1 clocked in by %2").arg(qs(e.name) + as, by));
+    // Close to overtime: say so now, not on the paycheck.
+    const QVariantMap ot = overtimeFor(e.id);
+    if (ot.value(u"state"_s).toString() == u"over")
+        emit notice(tr("%1 is in overtime this week (%2 h).").arg(qs(e.name), ot.value(u"weekHours"_s).toString()));
+    else if (ot.value(u"state"_s).toString() == u"soon")
+        emit notice(tr("%1 reaches overtime in %2 h.").arg(qs(e.name), ot.value(u"left"_s).toString()));
     return true;
 }
 

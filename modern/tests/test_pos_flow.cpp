@@ -1009,6 +1009,46 @@ TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labo
     CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
 }
 
+TEST_CASE("UI: overtime warnings on the Time Clock, at clock-in and on the dashboard", "[flow][ui][overtime]")
+{
+    Screen s;
+    const std::int64_t now = QDateTime::currentMSecsSinceEpoch();
+    const std::int64_t hour = 3'600'000;
+    // An 8-hour pay week that started yesterday; Sam already worked 6.5 h of it.
+    core::PosSettings &st = s.pos.shared()->settings;
+    st.overtimeWeeklyHours = 8;
+    st.overtimeDailyHours = 0;
+    st.weekStartsOn = QDate::currentDate().addDays(-1).dayOfWeek() % 7;
+    s.pos.shared()->punches.push_back({931, "sam", now - 8 * hour, now - 3 * hour / 2, {}, "server", vt::Money::fromCents(1200)});
+    QStringList notices;
+    QObject::connect(&s.pos, &app::PosSession::notice, [&](const QString &t) { notices << t; });
+
+    REQUIRE(s.pos.timeClockStart(u"1111"_s));
+    QVariantMap ot = s.pos.timeClock()[u"overtime"_s].toMap();
+    CHECK(ot[u"state"_s] == u"soon"_s);
+    CHECK(ot[u"left"_s] == u"1.5"_s);
+    REQUIRE(s.pos.timeClockAct(u"in"_s));
+    CHECK(notices.join(u"|"_s).contains(u"reaches overtime in 1.5 h"_s));
+    REQUIRE(s.c.jumpTo(u"time-clock"_s));
+    QTest::qWait(60);
+    REQUIRE(Screen::findBy(s.window->contentItem(), "objectName", u"clockOvertime"_s));
+    s.shot("71-overtime-soon");
+    s.pos.timeClockDone();
+
+    // The dashboard flags it too.
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    bool flagged = false;
+    for (const QVariant &v : s.pos.dashboard()[u"labor"_s].toMap()[u"onClock"_s].toList())
+        flagged = flagged || (v.toMap()[u"name"_s] == u"Sam"_s && v.toMap()[u"overtime"_s] == u"soon"_s);
+    CHECK(flagged);
+
+    // Past it: "over".
+    st.overtimeWeeklyHours = 6;
+    s.pos.logout();
+    REQUIRE(s.pos.timeClockStart(u"1111"_s));
+    CHECK(s.pos.timeClock()[u"overtime"_s].toMap()[u"state"_s] == u"over"_s);
+}
+
 TEST_CASE("UI: ring items in by number (keyboard, or Find)", "[flow][ui][plu]")
 {
     Screen s;

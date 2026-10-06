@@ -67,6 +67,43 @@ QString PosService::nextShift() const
 
 // --- the Time Clock screen: clock in / out and the schedule, without logging in ----
 
+QVariantMap PosService::overtimeFor(const std::string &employeeId) const
+{
+    const PosSettings &st = s_->settings;
+    const std::int64_t t = now();
+    const std::int64_t weekStart = reportContext(QString()).weekStart;
+    const QDate today = QDateTime::fromMSecsSinceEpoch(t).date();
+    std::int64_t weekMs = 0, todayMs = 0;
+    const auto add = [&](const TimePunch &p) {
+        if (p.employeeId != employeeId || p.clockIn < weekStart)
+            return;
+        const std::int64_t ms = p.workedMs(t, st.paidBreaks);
+        weekMs += ms;
+        if (QDateTime::fromMSecsSinceEpoch(p.clockIn).date() == today)
+            todayMs += ms;
+    };
+    for (const TimePunch &p : s_->punches)
+        add(p);
+    for (const TimePunch &p : s_->earlierPunches)
+        add(p);
+    std::optional<std::int64_t> left;   // minutes until the first overtime rule
+    if (st.overtimeWeeklyHours > 0)
+        left = (st.overtimeWeeklyHours * 60 * kMinute - weekMs) / kMinute;
+    if (st.overtimeDailyHours > 0) {
+        const std::int64_t daily = (st.overtimeDailyHours * 60 * kMinute - todayMs) / kMinute;
+        left = left ? std::min(*left, daily) : daily;
+    }
+    QVariantMap out{{u"weekHours"_s, QLocale().toString(double(weekMs) / (60.0 * kMinute), 'f', 1)},
+                    {u"todayHours"_s, QLocale().toString(double(todayMs) / (60.0 * kMinute), 'f', 1)},
+                    {u"state"_s, u"ok"_s}};
+    if (left) {
+        out.insert(u"leftMinutes"_s, qint64(*left));
+        out.insert(u"left"_s, *left > 0 ? QLocale().toString(double(*left) / 60.0, 'f', 1) : QString());
+        out.insert(u"state"_s, *left <= 0 ? u"over"_s : *left <= 120 ? u"soon"_s : u"ok"_s);
+    }
+    return out;
+}
+
 bool PosService::timeClockStart(const QString &pin)
 {
     const Employee *e = employeeByPin(pin);
@@ -167,7 +204,7 @@ QVariantMap PosService::timeClock() const
     return {{u"name"_s, qs(e->name)}, {u"status"_s, status}, {u"since"_s, since}, {u"job"_s, job},
             {u"breakSince"_s, breakSince}, {u"todayHours"_s, QLocale().toString(double(workedMs) / 3'600'000.0, 'f', 2)},
             {u"punches"_s, punches}, {u"shifts"_s, shifts},
-            {u"weekHours"_s, QLocale().toString(weekHours, 'f', 1)},
+            {u"weekHours"_s, QLocale().toString(weekHours, 'f', 1)}, {u"overtime"_s, overtimeFor(e->id)},
             {u"choosingJob"_s, jobChoice_ == e->id}};
 }
 

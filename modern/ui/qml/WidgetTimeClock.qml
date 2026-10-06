@@ -10,6 +10,7 @@ Item {
     readonly property PosService pos: zone ? zone.pos : null
     readonly property var info: pos ? pos.timeClock : ({})
     readonly property bool someone: !!info.name
+    readonly property var ot: info.overtime ?? ({})
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     readonly property color ink: zone.st.textColor ?? "white"
     readonly property real unit: Math.max(14, Math.min(w.width / 46, w.height / 26))
@@ -113,9 +114,24 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: qsTr("Today: %1 hours").arg(w.info.todayHours ?? "0")
+                          + "  ·  " + qsTr("This week: %1 hours").arg(w.ot.weekHours ?? "0")
                     color: "#b8c0cc"
                     font.family: w.face
                     font.pixelSize: w.unit * 0.8
+                    wrapMode: Text.WordWrap
+                }
+                // Close to overtime (or in it).
+                Text {
+                    objectName: "clockOvertime"
+                    visible: w.ot.state === "soon" || w.ot.state === "over"
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: w.ot.state === "over" ? qsTr("You're in overtime. Check with a manager before staying on.")
+                                                : qsTr("%1 h until overtime.").arg(w.ot.left)
+                    color: w.ot.state === "over" ? "#ff8a8f" : "#f5b940"
+                    font.family: w.face
+                    font.pixelSize: w.unit * 0.9
+                    font.bold: true
                 }
                 Item { Layout.fillHeight: true }
                 WidgetKey {

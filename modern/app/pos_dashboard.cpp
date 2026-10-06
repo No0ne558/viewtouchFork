@@ -76,9 +76,11 @@ QVariantMap PosService::dashboard() const
         laborCents += double(p.workedMs(t, st.paidBreaks)) / double(kHour) * double(p.rate.cents());
         if (p.open()) {
             const Employee *e = s_->employee(p.employeeId);
+            const QVariantMap ot = overtimeFor(p.employeeId);
             onClock.append(QVariantMap{{u"name"_s, e ? qs(e->name) : qs(p.employeeId)},
                                        {u"job"_s, roleName(qs(p.job))}, {u"since"_s, clock(p.clockIn)},
-                                       {u"onBreak"_s, p.onBreak()}, {u"long"_s, t - p.clockIn > 12 * kHour}});
+                                       {u"onBreak"_s, p.onBreak()}, {u"long"_s, t - p.clockIn > 12 * kHour},
+                                       {u"overtime"_s, ot.value(u"state"_s)}, {u"overtimeLeft"_s, ot.value(u"left"_s)}});
         }
     }
     const Money labor = Money::fromCents(std::llround(laborCents));
