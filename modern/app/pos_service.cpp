@@ -1362,6 +1362,46 @@ QVariantList PosService::lines() const
     return out;
 }
 
+QVariantList PosService::tableChecks() const
+{
+    const Check *cur = currentCheck();
+    if (!cur || cur->type != CheckType::DineIn)
+        return {};
+    QVariantList out;
+    for (const auto &[id, c] : s_->open) {   // by id: the order they were opened
+        if (c.type != CheckType::DineIn || c.label != cur->label)
+            continue;
+        out.append(QVariantMap{{u"id"_s, qint64(id)}, {u"number"_s, int(out.size()) + 1},
+                               {u"total"_s, format(c.totals(s_->settings.tax).total)},
+                               {u"lines"_s, int(c.lines.size())}, {u"current"_s, id == cur->id},
+                               {u"busyOn"_s, lockHolder(id)}});
+    }
+    return out;
+}
+
+bool PosService::newTableCheck()
+{
+    const Check *cur = currentCheck();
+    if (!cur || cur->type != CheckType::DineIn)
+        return fail(tr("Open a table's check first."));
+    const std::string label = cur->label;
+    const std::int64_t before = currentId_;
+    pendingTable_ = qs(label);
+    entry_ = u"1"_s;   // one guest on it
+    if (!startCheck(CheckType::DineIn))
+        return false;
+    // The same table name as the others (a practice check keeps its own).
+    if (Check *c = current(); c && currentId_ != before) {
+        c->label = label;
+        if (s_->sink)
+            s_->sink->saveCheck(*c);
+    }
+    emit checkChanged();
+    emit s_->checksChanged();
+    emit notice(tr("Check %1 at %2").arg(tableChecks().size()).arg(qs(label)));
+    return true;
+}
+
 QVariantMap PosService::totals() const
 {
     const Check *c = currentCheck();
@@ -1833,6 +1873,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"openCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.openCheck(a.value(0).toLongLong())); }},
         {u"openTab"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.openTab(a.value(0).toString())); }},
         {u"releaseCheck"_s, [](PosService &p, const QVariantList &) { p.releaseCheck(); return QVariant(true); }},
+        {u"newTableCheck"_s, [](PosService &p, const QVariantList &) { return QVariant(p.newTableCheck()); }},
         {u"addItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addItem(a.value(0).toString())); }},
         {u"setSelfOrder"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setSelfOrder(a.value(0, true).toBool())); }},
         {u"leaveSelfOrder"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.leaveSelfOrder(a.value(0).toString())); }},

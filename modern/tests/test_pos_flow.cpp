@@ -821,6 +821,55 @@ TEST_CASE("UI: each person's text size, left hand and start screen; a start scre
     CHECK(s.pos.userPrefs().isEmpty());
 }
 
+TEST_CASE("UI: separate checks at one table, switched on the order screen", "[flow][ui][tablechecks]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.selectTable(u"T5"_s) == app::PosSession::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    s.pos.addItem(u"water"_s);
+    QTest::qWait(60);
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    REQUIRE(s.pos.tableChecks().size() == 1);
+    QQuickItem *plus = find(u"tableCheck-new"_s);
+    REQUIRE(plus);
+    const qint64 first = s.pos.checkInfo().value(u"id"_s).toLongLong();
+
+    // Guest 2 on their own check, without leaving the page.
+    s.tapItem(plus);
+    QTest::qWait(60);
+    CHECK(s.c.pageId() == u"items-burgers"_s);
+    REQUIRE(s.pos.tableChecks().size() == 2);
+    CHECK(s.pos.checkInfo().value(u"label"_s).toString() == u"T5"_s);
+    CHECK(s.pos.checkInfo().value(u"id"_s).toLongLong() != first);
+    CHECK(s.pos.lines().isEmpty());
+    s.pos.addItem(u"water"_s);
+    s.pos.addItem(u"water"_s);
+    s.tapItem(find(u"tableCheck-new"_s));
+    QTest::qWait(60);
+    REQUIRE(s.pos.tableChecks().size() == 3);
+    for (int i = 0; i < 3; ++i) {   // a party of six
+        s.tapItem(find(u"tableCheck-new"_s));
+        QTest::qWait(40);
+    }
+    REQUIRE(s.pos.tableChecks().size() == 6);
+    s.shot("55-table-checks");
+
+    // Back to check 1: its own line.
+    QQuickItem *one = find(u"tableCheck-1"_s);
+    REQUIRE(one);
+    s.tapItem(one);
+    QTest::qWait(60);
+    CHECK(s.pos.checkInfo().value(u"id"_s).toLongLong() == first);
+    CHECK(s.pos.lines().size() == 1);
+    CHECK(s.c.pageId() == u"items-burgers"_s);
+
+    // The table now asks which check.
+    s.pos.releaseCheck();
+    CHECK(s.pos.selectTable(u"T5"_s) == app::PosSession::TableChooseCheck);
+}
+
 TEST_CASE("UI: find an item by typing part of its name", "[flow][ui][find]")
 {
     Screen s;

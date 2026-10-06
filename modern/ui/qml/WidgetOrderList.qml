@@ -5,6 +5,7 @@ import QtQuick.Layouts
 // The current check: header, seat / course controls, order lines with
 // modifiers, totals. Touch a line to select it (modifiers, Void, seat and
 // course apply to it). props.controls: false hides the seat / course row.
+// A table's checks (one per guest paying alone): 1 2 3 + across the top.
 Item {
     id: w
     property ZoneItem zone
@@ -34,7 +35,8 @@ Item {
             Layout.fillWidth: true
             visible: w.pos && w.pos.hasCheck
             Text {
-                text: w.check.label ?? ""
+                readonly property var mine: (w.pos ? w.pos.tableChecks : []).find(c => c.current)
+                text: (w.check.label ?? "") + (mine && w.pos.tableChecks.length > 1 ? "  ·  " + qsTr("Check %1").arg(mine.number) : "")
                 color: w.ink
                 font.family: w.face
                 font.pixelSize: w.unit * 1.2
@@ -59,6 +61,38 @@ Item {
             font.pixelSize: w.unit * 0.7
             Layout.fillWidth: true
             elide: Text.ElideRight
+        }
+        // The table's checks: touch one to switch to it here; + opens another.
+        Flow {
+            id: tableChecks
+            readonly property var checks: w.pos ? w.pos.tableChecks : []
+            visible: w.pos && w.pos.hasCheck && checks.length > 0 && w.zone.keyShown("tableChecks")
+            Layout.fillWidth: true
+            spacing: w.unit * 0.25
+            readonly property real key: w.unit * 1.8
+            // Three or more: just the numbers, so a party of six fits on one line.
+            readonly property bool compact: checks.length >= 3
+            Repeater {
+                model: tableChecks.checks
+                delegate: WidgetKey {
+                    required property var modelData
+                    objectName: "tableCheck-" + modelData.number
+                    width: tableChecks.key * (tableChecks.compact ? 1.25 : 2.6); height: tableChecks.key
+                    fontScale: tableChecks.compact ? 0.6 : 0.48
+                    text: tableChecks.compact ? String(modelData.number)
+                                              : w.zone.keyText("tableChecks", qsTr("Check")) + " " + modelData.number
+                    accent: modelData.current
+                    enabled: modelData.current || modelData.busyOn === ""
+                    onClicked: if (!modelData.current) w.pos.switchCheck(modelData.id)
+                }
+            }
+            WidgetKey {
+                objectName: "tableCheck-new"
+                width: tableChecks.key * (tableChecks.compact ? 1.25 : 2.6); height: tableChecks.key
+                fontScale: tableChecks.compact ? 0.6 : 0.48
+                text: tableChecks.compact ? "+" : qsTr("+ Check")
+                onClicked: w.pos.newTableCheck()
+            }
         }
         Text {
             readonly property var customer: w.check.customer ?? ({})

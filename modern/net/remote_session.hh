@@ -69,6 +69,7 @@ public:
     QString pendingTable() const override { return v(u"pendingTable").toString(); }
     bool hasCheck() const override { return v(u"hasCheck").toBool(); }
     QVariantMap checkInfo() const override { return v(u"check").toMap(); }
+    QVariantList tableChecks() const override { return v(u"tableChecks").toList(); }
     QVariantList lines() const override { return v(u"lines").toList(); }
     QVariantMap totals() const override { return v(u"totals").toMap(); }
     QVariantList payments() const override { return v(u"payments").toList(); }

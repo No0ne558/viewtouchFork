@@ -43,6 +43,8 @@ class PosSession : public QObject {
 
     Q_PROPERTY(bool hasCheck READ hasCheck NOTIFY checkChanged)
     Q_PROPERTY(QVariantMap check READ checkInfo NOTIFY checkChanged)
+    // A table with separate checks: [{id, number (1, 2…), total, lines, current}].
+    Q_PROPERTY(QVariantList tableChecks READ tableChecks NOTIFY checkChanged)
     Q_PROPERTY(QVariantList lines READ lines NOTIFY checkChanged)
     Q_PROPERTY(QVariantMap totals READ totals NOTIFY checkChanged)
     Q_PROPERTY(QVariantList payments READ payments NOTIFY checkChanged)
@@ -177,6 +179,7 @@ public:
     virtual qint64 selectedLine() const = 0;
     virtual qint64 selectedPayment() const = 0;
     virtual QVariantList openChecks() const = 0;
+    virtual QVariantList tableChecks() const = 0;
     virtual QVariantList closedChecks() const = 0;
     virtual QVariantList staff() const = 0;
     virtual QVariantList checkHistory() const = 0;
@@ -288,6 +291,10 @@ public:
     Q_INVOKABLE void recallTicket() { invoke(QStringLiteral("recallTicket")); }
     Q_INVOKABLE void setCustomer(const QVariantMap &customer) { invoke(QStringLiteral("setCustomer"), {customer}); }
     Q_INVOKABLE void setSeat(int seat) { invoke(QStringLiteral("setSeat"), {seat}); }
+    // Another check at this table (a guest paying on their own), made current.
+    Q_INVOKABLE void newTableCheck() { invoke(QStringLiteral("newTableCheck"), {}); }
+    // Another open check made current, staying on this page (the table's checks).
+    Q_INVOKABLE void switchCheck(qint64 checkId) { invoke(QStringLiteral("openCheck"), {checkId}); }
     Q_INVOKABLE void setCourse(int course) { invoke(QStringLiteral("setCourse"), {course}); }
     Q_INVOKABLE void fireCourse() { invoke(QStringLiteral("fireCourse")); }
     Q_INVOKABLE void chooseOption(const QString &groupId, int index) { invoke(QStringLiteral("chooseOption"), {groupId, index}); }

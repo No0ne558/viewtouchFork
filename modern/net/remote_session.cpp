@@ -42,7 +42,7 @@ Group groupOf(const QString &key)
         {u"pinLength"_s, Group::Entry}, {u"entry"_s, Group::Entry}, {u"entryAmount"_s, Group::Entry},
         {u"entryGuests"_s, Group::Entry}, {u"textEntry"_s, Group::Entry},
         {u"pendingQualifier"_s, Group::Qualifier},
-        {u"pendingTable"_s, Group::Check}, {u"hasCheck"_s, Group::Check}, {u"check"_s, Group::Check},
+        {u"pendingTable"_s, Group::Check}, {u"hasCheck"_s, Group::Check}, {u"check"_s, Group::Check}, {u"tableChecks"_s, Group::Check},
         {u"lines"_s, Group::Check}, {u"totals"_s, Group::Check}, {u"payments"_s, Group::Check},
         {u"selectedLine"_s, Group::Check}, {u"selectedPayment"_s, Group::Check},
         {u"openChecks"_s, Group::OpenChecks}, {u"checkFilter"_s, Group::OpenChecks},

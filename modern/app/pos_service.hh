@@ -296,6 +296,7 @@ public:
     TableResult selectTable(const QString &label);
     bool startCheck(core::CheckType type);   // dine-in uses the pending table + guest entry
     bool openCheck(std::int64_t checkId);
+    bool newTableCheck();
     // A bar tab under this name (empty: the name typed on the keyboard).
     bool openTab(const QString &name = {});
     void releaseCheck();
@@ -462,6 +463,7 @@ public:
     QString pendingTable() const override { return pendingTable_; }
     bool hasCheck() const override { return currentCheck() != nullptr; }
     QVariantMap checkInfo() const override;
+    QVariantList tableChecks() const override;
     QVariantList lines() const override;
     QVariantMap totals() const override;
     QVariantList payments() const override;
