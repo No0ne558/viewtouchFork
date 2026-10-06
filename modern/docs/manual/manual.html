@@ -523,8 +523,12 @@
 <ul>
 <li><b>Settings:</b> what the panel does. Examples: a kitchen screen's station, or expediter mode; whether a check list shows open checks, bar tabs or closed ones; which report the reports panel opens on; how many columns of tables.</li>
 <li><b>Built-in buttons:</b> hide any of the panel's own buttons, or give it other words ("All Day" → "Everything"). <i>Hide all its buttons</i> hides every one.</li>
+<li><b>Position</b> (kitchen screen, choices, drawer): which built-in button comes first in its row.</li>
 <li><b>Built-in button look:</b> color, text color, pressed color, font and corners of the panel's buttons. Set it on the Theme tab to change every panel at once.</li>
 </ul>
+<h2>Colors that mean something</h2>
+<p>On the <b>Theme</b> tab, <b>Status colors</b> sets the colors of a table with a check (and with your check, the one you're on, one seated a long time), of kitchen tickets as they get older, of the expediter's ready orders, and of the sold-out badge. Brand colors, or a high-contrast set for a bright kitchen.</p>
+
 <h2>Buttons that show only sometimes, and text that changes</h2>
 <p>Every button has <b>Show only when</b> on the right: who's logged in (a manager only, say), whether a check is open, the kind of check (takeout only), the meal period (lunch only) or the kind of screen (phones only). In edit mode you see all of them; the ones hidden right now are dimmed.</p>
 <p>A button's text can change by itself: type <b>Pay {check.balance}</b> and it says "Pay $13.53". Others: {check.total}, {check.label}, {check.guests}, {check.items}, {check.due}, {user.name}, {store.name}, {time}, {date}. The text box's hint lists them.</p>
@@ -604,6 +608,13 @@
 <td><img src="shots/m67-kiosk-portrait-easy-reach.png" width="120" height="213"><br><small>Easy Reach</small></td>
 </tr></table>
 <p><b>Easy Reach</b> (in the order bar) brings the whole menu down to the lower 60% of the screen for guests in a wheelchair, and children. <b>Full Screen</b> puts it back. It turns off by itself for the next guest.</p>
+
+<h2>The kiosk in your colors</h2>
+<p>Store Settings has a group of <b>Self-order kiosk</b> settings: the background, card, button and text colors (written like <i>#1f8a4c</i>), the font, a bigger or smaller size, and the words on the welcome button. Turn off <b>ask For Here or To Go</b> for a place where everything is for here, and <b>ask for a name</b> to call orders by number only. <b>Easy Reach button</b> hides that button. The accent color, logo and pictures come from the customer display settings.</p>
+<table cellpadding="4"><tr>
+<td><img src="shots/m85-kiosk-look.png" width="270" height="152"><br><small>A light kiosk: welcome</small></td>
+<td><img src="shots/m86-kiosk-look-menu.png" width="270" height="152"><br><small>Its menu</small></td>
+</tr></table>
 
 <h2>At the counter</h2>
 <p>The order waits in <b>Open Checks</b> as <i>Kiosk 42</i>, with the guest's name. The cashier opens it, takes the payment and closes it. Closing sends it to the kitchen. With <b>Store Settings → Self-order kiosk: send orders to the kitchen at once</b>, it goes to the kitchen as soon as the guest finishes instead.</p>

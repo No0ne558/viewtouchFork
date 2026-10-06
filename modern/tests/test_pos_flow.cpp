@@ -629,7 +629,22 @@ TEST_CASE("UI: the kiosk in the store's own look, asking only what the store wan
     QTest::qWait(60);
     REQUIRE(s.pos.selfOrderInfo()[u"ordering"_s].toBool());
     CHECK_FALSE(find(u"kioskEasyReach"_s));
+    s.tapItem(Screen::findBy(kiosk, "text", u"Salads"_s));
+    QTest::qWait(60);
+    s.tapItem(Screen::findBy(kiosk, "text", u"Caesar"_s));  // asks for an optional protein
+    QTest::qWait(60);
+    s.tapItem(find(u"kioskChoicesDone"_s));
+    QTest::qWait(60);
+    REQUIRE(s.pos.lines().size() == 1);
     s.shot("35-kiosk-look-menu");
+    s.tapItem(find(u"kioskReview"_s));
+    QTest::qWait(60);
+    CHECK_FALSE(find(u"kioskName"_s));                    // no name asked
+    s.tapItem(find(u"kioskPlace"_s));
+    QTest::qWait(60);
+    QQuickItem *number = find(u"kioskNumber"_s);
+    REQUIRE(number);
+    CHECK(number->isVisible());
 }
 
 TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")

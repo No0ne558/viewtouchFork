@@ -131,7 +131,7 @@ bool PosService::kioskFinish(const QVariantMap &guest)
     if (!selfOrder_ || !c || c->lines.empty())
         return fail(tr("Add something to your order first."));
     const QString name = guest.value(u"name"_s).toString().trimmed();
-    if (name.isEmpty())
+    if (name.isEmpty() && s_->settings.kioskLook.askName)   // otherwise called by number
         return fail(tr("Type a name so we can call your order."));
     if (const QString missing = missingChoice(c->lines); !missing.isEmpty())
         return fail(missing);

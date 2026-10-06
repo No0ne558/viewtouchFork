@@ -37,6 +37,8 @@ Rectangle {
     readonly property color muted: Qt.rgba(ink.r, ink.g, ink.b, 0.62)
     readonly property color soft: Qt.rgba(ink.r, ink.g, ink.b, 0.8)
     readonly property string face: lookSet.font || Qt.application.font.family
+    // Readable text on any button color: dark on light ones, white on dark ones.
+    function textOn(c) { return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b > 0.6 ? "#1b1b1b" : "white" }
 
     readonly property var lastOrder: info.lastOrder ?? ({})
     readonly property bool done: (lastOrder.number ?? 0) > 0
@@ -112,7 +114,7 @@ Rectangle {
             anchors.fill: parent
             anchors.margins: k.u * 0.4
             text: big.text
-            color: big.enabled ? "white" : "#6b7383"
+            color: big.enabled ? k.textOn(big.color) : "#6b7383"
             font.pixelSize: k.u * big.size
             font.bold: true
             wrapMode: Text.WordWrap
@@ -307,7 +309,8 @@ Rectangle {
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
             }
-            Rectangle {   // the text stays readable on a photo
+            Rectangle {
+                visible: attract.picture !== ""   // shade only a photo   // the text stays readable on a photo
                 anchors.fill: parent
                 gradient: Gradient {
                     GradientStop { position: 0.0; color: "#80000000" }
@@ -337,7 +340,7 @@ Rectangle {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 text: k.pos ? k.pos.storeName : ""
-                color: k.ink
+                color: attract.picture !== "" ? "white" : k.ink
                 font.pixelSize: k.u * 3
                 font.bold: true
                 wrapMode: Text.WordWrap
@@ -355,7 +358,7 @@ Rectangle {
                 visible: attract.caption !== ""
                 horizontalAlignment: Text.AlignHCenter
                 text: attract.caption
-                color: k.ink
+                color: attract.picture !== "" ? "white" : k.ink
                 font.pixelSize: k.u * 2
                 font.bold: true
                 wrapMode: Text.WordWrap
@@ -376,7 +379,7 @@ Rectangle {
                     font.family: k.face
                     anchors.centerIn: parent
                     text: k.lookSet.welcome || qsTr("Touch to Order")
-                    color: k.ink
+                    color: k.textOn(k.accent)
                     font.pixelSize: k.u * 2
                     font.bold: true
                 }
@@ -753,7 +756,7 @@ Rectangle {
                     objectName: "kioskPlace"
                     Layout.fillWidth: true
                     Layout.preferredHeight: k.u * 3.6
-                    enabled: nameField.text.trim().length > 0
+                    enabled: k.lookSet.askName === false || nameField.text.trim().length > 0
                     text: qsTr("Place My Order")
                     base: k.go
                     onClicked: k.pos.kioskFinish({ name: nameField.text })
