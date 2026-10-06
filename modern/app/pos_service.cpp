@@ -2162,6 +2162,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"timeClockTake"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.timeClockTake(a.value(0).toLongLong())); }},
         {u"timeClockCancelRequest"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.timeClockCancelRequest(a.value(0).toLongLong())); }},
         {u"tickChecklist"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.tickChecklist(a.value(0).toString(), a.value(1).toInt())); }},
+        {u"moveMenuItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.moveMenuItem(a.value(0).toString(), a.value(1).toInt())); }},
+        {u"setMenuItemColor"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setMenuItemColor(a.value(0).toString(), a.value(1).toString())); }},
         {u"clockOutPunch"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.clockOutPunch(a.value(0).toLongLong())); }},
         {u"timeClockDone"_s, [](PosService &p, const QVariantList &) { p.timeClockDone(); return QVariant(true); }},
         {u"undoLast"_s, [](PosService &p, const QVariantList &) { return QVariant(p.undoLast()); }},

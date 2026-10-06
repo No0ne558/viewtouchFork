@@ -229,6 +229,7 @@ QJsonObject toJson(const MenuItem &m)
     if (!m.family.empty()) o.insert(u"family"_s, qs(m.family));
     if (!m.number.empty()) o.insert(u"number"_s, qs(m.number));
     if (m.prepMinutes > 0) o.insert(u"prepMinutes"_s, m.prepMinutes);
+    if (!m.buttonColor.empty()) o.insert(u"buttonColor"_s, qs(m.buttonColor));
     if (m.isModifier) o.insert(u"modifier"_s, true);
     if (!m.printer.empty()) o.insert(u"printer"_s, qs(m.printer));
     if (!m.station.empty()) o.insert(u"station"_s, qs(m.station));
@@ -299,6 +300,7 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     m.family = ss(o.value(u"family").toString());
     m.number = ss(o.value(u"number").toVariant().toString().trimmed());
     m.prepMinutes = std::clamp(o.value(u"prepMinutes").toVariant().toInt(), 0, 240);
+    m.buttonColor = ss(o.value(u"buttonColor").toString());
     m.price = Money::fromCents(centsFromDecimal(o.value(u"price").toDouble()));
     m.taxClass = taxClassFromString(ss(o.value(u"taxClass").toString(u"food"_s)));
     m.isModifier = o.value(u"modifier").toBool();

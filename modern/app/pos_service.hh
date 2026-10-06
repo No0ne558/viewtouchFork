@@ -510,6 +510,10 @@ public:
     qint64 selectedPayment() const override { return selectedPayment_; }
     QVariantList openChecks() const override;
     QStringList popularItems() const override;
+    // Arranging the self-filling menu by touch (managers): one place earlier
+    // or later within its family, and its button color.
+    bool moveMenuItem(const QString &id, int by);
+    bool setMenuItemColor(const QString &id, const QString &color);
     QVariantMap stockLeft() const override;
     QVariantMap dashboard() const override;
     QVariantMap checklists() const override;

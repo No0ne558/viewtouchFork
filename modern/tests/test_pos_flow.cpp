@@ -1009,6 +1009,51 @@ TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labo
     CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
 }
 
+TEST_CASE("UI: a manager arranges the self-filling menu by touch", "[flow][ui][arrange]")
+{
+    Screen s;
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    const auto tap = [&](const QString &name) {
+        QQuickItem *it = find(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(60);
+    };
+    const auto indexOf = [&](const QString &id) {
+        const QVariantList items = s.pos.menuItems();
+        for (int i = 0; i < items.size(); ++i)
+            if (items[i].toMap()[u"id"_s] == id)
+                return i;
+        return -1;
+    };
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"menu-all"_s));
+    QTest::qWait(60);
+    CHECK_FALSE(find(u"menuArrange"_s));                        // servers don't
+    s.pos.releaseCheck();
+    s.pos.logout();
+
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"menu-all"_s));
+    QTest::qWait(60);
+    REQUIRE(indexOf(u"classic-burger"_s) < indexOf(u"cheeseburger"_s));
+    tap(u"menuArrange"_s);
+    tap(u"menuItem-cheeseburger"_s);
+    CHECK(s.pos.lines().isEmpty());                            // picked, not ordered
+    tap(u"arrangeEarlier"_s);
+    CHECK(indexOf(u"cheeseburger"_s) < indexOf(u"classic-burger"_s));
+    tap(u"swatch-1"_s);                                        // green; still arranging after the change
+    CHECK(s.pos.menuItems()[indexOf(u"cheeseburger"_s)].toMap()[u"buttonColor"_s] == u"#1f8a4c"_s);
+    REQUIRE(find(u"arrangeBar"_s));
+    s.shot("78-arrange-menu");
+    tap(u"arrangeDone"_s);
+    CHECK_FALSE(find(u"arrangeBar"_s));
+    tap(u"menuItem-cheeseburger"_s);                           // orders again
+    CHECK(s.pos.lines().size() == 1);
+}
+
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
 {
     Screen s;

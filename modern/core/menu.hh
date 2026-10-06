@@ -53,6 +53,8 @@ struct MenuItem {
     // How long it should take the kitchen (minutes); 0: what it usually
     // takes (learned, PosSettings::prepSeconds).
     int prepMinutes = 0;
+    // Its button color in the self-filling menu ("#a86a12"); empty: the panel's.
+    std::string buttonColor;
     bool kioskHide = false;
     // Prices by order type (0: the regular price), and who may not discount it.
     Money takeoutPrice;

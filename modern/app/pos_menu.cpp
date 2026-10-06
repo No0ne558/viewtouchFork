@@ -4,6 +4,8 @@
 #include "app/pos_json.hh"
 #include "app/pos_service.hh"
 
+#include <QRegularExpression>
+
 #include <QDateTime>
 
 using namespace Qt::StringLiterals;
@@ -211,6 +213,55 @@ int PosService::ticketsLeft(const MenuItem &item) const
     return item.ticketCapacity > 0 ? std::max(0, item.ticketCapacity - ticketsSold(item)) : -1;
 }
 
+bool PosService::moveMenuItem(const QString &id, int by)
+{
+    if (!require(perm::Manager, tr("Arranging the menu")))
+        return false;
+    auto &menu = s_->menu;
+    const auto it = std::ranges::find_if(menu, [&](const MenuItem &m) { return qs(m.id) == id; });
+    if (it == menu.end())
+        return fail(tr("'%1' is not on the menu.").arg(id));
+    // The next (or previous) item of the same family: they trade places.
+    const int from = int(it - menu.begin());
+    int to = from;
+    for (int i = from + (by > 0 ? 1 : -1); i >= 0 && i < int(menu.size()); i += by > 0 ? 1 : -1)
+        if (menu[i].family == it->family && !menu[i].isModifier) {
+            to = i;
+            break;
+        }
+    if (to == from)
+        return true;   // already first (or last)
+    std::swap(menu[from], menu[to]);
+    if (s_->sink) {
+        s_->sink->saveMenuItem(menu[from], from);
+        s_->sink->saveMenuItem(menu[to], to);
+    }
+    ++s_->adminRevision;
+    emit s_->adminChanged();
+    return true;
+}
+
+bool PosService::setMenuItemColor(const QString &id, const QString &color)
+{
+    if (!require(perm::Manager, tr("Arranging the menu")))
+        return false;
+    for (int i = 0; i < int(s_->menu.size()); ++i) {
+        MenuItem &m = s_->menu[i];
+        if (qs(m.id) != id)
+            continue;
+        static const QRegularExpression hex(u"^#[0-9a-fA-F]{6}$"_s);
+        if (!color.isEmpty() && !hex.match(color).hasMatch())
+            return fail(tr("That isn't a color."));
+        m.buttonColor = ss(color);
+        if (s_->sink)
+            s_->sink->saveMenuItem(m, i);
+        ++s_->adminRevision;
+        emit s_->adminChanged();
+        return true;
+    }
+    return fail(tr("'%1' is not on the menu.").arg(id));
+}
+
 QStringList PosService::popularItems() const
 {
     // Today's checks, closed and open (not practice): how many of each item.
@@ -259,7 +310,8 @@ QVariantList PosService::menuItems() const
                                {u"price"_s, format(m.priceDuring(period))}, {u"modifier"_s, m.isModifier},
                                {u"available"_s, m.available && ticketsLeft(m) != 0}, {u"image"_s, qs(m.image)},
                                {u"color"_s, qs(m.kitchenColor)}, {u"byWeight"_s, m.byWeight},
-                               {u"unit"_s, qs(m.weightUnit)}, {u"number"_s, qs(m.number)}});
+                               {u"unit"_s, qs(m.weightUnit)}, {u"number"_s, qs(m.number)},
+                               {u"buttonColor"_s, qs(m.buttonColor)}});
     }
     return out;
 }

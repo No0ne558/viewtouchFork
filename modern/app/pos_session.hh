@@ -335,6 +335,8 @@ public:
     Q_INVOKABLE void timeClockTake(qint64 requestId) { invoke(QStringLiteral("timeClockTake"), {requestId}); }
     Q_INVOKABLE void timeClockCancelRequest(qint64 requestId) { invoke(QStringLiteral("timeClockCancelRequest"), {requestId}); }
     Q_INVOKABLE void tickChecklist(const QString &list, int index) { invoke(QStringLiteral("tickChecklist"), {list, index}); }
+    Q_INVOKABLE void moveMenuItem(const QString &id, int by) { invoke(QStringLiteral("moveMenuItem"), {id, by}); }
+    Q_INVOKABLE void setMenuItemColor(const QString &id, const QString &color) { invoke(QStringLiteral("setMenuItemColor"), {id, color}); }
     Q_INVOKABLE void timeClockDone() { invoke(QStringLiteral("timeClockDone"), {}); }
     Q_INVOKABLE void undoLast() { invoke(QStringLiteral("undoLast"), {}); }
     Q_INVOKABLE void newTableCheck() { invoke(QStringLiteral("newTableCheck"), {}); }

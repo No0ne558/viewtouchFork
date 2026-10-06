@@ -54,6 +54,27 @@ Item {
     function img(ref) { return w.pos && ref ? (w.pos.imageRevision, w.pos.imageUrl(ref)) : "" }
 
     readonly property real gap: 12
+    // Arranging (managers): touch an item, then move it or color it.
+    // Kept by the controller: a menu change rebuilds the page.
+    property bool arranging: zone && zone.controller ? zone.controller.widgetState(zone.zoneId + ".arranging") === true : false
+    property string picked: zone && zone.controller ? (zone.controller.widgetState(zone.zoneId + ".picked") ?? "") : ""
+    function setArranging(on) {
+        arranging = on
+        picked = ""
+        zone.controller.setWidgetState(zone.zoneId + ".arranging", on)
+        zone.controller.setWidgetState(zone.zoneId + ".picked", "")
+    }
+    function pick(id) {
+        picked = id
+        zone.controller.setWidgetState(zone.zoneId + ".picked", id)
+    }
+    readonly property bool mayArrange: pos !== null && pos.loggedIn && pos.can("manager") && !search && !popular
+    readonly property var swatches: ["#a86a12", "#1f8a4c", "#1f6f73", "#2b62b0", "#6b46c1", "#b83232", "#8a5a2b", "#4a5260"]
+    // Dark text on light buttons.
+    function inkOn(c) {
+        const k = Qt.color(c)
+        return 0.299 * k.r + 0.587 * k.g + 0.114 * k.b > 0.6 ? "#14171c" : "white"
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -80,6 +101,15 @@ Item {
                     }
                 }
             }
+            WidgetKey {
+                objectName: "menuArrange"
+                visible: w.mayArrange && !w.arranging
+                width: Math.max(160, (w.width - w.gap * 0.6 * 5) / 6)
+                height: Math.max(56, w.zone ? w.zone.touch(52) : 56)
+                text: qsTr("Arrange…")
+                fontScale: 0.38
+                onClicked: w.setArranging(true)
+            }
         }
 
         GridView {
@@ -104,9 +134,10 @@ Item {
                     readonly property var st: w.zone ? w.zone.st : ({})
                     radius: st.keyRadius !== undefined ? st.keyRadius : 14
                     color: !cell.modelData.available ? "#3a3f48"
-                         : press.pressed ? (st.keyLitFill ?? "#4c8dff") : (st.keyFill ?? "#343c49")
-                    border.color: Qt.darker(color, 1.4)
-                    border.width: 2
+                         : press.pressed ? (st.keyLitFill ?? "#4c8dff") : (cell.modelData.buttonColor || (st.keyFill ?? "#343c49"))
+                    readonly property bool isPicked: w.arranging && w.picked === cell.modelData.id
+                    border.color: isPicked ? "#f5b940" : Qt.darker(color, 1.4)
+                    border.width: isPicked ? 6 : 2
                     opacity: cell.modelData.available ? 1 : 0.55
                     // Running low: "5 left".
                     readonly property int itemsLeft: w.pos ? (w.pos.stockLeft[cell.modelData.id] ?? -1) : -1
@@ -172,7 +203,7 @@ Item {
                             maximumLineCount: 2
                             elide: Text.ElideRight
                             text: qsTranslate("Page", cell.modelData.name)
-                            color: card.st.keyTextColor ?? "white"
+                            color: cell.modelData.buttonColor ? w.inkOn(cell.modelData.buttonColor) : (card.st.keyTextColor ?? "white")
                             font.family: card.st.keyFont ?? w.face
                             font.pixelSize: Math.max(14, Math.min(cell.height * 0.16, cell.width * 0.11))
                             font.bold: true
@@ -192,11 +223,78 @@ Item {
                     MouseArea {
                         id: press
                         anchors.fill: parent
-                        enabled: cell.modelData.available
+                        enabled: cell.modelData.available || w.arranging
                         // Searching: the typed text is cleared too, ready for the next one.
-                        onClicked: w.zone.controller.orderItem(cell.modelData.id, w.search)
+                        // Arranging: it's picked instead.
+                        onClicked: w.arranging ? w.pick(cell.modelData.id)
+                                               : w.zone.controller.orderItem(cell.modelData.id, w.search)
                     }
                 }
+            }
+        }
+        // Arranging: move the picked item, color it, Done.
+        RowLayout {
+            objectName: "arrangeBar"
+            visible: w.arranging
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            spacing: w.gap * 0.5
+            readonly property real keyH: Math.max(56, w.zone ? w.zone.touch(52) : 56)
+            WidgetKey {
+                objectName: "arrangeEarlier"
+                enabled: w.picked !== ""
+                opacity: enabled ? 1 : 0.4
+                Layout.preferredWidth: 150; Layout.preferredHeight: parent.keyH
+                text: qsTr("◀ Earlier")
+                fontScale: 0.34
+                onClicked: w.pos.moveMenuItem(w.picked, -1)
+            }
+            WidgetKey {
+                objectName: "arrangeLater"
+                enabled: w.picked !== ""
+                opacity: enabled ? 1 : 0.4
+                Layout.preferredWidth: 150; Layout.preferredHeight: parent.keyH
+                text: qsTr("Later ▶")
+                fontScale: 0.34
+                onClicked: w.pos.moveMenuItem(w.picked, 1)
+            }
+            Repeater {
+                model: w.swatches
+                delegate: Rectangle {
+                    required property string modelData
+                    required property int index
+                    objectName: "swatch-" + index
+                    Layout.preferredWidth: parent.keyH
+                    Layout.preferredHeight: parent.keyH
+                    radius: 10
+                    color: modelData
+                    opacity: w.picked !== "" ? 1 : 0.4
+                    border.color: "white"
+                    border.width: 2
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: w.picked !== ""
+                        onClicked: w.pos.setMenuItemColor(w.picked, parent.modelData)
+                    }
+                }
+            }
+            WidgetKey {
+                objectName: "swatch-none"
+                enabled: w.picked !== ""
+                opacity: enabled ? 1 : 0.4
+                Layout.preferredWidth: 120; Layout.preferredHeight: parent.keyH
+                text: qsTr("No color")
+                fontScale: 0.3
+                onClicked: w.pos.setMenuItemColor(w.picked, "")
+            }
+            Item { Layout.fillWidth: true }
+            WidgetKey {
+                objectName: "arrangeDone"
+                Layout.preferredWidth: 150; Layout.preferredHeight: parent.keyH
+                text: qsTr("Done")
+                baseColor: "#1f6b40"
+                fontScale: 0.34
+                onClicked: w.setArranging(false)
             }
         }
         Text {

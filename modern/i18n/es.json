@@ -320,6 +320,8 @@
  "Approving a swap gives the shift to whoever took it.": "Aprobar un cambio da el turno a quien lo tomó.",
  "Are you still there?": "¿Sigue ahí?",
  "Arrange ▾": "Acomodar ▾",
+ "Arrange…": "Ordenar…",
+ "Arranging the menu": "Ordenar el menú",
  "As Soon as Possible": "Lo Antes Posible",
  "As given with --terminal (this one: %1)": "Como se dio con --terminal (esta: %1)",
  "As of %1. It updates as checks close and orders go out.": "A las %1. Se actualiza al cerrar cuentas y enviar pedidos.",
@@ -822,6 +824,7 @@
  "Last Month": "Mes pasado",
  "Last Week": "Semana pasada",
  "Late tickets are counted in the Kitchen report.": "Los tickets tardíos se cuentan en el reporte de cocina.",
+ "Later ▶": "Después ▶",
  "Layout: %1": "Diseño: %1",
  "Layout: %1 (Undo takes it back; Save keeps it)": "Diseño: %1 (Deshacer lo quita; Guardar lo conserva)",
  "Layouts": "Diseños",
@@ -945,6 +948,7 @@
  "No check to send.": "No hay cuenta para enviar.",
  "No checks closed today": "No hay cuentas cerradas hoy",
  "No checks match \"%1\".": "Ninguna cuenta coincide con \"%1\".",
+ "No color": "Sin color",
  "No course is on hold.": "No hay tiempos en espera.",
  "No customers yet.": "Todavía no hay clientes.",
  "No discounts": "Sin descuentos",
@@ -1534,6 +1538,7 @@
  "That file isn't a font this program can use.": "Ese archivo no es una fuente que este programa pueda usar.",
  "That file isn't a picture this program can show.": "Ese archivo no es una imagen que este programa pueda mostrar.",
  "That is not a pairing code. It has 10 letters and digits.": "Ese no es un código de vinculación. Tiene 10 letras y números.",
+ "That isn't a color.": "Eso no es un color.",
  "That isn't a manager's PIN.": "Ese no es el PIN de un gerente.",
  "That isn't your request.": "Esa solicitud no es suya.",
  "That isn't your shift.": "Ese turno no es suyo.",
@@ -1977,5 +1982,6 @@
  "‹ Inventory": "‹ Inventario",
  "‹ Manager": "‹ Gerente",
  "‹ Menu": "‹ Menú",
- "‹ Tables": "‹ Mesas"
+ "‹ Tables": "‹ Mesas",
+ "◀ Earlier": "◀ Antes"
 }

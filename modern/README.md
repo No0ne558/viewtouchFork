@@ -476,6 +476,10 @@ Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose button
 
 Once drinks have been sent on a check, **Another Round** appears beside its name: it orders the drinks of the latest Send again (same choices and quantities) as new lines, ready for Send. Drinks are what the bar prints, or items in a drinks family; sold-out ones are skipped and named. Command `anotherRound`; the order list's built-in "round" button.
 
+## Arrange the menu by touch
+
+On the self-filling menu (Everything), a manager touches **Arrange…**: touching an item picks it (instead of ordering it), **◀ Earlier** / **Later ▶** move it within its family, the swatches give its button a color (dark text on light colors), **No color** takes it off, **Done** goes back to ordering. Saved with the menu (`MenuItem::buttonColor`, `PosService::moveMenuItem`, `setMenuItemColor`).
+
 ## A look per terminal
 
 Manager → Terminals → a terminal → **Look**: one of the looks (or the store's). That screen shows every page recolored with it; the saved pages and other screens keep the store's look (`TerminalConfig::look`, `PosSession::terminalLook`; the controller keeps a recolored copy of the layout for this screen).
