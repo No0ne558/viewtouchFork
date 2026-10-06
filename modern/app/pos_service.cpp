@@ -972,6 +972,63 @@ bool PosService::setLineQuantity(qint64 lineId, int quantity)
     return true;
 }
 
+std::vector<const OrderLine *> PosService::lastRound(const Check &c) const
+{
+    // Drinks: the bar makes them, or they're in a drinks family.
+    const auto drink = [&](const OrderLine &l) {
+        if (l.isComment() || l.voided || !l.sent || l.isGiftCard())
+            return false;
+        if (l.printerOf() == "bar")
+            return true;
+        const MenuItem *m = findItem(qs(l.itemId));
+        return m && QString::fromStdString(m->family).contains(u"drink"_s, Qt::CaseInsensitive);
+    };
+    std::int64_t last = 0;
+    for (const OrderLine &l : c.lines)
+        if (drink(l))
+            last = std::max(last, l.sentAt);
+    std::vector<const OrderLine *> out;
+    for (const OrderLine &l : c.lines)
+        if (drink(l) && l.sentAt == last)
+            out.push_back(&l);
+    return out;
+}
+
+bool PosService::anotherRound()
+{
+    if (!require(perm::Order, tr("Ordering")))
+        return false;
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    std::vector<OrderLine> round;
+    for (const OrderLine *l : lastRound(*c))
+        round.push_back(*l);
+    if (round.empty())
+        return fail(tr("No drinks have been sent on this check yet."));
+    QStringList skipped;
+    int added = 0;
+    for (OrderLine copy : round) {
+        const MenuItem *m = findItem(qs(copy.itemId));
+        if (!m || !m->available) {
+            skipped << qs(copy.name);
+            continue;
+        }
+        copy.id = c->nextLineId++;
+        copy.sent = copy.voided = copy.made = copy.served = false;
+        copy.sentAt = copy.madeAt = copy.servedAt = 0;
+        c->lines.push_back(copy);
+        selectedLine_ = copy.id;
+        added += copy.quantity;
+    }
+    if (added == 0)
+        return fail(tr("Sold out: %1").arg(skipped.join(u", "_s)));
+    emit notice(skipped.isEmpty() ? tr("Another round: %n drink(s)", nullptr, added)
+                                  : tr("Another round: %n drink(s) (sold out: %1)", nullptr, added).arg(skipped.join(u", "_s)));
+    changed(*c);
+    return true;
+}
+
 void PosService::rememberChange(const Check &c, const OrderLine &before, bool removed, const QString &text)
 {
     const auto it = std::ranges::find(c.lines, before.id, &OrderLine::id);
@@ -1427,7 +1484,7 @@ QVariantMap PosService::checkInfo() const
         {u"id"_s, qint64(c->id)}, {u"label"_s, qs(c->label)}, {u"guests"_s, c->guests},
         {u"server"_s, qs(c->serverName)}, {u"type"_s, qs(toString(c->type))},
         {u"seat"_s, seat_}, {u"course"_s, course_}, {u"firedCourse"_s, c->firedCourse},
-        {u"heldCount"_s, c->heldCount()}, {u"rush"_s, c->rush}, {u"vip"_s, c->vip},
+        {u"heldCount"_s, c->heldCount()}, {u"roundSize"_s, int(lastRound(*c).size())}, {u"rush"_s, c->rush}, {u"vip"_s, c->vip},
         {u"opened"_s, timeOfDay(c->openedAt)},
         {u"dueAt"_s, qint64(c->dueAt)}, {u"due"_s, c->dueAt ? dueText(c->dueAt) : QString()},
         {u"customer"_s, QVariantMap{{u"name"_s, qs(c->customer.name)}, {u"phone"_s, qs(c->customer.phone)},
@@ -1998,6 +2055,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"setLineQuantity"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setLineQuantity(a.value(0).toLongLong(), a.value(1).toInt())); }},
         {u"lineMore"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.changeLineQuantity(a.value(0).toLongLong(), 1)); }},
         {u"lineLess"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.changeLineQuantity(a.value(0).toLongLong(), -1)); }},
+        {u"anotherRound"_s, [](PosService &p, const QVariantList &) { return QVariant(p.anotherRound()); }},
         {u"undoLast"_s, [](PosService &p, const QVariantList &) { return QVariant(p.undoLast()); }},
         {u"repeatLine"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.repeatLine(a.value(0).toLongLong())); }},
         {u"sendOrder"_s, [](PosService &p, const QVariantList &) { return QVariant(p.sendOrder()); }},

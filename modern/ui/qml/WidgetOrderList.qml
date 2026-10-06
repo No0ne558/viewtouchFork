@@ -44,6 +44,17 @@ Item {
                 Layout.fillWidth: true
                 elide: Text.ElideRight
             }
+            // The drinks sent last, again (tabs and tables).
+            WidgetKey {
+                objectName: "anotherRound"
+                visible: (w.check.roundSize ?? 0) > 0 && w.zone.keyShown("round")
+                Layout.preferredWidth: w.unit * 6.4
+                Layout.preferredHeight: w.unit * 1.5
+                text: w.zone.keyText("round", qsTr("Another Round"))
+                baseColor: "#1f6f78"
+                fontScale: 0.5
+                onClicked: w.pos.anotherRound()
+            }
             Text {
                 text: qsTr("#%1").arg(w.check.id ?? "")
                 color: "#8a94a6"
@@ -233,6 +244,7 @@ Item {
                 }
             }
             WidgetKey {
+                id: fireKey
                 visible: w.nextCourse > 0 && w.zone.keyShown("fire")
                 anchors.right: parent.right
                 width: bar.key * 3.4

@@ -821,6 +821,55 @@ TEST_CASE("UI: each person's text size, left hand and start screen; a start scre
     CHECK(s.pos.userPrefs().isEmpty());
 }
 
+TEST_CASE("UI: Another Round orders the drinks sent last again", "[flow][ui][round]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.selectTable(u"T3"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    REQUIRE(s.c.jumpTo(u"items-drinks"_s));
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    const auto names = [&] {
+        QStringList out;
+        for (const QVariant &v : s.pos.lines())
+            if (!v.toMap()[u"sent"_s].toBool())
+                out << v.toMap()[u"name"_s].toString();
+        return out;
+    };
+    CHECK_FALSE(s.pos.anotherRound());                 // nothing sent yet
+    s.pos.addItem(u"soda"_s);
+    REQUIRE(s.pos.chooseOption(u"drink-size"_s, 1));
+    REQUIRE(s.pos.finishChoosing());
+    s.pos.addItem(u"draft-beer"_s);
+    REQUIRE(s.pos.chooseOption(u"draft"_s, 0));
+    REQUIRE(s.pos.finishChoosing());
+    REQUIRE(s.pos.setLineQuantity(0, 2));              // two beers
+    s.pos.addItem(u"bacon-burger"_s);                  // not a drink
+    REQUIRE(s.pos.chooseOption(u"temperature"_s, 1));
+    REQUIRE(s.pos.chooseOption(u"side"_s, 2));
+    REQUIRE(s.pos.finishChoosing());
+    REQUIRE(s.pos.sendOrder());
+    REQUIRE(s.c.jumpTo(u"items-drinks"_s));
+    QTest::qWait(60);
+
+    QQuickItem *round = find(u"anotherRound"_s);
+    REQUIRE(round);
+    s.shot("61-another-round");
+    s.tapItem(round);
+    QTest::qWait(60);
+    CHECK(names().size() == 2);                        // the soda and the beers, not the burger
+    const QVariantList lines = s.pos.lines();
+    CHECK(lines.last().toMap()[u"quantity"_s].toInt() == 2);
+    CHECK_FALSE(lines.last().toMap()[u"modifiers"_s].toList().isEmpty());   // same pour
+
+    // The next round is the drinks of the latest Send only.
+    REQUIRE(s.pos.sendOrder());
+    s.pos.addItem(u"water"_s);
+    REQUIRE(s.pos.sendOrder());
+    REQUIRE(s.pos.anotherRound());
+    CHECK(names() == QStringList{u"Water"_s});
+}
+
 TEST_CASE("UI: Undo puts back the item just removed", "[flow][ui][undo]")
 {
     Screen s;

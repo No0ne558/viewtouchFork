@@ -317,6 +317,9 @@ public:
     bool repeatLine(qint64 lineId);
     // Puts back the item last taken off (or made fewer), for a little while.
     bool undoLast();
+    // The drinks sent last (one Send), ordered again as new lines.
+    bool anotherRound();
+    std::vector<const core::OrderLine *> lastRound(const core::Check &c) const;
     bool sendOrder();
     // Orders for later: ready at `at` (epoch ms; 0 = as soon as possible).
     bool setDueAt(qint64 at);

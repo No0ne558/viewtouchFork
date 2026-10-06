@@ -26,5 +26,13 @@
  "Printing %n receipt(s)": {
   "one": "Printing %n receipt",
   "other": "Printing %n receipts"
+ },
+ "Another round: %n drink(s)": {
+  "one": "Another round: %n drink",
+  "other": "Another round: %n drinks"
+ },
+ "Another round: %n drink(s) (sold out: %1)": {
+  "one": "Another round: %n drink (sold out: %1)",
+  "other": "Another round: %n drinks (sold out: %1)"
  }
 }
