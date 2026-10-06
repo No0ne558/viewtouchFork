@@ -698,7 +698,10 @@ settle += [
     zone("split", 1468, 640, 212, 100, "Split", actions=[jump(page="split")]),
     zone("drawer", 1692, 640, 212, 100, "Drawer…", actions=[jump(page="drawer")]),
     # On the customer display: the guest picks a tip, which goes on their card.
-    zone("ask-tip", 1468, 756, 436, 100, "Ask Guest for Tip", actions=[command("askForTip")], style=fill(TEAL)),
+    zone("ask-tip", 1468, 752, 436, 90, "Ask Guest for Tip", actions=[command("askForTip")], style=fill(TEAL)),
+    # A discount of what's typed on the keypad (a manager's, or their PIN).
+    zone("off-amount", 1468, 852, 212, 82, "$ Off", actions=[command("amountOff")], style=fill(AMBER)),
+    zone("off-percent", 1692, 852, 212, 82, "% Off", actions=[command("percentOff")], style=fill(AMBER)),
     zone("done", 1468, 944, 436, 120, "‹ Back to Order", actions=[jump(mode="back")]),
 ]
 page("settle", "Settle", "settle", settle, role="settle", permission="check.settle")
@@ -1130,18 +1133,21 @@ layouts("settle", [
         "payment": (16, 162, 900, 902), "pad": (932, 162, 520, 560), "receipt": (932, 738, 520, 100),
         "close": (932, 850, 520, 100), "remove-payment": (932, 962, 520, 100),
         "split": (1468, 162, 212, 120), "drawer": (1692, 162, 212, 120), "ask-tip": (1468, 298, 436, 120),
+        "off-amount": (1468, 434, 212, 110), "off-percent": (1692, 434, 212, 110),
         "done": (1468, 944, 436, 120)}),
     arrangement("settle", "cash-and-card", "Cash and card first", "Cash and Credit Card big, the rest smaller.", {
-        "tender-cash": (1468, 16, 436, 200), "tender-credit": (1468, 232, 436, 200),
-        "tender-gift": (1468, 448, 212, 90), "tender-house": (1692, 448, 212, 90),
-        "tender-discount": (1468, 546, 212, 90), "tender-comp": (1692, 546, 212, 90),
-        "tender-staff-meal": (1468, 644, 436, 80), "split": (1468, 736, 212, 90), "drawer": (1692, 736, 212, 90),
-        "ask-tip": (1468, 838, 436, 94)}),
+        "tender-cash": (1468, 16, 436, 180), "tender-credit": (1468, 206, 436, 180),
+        "tender-gift": (1468, 396, 212, 84), "tender-house": (1692, 396, 212, 84),
+        "tender-discount": (1468, 490, 212, 84), "tender-comp": (1692, 490, 212, 84),
+        "tender-staff-meal": (1468, 584, 212, 84), "off-amount": (1692, 584, 212, 84),
+        "off-percent": (1468, 678, 212, 84), "split": (1692, 678, 212, 84),
+        "drawer": (1468, 772, 212, 84), "ask-tip": (1692, 772, 212, 84)}),
     arrangement("settle", "wide-buttons", "Wide buttons", "A narrower check, wider keypad and payment buttons.", {
         "payment": (16, 16, 700, 1048), "pad": (732, 16, 600, 620), "receipt": (732, 652, 600, 120),
         "close": (732, 788, 600, 120), "remove-payment": (732, 924, 600, 120),
         **{tid: (1348, 16 + i * step, 556, step - 10) for i, tid in enumerate(tender_ids)},
-        "split": (1348, 640, 272, 100), "drawer": (1632, 640, 272, 100), "ask-tip": (1348, 756, 556, 100),
+        "split": (1348, 640, 272, 100), "drawer": (1632, 640, 272, 100), "ask-tip": (1348, 752, 556, 90),
+        "off-amount": (1348, 852, 272, 82), "off-percent": (1632, 852, 272, 82),
         "done": (1348, 944, 556, 120)}),
 ])
 

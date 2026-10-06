@@ -314,9 +314,9 @@
       "kind": "button",
       "rect": {
         "x": 1468,
-        "y": 756,
+        "y": 752,
         "w": 436,
-        "h": 100
+        "h": 90
       },
       "shape": "rect",
       "behavior": "blink",
@@ -330,6 +330,54 @@
       "style": {
         "normal": {
           "fill": "#1f6f73"
+        }
+      }
+    },
+    {
+      "id": "off-amount",
+      "kind": "button",
+      "rect": {
+        "x": 1468,
+        "y": 852,
+        "w": 212,
+        "h": 82
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "$ Off",
+      "actions": [
+        {
+          "type": "command",
+          "name": "amountOff"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#a86a12"
+        }
+      }
+    },
+    {
+      "id": "off-percent",
+      "kind": "button",
+      "rect": {
+        "x": 1692,
+        "y": 852,
+        "w": 212,
+        "h": 82
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "% Off",
+      "actions": [
+        {
+          "type": "command",
+          "name": "percentOff"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#a86a12"
         }
       }
     },

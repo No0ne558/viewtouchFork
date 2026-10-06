@@ -476,6 +476,10 @@ Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose button
 
 Once drinks have been sent on a check, **Another Round** appears beside its name: it orders the drinks of the latest Send again (same choices and quantities) as new lines, ready for Send. Drinks are what the bar prints, or items in a drinks family; sold-out ones are skipped and named. Command `anotherRound`; the order list's built-in "round" button.
 
+## Discounts need a manager
+
+Servers, bartenders and cashiers no longer have the discount permission: 10% Off, Comp, Staff Meal and custom discounts ask for a manager's PIN (the approval pad), unless the person is allowed it in Employees. On the Pay screen **$ Off** and **% Off** discount what's typed on the keypad (cents, or a whole percent); commands `amountOff` / `percentOff` (`PosService::customDiscount`).
+
 ## Undo
 
 Taking an unsent item off (Void, or − on the last one) or making it fewer shows **Removed Bacon Burger · Undo** at the bottom of the check for a few seconds; **Undo** puts it back where it was, choices and all (or the number it was). Only on the check it happened on, once, within 30 seconds. `PosSession::undoText`, `undoLast`; the bar is the order list's built-in "undo" button.

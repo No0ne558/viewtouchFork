@@ -344,6 +344,8 @@ public:
     // Amount: explicit cents, else the keypad entry, else the balance due.
     bool tender(const QString &tenderId, std::optional<std::int64_t> amountCents = std::nullopt);
     bool removePayment();
+    // A discount of the amount typed: dollars (cents typed) or a percent.
+    bool customDiscount(bool percent);
     bool closeCheck();
     // The current check, else the last one closed on this terminal.
     bool printReceipt();

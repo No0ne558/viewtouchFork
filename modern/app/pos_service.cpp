@@ -1297,6 +1297,39 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
     return true;
 }
 
+bool PosService::customDiscount(bool percent)
+{
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    const std::int64_t typed = entry_.toLongLong();
+    if (typed <= 0)
+        return fail(percent ? tr("Type the percent (15 for 15%), then % Off.")
+                            : tr("Type the amount off, then $ Off."));
+    if (percent && typed > 100)
+        return fail(tr("A discount is 100% at most."));
+    const Totals before = c->totals(s_->settings.tax);
+    if (!percent && Money::fromCents(typed) > before.items - before.discounts)
+        return fail(tr("That's more than the items on the check."));
+    if (!require(perm::Discount, tr("Discounts and comps")))
+        return false;
+    Tender t;
+    t.id = "custom";
+    t.kind = TenderKind::Discount;
+    t.percentBp = percent ? typed * 100 : 0;
+    t.name = ss(percent ? tr("%1% off").arg(typed) : tr("%1 off").arg(format(Money::fromCents(typed))));
+    Payment &p = c->addPayment(t, Money());
+    if (!percent)
+        p.amount = Money::fromCents(typed);
+    entry_.clear();
+    emit entryChanged();
+    const Totals after = c->totals(s_->settings.tax);
+    noteEvent(*c, tr("Discount: %1").arg(qs(t.name)), "discount", after.discounts - before.discounts);
+    emit notice(tr("%1 applied").arg(qs(t.name)));
+    changed(*c);
+    return true;
+}
+
 bool PosService::removePayment()
 {
     Check *c = current();
@@ -2056,6 +2089,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"lineMore"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.changeLineQuantity(a.value(0).toLongLong(), 1)); }},
         {u"lineLess"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.changeLineQuantity(a.value(0).toLongLong(), -1)); }},
         {u"anotherRound"_s, [](PosService &p, const QVariantList &) { return QVariant(p.anotherRound()); }},
+        {u"customDiscount"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.customDiscount(a.value(0).toBool())); }},
         {u"undoLast"_s, [](PosService &p, const QVariantList &) { return QVariant(p.undoLast()); }},
         {u"repeatLine"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.repeatLine(a.value(0).toLongLong())); }},
         {u"sendOrder"_s, [](PosService &p, const QVariantList &) { return QVariant(p.sendOrder()); }},

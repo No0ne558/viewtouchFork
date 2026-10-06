@@ -178,8 +178,11 @@ TEST_CASE("Payments: exact card, cash change, discount, undo, close", "[pos]")
     REQUIRE(t.pos.removePayment());
     CHECK(t.balance() == 1353);
 
-    // 10% off: 12.50 - 1.25 = 11.25, tax 0.93 -> 12.18
-    REQUIRE(t.pos.tender(u"discount"_s));
+    // 10% off: 12.50 - 1.25 = 11.25, tax 0.93 -> 12.18. A cashier needs a manager for it.
+    CHECK_FALSE(t.pos.tender(u"discount"_s));
+    CHECK(t.balance() == 1353);
+    t.pos.invoke(u"tender"_s, {u"discount"_s});
+    REQUIRE(t.pos.approve(u"1234"_s));
     CHECK(t.balance() == 1218);
 
     // Cash over-tender gives change.

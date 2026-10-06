@@ -308,6 +308,7 @@ public:
     Q_INVOKABLE void testPrinter(const QString &printerId, bool kickDrawer = false) { invoke(QStringLiteral("testPrinter"), {printerId, kickDrawer}); }
     Q_INVOKABLE void combineTableChecks() { invoke(QStringLiteral("combineTableChecks"), {}); }
     Q_INVOKABLE void anotherRound() { invoke(QStringLiteral("anotherRound"), {}); }
+    Q_INVOKABLE void customDiscount(bool percent) { invoke(QStringLiteral("customDiscount"), {percent}); }
     Q_INVOKABLE void undoLast() { invoke(QStringLiteral("undoLast"), {}); }
     Q_INVOKABLE void newTableCheck() { invoke(QStringLiteral("newTableCheck"), {}); }
     // Another open check made current, staying on this page (the table's checks).

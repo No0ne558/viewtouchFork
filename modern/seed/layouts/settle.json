@@ -311,9 +311,9 @@
           "kind": "button",
           "rect": {
             "x": 1468,
-            "y": 756,
+            "y": 752,
             "w": 436,
-            "h": 100
+            "h": 90
           },
           "shape": "rect",
           "behavior": "blink",
@@ -327,6 +327,54 @@
           "style": {
             "normal": {
               "fill": "#1f6f73"
+            }
+          }
+        },
+        {
+          "id": "off-amount",
+          "kind": "button",
+          "rect": {
+            "x": 1468,
+            "y": 852,
+            "w": 212,
+            "h": 82
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "$ Off",
+          "actions": [
+            {
+              "type": "command",
+              "name": "amountOff"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
+            }
+          }
+        },
+        {
+          "id": "off-percent",
+          "kind": "button",
+          "rect": {
+            "x": 1692,
+            "y": 852,
+            "w": 212,
+            "h": 82
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "% Off",
+          "actions": [
+            {
+              "type": "command",
+              "name": "percentOff"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
             }
           }
         },
@@ -660,9 +708,9 @@
           "kind": "button",
           "rect": {
             "x": 1468,
-            "y": 756,
+            "y": 752,
             "w": 436,
-            "h": 100
+            "h": 90
           },
           "shape": "rect",
           "behavior": "blink",
@@ -676,6 +724,54 @@
           "style": {
             "normal": {
               "fill": "#1f6f73"
+            }
+          }
+        },
+        {
+          "id": "off-amount",
+          "kind": "button",
+          "rect": {
+            "x": 1468,
+            "y": 852,
+            "w": 212,
+            "h": 82
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "$ Off",
+          "actions": [
+            {
+              "type": "command",
+              "name": "amountOff"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
+            }
+          }
+        },
+        {
+          "id": "off-percent",
+          "kind": "button",
+          "rect": {
+            "x": 1692,
+            "y": 852,
+            "w": 212,
+            "h": 82
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "% Off",
+          "actions": [
+            {
+              "type": "command",
+              "name": "percentOff"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
             }
           }
         },
@@ -1029,6 +1125,54 @@
           }
         },
         {
+          "id": "off-amount",
+          "kind": "button",
+          "rect": {
+            "x": 1468,
+            "y": 434,
+            "w": 212,
+            "h": 110
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "$ Off",
+          "actions": [
+            {
+              "type": "command",
+              "name": "amountOff"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
+            }
+          }
+        },
+        {
+          "id": "off-percent",
+          "kind": "button",
+          "rect": {
+            "x": 1692,
+            "y": 434,
+            "w": 212,
+            "h": 110
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "% Off",
+          "actions": [
+            {
+              "type": "command",
+              "name": "percentOff"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
+            }
+          }
+        },
+        {
           "id": "done",
           "kind": "button",
           "rect": {
@@ -1089,7 +1233,7 @@
             "x": 1468,
             "y": 16,
             "w": 436,
-            "h": 200
+            "h": 180
           },
           "shape": "rect",
           "behavior": "blink",
@@ -1111,9 +1255,9 @@
           "kind": "button",
           "rect": {
             "x": 1468,
-            "y": 232,
+            "y": 206,
             "w": 436,
-            "h": 200
+            "h": 180
           },
           "shape": "rect",
           "behavior": "blink",
@@ -1135,9 +1279,9 @@
           "kind": "button",
           "rect": {
             "x": 1468,
-            "y": 448,
+            "y": 396,
             "w": 212,
-            "h": 90
+            "h": 84
           },
           "shape": "rect",
           "behavior": "blink",
@@ -1160,9 +1304,9 @@
           "kind": "button",
           "rect": {
             "x": 1692,
-            "y": 448,
+            "y": 396,
             "w": 212,
-            "h": 90
+            "h": 84
           },
           "shape": "rect",
           "behavior": "blink",
@@ -1184,9 +1328,9 @@
           "kind": "button",
           "rect": {
             "x": 1468,
-            "y": 546,
+            "y": 490,
             "w": 212,
-            "h": 90
+            "h": 84
           },
           "shape": "rect",
           "behavior": "blink",
@@ -1208,9 +1352,9 @@
           "kind": "button",
           "rect": {
             "x": 1692,
-            "y": 546,
+            "y": 490,
             "w": 212,
-            "h": 90
+            "h": 84
           },
           "shape": "rect",
           "behavior": "blink",
@@ -1232,9 +1376,9 @@
           "kind": "button",
           "rect": {
             "x": 1468,
-            "y": 644,
-            "w": 436,
-            "h": 80
+            "y": 584,
+            "w": 212,
+            "h": 84
           },
           "shape": "rect",
           "behavior": "blink",
@@ -1317,10 +1461,10 @@
           "id": "split",
           "kind": "button",
           "rect": {
-            "x": 1468,
-            "y": 736,
+            "x": 1692,
+            "y": 678,
             "w": 212,
-            "h": 90
+            "h": 84
           },
           "shape": "rect",
           "behavior": "blink",
@@ -1337,10 +1481,10 @@
           "id": "drawer",
           "kind": "button",
           "rect": {
-            "x": 1692,
-            "y": 736,
+            "x": 1468,
+            "y": 772,
             "w": 212,
-            "h": 90
+            "h": 84
           },
           "shape": "rect",
           "behavior": "blink",
@@ -1357,10 +1501,10 @@
           "id": "ask-tip",
           "kind": "button",
           "rect": {
-            "x": 1468,
-            "y": 838,
-            "w": 436,
-            "h": 94
+            "x": 1692,
+            "y": 772,
+            "w": 212,
+            "h": 84
           },
           "shape": "rect",
           "behavior": "blink",
@@ -1374,6 +1518,54 @@
           "style": {
             "normal": {
               "fill": "#1f6f73"
+            }
+          }
+        },
+        {
+          "id": "off-amount",
+          "kind": "button",
+          "rect": {
+            "x": 1692,
+            "y": 584,
+            "w": 212,
+            "h": 84
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "$ Off",
+          "actions": [
+            {
+              "type": "command",
+              "name": "amountOff"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
+            }
+          }
+        },
+        {
+          "id": "off-percent",
+          "kind": "button",
+          "rect": {
+            "x": 1468,
+            "y": 678,
+            "w": 212,
+            "h": 84
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "% Off",
+          "actions": [
+            {
+              "type": "command",
+              "name": "percentOff"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
             }
           }
         },
@@ -1707,9 +1899,9 @@
           "kind": "button",
           "rect": {
             "x": 1348,
-            "y": 756,
+            "y": 752,
             "w": 556,
-            "h": 100
+            "h": 90
           },
           "shape": "rect",
           "behavior": "blink",
@@ -1723,6 +1915,54 @@
           "style": {
             "normal": {
               "fill": "#1f6f73"
+            }
+          }
+        },
+        {
+          "id": "off-amount",
+          "kind": "button",
+          "rect": {
+            "x": 1348,
+            "y": 852,
+            "w": 272,
+            "h": 82
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "$ Off",
+          "actions": [
+            {
+              "type": "command",
+              "name": "amountOff"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
+            }
+          }
+        },
+        {
+          "id": "off-percent",
+          "kind": "button",
+          "rect": {
+            "x": 1632,
+            "y": 852,
+            "w": 272,
+            "h": 82
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "% Off",
+          "actions": [
+            {
+              "type": "command",
+              "name": "percentOff"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
             }
           }
         },

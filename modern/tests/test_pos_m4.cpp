@@ -287,7 +287,8 @@ TEST_CASE("Split check: move items, then choose between checks at the table", "[
 
     // Checks with payments are not split.
     REQUIRE(t.pos.openCheck(first));
-    REQUIRE(t.pos.tender(u"discount"_s));
+    t.pos.entryKey(u"100"_s);
+    REQUIRE(t.pos.tender(u"credit"_s));             // $1.00 paid
     t.pos.selectLine(t.pos.lines()[0].toMap()[u"id"_s].toLongLong());
     CHECK_FALSE(t.pos.splitLine(0));
 }

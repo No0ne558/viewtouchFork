@@ -873,6 +873,59 @@ TEST_CASE("UI: after Send a server can't void or change items without a manager'
     CHECK(noted);                                               // who approved it is on the check's history
 }
 
+TEST_CASE("UI: discounts are a manager's: $ Off and % Off of the amount typed", "[flow][ui][approval][discounts]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));                       // Sam, a server
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    s.pos.addItem(u"cobb"_s);                                   // $12.50
+    s.pos.finishChoosing();
+    REQUIRE(s.c.jumpTo(u"settle"_s));
+    QTest::qWait(60);
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    const auto type = [&](const QString &pin) {
+        for (const QChar ch : pin) {
+            s.tapItem(find(u"approvalKey-"_s + ch));
+            QTest::qWait(30);
+        }
+        s.tapItem(find(u"approvalKey-OK"_s));
+        QTest::qWait(60);
+    };
+    const auto discounts = [&] { return s.pos.totals()[u"discounts"_s].toString(); };
+
+    // A comp from the server: a manager's PIN first.
+    s.c.activate(u"tender-comp"_s);
+    QTest::qWait(60);
+    REQUIRE(find(u"approvalKey-OK"_s));
+    s.tapItem(find(u"approvalKey-Cancel"_s));
+    QTest::qWait(40);
+    CHECK(s.pos.payments().isEmpty());
+
+    // $5.00 off, typed: approved by Morgan.
+    s.pos.entryKey(u"500"_s);
+    s.c.activate(u"off-amount"_s);
+    QTest::qWait(60);
+    REQUIRE(find(u"approvalKey-OK"_s));
+    type(u"1234"_s);
+    CHECK(discounts() == u"-$5.00"_s);
+    CHECK(s.pos.payments().value(0).toMap()[u"name"_s].toString() == u"$5.00 off"_s);
+    s.shot("65-custom-discount");
+
+    // A manager's own % Off: no PIN asked. 20% of what's left of the cobb.
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.openCheck(s.pos.openChecks().value(0).toMap()[u"id"_s].toLongLong()));
+    REQUIRE(s.c.jumpTo(u"settle"_s));
+    s.pos.entryKey(u"20"_s);
+    s.c.activate(u"off-percent"_s);
+    QTest::qWait(60);
+    CHECK_FALSE(find(u"approvalKey-OK"_s));
+    CHECK(discounts() == u"-$7.50"_s);                          // 5.00 + 20% of 12.50
+    CHECK_FALSE(s.pos.customDiscount(true));                    // nothing typed
+    s.pos.entryKey(u"150"_s);
+    CHECK_FALSE(s.pos.customDiscount(true));                    // over 100%
+}
+
 TEST_CASE("UI: holding a button explains it instead of pressing it", "[flow][ui][explain]")
 {
     Screen s;

@@ -363,7 +363,11 @@ TEST_CASE("Staff meals, and items discounts leave out", "[menu][prices][discount
     pos.finishChoosing();
     pos.addItem(u"draft-beer"_s);
     pos.finishChoosing();
-    REQUIRE(pos.tender(u"staff-meal"_s));
+    // A server's staff meal waits for a manager's PIN; it's still Sam's meal.
+    CHECK_FALSE(pos.tender(u"staff-meal"_s));
+    pos.invoke(u"tender"_s, {u"staff-meal"_s});
+    REQUIRE(pos.approvalInfo()[u"needed"_s].toBool());
+    REQUIRE(pos.approve(u"1234"_s));
     QVariantMap t = pos.totals();
     CHECK(t[u"total"_s] == u"$12.25"_s);           // 18.50 - 6.25
     const core::Check *c = nullptr;
@@ -383,7 +387,8 @@ TEST_CASE("Staff meals, and items discounts leave out", "[menu][prices][discount
     pos.finishChoosing();
     pos.addItem(u"caesar"_s);
     pos.finishChoosing();
-    REQUIRE(pos.tender(u"discount"_s));            // 10% of the cobb only
+    pos.invoke(u"tender"_s, {u"discount"_s});       // 10% of the cobb only (a manager's PIN)
+    REQUIRE(pos.approve(u"1234"_s));
     t = pos.totals();
     CHECK(t[u"discounts"_s] == u"-$1.25"_s);
 
