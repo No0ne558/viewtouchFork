@@ -476,6 +476,10 @@ Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose button
 
 Once drinks have been sent on a check, **Another Round** appears beside its name: it orders the drinks of the latest Send again (same choices and quantities) as new lines, ready for Send. Drinks are what the bar prints, or items in a drinks family; sold-out ones are skipped and named. Command `anotherRound`; the order list's built-in "round" button.
 
+## Fixing time punches
+
+Manager → Schedule → **Time Punches…** lists the last eight days of punches, newest first. A manager changes the times, breaks (one per line, `12:30-13:00`) or job, adds a punch someone missed, or removes one made by mistake (tick *Remove this punch*). Every change needs a reason; overlapping punches, times in the future and shifts over 24 hours are refused. Changes are kept (`PosSettings::punchChanges`, the last 500): the Labor report marks changed punches with * and lists each change, who made it and why. End of Day lists whoever is still clocked in, flags anyone on for over 12 hours ("forgot to clock out?"), and **Clock Out Now** closes their punch (also logged).
+
 ## Time Clock
 
 A screen just for clocking in and out and checking the schedule. **Time Clock & My Schedule** on the login page opens it; a terminal set to **Time Clock** in Manager → Terminals (a tablet by the back door, the Android app too) rests on it instead of the login page. Someone types their PIN (they don't log in to the register) and sees whether they're clocked in, today's hours, and their shifts for the next two weeks with this week's total; **Clock In** (asking which job when they have more than one), **Start / End Break**, **Clock Out**. It goes back to the keypad after 20 seconds, or **Done**. **Log In to the Register…** is there for managers. The `timeClock` panel (`PosSession::timeClock`, `timeClockStart`, `timeClockAct`, `timeClockDone`), page role `timeClock`.

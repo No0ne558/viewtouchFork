@@ -258,6 +258,15 @@ struct PosSettings {
         bool operator==(const Notice &) const = default;
     };
     std::vector<Notice> notices;
+    // Changes managers made to time punches, with why (the last 500): the
+    // Labor report lists them.
+    struct PunchChange {
+        std::int64_t at = 0;
+        std::int64_t punchId = 0;
+        std::string by, employee, what, why;
+        bool operator==(const PunchChange &) const = default;
+    };
+    std::vector<PunchChange> punchChanges;
     // Kitchen stations, each with its own screen (Manager -> Menu: where an item is made).
     std::vector<Station> stations;
     // Tip choices offered to the guest (percent of the check before gratuity).

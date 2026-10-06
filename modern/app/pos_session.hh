@@ -316,6 +316,7 @@ public:
     // Time Clock: a PIN shows that person; then "in", "out" or "break"; Done forgets them.
     Q_INVOKABLE void timeClockStart(const QString &pin) { invoke(QStringLiteral("timeClockStart"), {pin}); }
     Q_INVOKABLE void timeClockAct(const QString &action) { invoke(QStringLiteral("timeClockAct"), {action}); }
+    Q_INVOKABLE void clockOutPunch(qint64 punchId) { invoke(QStringLiteral("clockOutPunch"), {punchId}); }
     Q_INVOKABLE void timeClockDone() { invoke(QStringLiteral("timeClockDone"), {}); }
     Q_INVOKABLE void undoLast() { invoke(QStringLiteral("undoLast"), {}); }
     Q_INVOKABLE void newTableCheck() { invoke(QStringLiteral("newTableCheck"), {}); }

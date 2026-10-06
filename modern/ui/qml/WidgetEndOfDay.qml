@@ -53,6 +53,51 @@ Item {
                 wrapMode: Text.WordWrap
             }
         }
+        // Still on the clock: clock them out now (or fix it later in Time Punches).
+        Text {
+            visible: (w.day.clockedIn ?? []).length > 0
+            Layout.topMargin: w.unit * 0.4
+            text: qsTr("Still clocked in")
+            color: "#f5b940"
+            font.family: w.face
+            font.pixelSize: w.unit
+            font.bold: true
+        }
+        Repeater {
+            model: w.day.clockedIn ?? []
+            delegate: RowLayout {
+                required property var modelData
+                Layout.fillWidth: true
+                spacing: w.unit * 0.5
+                Text {
+                    Layout.fillWidth: true
+                    text: modelData.name + "  ·  " + qsTr("since %1").arg(modelData.since)
+                          + (modelData.onBreak ? "  ·  " + qsTr("on break") : "")
+                          + (modelData.long ? "  ·  " + qsTr("forgot to clock out?") : "")
+                    color: modelData.long ? "#ff9a9e" : w.ink
+                    font.family: w.face
+                    font.pixelSize: w.unit * 0.85
+                    elide: Text.ElideRight
+                }
+                WidgetKey {
+                    objectName: "eodClockOut-" + modelData.id
+                    Layout.preferredWidth: w.unit * 7
+                    Layout.preferredHeight: Math.max(w.unit * 1.8, w.zone ? w.zone.touch(46) : 0)
+                    text: qsTr("Clock Out Now")
+                    fontScale: 0.32
+                    onClicked: w.pos.clockOutPunch(modelData.id)
+                }
+            }
+        }
+        Text {
+            visible: (w.day.clockedIn ?? []).some(p => p.long)
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Forgot hours ago? Clock them out, then fix the time in Schedule → Time Punches.")
+            color: "#8a94a6"
+            font.family: w.face
+            font.pixelSize: w.unit * 0.7
+        }
         Text {
             visible: w.day.ready ?? false
             text: "✓  " + qsTr("Everything is settled and counted.")

@@ -2103,6 +2103,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"customDiscount"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.customDiscount(a.value(0).toBool())); }},
         {u"timeClockStart"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.timeClockStart(a.value(0).toString())); }},
         {u"timeClockAct"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.timeClockAct(a.value(0).toString())); }},
+        {u"clockOutPunch"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.clockOutPunch(a.value(0).toLongLong())); }},
         {u"timeClockDone"_s, [](PosService &p, const QVariantList &) { p.timeClockDone(); return QVariant(true); }},
         {u"undoLast"_s, [](PosService &p, const QVariantList &) { return QVariant(p.undoLast()); }},
         {u"repeatLine"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.repeatLine(a.value(0).toLongLong())); }},

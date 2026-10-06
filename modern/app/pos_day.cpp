@@ -833,13 +833,51 @@ QVariantMap PosService::dayInfo() const
     for (const Check &c : s_->closedToday)
         net += c.totals(s_->settings.tax).subtotal;
     const bool anyOpen = std::ranges::any_of(s_->drawers, &DrawerSession::open);
+    // Who's still on the clock: closing up, or they forgot (over 12 hours).
+    QVariantList clockedIn;
+    for (const TimePunch &p : s_->punches) {
+        if (!p.open())
+            continue;
+        const Employee *e = s_->employee(p.employeeId);
+        const QDate day = QDateTime::fromMSecsSinceEpoch(p.clockIn).date();
+        const bool today = day == QDateTime::fromMSecsSinceEpoch(now()).date();
+        clockedIn.append(QVariantMap{
+            {u"id"_s, qint64(p.id)}, {u"name"_s, e ? qs(e->name) : qs(p.employeeId)},
+            {u"since"_s, today ? clockText(p.clockIn) : QLocale().toString(day, u"ddd"_s) + u' ' + clockText(p.clockIn)},
+            {u"long"_s, now() - p.clockIn > 12LL * 3'600'000}, {u"onBreak"_s, p.onBreak()},
+        });
+    }
     return {
+        {u"clockedIn"_s, clockedIn},
         {u"id"_s, qint64(s_->day.id)}, {u"opened"_s, dayLabel(s_->day)},
         {u"openChecks"_s, int(s_->open.size())}, {u"closedChecks"_s, int(s_->closedToday.size())},
         {u"netSales"_s, format(net)}, {u"drawerOpen"_s, anyOpen},
         {u"blockers"_s, blockers}, {u"ready"_s, blockers.isEmpty()},
         {u"backup"_s, s_->backup},
     };
+}
+
+bool PosService::clockOutPunch(qint64 punchId)
+{
+    if (!require(perm::Manager, tr("Clocking someone out")))
+        return false;
+    for (TimePunch &p : s_->punches) {
+        if (p.id != punchId || !p.open())
+            continue;
+        p.clockOut = now();
+        if (p.onBreak())
+            p.breaks.back().end = p.clockOut;
+        if (s_->sink)
+            s_->sink->savePunch(p);
+        const Employee *e = s_->employee(p.employeeId);
+        logPunchChange(p, tr("clocked out at %1").arg(clockText(p.clockOut)), tr("End of Day: still clocked in"));
+        emit notice(tr("%1 clocked out").arg(e ? qs(e->name) : qs(p.employeeId)));
+        emit sessionChanged();
+        emit s_->dayChanged();
+        emit s_->staffChanged();
+        return true;
+    }
+    return fail(tr("They're not clocked in anymore."));
 }
 
 QVariantList PosService::days() const

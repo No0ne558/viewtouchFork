@@ -730,6 +730,13 @@ QJsonObject toJson(const PosSettings &s)
              return QJsonObject{{u"enabled"_s, s.loyaltyEnabled}, {u"pointsPerDollar"_s, s.pointsPerDollar},
                                 {u"rewards"_s, rewards}};
          }()},
+        {u"punchChanges"_s, [&] {
+             QJsonArray a;
+             for (const PosSettings::PunchChange &c : s.punchChanges)
+                 a.append(QJsonObject{{u"at"_s, qint64(c.at)}, {u"punchId"_s, qint64(c.punchId)}, {u"by"_s, qs(c.by)},
+                                      {u"employee"_s, qs(c.employee)}, {u"what"_s, qs(c.what)}, {u"why"_s, qs(c.why)}});
+             return a;
+         }()},
         {u"notices"_s, [&] {
              QJsonArray a;
              for (const PosSettings::Notice &n : s.notices)
@@ -872,6 +879,12 @@ PosSettings settingsFromJson(const QJsonObject &o)
         const QJsonObject r = v.toObject();
         if (r.value(u"points").toInt() > 0)
             s.rewards.push_back({r.value(u"points").toInt(), Money::fromCents(centsFromDecimal(r.value(u"value").toDouble()))});
+    }
+    for (const QJsonValue &v : o.value(u"punchChanges").toArray()) {
+        const QJsonObject x = v.toObject();
+        s.punchChanges.push_back({i64(x.value(u"at")), i64(x.value(u"punchId")), ss(x.value(u"by").toString()),
+                                  ss(x.value(u"employee").toString()), ss(x.value(u"what").toString()),
+                                  ss(x.value(u"why").toString())});
     }
     for (const QJsonValue &v : o.value(u"notices").toArray()) {
         const QJsonObject x = v.toObject();

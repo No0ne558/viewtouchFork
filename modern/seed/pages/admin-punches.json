@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "admin-schedule",
-  "name": "Schedule",
+  "id": "admin-punches",
+  "name": "Time Punches",
   "kind": "manager",
   "canvas": {
     "w": 1920,
@@ -21,11 +21,11 @@
       },
       "shape": "rect",
       "behavior": "none",
-      "label": "Schedule"
+      "label": "Time Punches"
     },
     {
-      "id": "schedule",
-      "kind": "schedule",
+      "id": "editor",
+      "kind": "adminPanel",
       "rect": {
         "x": 16,
         "y": 112,
@@ -33,7 +33,10 @@
         "h": 816
       },
       "shape": "rect",
-      "behavior": "none"
+      "behavior": "none",
+      "props": {
+        "panel": "punches"
+      }
     },
     {
       "id": "back",
@@ -53,33 +56,6 @@
           "mode": "back"
         }
       ]
-    },
-    {
-      "id": "punches",
-      "kind": "button",
-      "rect": {
-        "x": 1472,
-        "y": 944,
-        "w": 432,
-        "h": 120
-      },
-      "shape": "rect",
-      "behavior": "blink",
-      "label": "Time Punches\u2026",
-      "actions": [
-        {
-          "type": "command",
-          "name": "openAdmin",
-          "args": {
-            "panel": "punches"
-          }
-        }
-      ],
-      "style": {
-        "normal": {
-          "fill": "#1f6f73"
-        }
-      }
     }
   ]
 }

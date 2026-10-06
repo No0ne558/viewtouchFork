@@ -975,7 +975,7 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
             {u"terminals"_s, u"admin-terminals"_s}, {u"mealPeriods"_s, u"admin-meal-periods"_s},
             {u"modifierGroups"_s, u"admin-modifier-groups"_s}, {u"inventory"_s, u"admin-inventory"_s},
             {u"schedule"_s, u"admin-schedule"_s}, {u"promotions"_s, u"admin-promotions"_s},
-            {u"vendors"_s, u"admin-vendors"_s},
+            {u"vendors"_s, u"admin-vendors"_s}, {u"punches"_s, u"admin-punches"_s},
         };
         const QString page = pages.value(args.value(u"panel"_s).toString());
         if (!page.isEmpty() && activeLayout().page(page))

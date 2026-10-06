@@ -185,6 +185,8 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"days"_s, tr("Days"), u"string"_s, tr("e.g. Mon-Fri, or Tue, or Sat, Sun. Empty: every day.")),
         };
     }
+    if (panel == u"punches")
+        return punchFields();
     if (panel == u"vendors") {
         return {
             field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
@@ -611,6 +613,8 @@ QVariantList PosService::adminRecords(const QString &panel)
                            : tr("%1% off").arg(double(p.percentBp) / 100.0))
                     + (p.startMinute != p.endMinute ? u" · "_s + clockText(p.startMinute) + u"-"_s + clockText(p.endMinute) : QString())
                     + (p.active ? QString() : tr(" · off")));
+    } else if (panel == u"punches") {
+        return punchRecords();
     } else if (panel == u"vendors") {
         for (const Vendor &v : s_->settings.vendors)
             add({{u"id"_s, qs(v.id)}, {u"name"_s, qs(v.name)}, {u"phone"_s, qs(v.phone)}, {u"account"_s, qs(v.account)},
@@ -681,6 +685,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"inventory")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"unit"_s, u"each"_s}, {u"onHand"_s, 0.0},
                 {u"lowAt"_s, 0.0}, {u"cost"_s, 0.0}, {u"vendor"_s, QString()}};
+    if (panel == u"punches")
+        return punchNewRecord();
     if (panel == u"vendors")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"phone"_s, QString()}, {u"account"_s, QString()},
                 {u"note"_s, QString()}};
@@ -712,6 +718,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         ok = saveModifierGroupRecord(index, record);
     } else if (panel == u"promotions") {
         ok = savePromotionRecord(index, record);
+    } else if (panel == u"punches") {
+        ok = savePunchRecord(index, record);
     } else if (panel == u"vendors") {
         auto &list = s_->settings.vendors;
         const QString name = record.value(u"name"_s).toString().trimmed();
@@ -1559,6 +1567,8 @@ bool PosService::adminDelete(const QString &panel, int index)
     } else if (panel == u"tenders" && index >= 0 && index < int(s_->settings.tenders.size())) {
         s_->settings.tenders.erase(s_->settings.tenders.begin() + index);
         settingsChanged();
+    } else if (panel == u"punches") {
+        return deletePunchRecord(index, QString());
     } else if (panel == u"vendors" && index >= 0 && index < int(s_->settings.vendors.size())) {
         s_->settings.vendors.erase(s_->settings.vendors.begin() + index);
         settingsChanged();

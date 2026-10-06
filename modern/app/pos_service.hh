@@ -46,6 +46,7 @@ public:
     virtual void saveIngredient(const core::Ingredient &, int position) { Q_UNUSED(position) }
     virtual void deleteIngredient(const std::string &id) { Q_UNUSED(id) }
     virtual void saveShift(const core::Shift &) {}
+    virtual void deletePunch(std::int64_t id) { Q_UNUSED(id) }
     virtual void deleteShift(std::int64_t id) { Q_UNUSED(id) }
     virtual void saveDelivery(const core::Delivery &) {}
     // The store's pictures (logo, buttons, backgrounds): name -> file bytes.
@@ -751,6 +752,16 @@ private:
     std::string jobChoice_;   // waiting for this person to pick a job
     std::string clockWho_;    // the Time Clock screen: whose PIN was typed (not logged in)
     bool clockOutFor(const core::Employee &e);
+    // Manager -> Time Punches: the last week's, newest first; change, add, remove.
+    std::vector<core::TimePunch *> punchList();
+    QVariantList punchFields();
+    QVariantList punchRecords();
+    QVariantMap punchNewRecord();
+    bool savePunchRecord(int index, const QVariantMap &record);
+    bool deletePunchRecord(int index, const QString &why);
+    // End of Day: a manager clocks out someone still on the clock (logged as a change).
+    bool clockOutPunch(qint64 punchId);
+    void logPunchChange(const core::TimePunch &p, const QString &what, const QString &why);
     bool toggleBreakFor(const core::Employee &e);
     QString expenseCategory_;
     std::int64_t now() const { return s_->now(); }

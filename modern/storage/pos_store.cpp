@@ -541,6 +541,11 @@ void SqlPosSink::deleteShift(std::int64_t id)
     writer_.remove(u"shifts"_s, u"id"_s, QString::number(id));
 }
 
+void SqlPosSink::deletePunch(std::int64_t id)
+{
+    writer_.remove(u"time_punches"_s, u"id"_s, QString::number(id));
+}
+
 void SqlPosSink::saveEmployee(const Employee &e)
 {
     writer_.upsert(u"employees"_s, qs(e.id), {{u"id"_s, qs(e.id)}, {u"json"_s, compact(app::toJson(e))}});

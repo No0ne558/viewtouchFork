@@ -415,11 +415,16 @@ Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Empl
     std::int64_t totalMs = 0;
     std::vector<TimePunch> sorted = punches;
     std::ranges::sort(sorted, {}, &TimePunch::clockIn);
+    // Punches a manager changed are marked (*), and the changes listed below.
+    std::set<std::int64_t> changed;
+    for (const PosSettings::PunchChange &c : s.punchChanges)
+        changed.insert(c.punchId);
     for (const TimePunch &p : sorted) {
         const std::int64_t ms = p.workedMs(ctx.now, s.paidBreaks);
         totalMs += ms;
         const std::string out = !p.open() ? ctx.clock(p.clockOut) : p.onBreak() ? "on break" : "on clock";
-        r.line({nameOf(p.employeeId) + (p.job.empty() || !severalJobs.contains(p.employeeId) ? "" : " (" + p.job + ")"),
+        r.line({nameOf(p.employeeId) + (p.job.empty() || !severalJobs.contains(p.employeeId) ? "" : " (" + p.job + ")")
+                    + (changed.contains(p.id) ? " *" : ""),
                 ctx.clock(p.clockIn), out,
                 p.breaks.empty() ? "" : hours(p.breakMs(ctx.now)), hours(ms)});
     }
@@ -503,6 +508,21 @@ Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Empl
         char pct[16];
         std::snprintf(pct, sizeof pct, "%.1f%%", 100.0 * double(cost.cents()) / double(netSales.cents()));
         r.line({"Labor % of sales", "", "", "", pct});
+    }
+    // Changes managers made: to today's punches, or made today.
+    std::set<std::int64_t> shown;
+    for (const TimePunch &p : sorted)
+        shown.insert(p.id);
+    bool header = false;
+    for (const PosSettings::PunchChange &c : s.punchChanges) {
+        if (!shown.contains(c.punchId) && dayKey(c.at) != dayKey(ctx.now))
+            continue;
+        if (!header) {
+            r.section("Changes to time punches (*)");
+            r.line({"Employee", "When", "Change", "By", "Why"});
+            header = true;
+        }
+        r.line({c.employee, ctx.clock(c.at), c.what, c.by, c.why});
     }
     return r;
 }

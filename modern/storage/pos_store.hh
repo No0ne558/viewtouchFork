@@ -68,6 +68,7 @@ public:
     void saveImage(const std::string &name, const QByteArray &data) override;
     void deleteImage(const std::string &name) override;
     void deleteShift(std::int64_t id) override;
+    void deletePunch(std::int64_t id) override;
 
 private:
     AsyncWriter &writer_;

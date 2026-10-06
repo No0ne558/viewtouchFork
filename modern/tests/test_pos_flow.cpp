@@ -926,6 +926,118 @@ TEST_CASE("UI: discounts are a manager's: $ Off and % Off of the amount typed", 
     CHECK_FALSE(s.pos.customDiscount(true));                    // over 100%
 }
 
+TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labor report", "[flow][ui][punches]")
+{
+    Screen s;
+    const auto stamp = [](std::int64_t ms) { return QDateTime::fromMSecsSinceEpoch(ms).toString(u"yyyy-MM-dd HH:mm"_s); };
+    const std::int64_t now = QDateTime::currentMSecsSinceEpoch();
+    const std::int64_t hour = 3'600'000;
+    // Sam forgot to clock out: still on the clock since 5 hours ago.
+    s.pos.shared()->punches.push_back({901, "sam", now - 5 * hour, 0, {}, "server", vt::Money::fromCents(1200)});
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    const auto records = [&] { return s.pos.adminRecords(u"punches"_s); };
+    const auto indexOf = [&](qint64 id) {
+        const QVariantList r = records();
+        for (int i = 0; i < r.size(); ++i)
+            if (r[i].toMap()[u"id"_s].toLongLong() == id)
+                return i;
+        return -1;
+    };
+    int i = indexOf(901);
+    REQUIRE(i >= 0);
+    QVariantMap sam = records()[i].toMap();
+    CHECK(sam[u"clockOut"_s].toString().isEmpty());
+    CHECK(sam[u"_detail"_s].toString().contains(u"still clocked in"_s));
+
+    // Clocked out 1 hour ago, with a 15-minute break: a reason first.
+    sam[u"clockOut"_s] = stamp(now - hour);
+    sam[u"breaks"_s] = QDateTime::fromMSecsSinceEpoch(now - 3 * hour).toString(u"HH:mm"_s) + u"-"_s
+                       + QDateTime::fromMSecsSinceEpoch(now - 3 * hour + 15 * 60'000).toString(u"HH:mm"_s);
+    CHECK_FALSE(s.pos.adminSave(u"punches"_s, i, sam));
+    sam[u"reason"_s] = u"forgot to clock out"_s;
+    REQUIRE(s.pos.adminSave(u"punches"_s, i, sam));
+    const core::TimePunch *fixed = nullptr;
+    for (const core::TimePunch &p : s.pos.shared()->punches)
+        if (p.id == 901)
+            fixed = &p;
+    REQUIRE(fixed);
+    CHECK_FALSE(fixed->open());
+    CHECK(fixed->breaks.size() == 1);
+    REQUIRE(s.pos.shared()->settings.punchChanges.size() == 1);
+    CHECK(s.pos.shared()->settings.punchChanges[0].why == "forgot to clock out");
+    CHECK(s.pos.shared()->settings.punchChanges[0].by == "Morgan (Manager)");
+
+    // A missed punch for Casey yesterday; one overlapping it is refused.
+    QVariantMap casey = s.pos.adminNewRecord(u"punches"_s);
+    casey[u"employeeId"_s] = u"casey"_s;
+    casey[u"clockIn"_s] = stamp(now - 30 * hour);
+    casey[u"clockOut"_s] = stamp(now - 24 * hour);
+    casey[u"reason"_s] = u"tablet was down"_s;
+    REQUIRE(s.pos.adminSave(u"punches"_s, -1, casey));
+    casey[u"clockIn"_s] = stamp(now - 26 * hour);
+    casey[u"clockOut"_s] = stamp(now - 25 * hour);
+    CHECK_FALSE(s.pos.adminSave(u"punches"_s, -1, casey));
+    casey[u"clockIn"_s] = stamp(now + hour);                     // the future
+    CHECK_FALSE(s.pos.adminSave(u"punches"_s, -1, casey));
+
+    // Removing needs a reason too (the Remove button just says how).
+    i = indexOf(901);
+    CHECK_FALSE(s.pos.adminDelete(u"punches"_s, i));
+
+    // The Labor report marks it and lists the change and why.
+    const core::Report labor = s.pos.buildReport(u"labor"_s);
+    bool marked = false, listed = false;
+    for (const core::ReportRow &row : labor.rows) {
+        marked = marked || (!row.cells.empty() && row.cells[0] == "Sam *");
+        listed = listed || (row.cells.size() == 5 && row.cells[4] == "forgot to clock out");
+    }
+    CHECK(marked);
+    CHECK(listed);
+
+    // On screen: Schedule -> Time Punches.
+    REQUIRE(s.c.jumpTo(u"admin-schedule"_s));
+    s.c.activate(u"punches"_s);
+    QTest::qWait(80);
+    REQUIRE(s.c.pageId() == u"admin-punches"_s);
+    s.shot("67-time-punches");
+
+    QVariantMap gone = records()[indexOf(901)].toMap();
+    gone[u"remove"_s] = true;
+    gone[u"reason"_s] = u"duplicate"_s;
+    REQUIRE(s.pos.adminSave(u"punches"_s, indexOf(901), gone));
+    CHECK(indexOf(901) < 0);
+    CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
+}
+
+TEST_CASE("UI: End of Day lists who's still clocked in, and clocks them out", "[flow][ui][punches][endofday]")
+{
+    Screen s;
+    const std::int64_t now = QDateTime::currentMSecsSinceEpoch();
+    const std::int64_t hour = 3'600'000;
+    s.pos.shared()->punches.push_back({911, "sam", now - 14 * hour, 0, {}, "server", vt::Money::fromCents(1200)});   // forgot
+    s.pos.shared()->punches.push_back({912, "casey", now - 2 * hour, 0, {}, "cashier", vt::Money::fromCents(1100)});
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"end-of-day"_s));
+    QTest::qWait(80);
+    const QVariantList in = s.pos.dayInfo()[u"clockedIn"_s].toList();
+    REQUIRE(in.size() == 2);
+    bool samLong = false, caseyLong = true;
+    for (const QVariant &v : in) {
+        if (v.toMap()[u"name"_s] == u"Sam"_s) samLong = v.toMap()[u"long"_s].toBool();
+        if (v.toMap()[u"name"_s] == u"Casey"_s) caseyLong = v.toMap()[u"long"_s].toBool();
+    }
+    CHECK(samLong);
+    CHECK_FALSE(caseyLong);
+    QQuickItem *out = Screen::findBy(s.window->contentItem(), "objectName", u"eodClockOut-911"_s);
+    REQUIRE(out);
+    s.shot("68-end-of-day-clocked-in");
+    s.tapItem(out);
+    QTest::qWait(60);
+    CHECK(s.pos.dayInfo()[u"clockedIn"_s].toList().size() == 1);
+    REQUIRE(s.pos.shared()->settings.punchChanges.size() == 1);
+    CHECK(s.pos.shared()->settings.punchChanges[0].employee == "Sam");
+}
+
 TEST_CASE("UI: the Time Clock: clock in and out, breaks and the schedule, by PIN alone", "[flow][ui][timeclock]")
 {
     Screen s;
