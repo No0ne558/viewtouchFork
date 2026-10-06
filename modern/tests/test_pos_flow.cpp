@@ -3,6 +3,8 @@
 #include "layoutcontroller.hh"
 #include "editorcontroller.hh"
 #include <QColor>
+#include <QImage>
+#include <QTemporaryDir>
 #include "app/i18n.hh"
 #include "language.hh"
 #include "pos_fixture.hh"
@@ -716,6 +718,76 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     QTest::qWait(50);
     CHECK_FALSE(s.pos.selfOrderInfo()[u"on"_s].toBool());
     CHECK_FALSE(kiosk->isVisible());
+}
+
+TEST_CASE("UI: the store's pictures: a logo on the login page and screen saver, on buttons and backgrounds",
+          "[flow][ui][pictures]")
+{
+    Screen s;
+    QTemporaryDir dir;
+    s.pos.shared()->imageCacheDir = dir.filePath(u"cache"_s);
+    const auto picture = [&](const QString &name, QColor color, int w, int h) {
+        QImage img(w, h, QImage::Format_RGB32);
+        img.fill(color);
+        const QString path = dir.filePath(name);
+        REQUIRE(img.save(path));
+        return path;
+    };
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    // Add Picture… on this computer: the store keeps it, under a plain name.
+    const QString ref = s.pos.addImageFile(QUrl::fromLocalFile(picture(u"Cafe Logo.png"_s, QColor(u"#c0392b"_s), 300, 150)).toString());
+    CHECK(ref == u"store:cafe-logo.png"_s);
+    QTest::qWait(30);
+    REQUIRE(s.pos.storeImages().size() == 1);
+    QVariantMap store = s.pos.adminRecords(u"store"_s).first().toMap();
+    store[u"displayLogo"_s] = ref;
+    REQUIRE(s.pos.adminSave(u"store"_s, 0, store));
+
+    // On the login page.
+    s.pos.logout();
+    REQUIRE(s.c.jumpTo(u"login"_s));
+    QTest::qWait(150);
+    QQuickItem *logoZone = Screen::findBy(s.window->contentItem(), "zoneId", u"logo"_s);
+    REQUIRE(logoZone);
+    CHECK(logoZone->property("pictureUrl").toString().startsWith(u"file:"_s));
+    s.shot("37-login-logo");
+
+    // On the screen saver.
+    s.c.setScreenSaverForTesting(100);
+    QTest::qWait(400);
+    QQuickItem *saverLogo = s.window->findChild<QQuickItem *>(u"screenSaverLogo"_s);
+    REQUIRE(saverLogo);
+    CHECK(saverLogo->isVisible());
+    s.shot("38-screen-saver-logo");
+    s.c.setScreenSaverForTesting(3'600'000);
+    s.c.wake();
+
+    // A picture on a button, and behind the Tables page.
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.addImageFile(picture(u"patio.png"_s, QColor(u"#2e7d32"_s), 320, 180));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    e->selectOnly({u"host"_s});
+    REQUIRE(e->setField(u"zone"_s, u"imagePath"_s, u"store:patio.png"_s));
+    QTest::qWait(150);
+    QQuickItem *choice = Screen::findBy(s.window->contentItem(), "objectName", u"imageChoice"_s);   // the Picture field
+    REQUIRE(choice);
+    CHECK(choice->property("currentText").toString() == u"patio.png"_s);
+    CHECK(Screen::findBy(s.window->contentItem(), "objectName", u"imageAdd"_s));
+    s.shot("40-picture-field");
+    e->clearSelection();
+    REQUIRE(e->setField(u"page"_s, u"background.image"_s, u"store:patio.png"_s));
+    REQUIRE(e->setField(u"page"_s, u"background.imageFit"_s, u"cover"_s));
+    REQUIRE(s.c.leaveEditMode(true));
+    QTest::qWait(150);
+    QQuickItem *host = Screen::findBy(s.window->contentItem(), "zoneId", u"host"_s);
+    REQUIRE(host);
+    CHECK(host->property("pictureUrl").toString().startsWith(u"file:"_s));
+    QQuickItem *bg = s.window->findChild<QQuickItem *>(u"pagePicture"_s);
+    REQUIRE(bg);
+    CHECK(bg->isVisible());
+    s.shot("39-pictures");
 }
 
 TEST_CASE("UI: brisket by the pound: the Weigh page asks how much", "[flow][ui][weight]")

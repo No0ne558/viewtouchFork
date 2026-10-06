@@ -48,6 +48,9 @@ public:
     virtual void saveShift(const core::Shift &) {}
     virtual void deleteShift(std::int64_t id) { Q_UNUSED(id) }
     virtual void saveDelivery(const core::Delivery &) {}
+    // The store's pictures (logo, buttons, backgrounds): name -> file bytes.
+    virtual void saveImage(const std::string &name, const QByteArray &data) { Q_UNUSED(name) Q_UNUSED(data) }
+    virtual void deleteImage(const std::string &name) { Q_UNUSED(name) }
 };
 
 // Where tickets go. Implementations must not block (see print::PrintSpooler).
@@ -92,6 +95,7 @@ struct PosData {
     std::int64_t lastShiftId = 0;
     std::vector<core::Delivery> deliveries;       // the last 60 days
     std::int64_t lastDeliveryId = 0;
+    std::map<std::string, QByteArray> images;     // the store's pictures, by name
     std::int64_t lastCheckId = 0;
     std::int64_t lastPunchId = 0;
     std::optional<core::BusinessDay> currentDay;  // none: the service opens one
@@ -135,6 +139,14 @@ public:
     std::int64_t lastShiftId = 0;
     std::vector<core::Delivery> deliveries;
     std::int64_t lastDeliveryId = 0;
+    // The store's pictures (Manager -> Pictures, or any picture field): kept in
+    // the database, so backups, the standby and every screen have them.
+    std::map<std::string, QByteArray> images;
+    // Where pictures are written out for this computer's screens to load
+    // (main sets it under the app's data; else a temporary folder).
+    QString imageCacheDir;
+    // A picture as a file here: its name, or a path ("logo:" is the store's logo).
+    QString imageFile(const QString &ref);
     // Texts a guest (set up by main when a texting service is configured).
     std::function<void(const QString &phone, const QString &message)> sendText;
     core::CustomerRecord *customer(const std::string &id);
@@ -527,6 +539,11 @@ public:
     // A picture the store uses (a menu item's photo, the display logo or a
     // slide), base64, for screens on other computers; empty for anything else.
     QString storeImage(const QString &path) const;
+    QString imageUrl(const QString &ref) const override;
+    QVariantList storeImages() const override;
+    QString storeLogo() const override { return QString::fromStdString(s_->settings.displayLogo); }
+    bool addStoreImage(const QString &fileName, const QString &base64);
+    bool removeStoreImage(const QString &ref);
     // Everything back to a fresh install, after a backup (managers; `confirm`
     // must be "RESET"). ViewTouch restarts with the starter set.
     bool factoryReset(const QString &confirm);

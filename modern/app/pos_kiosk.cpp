@@ -188,6 +188,11 @@ QVariantMap PosService::selfOrderInfo() const
 
 QString PosService::storeImage(const QString &path) const
 {
+    // The store's pictures, by name.
+    if (path.startsWith(u"store:")) {
+        const auto it = s_->images.find(ss(path.mid(6)));
+        return it == s_->images.end() ? QString() : QString::fromLatin1(it->second.toBase64());
+    }
     // Only the pictures the store has set up: never any other file.
     const std::string p = ss(path);
     bool known = !p.empty() && (p == s_->settings.displayLogo);
@@ -220,7 +225,7 @@ QVariantMap PosService::kioskMenu() const
         items.append(QVariantMap{
             {u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"family"_s, family},
             {u"price"_s, format(m.priceFor(period, kioskToGo_, false))}, {u"description"_s, qs(m.description)},
-            {u"image"_s, m.image.empty() ? QString() : QUrl::fromLocalFile(qs(m.image)).toString()},
+            {u"image"_s, qs(m.image)},   // a ref: each screen shows its own copy (imageUrl)
             {u"available"_s, m.available && ticketsLeft(m) != 0}, {u"choices"_s, !m.modifierGroups.empty()},
             {u"left"_s, ticketsLeft(m)}});
     }

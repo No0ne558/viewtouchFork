@@ -38,7 +38,7 @@ Group groupOf(const QString &key)
         {u"closedChecks"_s, Group::Day}, {u"staff"_s, Group::Session}, {u"checkHistory"_s, Group::Check},
         {u"choosing"_s, Group::Check}, {u"weighing"_s, Group::Check}, {u"onBreakSince"_s, Group::Session},
         {u"customers"_s, Group::Check}, {u"customer"_s, Group::Check}, {u"giftCard"_s, Group::Check}, {u"waitlist"_s, Group::Day}, {u"customerPrompt"_s, Group::Check},
-        {u"schedule"_s, Group::Session}, {u"nextShift"_s, Group::Session}, {u"rangeReport"_s, Group::Session}, {u"expoTickets"_s, Group::Kitchen}, {u"approval"_s, Group::Session}, {u"training"_s, Group::Session}, {u"autoLogoutMinutes"_s, Group::Admin}, {u"screenSaverMinutes"_s, Group::Admin}, {u"kitchenStations"_s, Group::Admin}, {u"kitchenStation"_s, Group::Admin}, {u"messages"_s, Group::Day}, {u"network"_s, Group::Day}, {u"language"_s, Group::Session}, {u"storeLanguage"_s, Group::Admin}, {u"selfOrder"_s, Group::Check}, {u"kioskMenu"_s, Group::Admin}, {u"clockInJobs"_s, Group::Session}, {u"receiving"_s, Group::Admin}, {u"checkSearch"_s, Group::Session}, {u"soldOut"_s, Group::Admin}, {u"menuItems"_s, Group::Admin},
+        {u"schedule"_s, Group::Session}, {u"nextShift"_s, Group::Session}, {u"rangeReport"_s, Group::Session}, {u"expoTickets"_s, Group::Kitchen}, {u"approval"_s, Group::Session}, {u"training"_s, Group::Session}, {u"autoLogoutMinutes"_s, Group::Admin}, {u"screenSaverMinutes"_s, Group::Admin}, {u"storeImages"_s, Group::Admin}, {u"storeLogo"_s, Group::Admin}, {u"kitchenStations"_s, Group::Admin}, {u"kitchenStation"_s, Group::Admin}, {u"messages"_s, Group::Day}, {u"network"_s, Group::Day}, {u"language"_s, Group::Session}, {u"storeLanguage"_s, Group::Admin}, {u"selfOrder"_s, Group::Check}, {u"kioskMenu"_s, Group::Admin}, {u"clockInJobs"_s, Group::Session}, {u"receiving"_s, Group::Admin}, {u"checkSearch"_s, Group::Session}, {u"soldOut"_s, Group::Admin}, {u"menuItems"_s, Group::Admin},
         {u"pinLength"_s, Group::Entry}, {u"entry"_s, Group::Entry}, {u"entryAmount"_s, Group::Entry},
         {u"entryGuests"_s, Group::Entry}, {u"textEntry"_s, Group::Entry},
         {u"pendingQualifier"_s, Group::Qualifier},
@@ -119,16 +119,17 @@ RemoteSession::RemoteSession(QString terminalName, QObject *parent)
     });
 }
 
-QString RemoteSession::localImage(const QString &serverPath) const
+QString RemoteSession::localImage(const QString &serverPath, const QString &cacheKey) const
 {
-    if (serverPath.isEmpty() || !serverPath.startsWith(u'/'))
+    if (serverPath.isEmpty() || !(serverPath.startsWith(u'/') || serverPath.startsWith(u"store:")))
         return serverPath;   // a resource or web address: as it is
-    const auto it = images_.constFind(serverPath);
+    const QString key = cacheKey.isEmpty() ? serverPath : cacheKey;
+    const auto it = images_.constFind(key);
     if (it != images_.cend())
         return *it;
-    images_.insert(serverPath, QString());   // asked once per run
+    images_.insert(key, QString());   // asked once per run (a changed picture has a new key)
     auto *self = const_cast<RemoteSession *>(this);
-    self->invoke(u"storeImage"_s, {serverPath}, [self, serverPath](const QVariant &r) {
+    self->invoke(u"storeImage"_s, {serverPath}, [self, serverPath, key](const QVariant &r) {
         const QByteArray data = QByteArray::fromBase64(r.toString().toLatin1());
         if (data.isEmpty())
             return;
@@ -136,52 +137,48 @@ QString RemoteSession::localImage(const QString &serverPath) const
                                 ? QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + u"/images"_s
                                 : self->imageCache_;
         QDir().mkpath(dir);
-        const QString name = QString::fromLatin1(QCryptographicHash::hash(serverPath.toUtf8(), QCryptographicHash::Sha1).toHex())
+        const QString name = QString::fromLatin1(QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha1).toHex())
                              + u'.' + QFileInfo(serverPath).suffix();
         QSaveFile f(QDir(dir).filePath(name));
         if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size() || !f.commit())
             return;
-        self->images_.insert(serverPath, QDir(dir).filePath(name));
+        self->images_.insert(key, QDir(dir).filePath(name));
+        ++self->imageRevision_;
         emit self->adminChanged();   // the kiosk's menu
         emit self->checkChanged();   // the customer display
     });
     return {};
 }
 
-QVariantMap RemoteSession::kioskMenu() const
+QString RemoteSession::imageUrl(const QString &ref) const
 {
-    QVariantMap menu = v(u"kioskMenu").toMap();
-    QVariantList items = menu.value(u"items"_s).toList();
-    for (QVariant &item : items) {
-        QVariantMap m = item.toMap();
-        const QString url = m.value(u"image"_s).toString();
-        if (url.startsWith(u"file:")) {
-            const QString local = localImage(QUrl(url).toLocalFile());
-            m.insert(u"image"_s, local.isEmpty() ? QString() : QUrl::fromLocalFile(local).toString());
-            item = m;
-        }
+    if (ref == u"logo:") {
+        const QString logo = storeLogo();
+        return logo == u"logo:" ? QString() : imageUrl(logo);
     }
-    menu.insert(u"items"_s, items);
-    return menu;
+    QString key = ref;
+    if (ref.startsWith(u"store:")) {   // by its content: a replaced picture is fetched again
+        for (const QVariant &v : this->v(u"storeImages").toList())
+            if (v.toMap().value(u"ref"_s).toString() == ref)
+                key = ref + u'#' + v.toMap().value(u"hash"_s).toString();
+    } else if (!ref.startsWith(u'/')) {
+        return ref;
+    }
+    const QString local = localImage(ref, key);
+    return local.isEmpty() ? QString() : QUrl::fromLocalFile(local).toString();
 }
 
-QVariantMap RemoteSession::customerPrompt() const
+QVariantList RemoteSession::storeImages() const
 {
-    QVariantMap prompt = v(u"customerPrompt").toMap();
-    if (const QString logo = prompt.value(u"logo"_s).toString(); !logo.isEmpty())
-        prompt.insert(u"logo"_s, localImage(logo));
-    QVariantList slides;
-    for (const QVariant &s : prompt.value(u"slides"_s).toList()) {
-        const QString slide = s.toString();
-        if (!slide.startsWith(u"image:")) {
-            slides << slide;
-        } else if (const QString local = localImage(slide.mid(6)); !local.isEmpty()) {
-            slides << u"image:"_s + local;   // until it arrives, the slide waits
-        }
+    QVariantList out = v(u"storeImages").toList();
+    for (QVariant &item : out) {
+        QVariantMap m = item.toMap();
+        m.insert(u"url"_s, imageUrl(m.value(u"ref"_s).toString()));
+        item = m;
     }
-    prompt.insert(u"slides"_s, slides);
-    return prompt;
+    return out;
 }
+
 
 void RemoteSession::takeOver(const QString &pin)
 {

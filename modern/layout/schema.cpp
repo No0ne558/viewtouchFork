@@ -247,8 +247,8 @@ QJsonArray zoneFields(const QString &kind)
                         u"Zones sharing a group act together"_s));
         out.append(with(field(u"hotkey"_s, u"Keyboard key"_s, u"string"_s, general), u"hint"_s,
                         u"Single key that presses this button"_s));
-        out.append(with(field(u"imagePath"_s, u"Image"_s, u"string"_s, general), u"hint"_s,
-                        u"qrc:/images/... or file:///path"_s));
+        out.append(with(field(u"imagePath"_s, u"Picture"_s, u"image"_s, general), u"hint"_s,
+                        u"One of the store's pictures, the store logo, or Add Picture… from this computer"_s));
         out.append(field(u"enabled"_s, u"Enabled"_s, u"bool"_s, general));
     } else if (kind != u"comment" && kind != u"label") {
         out.append(with(field(u"shape"_s, u"Shape"_s, u"enum"_s, general), u"options"_s, kShapes));
@@ -346,6 +346,11 @@ QJsonArray pageFields()
     const QString bg = u"Background"_s;
     out.append(with(field(u"background.fill"_s, u"Color"_s, u"color"_s, bg), u"inheritable"_s, true));
     out.append(with(field(u"background.texture"_s, u"Texture"_s, u"texture"_s, bg), u"inheritable"_s, true));
+    out.append(with(field(u"background.image"_s, u"Picture"_s, u"image"_s, bg), u"inheritable"_s, true));
+    out.append(with(with(field(u"background.imageFit"_s, u"Picture fits"_s, u"enum"_s, bg), u"options"_s,
+                         options({{"cover", "Fill the page (cropped)"}, {"fit", "Whole picture"},
+                                  {"stretch", "Stretched"}, {"tile", "Tiled"}, {"center", "Centered, as is"}})),
+                    u"inheritable"_s, true));
 
     QJsonArray defaults;
     appendStyleFields(defaults, u"style."_s, u"normal"_s, u"Default button look"_s);
@@ -360,6 +365,11 @@ QJsonArray themeFields()
     out.append(field(u"name"_s, u"Theme name"_s, u"string"_s, u"Theme"_s));
     out.append(with(field(u"background.fill"_s, u"Background color"_s, u"color"_s, u"Theme"_s), u"inheritable"_s, true));
     out.append(with(field(u"background.texture"_s, u"Background texture"_s, u"texture"_s, u"Theme"_s), u"inheritable"_s, true));
+    out.append(with(field(u"background.image"_s, u"Background picture"_s, u"image"_s, u"Theme"_s), u"inheritable"_s, true));
+    out.append(with(with(field(u"background.imageFit"_s, u"Picture fits"_s, u"enum"_s, u"Theme"_s), u"options"_s,
+                         options({{"cover", "Fill the page (cropped)"}, {"fit", "Whole picture"},
+                                  {"stretch", "Stretched"}, {"tile", "Tiled"}, {"center", "Centered, as is"}})),
+                    u"inheritable"_s, true));
     appendStyleGroups(out, u"style."_s, true);
     // Colors that mean something: table states, kitchen ticket ages, sold out.
     const QString g = u"Status colors"_s;

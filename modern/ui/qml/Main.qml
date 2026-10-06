@@ -338,6 +338,17 @@ ApplicationWindow {
             anchors.centerIn: parent
             spacing: 12
             opacity: 0.55
+            // The store's logo (Store Settings), when there is one.
+            Image {
+                objectName: "screenSaverLogo"
+                readonly property var pos: root.controller.pos
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: status === Image.Ready
+                source: pos && screenSaver.visible ? (pos.imageRevision, pos.imageUrl("logo:")) : ""
+                sourceSize.height: Math.min(root.width, root.height) * 0.3
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+            }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: root.controller.pos ? root.controller.pos.storeName : ""

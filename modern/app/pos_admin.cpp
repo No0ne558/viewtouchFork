@@ -157,8 +157,8 @@ QVariantList PosService::adminFields(const QString &panel)
                   tr("Guests can't order it on their own. Alcohol never shows there.")),
             field(u"description"_s, tr("Description (self-order kiosk)"), u"text"_s,
                   tr("A line guests see under the name, e.g. \"Two patties, cheddar, house sauce\".")),
-            field(u"image"_s, tr("Photo (self-order kiosk)"), u"string"_s,
-                  tr("An image file (PNG, JPG) on the store's computer, e.g. /var/lib/viewtouch/photos/burger.jpg. Kiosks on other computers get it from there.")),
+            field(u"image"_s, tr("Photo (self-order kiosk)"), u"image"_s,
+                  tr("Pick one of the store's pictures, or Add Picture… from this computer.")),
             field(u"recipe"_s, tr("Recipe (what one uses up)"), u"text"_s,
                   tr("One ingredient per line with the amount, e.g. \"bun 1\" or \"lettuce 0.5\" (Manager -> Inventory)."
                      " Sold out by itself when one runs short.")),
@@ -334,8 +334,11 @@ QVariantList PosService::adminFields(const QString &panel)
             with(with(field(u"pointsPerDollar"_s, tr("…points per dollar"), u"int"_s), u"min"_s, 1), u"max"_s, 100),
             field(u"rewards"_s, tr("Rewards"), u"text"_s,
                   tr("One per line: points = amount off, e.g. \"50 = 5.00\".")),
-            field(u"displayLogo"_s, tr("Customer display: logo"), u"string"_s,
-                  tr("An image file (PNG, JPG) on the store's computer. Empty: the store name.")),
+            field(u"displayLogo"_s, tr("Store logo"), u"image"_s,
+                  tr("On the login page, the screen saver, receipts (below), the customer display and the "
+                     "kiosk. Empty: the store's name.")),
+            field(u"receiptLogo"_s, tr("Print the logo on receipts"), u"bool"_s,
+                  tr("At the top of every receipt, on thermal (ESC/POS) printers.")),
             field(u"displayAccent"_s, tr("Customer display: color"), u"color"_s),
             field(u"displaySlides"_s, tr("Customer display: between guests"), u"text"_s,
                   tr("One message per line, shown in turn; \"image:/path/to/photo.jpg\" for a picture. Running "
@@ -555,7 +558,7 @@ QVariantList PosService::adminRecords(const QString &panel)
                       l << u"%1 = %2"_s.arg(w.points).arg(qs(w.value.toString()));
                   return l.join(u'\n');
               }()},
-             {u"displayLogo"_s, qs(s_->settings.displayLogo)}, {u"displayAccent"_s, qs(s_->settings.displayAccent)},
+             {u"displayLogo"_s, qs(s_->settings.displayLogo)}, {u"receiptLogo"_s, s_->settings.receiptLogo}, {u"displayAccent"_s, qs(s_->settings.displayAccent)},
              {u"displaySlides"_s, [&] {
                   QStringList l;
                   for (const std::string &sl : s_->settings.displaySlides)
@@ -849,6 +852,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         }
         if (record.contains(u"displayLogo"_s))
             s_->settings.displayLogo = ss(record.value(u"displayLogo"_s).toString().trimmed());
+        if (record.contains(u"receiptLogo"_s))
+            s_->settings.receiptLogo = record.value(u"receiptLogo"_s).toBool();
         if (record.contains(u"displayAccent"_s) && !record.value(u"displayAccent"_s).toString().isEmpty())
             s_->settings.displayAccent = ss(record.value(u"displayAccent"_s).toString());
         if (record.contains(u"displaySlides"_s)) {

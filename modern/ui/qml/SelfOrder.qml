@@ -20,7 +20,9 @@ Rectangle {
     readonly property var menu: pos ? pos.kioskMenu : ({})
     readonly property var brand: pos ? pos.customerPrompt : ({})
     readonly property color accent: brand.accent || "#2f6fd6"
-    readonly property string logo: !brand.logo ? "" : brand.logo.startsWith("/") ? "file://" + brand.logo : brand.logo
+    // Pictures by ref ("store:logo.png", a path...): this screen's copy.
+    function img(ref) { return pos ? (pos.imageRevision, pos.imageUrl(ref)) : ref }
+    readonly property string logo: !brand.logo ? "" : img(brand.logo)
     readonly property bool portrait: height > width * 1.15
     // One unit: about 6 mm on a 21.5" portrait kiosk (26 px of 1080), 20 px
     // on a 1280x800 landscape screen.
@@ -158,7 +160,7 @@ Rectangle {
                     id: picture
                     anchors.fill: parent
                     visible: !!card.modelData.image
-                    source: card.modelData.image
+                    source: k.img(card.modelData.image)
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     sourceSize.width: 600
@@ -283,8 +285,8 @@ Rectangle {
         property int index: 0
         readonly property var current: slides.length ? slides[index % slides.length] : null
         readonly property string picture: !current ? ""
-            : typeof current === "string" ? (current.startsWith("image:") ? (current.slice(6).startsWith("/") ? "file://" + current.slice(6) : current.slice(6)) : "")
-            : current.image
+            : typeof current === "string" ? (current.startsWith("image:") ? k.img(current.slice(6)) : "")
+            : k.img(current.image)
         readonly property string caption: !current ? "" : typeof current === "string" ? (current.startsWith("image:") ? "" : current)
                                                      : current.text + "  ·  " + current.price
         Timer {

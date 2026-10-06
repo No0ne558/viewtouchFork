@@ -215,7 +215,8 @@ struct PosSettings {
     // The customer display: a logo (an image file), an accent color, and
     // what it shows between guests (one message per slide; "image:<file>"
     // for a picture).
-    std::string displayLogo;
+    std::string displayLogo;     // the store's logo: a picture ref ("store:logo.png") or path
+    bool receiptLogo = false;    // printed at the top of receipts (ESC/POS printers)
     std::string displayAccent = "#2f6fd6";
     std::vector<std::string> displaySlides;
     bool loyaltyEnabled = false;

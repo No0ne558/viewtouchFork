@@ -46,6 +46,7 @@ PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
     , lastShiftId(data.lastShiftId)
     , deliveries(std::move(data.deliveries))
     , lastDeliveryId(data.lastDeliveryId)
+    , images(std::move(data.images))
     , lastCheckId(data.lastCheckId)
     , lastPunchId(data.lastPunchId)
     , sink(sink)
@@ -1819,6 +1820,9 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
              return QVariant(p.setKitchenStation(a.value(0).toString())); }},
         {u"addWeighed"_s, [](PosService &p, const QVariantList &) { return QVariant(p.addWeighed()); }},
         {u"cancelWeighing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cancelWeighing()); }},
+        {u"addStoreImage"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.addStoreImage(a.value(0).toString(), a.value(1).toString())); }},
+        {u"removeStoreImage"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.removeStoreImage(a.value(0).toString())); }},
         {u"setDueAt"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setDueAt(a.value(0).toLongLong())); }},
         {u"addComment"_s, [](PosService &p, const QVariantList &) { return QVariant(p.addComment()); }},
         {u"tender"_s, [](PosService &p, const QVariantList &a) {

@@ -118,6 +118,12 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantMap day READ dayInfo NOTIFY dayChanged)
     Q_PROPERTY(QVariantList days READ days NOTIFY dayChanged)
     Q_PROPERTY(int adminRevision READ adminRevision NOTIFY adminChanged)
+    // The store's pictures: [{name, ref ("store:logo.png"), hash, bytes, url}].
+    Q_PROPERTY(QVariantList storeImages READ storeImages NOTIFY adminChanged)
+    // The store's logo as a picture ref ("store:logo.png"), or "".
+    Q_PROPERTY(QString storeLogo READ storeLogo NOTIFY adminChanged)
+    // Changes when pictures do (bind to it with imageUrl()).
+    Q_PROPERTY(int imageRevision READ imageRevision NOTIFY adminChanged)
     // The logged-in employee's card tips + gratuity not yet paid out.
     Q_PROPERTY(QString tipsOwed READ tipsOwed NOTIFY dayChanged)
     // This terminal's Screen layout setting: "phone", "standard" or "" (automatic).
@@ -182,6 +188,18 @@ public:
     virtual QVariantMap rangeReport() const = 0;
     virtual QVariantMap approvalInfo() const = 0;
     virtual int autoLogoutMinutes() const = 0;
+    virtual QVariantList storeImages() const = 0;
+    virtual QString storeLogo() const = 0;
+    virtual int imageRevision() const { return adminRevision(); }
+    // A picture this screen can show, as a URL: "store:logo.png" (the store's
+    // pictures), "logo:" (the store's logo), a path, or qrc:/file:/http as is.
+    Q_INVOKABLE virtual QString imageUrl(const QString &ref) const = 0;
+    // A picture file on this computer, added to the store's pictures (managers):
+    // returns its ref ("store:logo.png") at once; the store keeps it.
+    Q_INVOKABLE QString addImageFile(const QString &fileOrUrl);
+    Q_INVOKABLE void removeStoreImage(const QString &ref) { invoke(QStringLiteral("removeStoreImage"), {ref}); }
+    // "Logo Final.PNG" -> "store:logo-final.png" ("" if not a picture type).
+    static QString storeImageRef(const QString &fileName);
     virtual int screenSaverMinutes() const = 0;
     virtual QVariantList kitchenStations() const = 0;
     virtual QString kitchenStation() const = 0;

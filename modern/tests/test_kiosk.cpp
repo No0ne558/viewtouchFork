@@ -9,6 +9,7 @@
 
 #include <QDeadlineTimer>
 #include <QFile>
+#include <QBuffer>
 #include <QImage>
 #include <QTemporaryDir>
 #include <QUrl>
@@ -217,7 +218,7 @@ TEST_CASE("Self-order: a paired screen set up as a kiosk comes up as one", "[kio
     const auto burgerImage = [&] {
         for (const QVariant &v : lobby.kioskMenu()[u"items"_s].toList())
             if (v.toMap()[u"id"_s] == u"classic-burger"_s)
-                return v.toMap()[u"image"_s].toString();
+                return lobby.imageUrl(v.toMap()[u"image"_s].toString());   // this screen's copy
         return QString();
     };
     REQUIRE(waitFor([&] { return !burgerImage().isEmpty(); }));
@@ -227,6 +228,24 @@ TEST_CASE("Self-order: a paired screen set up as a kiosk comes up as one", "[kio
     REQUIRE(a.open(QIODevice::ReadOnly));
     REQUIRE(b.open(QIODevice::ReadOnly));
     CHECK(a.readAll() == b.readAll());
+
+    // A store picture (Manager added it on another screen) and the logo: fetched by ref, kept here.
+    QByteArray logo;
+    {
+        QImage img(30, 30, QImage::Format_RGB32);
+        img.fill(Qt::blue);
+        QBuffer buffer(&logo);
+        buffer.open(QIODevice::WriteOnly);
+        img.save(&buffer, "PNG");
+    }
+    REQUIRE(office.addStoreImage(u"Logo.png"_s, QString::fromLatin1(logo.toBase64())));
+    shared.settings.displayLogo = "store:logo.png";
+    ++shared.adminRevision;
+    emit shared.adminChanged();
+    REQUIRE(waitFor([&] { return !lobby.imageUrl(u"logo:"_s).isEmpty(); }));
+    QFile kept(QUrl(lobby.imageUrl(u"logo:"_s)).toLocalFile());
+    REQUIRE(kept.open(QIODevice::ReadOnly));
+    CHECK(kept.readAll() == logo);
 
     lobby.kioskStart(true);
     CHECK(waitFor([&] { return lobby.selfOrderInfo()[u"ordering"_s].toBool(); }));

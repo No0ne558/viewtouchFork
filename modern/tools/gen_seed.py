@@ -471,7 +471,10 @@ page("note", "Note", "custom", [
 
 # ---------------------------------------------------------------- system pages
 page("login", "Login", "login", [
-    label("title", 460, 40, 1000, 110, "ViewTouch", style={"normal": {"fontSize": 72}}),
+    label("title", 460, 40, 1000, 110, "{store.name}", style={"normal": {"fontSize": 72}}),
+    # The store's logo (Store Settings -> Store logo); nothing shows until one is set.
+    zone("logo", 60, 260, 560, 420, "", kind="image", imagePath="logo:", behavior="none",
+         style={"normal": {"fill": "transparent", "frame": "none", "shadow": 0}}),
     zone("clock", 660, 160, 600, 80, kind="clock"),
     zone("login-pad", 660, 260, 600, 600, kind="loginPad"),
     zone("clock-in", 300, 880, 344, 120, "Clock In", actions=[command("clockIn")]),

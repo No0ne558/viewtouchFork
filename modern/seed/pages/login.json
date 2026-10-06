@@ -21,10 +21,30 @@
       },
       "shape": "rect",
       "behavior": "none",
-      "label": "ViewTouch",
+      "label": "{store.name}",
       "style": {
         "normal": {
           "fontSize": 72
+        }
+      }
+    },
+    {
+      "id": "logo",
+      "kind": "image",
+      "rect": {
+        "x": 60,
+        "y": 260,
+        "w": 560,
+        "h": 420
+      },
+      "shape": "rect",
+      "behavior": "none",
+      "imagePath": "logo:",
+      "style": {
+        "normal": {
+          "fill": "transparent",
+          "frame": "none",
+          "shadow": 0
         }
       }
     },

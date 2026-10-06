@@ -223,6 +223,11 @@ bool PosStore::open(QString *error)
             || !run(q, u"UPDATE meta SET value = '10' WHERE key = 'pos_schema_version'"_s, error))
             return false;
     }
+    if (version < 11) {   // the store's pictures (base64: the standby copy goes as JSON)
+        if (!run(q, u"CREATE TABLE IF NOT EXISTS images (name TEXT PRIMARY KEY, data TEXT NOT NULL)"_s, error)
+            || !run(q, u"UPDATE meta SET value = '11' WHERE key = 'pos_schema_version'"_s, error))
+            return false;
+    }
     return true;
 }
 
@@ -360,6 +365,10 @@ std::optional<app::PosData> PosStore::load(QStringList *errors) const
     }
     if (q.exec(u"SELECT COALESCE(MAX(id), 0) FROM deliveries"_s) && q.next())
         data.lastDeliveryId = q.value(0).toLongLong();
+    if (q.exec(u"SELECT name, data FROM images"_s)) {
+        while (q.next())
+            data.images[q.value(0).toString().toStdString()] = QByteArray::fromBase64(q.value(1).toString().toLatin1());
+    }
     if (data.currentDay) {
         q.prepare(u"SELECT json FROM checks WHERE status = 'closed' AND business_day = ? ORDER BY id"_s);
         q.addBindValue(qint64(data.currentDay->id));
@@ -514,6 +523,17 @@ void SqlPosSink::saveDelivery(const core::Delivery &d)
 {
     writer_.upsert(u"deliveries"_s, QString::number(d.id),
                    {{u"id"_s, qint64(d.id)}, {u"at"_s, qint64(d.at)}, {u"json"_s, compact(app::toJson(d))}});
+}
+
+void SqlPosSink::saveImage(const std::string &name, const QByteArray &data)
+{
+    writer_.upsert(u"images"_s, QString::fromStdString(name),
+                   {{u"name"_s, QString::fromStdString(name)}, {u"data"_s, QString::fromLatin1(data.toBase64())}});
+}
+
+void SqlPosSink::deleteImage(const std::string &name)
+{
+    writer_.remove(u"images"_s, u"name"_s, QString::fromStdString(name));
 }
 
 void SqlPosSink::deleteShift(std::int64_t id)

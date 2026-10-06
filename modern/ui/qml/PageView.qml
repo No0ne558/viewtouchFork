@@ -43,6 +43,18 @@ Item {
             fillMode: Image.Tile
         }
 
+        // A picture behind the page (Page / Theme -> Background -> Picture).
+        Image {
+            objectName: "pagePicture"
+            anchors.fill: parent
+            readonly property var pos: view.controller.pos
+            visible: !!view.bg.image && status === Image.Ready
+            source: !view.bg.image ? "" : pos ? (pos.imageRevision, pos.imageUrl(view.bg.image)) : view.bg.image
+            asynchronous: true
+            fillMode: ({ fit: Image.PreserveAspectFit, stretch: Image.Stretch, tile: Image.Tile,
+                         center: Image.Pad })[view.bg.imageFit] ?? Image.PreserveAspectCrop
+        }
+
         Repeater {
             model: view.controller.zones
             delegate: ZoneItem {

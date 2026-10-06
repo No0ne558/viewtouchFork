@@ -167,7 +167,7 @@ Item {
     y: previewRect ? previewRect.y : zoneY + (editSelected ? dragDY : 0)
     width: previewRect ? previewRect.w : zoneW
     height: previewRect ? previewRect.h : zoneH
-    visible: (kind !== "comment" || editing) && (ruleShows || editing)   // notes are for the editor only
+    visible: (kind !== "comment" || editing) && (ruleShows || editing) && (!emptyLogo || editing)   // notes: editor only
     // Template zones are dimmed while editing: they belong to another page;
     // so are zones whose rules hide them right now.
     opacity: (st.opacity ?? 1) * (editing && (inherited || !ruleShows) ? 0.45 : 1)
@@ -178,10 +178,16 @@ Item {
         st: zone.st
     }
 
+    // Its picture: the store's ("store:logo.png"), the store logo ("logo:"),
+    // or a resource; each screen shows its own copy.
+    readonly property string pictureUrl: !imagePath ? "" : pos ? (pos.imageRevision, pos.imageUrl(imagePath)) : imagePath
+    // A logo zone with no logo set: nothing to show (the editor still shows it).
+    readonly property bool emptyLogo: imagePath === "logo:" && pictureUrl === "" && kind === "image"
+
     Image {
         id: picture
-        visible: zone.imagePath !== ""
-        source: zone.imagePath
+        visible: zone.pictureUrl !== ""
+        source: zone.pictureUrl
         anchors.fill: parent
         anchors.margins: (zone.st.frameWidth ?? 3) + 6
         anchors.bottomMargin: caption.visible ? parent.height * 0.3 : anchors.margins

@@ -228,6 +228,7 @@ Item {
                             delegate: FieldEditor {
                                 required property var modelData
                                 field: modelData
+                                pos: w.pos
                                 value: w.draft[modelData.path]
                                 isSet: true
                                 readOnly: modelData.readonlyExisting === true && w.index >= 0

@@ -669,7 +669,7 @@ QJsonObject toJson(const PosSettings &s)
              {u"taxTakeoutFood"_s, s.tax.taxTakeoutFood}, {u"cashRounding"_s, s.tax.cashRoundingCents}}},
         {u"tenders"_s, tenders}, {u"tendersV2"_s, true},
         {u"printers"_s, printers},
-        {u"receiptHeader"_s, qs(s.receiptHeader)},
+        {u"receiptHeader"_s, qs(s.receiptHeader)}, {u"receiptLogo"_s, s.receiptLogo},
         {u"receiptFooter"_s, qs(s.receiptFooter)},
         {u"gratuity"_s, QJsonObject{{u"percent"_s, double(s.gratuityBp) / 100.0}, {u"minGuests"_s, s.gratuityMinGuests}}},
         {u"terminals"_s, terminals},
@@ -845,6 +845,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.tableLongMinutes = std::clamp(o.value(u"tableLongMinutes").toInt(90), 10, 600);
     const QJsonObject display = o.value(u"display").toObject();
     s.displayLogo = ss(display.value(u"logo").toString());
+    s.receiptLogo = o.value(u"receiptLogo").toBool();
     s.displayAccent = ss(display.value(u"accent").toString(u"#2f6fd6"_s));
     for (const QJsonValue &v : display.value(u"slides").toArray())
         if (!v.toString().trimmed().isEmpty()) s.displaySlides.push_back(ss(v.toString().trimmed()));

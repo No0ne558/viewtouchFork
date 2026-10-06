@@ -95,7 +95,6 @@ public:
     QVariantMap customerInfo() const override { return v(u"customer").toMap(); }
     QVariantMap giftCardInfo() const override { return v(u"giftCard").toMap(); }
     QVariantMap waitlistInfo() const override { return v(u"waitlist").toMap(); }
-    QVariantMap customerPrompt() const override;
     QVariantMap scheduleInfo() const override { return v(u"schedule").toMap(); }
     QString nextShift() const override { return v(u"nextShift").toString(); }
     QVariantMap rangeReport() const override { return v(u"rangeReport").toMap(); }
@@ -103,6 +102,12 @@ public:
     QVariantMap approvalInfo() const override { return v(u"approval").toMap(); }
     bool training() const override { return v(u"training").toBool(); }
     int autoLogoutMinutes() const override { return v(u"autoLogoutMinutes").toInt(); }
+    QString imageUrl(const QString &ref) const override;
+    QVariantList storeImages() const override;
+    QString storeLogo() const override { return v(u"storeLogo").toString(); }
+    QVariantMap kioskMenu() const override { return v(u"kioskMenu").toMap(); }
+    QVariantMap customerPrompt() const override { return v(u"customerPrompt").toMap(); }
+    int imageRevision() const override { return adminRevision() + imageRevision_; }
     int screenSaverMinutes() const override { return v(u"screenSaverMinutes").toInt(); }
     QVariantList kitchenStations() const override { return v(u"kitchenStations").toList(); }
     QString kitchenStation() const override { return v(u"kitchenStation").toString(); }
@@ -112,7 +117,6 @@ public:
     QString language() const override { return v(u"language").toString(); }
     QString storeLanguage() const override { return v(u"storeLanguage").toString(); }
     QVariantMap selfOrderInfo() const override { return v(u"selfOrder").toMap(); }
-    QVariantMap kioskMenu() const override;
     QVariantMap clockInJobs() const override { return v(u"clockInJobs").toMap(); }
     QVariantMap receiving() const override { return v(u"receiving").toMap(); }
     QVariantMap checkSearch() const override { return v(u"checkSearch").toMap(); }
@@ -178,9 +182,10 @@ private:
     QHash<QString, Cached> cache_;
     // The store's pictures are files on the server: fetched once, kept here.
     // Returns the local file, or empty until it has arrived.
-    QString localImage(const QString &serverPath) const;
+    QString localImage(const QString &serverPath, const QString &cacheKey = {}) const;
     QString imageCache_;
     mutable QHash<QString, QString> images_;   // server path -> local file ("" while fetching)
+    int imageRevision_ = 0;                     // pictures that have arrived
     int queryRevision_ = 0;
 };
 

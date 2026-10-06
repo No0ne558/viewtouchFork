@@ -164,6 +164,7 @@ Rectangle {
                                         }
                                         field: row.modelData
                                         editor: inspector.editor
+                                        pos: inspector.controller.pos
                                         value: info.value
                                         mixed: info.mixed ?? false
                                         isSet: info.isSet ?? false

@@ -18,7 +18,9 @@ Rectangle {
     readonly property var loyalty: prompt.loyalty ?? ({})
     readonly property color accent: prompt.accent || "#2f6fd6"
     readonly property real unit: Math.max(14, Math.min(width, height * 1.6) / 40)
-    readonly property string logo: !prompt.logo ? "" : prompt.logo.startsWith("/") ? "file://" + prompt.logo : prompt.logo
+    // Pictures by ref ("store:logo.png", a path...): this screen's copy.
+    function img(ref) { return pos ? (pos.imageRevision, pos.imageUrl(ref)) : ref }
+    readonly property string logo: !prompt.logo ? "" : img(prompt.logo)
 
     color: "#0f1318"
 
@@ -101,8 +103,7 @@ Rectangle {
                     anchors.fill: parent
                     visible: slide.picture
                     fillMode: Image.PreserveAspectFit
-                    source: !slide.picture ? "" : slide.current.slice(6).startsWith("/") ? "file://" + slide.current.slice(6)
-                                                                                          : slide.current.slice(6)
+                    source: !slide.picture ? "" : d.img(slide.current.slice(6))
                 }
                 ColumnLayout {
                     anchors.centerIn: parent

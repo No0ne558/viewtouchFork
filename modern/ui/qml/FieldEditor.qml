@@ -10,6 +10,8 @@ ColumnLayout {
 
     required property var field
     property EditorController editor
+    // For pictures: the store's picture library.
+    property PosService pos
     property var value
     property bool mixed: false
     property bool isSet: value !== undefined
@@ -79,6 +81,7 @@ ColumnLayout {
             case "number": return numberField
             case "pin": return pinField
             case "password": return passwordField
+            case "image": return imagePicker
             default: return textField
             }
         }
@@ -91,6 +94,72 @@ ColumnLayout {
         font.pixelSize: 11
         wrapMode: Text.WordWrap
         Layout.fillWidth: true
+    }
+
+    // A picture: one of the store's, the store logo, or a file from this computer.
+    Component {
+        id: imagePicker
+        RowLayout {
+            spacing: 6
+            readonly property var library: fe.pos ? fe.pos.storeImages : []
+            readonly property string current: fe.mixed || !fe.isSet || fe.value == null ? "" : String(fe.value)
+            readonly property var opts: {
+                const o = [{ ref: "", name: fe.inheritable && !fe.isSet ? qsTr("(inherit)") : qsTr("(none)") },
+                           { ref: "logo:", name: qsTr("The store logo") }]
+                for (const p of library)
+                    o.push({ ref: p.ref, name: p.name })
+                if (current !== "" && !o.some(x => x.ref === current))
+                    o.push({ ref: current, name: current })   // a path or resource set earlier
+                return o
+            }
+            Rectangle {
+                objectName: "imagePreview"
+                implicitWidth: 56
+                implicitHeight: 40
+                color: "#10141a"
+                border.color: EditorStyle.muted
+                radius: 4
+                Image {
+                    anchors.fill: parent
+                    anchors.margins: 2
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
+                    source: {
+                        const ref = parent.parent.current || (fe.resolved ?? "")
+                        return fe.pos ? (fe.pos.imageRevision, fe.pos.imageUrl(ref)) : ref
+                    }
+                }
+            }
+            ComboBox {
+                objectName: "imageChoice"
+                Layout.fillWidth: true
+                enabled: !fe.readOnly
+                model: parent.opts.map(o => o.name)
+                currentIndex: fe.mixed ? -1 : Math.max(0, parent.opts.findIndex(o => o.ref === parent.current))
+                displayText: fe.mixed ? qsTr("(mixed)") : currentText
+                onActivated: index => {
+                    const ref = parent.opts[index].ref
+                    if (ref === "" && fe.inheritable) fe.reset()
+                    else fe.commit(ref)
+                }
+            }
+            Button {
+                objectName: "imageAdd"
+                text: qsTr("Add Picture…")
+                enabled: !fe.readOnly && !!fe.pos
+                onClicked: pictureFile.open()
+            }
+            FileDialog {
+                id: pictureFile
+                title: qsTr("A picture for the store")
+                nameFilters: [qsTr("Pictures (*.png *.jpg *.jpeg *.webp *.gif *.bmp *.svg)")]
+                onAccepted: {
+                    const ref = fe.pos.addImageFile(selectedFile.toString())
+                    if (ref !== "")
+                        fe.commit(ref)
+                }
+            }
+        }
     }
 
     Component {
