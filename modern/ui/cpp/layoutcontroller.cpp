@@ -297,6 +297,9 @@ void LayoutController::onLoggedInChanged(bool loggedIn)
         editor_->setPageId(nav_.current());
     refresh();
     emit pageChanged();
+    // Back to the check they had open (Switch User): its order screen.
+    if (loggedIn && pos_ && pos_->hasCheck() && !editing())
+        navigate(Navigator::Mode::Index, {});
 }
 
 bool LayoutController::mayOpen(const QString &pageId)

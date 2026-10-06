@@ -532,7 +532,9 @@ page("tables", "Tables", "tables", [
     zone("checks", 1472, 348, 432, 150, "Open Checks", actions=[jump(role="checkList")]),
     zone("host", 1056, 914, 400, 150, "Waitlist", actions=[jump(page="host")], style=fill(TEAL)),
     zone("tabs", 1056, 748, 400, 150, "Bar Tabs", actions=[jump(page="tabs")], style=fill(AMBER)),
-    zone("status", 1472, 514, 432, 218, kind="logoutPanel"),
+    zone("status", 1472, 514, 432, 140, kind="logoutPanel"),
+    # The next person: their PIN, while this one stays clocked in (their check opens again when they're back).
+    zone("switch", 1472, 664, 432, 74, "Switch User", actions=[command("logout")], style=fill(BLUE)),
     zone("manager", 1472, 748, 432, 150, "Manager", actions=[jump(role="manager")]),
     zone("logout", 1472, 914, 432, 150, "Log Out", actions=[jump(role="logout")], style=fill(RED)),
 ], role="tables", background={"texture": "woodfloor", "fill": "#3b2a1a"})
@@ -627,7 +629,9 @@ page("check-options", "Check Options", "custom", [
     zone("merge", 932, 584, 972, 104, "Merge Another Check Into This One…", actions=[jump(page="merge")]),
     zone("reopen", 932, 702, 972, 104, "Reopen a Closed Check… (manager)", actions=[jump(page="closed-checks")]),
     zone("sold-out", 932, 820, 972, 104, "Sold Out (86)…", actions=[jump(page="sold-out")]),
-    zone("back", 932, 944, 972, 120, "‹ Back to the Order", actions=[jump(mode="back")]),
+    zone("back", 932, 944, 600, 120, "‹ Back to the Order", actions=[jump(mode="back")]),
+    # Someone else needs the screen: this check opens again at this person's next login.
+    zone("switch", 1548, 944, 356, 120, "Switch User", actions=[command("logout")], style=fill(BLUE)),
 ], permission="order")
 page("transfer", "Transfer Check", "custom", [
     label("title", 16, 16, 1888, 80, "Give this check to…"),
@@ -1067,17 +1071,20 @@ layouts("tables", [
     arrangement("tables", "buttons-left", "Buttons left", "The buttons down the left side, the floor to their right.", {
         **tables_moved(dx=440),
         "quick": (16, 16, 432, 150), "takeout": (16, 182, 208, 150), "delivery": (240, 182, 208, 150),
-        "checks": (16, 348, 432, 150), "status": (16, 514, 432, 218), "manager": (16, 748, 432, 150),
+        "checks": (16, 348, 432, 150), "status": (16, 514, 432, 140), "switch": (16, 664, 432, 74),
+        "manager": (16, 748, 432, 150),
         "logout": (16, 914, 432, 150), "tabs": (1456, 748, 448, 150), "host": (1456, 914, 448, 150)}),
     arrangement("tables", "buttons-bottom", "Buttons below", "The floor on top, big buttons across the bottom.", {
         **tables_moved(scale=0.75, x0=40, y0=24),
-        "status": (1200, 16, 704, 300), "checks": (1200, 332, 704, 170), "manager": (1200, 518, 704, 170),
+        "status": (1200, 16, 704, 220), "switch": (1200, 246, 704, 76), "checks": (1200, 332, 704, 170),
+        "manager": (1200, 518, 704, 170),
         **{zid: (16 + i * 315, 716, 299, 348) for i, zid in
            enumerate(["quick", "takeout", "delivery", "tabs", "host", "logout"])}}),
     arrangement("tables", "counter", "Counter first", "Quick Order, Takeout and Delivery big; a smaller floor.", {
         **tables_moved(scale=0.72, x0=24, y0=24),
         "quick": (1100, 16, 804, 300), "takeout": (1100, 332, 396, 220), "delivery": (1508, 332, 396, 220),
-        "checks": (1100, 568, 396, 160), "tabs": (1508, 568, 396, 160), "status": (1100, 744, 804, 150),
+        "checks": (1100, 568, 396, 160), "tabs": (1508, 568, 396, 160), "status": (1100, 744, 520, 150),
+        "switch": (1632, 744, 272, 150),
         "host": (640, 910, 444, 154), "manager": (1100, 910, 396, 154), "logout": (1508, 910, 396, 154)}),
     arrangement("tables", "plain", "Plain floor", "The classic arrangement on a plain dark floor (no wood).",
                 background={"fill": "#1d2128"}),

@@ -254,7 +254,7 @@
       "rect": {
         "x": 932,
         "y": 944,
-        "w": 972,
+        "w": 600,
         "h": 120
       },
       "shape": "rect",
@@ -266,6 +266,30 @@
           "mode": "back"
         }
       ]
+    },
+    {
+      "id": "switch",
+      "kind": "button",
+      "rect": {
+        "x": 1548,
+        "y": 944,
+        "w": 356,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Switch User",
+      "actions": [
+        {
+          "type": "command",
+          "name": "logout"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#2b62b0"
+        }
+      }
     }
   ]
 }

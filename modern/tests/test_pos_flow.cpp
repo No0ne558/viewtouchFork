@@ -723,6 +723,40 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: switch user keeps each person's check for when they're back", "[flow][ui][switch]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    s.pos.addItem(u"water"_s);
+    // Mid-order: Check… -> Switch User.
+    REQUIRE(s.c.jumpTo(u"check-options"_s));
+    REQUIRE(s.pos.lines().size() == 1);
+    s.shot("52-switch-user");
+    s.c.activate(u"switch"_s);
+    QTest::qWait(60);
+    CHECK_FALSE(s.pos.loggedIn());
+    CHECK(s.c.pageId() == u"login"_s);
+
+    // Someone else in and out: no check of theirs.
+    REQUIRE(s.pos.loginWithPin(u"2222"_s));
+    QTest::qWait(30);
+    CHECK_FALSE(s.pos.hasCheck());
+    s.pos.logout();
+
+    // The first one back: their takeout, on its order screen.
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    QTest::qWait(60);
+    REQUIRE(s.pos.hasCheck());
+    CHECK(s.pos.lines().size() == 1);
+    CHECK(s.c.pageId() != u"tables"_s);
+    // Once only: logging out from the floor without a check forgets it.
+    s.pos.releaseCheck();
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    CHECK_FALSE(s.pos.hasCheck());
+}
+
 TEST_CASE("UI: find an item by typing part of its name", "[flow][ui][find]")
 {
     Screen s;

@@ -321,10 +321,34 @@
             "x": 1472,
             "y": 514,
             "w": 432,
-            "h": 218
+            "h": 140
           },
           "shape": "rect",
           "behavior": "none"
+        },
+        {
+          "id": "switch",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 664,
+            "w": 432,
+            "h": 74
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Switch User",
+          "actions": [
+            {
+              "type": "command",
+              "name": "logout"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#2b62b0"
+            }
+          }
         },
         {
           "id": "manager",
@@ -695,10 +719,34 @@
             "x": 16,
             "y": 514,
             "w": 432,
-            "h": 218
+            "h": 140
           },
           "shape": "rect",
           "behavior": "none"
+        },
+        {
+          "id": "switch",
+          "kind": "button",
+          "rect": {
+            "x": 16,
+            "y": 664,
+            "w": 432,
+            "h": 74
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Switch User",
+          "actions": [
+            {
+              "type": "command",
+              "name": "logout"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#2b62b0"
+            }
+          }
         },
         {
           "id": "manager",
@@ -1069,10 +1117,34 @@
             "x": 1200,
             "y": 16,
             "w": 704,
-            "h": 300
+            "h": 220
           },
           "shape": "rect",
           "behavior": "none"
+        },
+        {
+          "id": "switch",
+          "kind": "button",
+          "rect": {
+            "x": 1200,
+            "y": 246,
+            "w": 704,
+            "h": 76
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Switch User",
+          "actions": [
+            {
+              "type": "command",
+              "name": "logout"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#2b62b0"
+            }
+          }
         },
         {
           "id": "manager",
@@ -1442,11 +1514,35 @@
           "rect": {
             "x": 1100,
             "y": 744,
-            "w": 804,
+            "w": 520,
             "h": 150
           },
           "shape": "rect",
           "behavior": "none"
+        },
+        {
+          "id": "switch",
+          "kind": "button",
+          "rect": {
+            "x": 1632,
+            "y": 744,
+            "w": 272,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Switch User",
+          "actions": [
+            {
+              "type": "command",
+              "name": "logout"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#2b62b0"
+            }
+          }
         },
         {
           "id": "manager",
@@ -1817,10 +1913,34 @@
             "x": 1472,
             "y": 514,
             "w": 432,
-            "h": 218
+            "h": 140
           },
           "shape": "rect",
           "behavior": "none"
+        },
+        {
+          "id": "switch",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 664,
+            "w": 432,
+            "h": 74
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Switch User",
+          "actions": [
+            {
+              "type": "command",
+              "name": "logout"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#2b62b0"
+            }
+          }
         },
         {
           "id": "manager",

@@ -408,9 +408,17 @@ bool PosService::loginWithPin(const QString &pin)
     if (!e)
         return fail(tr("That PIN is not recognized."));
     userId_ = e->id;
+    // Back from someone else's turn: the check they were on, if nobody has it.
+    if (const auto it = s_->resumeChecks.find(e->id); it != s_->resumeChecks.end()) {
+        const std::int64_t id = it->second;
+        s_->resumeChecks.erase(it);
+        if (s_->open.contains(id) && !s_->lockedBy.contains(id) && openCheck(id))
+            emit notice(tr("Welcome back, %1: %2 is open again").arg(qs(e->name), qs(s_->open.at(id).label)));
+    }
     emit sessionChanged();
     emit loggedInChanged(true);
-    emit notice(tr("Welcome, %1").arg(qs(e->name)));
+    if (!hasCheck())
+        emit notice(tr("Welcome, %1").arg(qs(e->name)));
     return true;
 }
 
@@ -422,7 +430,13 @@ void PosService::logout()
     }
     if (!user())
         return;
+    // Their check, to pick up again when they're back (Switch User).
+    const std::int64_t mine = currentId_;
     releaseCheck();
+    if (mine != 0 && s_->open.contains(mine))
+        s_->resumeChecks[userId_] = mine;
+    else
+        s_->resumeChecks.erase(userId_);
     userId_.clear();
     pin_.clear();
     jobChoice_.clear();

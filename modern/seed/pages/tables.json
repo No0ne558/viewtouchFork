@@ -327,10 +327,34 @@
         "x": 1472,
         "y": 514,
         "w": 432,
-        "h": 218
+        "h": 140
       },
       "shape": "rect",
       "behavior": "none"
+    },
+    {
+      "id": "switch",
+      "kind": "button",
+      "rect": {
+        "x": 1472,
+        "y": 664,
+        "w": 432,
+        "h": 74
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Switch User",
+      "actions": [
+        {
+          "type": "command",
+          "name": "logout"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#2b62b0"
+        }
+      }
     },
     {
       "id": "manager",

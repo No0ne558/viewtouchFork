@@ -142,6 +142,9 @@ public:
     // The store's pictures (Manager -> Pictures, or any picture field): kept in
     // the database, so backups, the standby and every screen have them.
     std::map<std::string, QByteArray> images;
+    // The check each person had open when they logged out (switching to the
+    // next person): open again when they log back in.
+    std::map<std::string, std::int64_t> resumeChecks;
     // Where pictures are written out for this computer's screens to load
     // (main sets it under the app's data; else a temporary folder).
     QString imageCacheDir;
