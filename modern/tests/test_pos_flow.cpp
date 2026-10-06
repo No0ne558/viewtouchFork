@@ -880,6 +880,57 @@ TEST_CASE("UI: − 2 + and Again on a touched line", "[flow][ui][quantity]")
     CHECK(line(0)[u"quantity"_s].toInt() == 2);
 }
 
+TEST_CASE("UI: a table split by seat, a line moved, and back together", "[flow][ui][tablechecks]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.selectTable(u"T6"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    for (int seat = 1; seat <= 3; ++seat) {
+        s.pos.setSeat(seat);
+        s.pos.addItem(u"water"_s);
+    }
+    s.pos.addItem(u"water"_s);   // seat 3 too
+    QTest::qWait(60);
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    const auto tapName = [&](const QString &name) {
+        QQuickItem *it = find(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(50);
+    };
+
+    tapName(u"tableCheck-more"_s);
+    s.shot("58-table-tools");
+    tapName(u"splitBySeat"_s);
+    REQUIRE(s.pos.tableChecks().size() == 3);
+    CHECK(s.pos.lines().size() == 1);          // seat 1 stayed here
+    CHECK_FALSE(find(u"orderSheet"_s));        // closed
+
+    // Seat 1's rings go to check 3 instead (touch, Move…, Check 3).
+    s.pos.selectLine(s.pos.lines().value(0).toMap().value(u"id"_s).toLongLong());
+    QTest::qWait(40);
+    tapName(u"lineMove"_s);
+    s.shot("59-move-line");
+    tapName(u"moveTo-3"_s);
+    CHECK(s.pos.lines().isEmpty());
+    tapName(u"tableCheck-3"_s);
+    CHECK(s.pos.lines().size() == 3);          // seat 3's two and the moved one
+
+    // Back to one check.
+    tapName(u"tableCheck-more"_s);
+    tapName(u"combineTableChecks"_s);
+    CHECK(s.pos.tableChecks().size() == 1);
+    CHECK(s.pos.lines().size() == 4);
+
+    // Nothing has a seat: split by seat says so.
+    REQUIRE(s.pos.selectTable(u"T7"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    s.pos.addItem(u"water"_s);
+    CHECK_FALSE(s.pos.splitBySeat());
+}
+
 TEST_CASE("UI: separate checks at one table, switched on the order screen", "[flow][ui][tablechecks]")
 {
     Screen s;

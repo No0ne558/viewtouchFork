@@ -409,6 +409,11 @@ public:
     // --- split check -------------------------------------------------------------
     // Move the selected line to another check (0 = a new one at the table).
     bool splitLine(qint64 targetCheckId);
+    // A table's checks: one per seat (lines with no seat stay); every one's
+    // receipt; all of them back into this one.
+    bool splitBySeat();
+    bool printTableChecks();
+    bool combineTableChecks();
     QString checkFilter() const override { return checkFilter_; }
     void setCheckFilter(const QString &label) override;
 

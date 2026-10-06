@@ -78,10 +78,12 @@ Item {
             readonly property bool compact: checks.length >= 3
             readonly property real slot: key * (compact ? 1.25 : 2.6)
             readonly property real arrow: key * 0.9
-            // How many fit beside +, with and without the arrows.
-            readonly property int fitAll: Math.max(1, Math.floor((width - slot - gap + gap) / (slot + gap)))
+            readonly property real more: key * 1.25
+            // Room for the numbers beside ⋯ and +, with and without the arrows.
+            readonly property real room: width - slot - more - 2 * gap
+            readonly property int fitAll: Math.max(1, Math.floor((room + gap) / (slot + gap)))
             readonly property bool paged: checks.length > fitAll
-            readonly property int perPage: paged ? Math.max(1, Math.floor((width - slot - 2 * (arrow + gap)) / (slot + gap))) : checks.length
+            readonly property int perPage: paged ? Math.max(1, Math.floor((room - 2 * (arrow + gap)) / (slot + gap))) : checks.length
             readonly property int current: Math.max(0, checks.findIndex(c => c.current))
             property int first: 0
             // The open check stays on the page shown.
@@ -133,8 +135,19 @@ Item {
                                                             tableChecks.first + tableChecks.perPage)
                 }
             }
+            // The table's other tools: split by seat, print all, back together.
+            WidgetKey {
+                objectName: "tableCheck-more"
+                anchors.right: plusKey.left
+                anchors.rightMargin: tableChecks.gap
+                width: tableChecks.more; height: tableChecks.key
+                fontScale: 0.6
+                text: "⋯"
+                onClicked: sheet.mode = "table"
+            }
             // Always in the same place, at the right end.
             WidgetKey {
+                id: plusKey
                 objectName: "tableCheck-new"
                 anchors.right: parent.right
                 width: tableChecks.slot; height: tableChecks.key
@@ -376,6 +389,15 @@ Item {
                             text: w.zone.keyText("quantity", qsTr("Again"))
                             onClicked: w.pos.repeatLine(row.modelData.id)
                         }
+                        // At a table: to another of its checks (or a new one).
+                        WidgetKey {
+                            objectName: "lineMove"
+                            visible: tableChecks.checks.length > 0 && !w.paid
+                            width: qtyBar.key * 3; height: qtyBar.key
+                            fontScale: 0.45
+                            text: qsTr("Move…")
+                            onClicked: sheet.mode = "move"
+                        }
                     }
                 }
             }
@@ -424,6 +446,108 @@ Item {
             Cell { text: w.totals.paid ?? ""; visible: w.paid }
             Cell { text: qsTr("Balance due"); visible: w.paid; Layout.fillWidth: true }
             Cell { text: w.totals.balance ?? ""; visible: w.paid }
+        }
+    }
+
+    // Choices over the panel: the table's tools, or where to move the touched line.
+    Rectangle {
+        id: sheet
+        property string mode: ""   // "" | "table" | "move"
+        objectName: "orderSheet"
+        anchors.fill: parent
+        visible: mode !== "" && w.pos && w.pos.hasCheck
+        color: Qt.rgba(0.06, 0.07, 0.09, 0.94)
+        radius: 8
+        MouseArea { anchors.fill: parent; onClicked: sheet.mode = "" }   // outside the keys: close
+        readonly property real key: w.unit * 2.2
+        readonly property var others: tableChecks.checks.filter(c => !c.current)
+        // Close, then act: from here, since the key touched may go away with either.
+        function run(action) {
+            mode = ""
+            action()
+        }
+        function moveTo(checkId) {   // 0: a new check
+            mode = ""
+            w.pos.splitLine(checkId)
+        }
+
+        Column {
+            anchors.centerIn: parent
+            width: parent.width * 0.85
+            spacing: w.unit * 0.4
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: sheet.mode === "move" ? qsTr("Move %1 to…").arg(w.pos.lines.find(l => l.selected)?.name ?? "")
+                                            : (w.check.label ?? "")
+                color: "white"
+                font.family: w.face
+                font.pixelSize: w.unit
+                font.bold: true
+            }
+            // Table tools
+            WidgetKey {
+                objectName: "splitBySeat"
+                visible: sheet.mode === "table"
+                width: parent.width; height: sheet.key
+                fontScale: 0.38
+                text: qsTr("One Check per Seat")
+                onClicked: sheet.run(() => w.pos.splitBySeat())
+            }
+            WidgetKey {
+                objectName: "printTableChecks"
+                visible: sheet.mode === "table"
+                width: parent.width; height: sheet.key
+                fontScale: 0.38
+                text: tableChecks.checks.length > 1 ? qsTr("Print Every Check (%1)").arg(tableChecks.checks.length)
+                                                    : qsTr("Print the Check")
+                onClicked: sheet.run(() => w.pos.printTableChecks())
+            }
+            WidgetKey {
+                objectName: "combineTableChecks"
+                visible: sheet.mode === "table" && tableChecks.checks.length > 1
+                width: parent.width; height: sheet.key
+                fontScale: 0.38
+                text: qsTr("Put Them Back Together")
+                onClicked: sheet.run(() => w.pos.combineTableChecks())
+            }
+            // Move the touched line
+            Flow {
+                visible: sheet.mode === "move"
+                width: parent.width
+                spacing: w.unit * 0.3
+                Repeater {
+                    model: sheet.mode === "move" ? sheet.others : []
+                    delegate: WidgetKey {
+                        required property var modelData
+                        objectName: "moveTo-" + modelData.number
+                        width: sheet.key * 2.4; height: sheet.key
+                        fontScale: 0.42
+                        text: qsTr("Check %1").arg(modelData.number)
+                        enabled: modelData.busyOn === ""
+                        onClicked: sheet.moveTo(modelData.id)
+                    }
+                }
+                WidgetKey {
+                    objectName: "moveTo-new"
+                    width: sheet.key * 3.6; height: sheet.key
+                    fontScale: 0.42
+                    text: qsTr("A New Check")
+                    onClicked: sheet.moveTo(0)
+                }
+            }
+            WidgetKey {
+                objectName: "sheetCancel"
+                width: parent.width; height: sheet.key * 0.8
+                fontScale: 0.4
+                text: qsTr("Cancel")
+                onClicked: sheet.mode = ""
+            }
+        }
+        Connections {   // another check, or none: nothing to choose for
+            target: w.pos
+            function onCheckChanged() { if (!w.pos.hasCheck) sheet.mode = "" }
         }
     }
 }

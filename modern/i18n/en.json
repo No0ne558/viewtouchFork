@@ -22,5 +22,9 @@
  "%n sample employee(s) turned off": {
   "one": "%n sample employee turned off",
   "other": "%n sample employees turned off"
+ },
+ "Printing %n receipt(s)": {
+  "one": "Printing %n receipt",
+  "other": "Printing %n receipts"
  }
 }

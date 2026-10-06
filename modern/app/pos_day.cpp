@@ -181,6 +181,108 @@ bool PosService::splitLine(qint64 targetCheckId)
     return true;
 }
 
+bool PosService::splitBySeat()
+{
+    if (!require(perm::Order, tr("Splitting checks")))
+        return false;
+    Check *c = current();
+    if (!c || c->type != CheckType::DineIn)
+        return fail(tr("Open a table's check first."));
+    if (!c->payments.empty())
+        return fail(tr("Remove payments before splitting this check."));
+    std::set<int> seats;
+    bool unseated = false;
+    for (const OrderLine &l : c->lines) {
+        if (l.seat > 0)
+            seats.insert(l.seat);
+        else
+            unseated = true;
+    }
+    if (seats.empty() || (seats.size() == 1 && !unseated))
+        return fail(tr("Give the items seats first (Seat − / +), then split by seat."));
+    // Items with no seat stay here; else the first seat does.
+    const int stays = unseated ? 0 : *seats.begin();
+    const std::int64_t here = c->id;
+    int made = 0;
+    for (const int seat : seats) {
+        if (seat == stays)
+            continue;
+        Check n;
+        n.id = ++s_->lastCheckId;
+        n.type = c->type;
+        n.label = c->label;
+        n.guests = 1;
+        n.serverId = c->serverId;
+        n.serverName = c->serverName;
+        n.openedAt = now();
+        n.training = c->training;
+        const auto id = n.id;
+        s_->open.emplace(id, std::move(n));
+        c = &s_->open.at(here);
+        Check &target = s_->open.at(id);
+        std::vector<std::int64_t> ids;
+        for (const OrderLine &l : c->lines)
+            if (l.seat == seat)
+                ids.push_back(l.id);
+        for (const std::int64_t lineId : ids)
+            if (std::optional<OrderLine> line = c->takeLine(lineId))
+                target.adoptLine(std::move(*line));
+        noteEvent(target, tr("Seat %1 from check #%2").arg(seat).arg(here), "split");
+        if (s_->sink)
+            s_->sink->saveCheck(target);
+        ++made;
+    }
+    selectedLine_ = 0;
+    noteEvent(*c, tr("Split by seat into %1 more checks").arg(made), "split");
+    if (s_->sink)
+        s_->sink->saveCheck(*c);
+    emit notice(tr("%1: one check per seat (%2 checks)").arg(qs(c->label)).arg(made + 1));
+    emit checkChanged();
+    emit s_->checksChanged();
+    return true;
+}
+
+bool PosService::printTableChecks()
+{
+    const QVariantList checks = tableChecks();
+    if (checks.isEmpty())
+        return fail(tr("Open a table's check first."));
+    if (!s_->printer)
+        return fail(tr("No printer is set up."));
+    for (const QVariant &v : checks)
+        if (const auto it = s_->open.find(v.toMap().value(u"id"_s).toLongLong()); it != s_->open.end())
+            s_->printer->printReceipt(s_->settings, it->second, receiptPrinter());
+    emit notice(tr("Printing %n receipt(s)", nullptr, int(checks.size())));
+    return true;
+}
+
+bool PosService::combineTableChecks()
+{
+    const Check *c = currentCheck();
+    if (!c || c->type != CheckType::DineIn)
+        return fail(tr("Open a table's check first."));
+    const std::int64_t here = c->id;
+    // Check first, so it's all or nothing.
+    for (const QVariant &v : tableChecks()) {
+        const std::int64_t id = v.toMap().value(u"id"_s).toLongLong();
+        if (id == here)
+            continue;
+        if (const QString holder = lockHolder(id); !holder.isEmpty())
+            return fail(tr("Check #%1 is open on %2.").arg(id).arg(holder));
+    }
+    int merged = 0;
+    for (const QVariant &v : tableChecks())
+        if (const std::int64_t id = v.toMap().value(u"id"_s).toLongLong(); id != here) {
+            if (!mergeCheck(id))
+                return false;
+            ++merged;
+        }
+    if (merged == 0)
+        return fail(tr("This is the table's only check."));
+    emit notice(tr("%1: one check again").arg(qs(currentCheck()->label)));
+    return true;
+}
+
 // --- drawers (one per terminal) or server banks (one per person) ----------------------
 
 namespace {
