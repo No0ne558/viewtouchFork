@@ -110,6 +110,10 @@ for bid, price in (("classic-burger", 12.50), ("bacon-burger", 14.50), ("house-w
     item(bid)["periodPrices"] = {"dinner": price}
 for n in TEMPS: menu(n, 0.00, "temperature", modifier=True)
 for n, p in SIDES: menu(n, p, "sides", modifier=True)
+# Substitutes: Sub, then a salad, in place of the fries.
+for sid, extra in (("house-salad", 3.00), ("caesar", 3.50)):
+    item(sid)["substitute"] = True
+    item(sid)["substitutePrice"] = extra
 # Sold by weight: the price is per pound; ordering it asks for the weight.
 menu("Smoked Brisket", 22.00, "plates")
 item("smoked-brisket")["byWeight"] = True
@@ -370,13 +374,15 @@ flow = [
     ("flow-extra", "Extra", [{"type": "qualifier", "qualifier": "extra"}], {}),
     ("flow-lite", "Lite", [{"type": "qualifier", "qualifier": "lite"}], {}),
     ("flow-side", "Side", [{"type": "qualifier", "qualifier": "side"}], {}),
+    ("flow-sub", "Sub", [{"type": "qualifier", "qualifier": "sub"}], {}),
     ("flow-void", "Void", [command("voidItem")], {"behavior": "double", "style": fill(RED)}),
     ("flow-send", "Send", [command("sendOrder")], {"style": fill(GREEN), "hotkey": "s"}),
     ("flow-pay", "Pay", [jump(role="settle")], {"style": fill(BLUE), "hotkey": "p"}),
 ]
 tmpl = [zone("order-list", 16, 16, 560, 948, kind="orderList")]
+step = (1904 - 16 + 8) // len(flow)
 for i, (zid, text, acts, kw) in enumerate(flow):
-    tmpl.append(zone(zid, 16 + i * 237, 980, 229, 84, text, actions=acts, **kw))
+    tmpl.append(zone(zid, 16 + i * step, 980, step - 8, 84, text, actions=acts, **kw))
 for i, (zid, text, target) in enumerate([("tab-breakfast", "Breakfast", "index-breakfast"),
                                           ("tab-lunch", "Lunch", "index-lunch"),
                                           ("tab-dinner", "Dinner", "index-dinner")]):
@@ -886,7 +892,7 @@ phone_page("guest-count", "Guest Count", "guestCount", [
 # The order screen: tabs, the check, the page's buttons, qualifiers, actions.
 TAB = {"normal": {"fontSize": 34}}
 qualifiers, y = grid_buttons([(f"flow-{q}", q.capitalize(), [{"type": "qualifier", "qualifier": q}], {})
-                              for q in ("no", "extra", "lite", "side")], 1926, 4, 150, x=16, width=PW - 32)
+                              for q in ("no", "extra", "lite", "side", "sub")], 1926, 5, 150, x=16, width=PW - 32)
 actions, _ = grid_buttons([
     ("flow-void", "Void", [command("voidItem")], {"behavior": "double", "style": fill(RED)}),
     ("flow-send", "Send", [command("sendOrder")], {"style": fill(GREEN)}),

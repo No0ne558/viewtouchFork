@@ -229,6 +229,10 @@ QJsonObject toJson(const MenuItem &m)
     if (m.isModifier) o.insert(u"modifier"_s, true);
     if (!m.printer.empty()) o.insert(u"printer"_s, qs(m.printer));
     if (!m.station.empty()) o.insert(u"station"_s, qs(m.station));
+    if (m.substitute) {
+        o.insert(u"substitute"_s, true);
+        o.insert(u"substitutePrice"_s, decimalFromCents(m.substitutePrice.cents()));
+    }
     if (m.byWeight) {
         o.insert(u"byWeight"_s, true);
         o.insert(u"weightUnit"_s, qs(m.weightUnit));
@@ -291,6 +295,8 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     m.printer = ss(o.value(u"printer").toString());
     m.station = ss(o.value(u"station").toString());
     m.byWeight = o.value(u"byWeight").toBool();
+    m.substitute = o.value(u"substitute").toBool();
+    m.substitutePrice = Money::fromCents(centsFromDecimal(o.value(u"substitutePrice").toDouble()));
     m.weightUnit = ss(o.value(u"weightUnit").toString(u"lb"_s));
     m.available = o.value(u"available").toBool(true);
     for (const QJsonValue &g : o.value(u"modifierGroups").toArray())

@@ -138,7 +138,7 @@
       "rect": {
         "x": 16,
         "y": 1926,
-        "w": 250,
+        "w": 196,
         "h": 150
       },
       "shape": "rect",
@@ -155,9 +155,9 @@
       "id": "flow-extra",
       "kind": "button",
       "rect": {
-        "x": 282,
+        "x": 228,
         "y": 1926,
-        "w": 250,
+        "w": 196,
         "h": 150
       },
       "shape": "rect",
@@ -174,9 +174,9 @@
       "id": "flow-lite",
       "kind": "button",
       "rect": {
-        "x": 548,
+        "x": 440,
         "y": 1926,
-        "w": 250,
+        "w": 196,
         "h": 150
       },
       "shape": "rect",
@@ -193,9 +193,9 @@
       "id": "flow-side",
       "kind": "button",
       "rect": {
-        "x": 814,
+        "x": 652,
         "y": 1926,
-        "w": 250,
+        "w": 196,
         "h": 150
       },
       "shape": "rect",
@@ -205,6 +205,25 @@
         {
           "type": "qualifier",
           "qualifier": "side"
+        }
+      ]
+    },
+    {
+      "id": "flow-sub",
+      "kind": "button",
+      "rect": {
+        "x": 864,
+        "y": 1926,
+        "w": 196,
+        "h": 150
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Sub",
+      "actions": [
+        {
+          "type": "qualifier",
+          "qualifier": "sub"
         }
       ]
     },

@@ -46,6 +46,7 @@ std::string toString(Qualifier q)
     case Qualifier::Side: return "side";
     case Qualifier::Only: return "only";
     case Qualifier::Double: return "double";
+    case Qualifier::Sub: return "sub";
     }
     return "";
 }
@@ -58,6 +59,7 @@ Qualifier qualifierFromString(const std::string &s)
     if (s == "side") return Qualifier::Side;
     if (s == "only") return Qualifier::Only;
     if (s == "double") return Qualifier::Double;
+    if (s == "sub") return Qualifier::Sub;
     return Qualifier::None;
 }
 
@@ -71,6 +73,7 @@ std::string qualifierPrefix(Qualifier q)
     case Qualifier::Side: return "Side of ";
     case Qualifier::Only: return "Only ";
     case Qualifier::Double: return "Double ";
+    case Qualifier::Sub: return "SUB ";
     }
     return "";
 }

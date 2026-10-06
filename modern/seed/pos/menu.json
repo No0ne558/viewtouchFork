@@ -227,6 +227,8 @@
       "dressing",
       "salad-protein"
     ],
+    "substitute": true,
+    "substitutePrice": 3.0,
     "station": "cold",
     "recipe": [
       {
@@ -245,6 +247,8 @@
     "modifierGroups": [
       "salad-protein"
     ],
+    "substitute": true,
+    "substitutePrice": 3.5,
     "station": "cold",
     "recipe": [
       {

@@ -203,6 +203,10 @@ On the takeout or delivery customer page (or Check… on any order), **Ready Lat
 - **Customers** (over any dates): each customer's visits, spending, average check, last visit and the item they order most, best customers first. Saved customers by their record; a name on a takeout or delivery counts too.
 - **Deposit** (today): each drawer or server bank, counted (or expected if not yet), less its starting cash, is the cash to deposit; the card batch (payments + tips); and the book balance, sold with tax against collected (cash, cards, gift cards, house accounts), with the drawers' over/short and what's still open.
 
+## Substitutes
+
+Manager → Menu → *Can be a substitute* and its *Substitute price*. Touch **Sub** (in the order bar with No, Extra, Lite, Side), then the item: it goes on the item before it as "SUB House Salad" at the substitute price (+$3.00) instead of being its own $8.50 salad. Its stock and kitchen station count as usual. The demo's House Salad (+$3.00) and Caesar (+$3.50) can be substitutes.
+
 ## Sold by weight
 
 Manager → Menu → *Sold by weight* (and the *Weight unit*: lb, oz or kg) makes the price per pound. Touching the item opens the **Weigh** page: type the weight from the scale (125 = 1.25 lb) and it shows what it comes to; *Add* puts "Smoked Brisket 1.37 lb" on the check at $22.00 × 1.37 = $30.14 (rounded to the cent). Typing the weight before touching the item adds it at once. Recipes are per unit, so stock goes down by the weight. Not shown on the self-order kiosk (no scale there). The demo has *Smoked Brisket* at $22.00/lb on the Burgers page.

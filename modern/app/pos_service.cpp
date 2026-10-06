@@ -781,7 +781,19 @@ bool PosService::addItem(const QString &idOrName)
     const Qualifier q = qualifier_;
     // "Extra" costs what the store says (Store Settings), on top of the price.
     const auto extra = [&](Money price) { return q == Qualifier::Extra ? s_->settings.withExtra(price) : price; };
-    if (item->isModifier) {
+    if (q == Qualifier::Sub && !item->isModifier) {
+        // In place of part of the item before it, at its substitute price.
+        if (!item->substitute)
+            return fail(tr("%1 can't be a substitute (Manager -> Menu).").arg(qs(item->name)));
+        OrderLine *target = c.line(selectedLine_);
+        if (!target || target->sent || target->isComment())
+            target = c.lastItemLine();
+        MenuItem sub = *item;
+        sub.price = item->substitutePrice;
+        if (!target || !c.addModifier(target->id, sub, q))
+            return fail(tr("Order the item it goes with first."));
+        selectedLine_ = target->id;
+    } else if (item->isModifier) {
         OrderLine *target = c.line(selectedLine_);
         if (!target || target->sent || target->isComment())
             target = c.lastItemLine();

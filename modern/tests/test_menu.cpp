@@ -468,3 +468,33 @@ TEST_CASE("Sold by weight: the price per pound times the weight, on the check, t
         onKiosk = onKiosk || v.toMap()[u"id"_s] == u"smoked-brisket"_s;
     CHECK_FALSE(onKiosk);
 }
+
+TEST_CASE("Substitutes: Sub puts an item in place of part of the one before it, at its substitute price",
+          "[menu][substitute]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(u"classic-burger"_s);
+    REQUIRE(pos.chooseOption(u"temperature"_s, 2));
+    REQUIRE(pos.chooseOption(u"side"_s, 4));           // No Side
+    REQUIRE(pos.finishChoosing());
+
+    pos.setQualifier(u"sub"_s);
+    REQUIRE(pos.addItem(u"house-salad"_s));            // + $3.00, not $8.50
+    const core::Check &c = pos.shared()->open.begin()->second;
+    REQUIRE(c.lines.size() == 1);
+    const core::Modifier &m = c.lines[0].modifiers.back();
+    CHECK(m.displayName() == "SUB House Salad");
+    CHECK(m.price() == Money::fromCents(300));
+    CHECK(m.itemId == "house-salad");                  // its stock, its station
+    CHECK(c.lines[0].total() == Money::fromCents(1150 + 300));
+    CHECK(pos.lines()[0].toMap()[u"modifiers"_s].toList().size() == 3);
+
+    // On its own it's a full salad; something not set up as a substitute says so.
+    REQUIRE(pos.addItem(u"house-salad"_s));
+    pos.cancelChoosing();
+    pos.setQualifier(u"sub"_s);
+    CHECK_FALSE(pos.addItem(u"cobb"_s));
+    CHECK(app::menuItemFromJson(app::toJson(*pos.findItem(u"caesar"_s))).substitutePrice == Money::fromCents(350));
+}

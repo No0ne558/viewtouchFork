@@ -58,6 +58,11 @@ struct MenuItem {
     // weightUnit, and ordering it asks for the weight.
     bool byWeight = false;
     std::string weightUnit = "lb";
+    // The original's "Menu Item + Substitute": ordered on its own at `price`,
+    // or with Sub in place of part of another item at substitutePrice
+    // (a house salad instead of fries, + $3.00).
+    bool substitute = false;
+    Money substitutePrice;
 
     Money priceDuring(const std::string &mealPeriod) const
     {
@@ -107,7 +112,9 @@ struct ModifierGroup {
 };
 
 // No / Lite / Extra ... applied to the next item or modifier ordered.
-enum class Qualifier { None, No, Lite, Extra, Side, Only, Double };
+// Sub: the next item replaces part of the one before it, at its
+// substitute price (MenuItem::substitute).
+enum class Qualifier { None, No, Lite, Extra, Side, Only, Double, Sub };
 
 std::string toString(Qualifier q);
 Qualifier qualifierFromString(const std::string &s);   // unknown -> None

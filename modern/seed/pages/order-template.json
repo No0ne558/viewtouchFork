@@ -27,7 +27,7 @@
       "rect": {
         "x": 16,
         "y": 980,
-        "w": 229,
+        "w": 202,
         "h": 84
       },
       "shape": "rect",
@@ -49,9 +49,9 @@
       "id": "flow-no",
       "kind": "button",
       "rect": {
-        "x": 253,
+        "x": 226,
         "y": 980,
-        "w": 229,
+        "w": 202,
         "h": 84
       },
       "shape": "rect",
@@ -68,9 +68,9 @@
       "id": "flow-extra",
       "kind": "button",
       "rect": {
-        "x": 490,
+        "x": 436,
         "y": 980,
-        "w": 229,
+        "w": 202,
         "h": 84
       },
       "shape": "rect",
@@ -87,9 +87,9 @@
       "id": "flow-lite",
       "kind": "button",
       "rect": {
-        "x": 727,
+        "x": 646,
         "y": 980,
-        "w": 229,
+        "w": 202,
         "h": 84
       },
       "shape": "rect",
@@ -106,9 +106,9 @@
       "id": "flow-side",
       "kind": "button",
       "rect": {
-        "x": 964,
+        "x": 856,
         "y": 980,
-        "w": 229,
+        "w": 202,
         "h": 84
       },
       "shape": "rect",
@@ -122,12 +122,31 @@
       ]
     },
     {
+      "id": "flow-sub",
+      "kind": "button",
+      "rect": {
+        "x": 1066,
+        "y": 980,
+        "w": 202,
+        "h": 84
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Sub",
+      "actions": [
+        {
+          "type": "qualifier",
+          "qualifier": "sub"
+        }
+      ]
+    },
+    {
       "id": "flow-void",
       "kind": "button",
       "rect": {
-        "x": 1201,
+        "x": 1276,
         "y": 980,
-        "w": 229,
+        "w": 202,
         "h": 84
       },
       "shape": "rect",
@@ -149,9 +168,9 @@
       "id": "flow-send",
       "kind": "button",
       "rect": {
-        "x": 1438,
+        "x": 1486,
         "y": 980,
-        "w": 229,
+        "w": 202,
         "h": 84
       },
       "shape": "rect",
@@ -174,9 +193,9 @@
       "id": "flow-pay",
       "kind": "button",
       "rect": {
-        "x": 1675,
+        "x": 1696,
         "y": 980,
-        "w": 229,
+        "w": 202,
         "h": 84
       },
       "shape": "rect",
