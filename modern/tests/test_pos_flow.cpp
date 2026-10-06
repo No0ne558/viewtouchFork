@@ -722,6 +722,40 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: the store's own font: added once, in every font list, on buttons", "[flow][ui][fonts]")
+{
+    Screen s;
+    const QString garamond = QStringLiteral(VTM_SEED_DIR) + u"/../../fonts/ebgaramond/EBGaramond-Regular.ttf"_s;
+    REQUIRE(QFile::exists(garamond));
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    CHECK_FALSE(s.c.fontFamilies().contains(u"EB Garamond"_s));   // not on this computer
+    CHECK(s.pos.addImageFile(garamond) == u"store:ebgaramond-regular.ttf"_s);
+    QTest::qWait(50);
+    CHECK(s.c.fontFamilies().contains(u"EB Garamond"_s));          // installed for this screen
+    bool listed = false;
+    for (const QVariant &v : s.pos.storeImages())
+        listed = listed || v.toMap()[u"kind"_s] == u"font"_s;
+    CHECK(listed);
+
+    // On a button, from the editor's font list.
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    e->selectOnly({u"quick"_s});
+    REQUIRE(e->setField(u"zone"_s, u"style.normal.font"_s, u"EB Garamond"_s));
+    QTest::qWait(150);
+    QQuickItem *choice = Screen::findBy(s.window->contentItem(), "objectName", u"fontChoice"_s);
+    REQUIRE(choice);
+    CHECK(choice->property("currentText").toString() == u"EB Garamond"_s);
+    CHECK(Screen::findBy(s.window->contentItem(), "objectName", u"fontAdd"_s));
+    REQUIRE(s.c.leaveEditMode(true));
+    QTest::qWait(80);
+    QQuickItem *quick = Screen::findBy(s.window->contentItem(), "zoneId", u"quick"_s);
+    REQUIRE(quick);
+    CHECK(quick->property("st").toMap()[u"font"_s] == u"EB Garamond"_s);
+    s.shot("43-store-font");
+}
+
 TEST_CASE("UI: the menu laid out by itself: families, items, new items with no editing", "[flow][ui][menugrid]")
 {
     Screen s;

@@ -457,6 +457,7 @@ The store keeps its own pictures (a logo, photos for buttons, backgrounds) in it
 - **Store Settings → Store logo** shows on the login page (its *logo* zone stays hidden until a logo is set; the title shows `{store.name}`), on the screen saver, the customer display and the kiosk.
 - **Print the logo on receipts** puts it at the top of every receipt on ESC/POS printers: scaled to three quarters of the paper (and about 2.5 cm tall at most), transparent parts white, gray dithered to dots, sent as `GS v 0` raster bands. Plain-text printers skip it.
 - **Image buttons:** *+ Image* in the editor, then its Picture and *When touched*. Any regular button can have a picture too.
+- **Fonts:** every font list (a button's, a page's, the theme's) has **Add Font…**: a TTF or OTF file joins the store's pictures and fonts, and every screen installs it, so it shows up in all the font lists there.
 - **Backgrounds:** Page (or Theme) → Background → *Picture*, and *Picture fits*: fill the page, the whole picture, stretched, tiled or centered.
 
 ## Editing pages

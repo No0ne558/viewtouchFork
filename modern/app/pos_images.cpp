@@ -21,11 +21,18 @@ namespace vt::app {
 namespace {
 constexpr qint64 kMaxImageBytes = 8 * 1024 * 1024;
 const QStringList kImageTypes = {u"png"_s, u"jpg"_s, u"jpeg"_s, u"webp"_s, u"gif"_s, u"svg"_s, u"bmp"_s};
+const QStringList kFontTypes = {u"ttf"_s, u"otf"_s};
+
+bool isFont(const QString &name)
+{
+    return kFontTypes.contains(QFileInfo(name).suffix().toLower());
+}
 
 // By the first bytes: PNG, JPEG, GIF, WebP, BMP or SVG.
 bool looksLikePicture(const QByteArray &d)
 {
-    return d.startsWith("\x89PNG") || d.startsWith("\xff\xd8") || d.startsWith("GIF8") || d.startsWith("BM")
+    return d.startsWith(QByteArray("\x00\x01\x00\x00", 4)) || d.startsWith("OTTO") || d.startsWith("true")   // fonts
+           || d.startsWith("\x89PNG") || d.startsWith("\xff\xd8") || d.startsWith("GIF8") || d.startsWith("BM")
            || (d.startsWith("RIFF") && d.mid(8, 4) == "WEBP")
            || d.left(512).contains("<svg");
 }
@@ -76,6 +83,7 @@ QVariantList PosService::storeImages() const
     QVariantList out;
     for (const auto &[name, data] : s_->images)
         out.append(QVariantMap{{u"name"_s, qs(name)}, {u"ref"_s, u"store:"_s + qs(name)},
+                               {u"kind"_s, isFont(qs(name)) ? u"font"_s : u"picture"_s},
                                {u"hash"_s, contentHash(data)}, {u"bytes"_s, qint64(data.size())},
                                {u"url"_s, imageUrl(u"store:"_s + qs(name))}});
     return out;
@@ -87,7 +95,7 @@ bool PosService::addStoreImage(const QString &fileName, const QString &base64)
         return false;
     const QString ref = storeImageRef(fileName);
     if (ref.isEmpty())
-        return fail(tr("Pictures can be PNG, JPEG, WebP, GIF, BMP or SVG files."));
+        return fail(tr("Pictures can be PNG, JPEG, WebP, GIF, BMP or SVG files; fonts TTF or OTF."));
     const QString name = ref.mid(6);
     const QString suffix = QFileInfo(name).suffix();
     const QByteArray data = QByteArray::fromBase64(base64.toLatin1());
@@ -96,7 +104,8 @@ bool PosService::addStoreImage(const QString &fileName, const QString &base64)
     if (data.size() > kMaxImageBytes)
         return fail(tr("That picture is too big (8 MB at most)."));
     if (!looksLikePicture(data))
-        return fail(tr("That file isn't a picture this program can show."));
+        return fail(isFont(name) ? tr("That file isn't a font this program can use.")
+                                 : tr("That file isn't a picture this program can show."));
     const bool replaced = s_->images.contains(ss(name));
     s_->images[ss(name)] = data;
     if (s_->sink)
@@ -127,7 +136,7 @@ QString PosSession::storeImageRef(const QString &fileName)
     // A plain name: "Logo Final.PNG" -> "store:logo-final.png".
     const QFileInfo info(fileName);
     const QString suffix = info.suffix().toLower();
-    if (!kImageTypes.contains(suffix))
+    if (!kImageTypes.contains(suffix) && !kFontTypes.contains(suffix))
         return {};
     static const QRegularExpression unsafe(u"[^a-z0-9]+"_s);
     QString base = info.completeBaseName().toLower();
@@ -154,7 +163,7 @@ QString PosSession::addImageFile(const QString &fileOrUrl)
     }
     const QString ref = storeImageRef(QFileInfo(path).fileName());
     if (ref.isEmpty()) {
-        emit notice(tr("Pictures can be PNG, JPEG, WebP, GIF, BMP or SVG files."));
+        emit notice(tr("Pictures can be PNG, JPEG, WebP, GIF, BMP or SVG files; fonts TTF or OTF."));
         return {};
     }
     invoke(u"addStoreImage"_s, {QFileInfo(path).fileName(), QString::fromLatin1(f.readAll().toBase64())});

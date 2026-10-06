@@ -10,6 +10,7 @@
 #include <QPointer>
 #include <QSize>
 #include <QTime>
+#include <QSet>
 #include <QTimer>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -53,6 +54,8 @@ class LayoutController : public QObject {
     Q_PROPERTY(QString mealPeriod READ mealPeriod NOTIFY mealPeriodChanged)
     // The theme's status colors (theme "status": tableMine, kitchenLate...).
     Q_PROPERTY(QVariantMap statusColors READ statusColors NOTIFY statusColorsChanged)
+    // Font families this screen can use: its own and the store's (installed here).
+    Q_PROPERTY(QStringList fontFamilies READ fontFamilies NOTIFY fontsChanged)
 
 public:
     // Persists a layout; false (with a message) when it could not.
@@ -108,6 +111,9 @@ public:
     QString formFactor() const { return formFactor_; }
     QString mealPeriod() const { return nav_.mealPeriod(); }
     QVariantMap statusColors() const { return statusColors_; }
+    QStringList fontFamilies() const;
+    // The store's fonts that came in, installed for this screen.
+    void installStoreFonts();
     // A zone's "showWhen" rules hold now (login, check, check type, meal period, screen).
     bool ruleShows(const QJsonObject &rule) const;
     // Force "phone" or "standard" (command line); empty: the terminal's
@@ -170,6 +176,7 @@ signals:
     void asleepChanged();
     void mealPeriodChanged();
     void statusColorsChanged();
+    void fontsChanged();
     // A command for the widgets on the page (kitchenStation, kitchenAllDay...).
     void widgetCommand(const QString &name, const QVariantMap &args);
     void editorChanged();
@@ -226,6 +233,7 @@ private:
     QTimer sleepTimer_;
     QVariantMap statusColors_;
     QVariantMap widgetState_;
+    QSet<QString> installedFonts_;   // by content hash
     bool asleep_ = false;
     int sleepOverrideMs_ = 0;
     void restartSleep();

@@ -1,5 +1,9 @@
 #include "layoutcontroller.hh"
 
+#include <QFile>
+#include <QFontDatabase>
+#include <QUrl>
+
 #include <QCoreApplication>
 #include <QEvent>
 
@@ -221,6 +225,7 @@ void LayoutController::setPos(PosSession *pos)
         connect(pos_, &PosSession::checkClosed, this, [this] { navigate(Navigator::Mode::Home); });
         connect(pos_, &PosSession::qualifierChanged, this, &LayoutController::refresh);
         connect(pos_, &PosSession::adminChanged, this, [this] {
+            installStoreFonts();   // before pages and font lists look for them
             updateMealPeriod();
             updateFormFactor();
             if (!asleep_)
@@ -243,6 +248,7 @@ void LayoutController::setPos(PosSession *pos)
     updateFormFactor();
     emit posChanged();
     refresh();
+    installStoreFonts();
     restartSleep();
 }
 
@@ -691,6 +697,37 @@ void LayoutController::ensureCurrentPageExists()
 }
 
 // --- actions ---------------------------------------------------------------------
+
+QStringList LayoutController::fontFamilies() const
+{
+    return QFontDatabase::families();
+}
+
+void LayoutController::installStoreFonts()
+{
+    if (!pos_)
+        return;
+    bool added = false;
+    for (const QVariant &v : pos_->storeImages()) {
+        const QVariantMap f = v.toMap();
+        const QString hash = f.value(u"hash"_s).toString();
+        if (f.value(u"kind"_s).toString() != u"font" || installedFonts_.contains(hash))
+            continue;
+        // Its file here (a paired screen gets it from the store first).
+        const QString url = pos_->imageUrl(f.value(u"ref"_s).toString());
+        if (url.isEmpty())
+            continue;
+        QFile file(QUrl(url).toLocalFile());
+        if (!file.open(QIODevice::ReadOnly))
+            continue;
+        if (QFontDatabase::addApplicationFontFromData(file.readAll()) >= 0) {
+            installedFonts_.insert(hash);
+            added = true;
+        }
+    }
+    if (added)
+        emit fontsChanged();
+}
 
 void LayoutController::orderItem(const QString &itemId)
 {

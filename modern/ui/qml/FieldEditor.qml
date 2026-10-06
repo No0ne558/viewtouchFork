@@ -101,7 +101,7 @@ ColumnLayout {
         id: imagePicker
         RowLayout {
             spacing: 6
-            readonly property var library: fe.pos ? fe.pos.storeImages : []
+            readonly property var library: fe.pos ? fe.pos.storeImages.filter(p => p.kind !== "font") : []
             readonly property string current: fe.mixed || !fe.isSet || fe.value == null ? "" : String(fe.value)
             readonly property var opts: {
                 const o = [{ ref: "", name: fe.inheritable && !fe.isSet ? qsTr("(inherit)") : qsTr("(none)") },
@@ -288,14 +288,35 @@ ColumnLayout {
         }
     }
 
+    // A font: this screen's and the store's (Add Font… brings one in for every screen).
     Component {
         id: fontCombo
-        ComboBox {
-            readonly property var opts: [qsTr("(inherit)")].concat(Qt.fontFamilies())
-            model: opts
-            currentIndex: fe.mixed ? -1 : (!fe.isSet ? 0 : Math.max(0, opts.indexOf(fe.value)))
-            displayText: fe.mixed ? qsTr("(mixed)") : (!fe.isSet && fe.resolved ? fe.resolved + qsTr(" (inherited)") : currentText)
-            onActivated: index => index === 0 ? fe.reset() : fe.commit(opts[index])
+        RowLayout {
+            spacing: 6
+            ComboBox {
+                objectName: "fontChoice"
+                Layout.fillWidth: true
+                // Again when the store's fonts change.
+                readonly property var opts: [qsTr("(inherit)")].concat(fe.pos ? (fe.pos.imageRevision, Qt.fontFamilies())
+                                                                              : Qt.fontFamilies())
+                model: opts
+                currentIndex: fe.mixed ? -1 : (!fe.isSet ? 0 : Math.max(0, opts.indexOf(fe.value)))
+                displayText: fe.mixed ? qsTr("(mixed)") : (!fe.isSet && fe.resolved ? fe.resolved + qsTr(" (inherited)") : currentText)
+                onActivated: index => index === 0 ? fe.reset() : fe.commit(opts[index])
+                font.family: currentIndex > 0 ? currentText : Qt.application.font.family   // what it looks like
+            }
+            Button {
+                objectName: "fontAdd"
+                visible: !!fe.pos
+                text: qsTr("Add Font…")
+                onClicked: fontFile.open()
+            }
+            FileDialog {
+                id: fontFile
+                title: qsTr("A font for the store")
+                nameFilters: [qsTr("Fonts (*.ttf *.otf)")]
+                onAccepted: fe.pos.addImageFile(selectedFile.toString())
+            }
         }
     }
 
