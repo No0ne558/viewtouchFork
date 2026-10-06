@@ -279,6 +279,13 @@ write("pos/settings.json", {
     "terminals": [],
     # Servers carry their own bank; terminals need no drawer of their own.
     "cashMode": "serverBank",
+    # A small chart of accounts for Reports -> Accounting (and its CSV).
+    "accounts": {"sales": "4000 Food sales", "sales:drinks": "4100 Beverage sales", "sales:events": "4300 Event sales",
+                 "tax": "2200 Sales tax payable", "gratuity": "2310 Gratuity payable", "tips": "2300 Tips payable",
+                 "discounts": "4900 Discounts and comps", "staffMeals": "6150 Staff meals",
+                 "rounding": "4950 Cash rounding", "giftCardsSold": "2400 Gift card liability",
+                 "tender:cash": "1000 Cash on hand", "tender:credit": "1100 Card clearing",
+                 "tender:gift": "2400 Gift card liability", "tender:house": "1200 House accounts receivable"},
     "stations": [{"id": "grill", "name": "Grill"}, {"id": "fryer", "name": "Fryer"},
                  {"id": "cold", "name": "Cold Line"}],
     "modifierGroups": link_items([

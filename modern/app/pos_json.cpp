@@ -688,6 +688,13 @@ QJsonObject toJson(const PosSettings &s)
         {u"screenSaverMinutes"_s, s.screenSaverMinutes},
         {u"replicaKey"_s, qs(s.replicaKey)}, {u"language"_s, qs(s.language)},
         {u"extraPercent"_s, s.extraPercent}, {u"extraCharge"_s, decimalFromCents(s.extraCharge.cents())},
+        {u"royaltyBp"_s, qint64(s.royaltyBp)}, {u"adFundBp"_s, qint64(s.adFundBp)},
+        {u"accounts"_s, [&] {
+             QJsonObject a;
+             for (const auto &[k, v] : s.accounts)
+                 a.insert(qs(k), qs(v));
+             return a;
+         }()},
         {u"expenseCategories"_s, [&] {
              QJsonArray a;
              for (const std::string &c : s.expenseCategories)
@@ -806,6 +813,13 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.language = ss(o.value(u"language").toString(u"en"_s));
     s.extraPercent = std::clamp(o.value(u"extraPercent").toInt(0), 0, 500);
     s.extraCharge = Money::fromCents(centsFromDecimal(o.value(u"extraCharge").toDouble()));
+    s.royaltyBp = std::clamp<std::int64_t>(o.value(u"royaltyBp").toInteger(0), 0, 10000);
+    s.adFundBp = std::clamp<std::int64_t>(o.value(u"adFundBp").toInteger(0), 0, 10000);
+    {
+        const QJsonObject a = o.value(u"accounts").toObject();
+        for (auto it = a.begin(); it != a.end(); ++it)
+            s.accounts[ss(it.key())] = ss(it.value().toString());
+    }
     if (o.contains(u"expenseCategories")) {
         s.expenseCategories.clear();
         for (const QJsonValue &v : o.value(u"expenseCategories").toArray())

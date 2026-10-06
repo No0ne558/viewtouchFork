@@ -1150,7 +1150,7 @@ Report customersReport(const std::vector<Check> &closed, const ReportContext &ct
     r.id = "customers";
     r.title = "Customers";
     r.subtitle = ctx.period;
-    r.columns = {"Customer", "Visits", "Spent", "Average", "Last visit", "Orders most"};
+    r.columns = {"Customer · orders most", "Visits", "Spent", "Average", "Last visit"};
     struct Tally {
         std::string name;
         std::int64_t visits = 0, last = 0;
@@ -1191,14 +1191,144 @@ Report customersReport(const std::vector<Check> &closed, const ReportContext &ct
                 most = n;
                 favorite = item;
             }
-        r.line({t->name, count(t->visits), ctx.money(t->spent),
+        r.line({favorite.empty() ? t->name : t->name + "  ·  " + favorite, count(t->visits), ctx.money(t->spent),
                 ctx.money(t->spent.scaled(1, std::max<std::int64_t>(1, t->visits))),
-                ctx.date ? ctx.date(t->last) : ctx.clock(t->last), favorite});
+                ctx.date ? ctx.date(t->last) : ctx.clock(t->last)});
         visits += t->visits;
         spent += t->spent;
     }
     r.total({count(std::int64_t(rows.size())) + " customers", count(visits), ctx.money(spent),
-             ctx.money(spent.scaled(1, std::max<std::int64_t>(1, visits))), "", ""});
+             ctx.money(spent.scaled(1, std::max<std::int64_t>(1, visits))), ""});
+    return r;
+}
+
+Report royaltyReport(const std::vector<Check> &closed, const ReportContext &ctx)
+{
+    Report r;
+    r.id = "royalty";
+    r.title = "Royalty";
+    r.subtitle = ctx.period;
+    r.columns = {"", "Amount"};
+    Money gross, discounts, net;
+    std::int64_t checks = 0;
+    for (const Check &c : closed) {
+        if (c.training)
+            continue;
+        const Totals t = c.totals(ctx.settings.tax);
+        gross += t.items;
+        discounts += t.discounts;
+        net += t.subtotal;
+        ++checks;
+        for (const OrderLine &l : c.lines)   // gift cards sold aren't sales yet
+            if (l.isGiftCard() && !l.voided)
+                net -= l.total();
+    }
+    const auto pct = [](std::int64_t bp) {
+        return std::to_string(bp / 100) + (bp % 100 ? "." + std::to_string(100 + bp % 100).substr(1) : "") + "%";
+    };
+    r.section("Sales");
+    r.line({"Checks", count(checks)});
+    r.line({"Item sales", ctx.money(gross)});
+    r.line({"Discounts & comps", ctx.money(-discounts)});
+    r.total({"Net sales (no tax, no gift cards sold)", ctx.money(net)});
+    r.section("Owed to the franchise");
+    const Money royalty = net.percent(ctx.settings.royaltyBp), adFund = net.percent(ctx.settings.adFundBp);
+    r.line({"Royalty (" + pct(ctx.settings.royaltyBp) + ")", ctx.money(royalty)});
+    r.line({"Advertising fund (" + pct(ctx.settings.adFundBp) + ")", ctx.money(adFund)});
+    r.total({"Total", ctx.money(royalty + adFund)});
+    if (ctx.settings.royaltyBp == 0 && ctx.settings.adFundBp == 0)
+        r.note("Set the percents in Manager -> Store Settings -> Royalty.");
+    return r;
+}
+
+Report accountingReport(const std::vector<Check> &closed, const std::map<std::string, std::string> &familyOf,
+                        const ReportContext &ctx)
+{
+    Report r;
+    r.id = "accounting";
+    r.title = "Accounting";
+    r.subtitle = ctx.period;
+    r.columns = {"Account", "Debit", "Credit"};
+    std::map<std::string, Money> debit, credit;   // by key
+    std::map<std::string, std::string> tenderNames;
+    for (const Check &c : closed) {
+        if (c.training)
+            continue;
+        const Totals t = c.totals(ctx.settings.tax);
+        for (const OrderLine &l : c.lines) {
+            if (l.voided || l.isComment())
+                continue;
+            if (l.isGiftCard()) {
+                credit["giftCardsSold"] += l.total();
+                continue;
+            }
+            const auto f = familyOf.find(l.itemId);
+            credit["sales:" + (f == familyOf.end() || f->second.empty() ? std::string("other") : f->second)] += l.total();
+        }
+        for (const auto &[cls, amount] : t.taxByClass)
+            credit["tax:" + toString(cls)] += amount;
+        credit["gratuity"] += t.gratuity;
+        credit["tips"] += t.tips;
+        credit["rounding"] += t.rounding;
+        debit["discounts"] += t.discounts - t.staffMeals;
+        debit["staffMeals"] += t.staffMeals;
+        bool cashBooked = false;
+        for (const Payment &p : c.payments) {
+            tenderNames[p.tenderId] = p.tenderName;
+            const std::string key = "tender:" + p.tenderId;
+            switch (p.kind) {
+            case TenderKind::Cash:
+                if (!cashBooked)   // cash kept: tendered less change, once a check
+                    debit[key] += t.cashNet();
+                cashBooked = true;
+                break;
+            case TenderKind::Card: debit[key] += p.amount + p.tip; break;
+            case TenderKind::GiftCard:
+            case TenderKind::HouseAccount: debit[key] += p.amount; break;
+            case TenderKind::Discount: break;
+            }
+        }
+    }
+    // The store's account for a key, else the general one ("sales" for
+    // "sales:burgers"), else the key itself.
+    const auto account = [&](const std::string &key) {
+        const auto &chart = ctx.settings.accounts;
+        if (const auto it = chart.find(key); it != chart.end())
+            return it->second;
+        if (const auto colon = key.find(':'); colon != std::string::npos)
+            if (const auto it = chart.find(key.substr(0, colon)); it != chart.end())
+                return it->second + " (" + key.substr(colon + 1) + ")";
+        if (key.starts_with("tender:") && tenderNames.contains(key.substr(7)))
+            return tenderNames.at(key.substr(7));
+        return key;
+    };
+    // Accounts that share a number (sales:burgers and sales:salads both
+    // "4000 Food sales") add up on one line.
+    std::map<std::string, std::pair<Money, Money>> lines;
+    for (const auto &[k, m] : debit)
+        if (m.cents() != 0)
+            lines[account(k)].first += m;
+    for (const auto &[k, m] : credit)
+        if (m.cents() != 0)
+            lines[account(k)].second += m;
+    if (lines.empty()) {
+        r.note("No sales in this period.");
+        return r;
+    }
+    Money debits, credits;
+    r.section("Journal");
+    for (const auto &[name, dc] : lines) {
+        // A negative amount goes on the other side (rounding given back).
+        Money d = dc.first, c = dc.second;
+        if (d.cents() < 0) { c -= d; d = Money(); }
+        if (c.cents() < 0) { d -= c; c = Money(); }
+        r.line({name, d.cents() ? ctx.money(d) : "", c.cents() ? ctx.money(c) : ""});
+        debits += d;
+        credits += c;
+    }
+    r.total({"Total", ctx.money(debits), ctx.money(credits)});
+    if (debits != credits)
+        r.note("Off by " + ctx.money(debits - credits) + ": a check may have been closed with a balance.");
     return r;
 }
 

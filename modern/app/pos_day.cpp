@@ -42,7 +42,8 @@ QVariantMap toVariant(const Report &r)
 
 const QStringList kReportIds = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s, u"tips"_s,
                                 u"labor"_s, u"drawer"_s, u"expenses"_s, u"purchases"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s,
-                                u"exceptions"_s, u"deposit"_s, u"customers"_s};
+                                u"exceptions"_s, u"deposit"_s, u"customers"_s,
+                                u"royalty"_s, u"accounting"_s};
 
 } // namespace
 
@@ -834,6 +835,8 @@ Report PosService::buildReport(const QString &id) const
         return tableTurns(s_->closedToday, ctx);
     if (id == u"customers")
         return customersReport(s_->closedToday, ctx);
+    if (id == u"royalty" || id == u"accounting")
+        return rangeCapableReport(id, s_->closedToday, ctx);
     if (id == u"kitchen") {
         std::vector<const Check *> checks;
         for (const Check &c : s_->closedToday)
@@ -868,7 +871,8 @@ Report PosService::buildReport(const QString &id) const
 
 namespace {
 const QStringList kRangeReports = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s,
-                                   u"kitchen"_s, u"audit"_s, u"foodcost"_s, u"turns"_s, u"exceptions"_s, u"customers"_s};
+                                   u"kitchen"_s, u"audit"_s, u"foodcost"_s, u"turns"_s, u"exceptions"_s, u"customers"_s,
+                                   u"royalty"_s, u"accounting"_s};
 } // namespace
 
 Report PosService::rangeCapableReport(const QString &id, const std::vector<Check> &closed, const ReportContext &ctx) const
@@ -896,6 +900,14 @@ Report PosService::rangeCapableReport(const QString &id, const std::vector<Check
         return tableTurns(closed, ctx);
     if (id == u"customers")
         return customersReport(closed, ctx);
+    if (id == u"royalty")
+        return royaltyReport(closed, ctx);
+    if (id == u"accounting") {
+        std::map<std::string, std::string> familyOf;
+        for (const MenuItem &m : s_->menu)
+            familyOf[m.id] = m.family;
+        return accountingReport(closed, familyOf, ctx);
+    }
     return salesSummary(closed, ctx);
 }
 

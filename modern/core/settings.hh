@@ -161,6 +161,13 @@ struct PosSettings {
     Money withExtra(Money price) const { return price + price.percent(std::int64_t(extraPercent) * 100) + extraCharge; }
     std::vector<Vendor> vendors;
     // What cash paid out of a drawer is for, for the Expenses report.
+    // Franchise fees on net sales (basis points: 500 = 5%), for the Royalty report.
+    std::int64_t royaltyBp = 0;
+    std::int64_t adFundBp = 0;
+    // Chart of accounts for the Accounting report's journal: key -> "4010 Food sales".
+    // Keys: sales, sales:<family>, tax, tax:<class>, gratuity, tips, discounts,
+    // staffMeals, rounding, giftCardsSold, tender:<tender id>.
+    std::map<std::string, std::string> accounts;
     std::vector<std::string> expenseCategories{"Food & supplies", "Produce", "Ice", "Cleaning", "Repairs", "Other"};
     // Self-order kiosk: send orders to the kitchen as soon as the guest
     // finishes (else when they are paid for at the counter), and how long an

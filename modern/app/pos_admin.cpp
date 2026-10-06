@@ -350,6 +350,13 @@ QVariantList PosService::adminFields(const QString &panel)
                   tr("Texts are POSTed here as JSON {\"to\", \"message\"} (your SMS provider or a relay). Empty: no texts; the host tells the guest.")),
             field(u"backupCopyDir"_s, tr("Also copy backups to"), u"text"_s,
                   tr("A USB drive or network folder on the server, e.g. /media/usb/viewtouch. Empty = no second copy.")),
+            field(u"royaltyPercent"_s, tr("Royalty (% of net sales)"), u"string"_s,
+                  tr("A franchise's fee, e.g. 5 or 4.5. Reports -> Royalty works it out. Empty or 0: none.")),
+            field(u"adFundPercent"_s, tr("Advertising fund (% of net sales)"), u"string"_s, tr("e.g. 2. Empty or 0: none.")),
+            field(u"chartOfAccounts"_s, tr("Chart of accounts"), u"text"_s,
+                  tr("For Reports -> Accounting (its CSV goes to QuickBooks or your accountant). One per line, "
+                     "like \"sales:burgers = 4010 Burger sales\". Keys: sales, sales:<family>, tax, tax:<food|alcohol...>, "
+                     "gratuity, tips, discounts, staffMeals, rounding, giftCardsSold, tender:<payment type id>.")),
             with(with(field(u"extraPercent"_s, tr("Extra: percent added"), u"int"_s,
                             tr("What \"Extra\" adds to an item's or a choice's price: 50 = half again. 0 = nothing.")),
                       u"min"_s, 0), u"max"_s, 500),
@@ -520,6 +527,14 @@ QVariantList PosService::adminRecords(const QString &panel)
                   return lines.join(u'\n');
               }()},
              {u"extraPercent"_s, s_->settings.extraPercent},
+             {u"royaltyPercent"_s, s_->settings.royaltyBp ? QString::number(s_->settings.royaltyBp / 100.0) : QString()},
+             {u"adFundPercent"_s, s_->settings.adFundBp ? QString::number(s_->settings.adFundBp / 100.0) : QString()},
+             {u"chartOfAccounts"_s, [&] {
+                  QStringList lines;
+                  for (const auto &[k, v] : s_->settings.accounts)
+                      lines << u"%1 = %2"_s.arg(qs(k), qs(v));
+                  return lines.join(u'\n');
+              }()},
              {u"extraCharge"_s, s_->settings.extraCharge.cents() / 100.0},
              {u"kioskSendNow"_s, s_->settings.kioskSendNow}, {u"kioskIdleSeconds"_s, s_->settings.kioskIdleSeconds},
              {u"kioskWelcome"_s, qs(s_->settings.kioskLook.welcome)}, {u"kioskAskWhere"_s, s_->settings.kioskLook.askWhere},
@@ -901,6 +916,27 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
                 if (!line.trimmed().isEmpty())
                     categories.push_back(ss(line.trimmed()));
             s_->settings.expenseCategories = categories;
+        }
+        for (const auto &[key, slot] : {std::pair{u"royaltyPercent"_s, &s_->settings.royaltyBp},
+                                        {u"adFundPercent"_s, &s_->settings.adFundBp}}) {
+            if (!record.contains(key))
+                continue;
+            const QString v = record.value(key).toString().trimmed().remove(u'%');
+            bool ok = true;
+            const double pct = v.isEmpty() ? 0 : v.toDouble(&ok);
+            if (!ok || pct < 0 || pct > 100)
+                return fail(tr("Write percents like 5 or 4.5."));
+            *slot = std::llround(pct * 100);
+        }
+        if (record.contains(u"chartOfAccounts"_s)) {
+            std::map<std::string, std::string> accounts;
+            for (const QString &line : record.value(u"chartOfAccounts"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
+                const qsizetype eq = line.indexOf(u'=');
+                if (eq <= 0)
+                    return fail(tr("Write each account like \"sales:burgers = 4010 Burger sales\"."));
+                accounts[ss(line.left(eq).trimmed().toLower())] = ss(line.mid(eq + 1).trimmed());
+            }
+            s_->settings.accounts = accounts;
         }
         if (record.contains(u"extraPercent"_s))
             s_->settings.extraPercent = std::clamp(record.value(u"extraPercent"_s).toInt(), 0, 500);

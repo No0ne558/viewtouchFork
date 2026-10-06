@@ -119,6 +119,12 @@ Report tableTurns(const std::vector<Check> &closed, const ReportContext &ctx);
 // The original's Customer Detail: each customer's visits, spending, average,
 // last visit and most-ordered item over the period (best customers first).
 Report customersReport(const std::vector<Check> &closed, const ReportContext &ctx);
+// The original's Royalty: the franchise fee and advertising fund on net sales.
+Report royaltyReport(const std::vector<Check> &closed, const ReportContext &ctx);
+// The sales as a balanced journal by account (Chart of Accounts): its CSV
+// goes to QuickBooks or an accountant. `familyOf`: menu item id -> family.
+Report accountingReport(const std::vector<Check> &closed, const std::map<std::string, std::string> &familyOf,
+                        const ReportContext &ctx);
 // `now` with two more columns: the same row's last value in `before`, and
 // the change in percent (rows matched by kind and first cell).
 Report compareReports(const Report &now, const Report &before, const std::string &beforeLabel);

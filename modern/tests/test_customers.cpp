@@ -331,9 +331,8 @@ TEST_CASE("Customer detail report: visits, spending, last visit and favorite, be
         if (x.kind == core::ReportRow::Kind::Line)
             lines.push_back(x.cells);
     REQUIRE(lines.size() == 2);
-    CHECK(lines[0][0] == "Dana Lee");                 // spent the most: first
+    CHECK(lines[0][0] == "Dana Lee  ·  Cobb");        // spent the most: first; what they order most
     CHECK(lines[0][1] == "2");
-    CHECK(lines[0][5] == "Cobb");
-    CHECK(lines[1][0] == "Walk-in Sam");
+    CHECK(lines[1][0].starts_with("Walk-in Sam"));
     CHECK(lines[1][1] == "1");
 }

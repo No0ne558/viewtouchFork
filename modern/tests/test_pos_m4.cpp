@@ -483,3 +483,50 @@ TEST_CASE("Deposit report: cash to the bank, card batch, and the books balance",
     CHECK(rowIn(r, "Book balance", "Drawers short")[1] == "-$1.00");
     CHECK(!rowIn(r, "Cards to settle", "Card batch").empty());
 }
+
+TEST_CASE("Royalty and accounting: fees on net sales; a balanced journal by account", "[m4][reports][accounting]")
+{
+    Pos p;
+    p.login("1234");
+    p.openDrawer("10000");
+    QVariantMap store = p.pos.adminRecords(u"store"_s).first().toMap();
+    store[u"royaltyPercent"_s] = u"5"_s;
+    store[u"adFundPercent"_s] = u"2.5"_s;
+    store[u"chartOfAccounts"_s] = u"sales = 4000 Food sales\ntender:cash = 1000 Cash\ntax:food = 2200 Sales tax\n"
+                                  u"tender:credit = 1100 Card clearing\ntips = 2300 Tips payable\ndiscounts = 4900 Comps"_s;
+    REQUIRE(p.pos.adminSave(u"store"_s, 0, store));
+    CHECK(p.pos.shared()->settings.royaltyBp == 500);
+    CHECK(p.pos.shared()->settings.adFundBp == 250);
+    store[u"chartOfAccounts"_s] = u"no equals sign"_s;
+    CHECK_FALSE(p.pos.adminSave(u"store"_s, 0, store));
+
+    REQUIRE(p.pos.startCheck(core::CheckType::Quick));
+    p.pos.addItem(u"cobb"_s);                          // 12.50, cash
+    p.entry("2000");
+    REQUIRE(p.pos.tender(u"cash"_s));
+    REQUIRE(p.pos.closeCheck());
+    REQUIRE(p.pos.startCheck(core::CheckType::Quick));
+    p.pos.addItem(u"caesar"_s);                        // 9.75, 10% off, card with a tip
+    p.pos.finishChoosing();
+    REQUIRE(p.pos.tender(u"discount"_s));
+    REQUIRE(p.pos.tender(u"credit"_s));
+    p.entry("200");
+    REQUIRE(p.pos.addTip(0));
+    REQUIRE(p.pos.closeCheck());
+
+    const core::Report royalty = p.pos.buildReport(u"royalty"_s);
+    const Money net = Money::fromCents(1250 + 975 - 98);   // 10% of 9.75 = 0.98 (rounded)
+    CHECK(rowIn(royalty, "Sales", "Net sales (no tax, no gift cards sold)")[1] == p.pos.format(net).toStdString());
+    CHECK(rowIn(royalty, "Owed to the franchise", "Royalty (5%)")[1] == p.pos.format(net.percent(500)).toStdString());
+    CHECK(rowIn(royalty, "Owed to the franchise", "Advertising fund (2.50%)")[1]
+          == p.pos.format(net.percent(250)).toStdString());
+
+    const core::Report journal = p.pos.buildReport(u"accounting"_s);
+    const auto total = rowIn(journal, "Journal", "Total");
+    REQUIRE(total.size() == 3);
+    CHECK(total[1] == total[2]);                       // debits = credits
+    CHECK(!rowIn(journal, "Journal", "1000 Cash").empty());
+    CHECK(rowIn(journal, "Journal", "2300 Tips payable")[2] == "$2.00");
+    CHECK(rowIn(journal, "Journal", "4000 Food sales (salads)")[2] == "$22.25");
+    CHECK(!rowIn(journal, "Journal", "4900 Comps").empty());
+}

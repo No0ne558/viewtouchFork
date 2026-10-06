@@ -201,6 +201,8 @@ On the takeout or delivery customer page (or Check… on any order), **Ready Lat
 
 - **Exceptions** (Reports → Exceptions, over any dates): by employee, voids of sent items, discounts and comps, payments and discounts taken back, reopened checks, moved / transferred / merged checks, and (today) drawers opened with no sale; then the ten biggest. Each check event now carries its amount.
 - **Customers** (over any dates): each customer's visits, spending, average check, last visit and the item they order most, best customers first. Saved customers by their record; a name on a takeout or delivery counts too.
+- **Royalty** (any dates): net sales (no tax, no gift cards sold) times Store Settings → *Royalty* and *Advertising fund* percents.
+- **Accounting** (any dates): a balanced journal. Debits: each payment type (cash kept, card payments with tips, gift cards, house accounts), discounts, staff meals. Credits: sales by family, tax by class, gratuity, tips payable, gift cards sold, cash rounding. Store Settings → *Chart of accounts* maps the keys (`sales`, `sales:<family>`, `tax`, `tax:<class>`, `gratuity`, `tips`, `discounts`, `staffMeals`, `rounding`, `giftCardsSold`, `tender:<id>`) to account numbers; accounts with the same number add up. The CSV button is the export for QuickBooks or an accountant. The demo has a small chart.
 - **Deposit** (today): each drawer or server bank, counted (or expected if not yet), less its starting cash, is the cash to deposit; the card batch (payments + tips); and the book balance, sold with tax against collected (cash, cards, gift cards, house accounts), with the drawers' over/short and what's still open.
 
 ## Event tickets
