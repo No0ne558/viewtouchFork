@@ -464,6 +464,10 @@ Edit mode → **Theme** tab → **Looks**: ViewTouch Dark, Daylight, High Contra
 
 Manager → Printers → a printer → **Test Print** (and **Test Print + Open Drawer** when a drawer is wired to it) sends a test page with the current saved settings: the store logo (ESC/POS), normal, bold, big and right-aligned text, a receipt-style item and total, a ruler of digits that should exactly fill one line (so *Characters per line* is right), accented letters, then the cut. "Receipt took the test page" appears when the printer accepted it; otherwise the usual "did not print" message says why.
 
+## Hold a button to see what it does
+
+Holding any button (0.7 s) shows a card with its name and what it does, in plain words, instead of doing it: "Adds Classic Burger ($11.50) to the check", "Sends the new items to the kitchen and bar", "Opens the Settle screen". Built from the button's actions (`LayoutController::explain`, `describeAction`), so custom buttons explain themselves too. A touch on the card, or any button, closes it.
+
 ## Popular today
 
 Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose buttons are today's best sellers, most sold first (closed and open checks, not practice), up to 24. It fills in as the day goes; no editing. It's a menuGrid panel with *Today's best sellers* on (`PosSession::popularItems`).

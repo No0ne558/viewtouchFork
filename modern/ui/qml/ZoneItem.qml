@@ -100,6 +100,7 @@ Item {
     property var previewRect: null
 
     signal activated()
+    signal explainRequested()   // held: what it does, instead of doing it
     signal selectRequested()
 
     readonly property bool isWidget: !["button", "label", "image", "comment"].includes(kind)
@@ -314,6 +315,8 @@ Item {
     TapHandler {
         id: tap
         enabled: zone.interactive && !zone.editing
+        longPressThreshold: 0.7
+        onLongPressed: zone.explainRequested()
         onTapped: {
             switch (zone.behavior) {
             case "toggle":

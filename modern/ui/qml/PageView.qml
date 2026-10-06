@@ -69,6 +69,7 @@ Item {
                 previewRect: editLayer.resizeId === zoneId ? editLayer.previewRect : null
                 onSelectRequested: view.selectedZoneId = zoneId
                 onActivated: view.controller.activate(zoneId)
+                onExplainRequested: view.controller.explain(zoneId)
             }
         }
 

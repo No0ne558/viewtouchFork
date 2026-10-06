@@ -13,6 +13,7 @@
 #include "core/employee.hh"
 #include "core/settings.hh"
 #include "layout/reflow.hh"
+#include "layout/schema.hh"
 #include "reportexport.hh"
 #include "storage/layout_store.hh"
 
@@ -554,6 +555,7 @@ void LayoutController::activate(const QString &zoneId)
 {
     if (editing())
         return;   // the editor overlay owns touches
+    clearExplanation();
     if (busy())
         return;   // still waiting for the server on the previous touch
     for (const Layout::PlacedZone &pz : shown().zones) {
@@ -1141,6 +1143,109 @@ void LayoutController::refresh()
         statusColors_ = colors;
         emit statusColorsChanged();
     }
+}
+
+QString LayoutController::describeAction(const Action &a) const
+{
+    const QString type = a.type();
+    if (type == u"addItem") {
+        const QString id = a.str(u"item");
+        if (pos_)
+            for (const QVariant &v : pos_->menuItems()) {
+                const QVariantMap m = v.toMap();
+                if (m.value(u"id"_s).toString() == id || m.value(u"name"_s).toString().compare(id, Qt::CaseInsensitive) == 0)
+                    return tr("Adds %1 (%2) to the check.").arg(m.value(u"name"_s).toString(), m.value(u"price"_s).toString());
+            }
+        return tr("Adds %1 to the check.").arg(id);
+    }
+    if (type == u"qualifier") {
+        const QString q = a.str(u"qualifier");
+        if (q == u"no") return tr("The next choice you touch is left off (NO onions).");
+        if (q == u"extra") return tr("The next choice you touch is extra (EXTRA cheese), and may cost more.");
+        if (q == u"lite") return tr("The next choice you touch is light (LITE ice).");
+        if (q == u"side") return tr("The next choice you touch comes on the side.");
+        if (q == u"sub") return tr("The next item you touch replaces part of the item before it (a substitute).");
+        return tr("Changes the next choice you touch (%1).").arg(q);
+    }
+    if (type == u"tender")
+        return tr("Pays the check with %1 (the amount typed, or all that's due).").arg(a.str(u"tender"));
+    if (type == u"jump") {
+        const QString mode = a.data.value(u"mode").toString(u"push"_s);
+        if (mode == u"back") return tr("Goes back to the screen before.");
+        if (mode == u"home") return tr("Goes to the start screen.");
+        if (mode == u"index") return tr("Goes to the menu.");
+        const QString target = activeLayout().resolveTarget(a.data);
+        const vt::layout::Page *p = activeLayout().page(target);
+        return p ? tr("Opens the %1 screen.").arg(p->name) : tr("Opens another screen.");
+    }
+    if (type == u"command") {
+        static const QHash<QString, const char *> plain{
+            {u"sendOrder"_s, QT_TR_NOOP("Sends the new items to the kitchen and bar.")},
+            {u"voidItem"_s, QT_TR_NOOP("Takes the touched item off the check (after it was sent: a void, which may need a manager).")},
+            {u"printReceipt"_s, QT_TR_NOOP("Prints the check for the guest.")},
+            {u"closeCheck"_s, QT_TR_NOOP("Closes the paid check.")},
+            {u"removePayment"_s, QT_TR_NOOP("Takes off the touched payment.")},
+            {u"noSale"_s, QT_TR_NOOP("Opens the cash drawer without a sale (it's recorded).")},
+            {u"logout"_s, QT_TR_NOOP("Logs you out. Your open check opens again when you log back in.")},
+            {u"clockIn"_s, QT_TR_NOOP("Starts your shift.")},
+            {u"clockOut"_s, QT_TR_NOOP("Ends your shift.")},
+            {u"startQuick"_s, QT_TR_NOOP("Starts a quick check (no table).")},
+            {u"startTakeout"_s, QT_TR_NOOP("Starts a takeout order.")},
+            {u"startDelivery"_s, QT_TR_NOOP("Starts a delivery order.")},
+            {u"releaseCheck"_s, QT_TR_NOOP("Puts the check away (it stays open).")},
+            {u"newTableCheck"_s, QT_TR_NOOP("Opens another check at this table.")},
+            {u"anotherRound"_s, QT_TR_NOOP("Orders the drinks sent last again.")},
+            {u"undoLast"_s, QT_TR_NOOP("Puts back the item just taken off.")},
+            {u"repeatLine"_s, QT_TR_NOOP("Adds one more of the touched item, made the same way.")},
+            {u"addComment"_s, QT_TR_NOOP("Adds a note for the kitchen.")},
+            {u"rush"_s, QT_TR_NOOP("Tells the kitchen to make this check first.")},
+            {u"vip"_s, QT_TR_NOOP("Marks this check VIP for the kitchen.")},
+            {u"fireCourse"_s, QT_TR_NOOP("Tells the kitchen to start the next course.")},
+            {u"toggleBreak"_s, QT_TR_NOOP("Starts or ends your break.")},
+            {u"cashOutTips"_s, QT_TR_NOOP("Pays you the card tips you're owed, from the drawer.")},
+            {u"askForTip"_s, QT_TR_NOOP("Shows tip choices to the guest on the customer screen.")},
+            {u"openTab"_s, QT_TR_NOOP("Opens a bar tab under the name typed.")},
+        };
+        const QString name = a.str(u"name");
+        if (const auto it = plain.constFind(name); it != plain.constEnd())
+            return tr(it.value());
+        // Else the editor's name for it.
+        for (const QJsonValue &t : vt::layout::schema::actionTypes())
+            for (const QJsonValue &f : t.toObject().value(u"fields"_s).toArray())
+                for (const QJsonValue &o : f.toObject().value(u"options"_s).toArray())
+                    if (o.toObject().value(u"value"_s).toString() == name)
+                        return o.toObject().value(u"text"_s).toString() + u'.';
+        return name;
+    }
+    return {};
+}
+
+void LayoutController::explain(const QString &zoneId)
+{
+    if (editing())
+        return;
+    for (const Layout::PlacedZone &pz : shown().zones) {
+        if (pz.zone->id != zoneId)
+            continue;
+        QStringList steps;
+        for (const Action &a : pz.zone->actions)
+            if (const QString d = describeAction(a); !d.isEmpty())
+                steps << d;
+        const QString title = pz.zone->label.isEmpty() ? pz.zone->name : pz.zone->label;
+        explanation_ = {{u"title"_s, QString(title).replace(u'\n', u' ')},
+                        {u"text"_s, steps.isEmpty() ? tr("This button doesn't do anything yet.")
+                                                    : steps.join(u'\n')}};
+        emit explanationChanged();
+        return;
+    }
+}
+
+void LayoutController::clearExplanation()
+{
+    if (explanation_.isEmpty())
+        return;
+    explanation_.clear();
+    emit explanationChanged();
 }
 
 void LayoutController::setStatus(const QString &text)

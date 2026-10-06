@@ -428,6 +428,55 @@ ApplicationWindow {
         Timer { id: toastTimer; interval: 2600; onTriggered: toastBox.opacity = 0 }
     }
 
+    // A held button: what it does (touch to close; gone after a while).
+    Rectangle {
+        id: explainCard
+        objectName: "explainCard"
+        readonly property var info: root.controller.explanation
+        visible: !!info.text
+        z: 50
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 24
+        width: Math.min(root.width - 40, 640)
+        height: explainCol.implicitHeight + 32
+        radius: 14
+        color: "#f0101418"
+        border.color: "#4c8dff"
+        border.width: 2
+        onInfoChanged: if (info.text) explainTimer.restart()
+        Timer { id: explainTimer; interval: 9000; onTriggered: root.controller.clearExplanation() }
+        Column {
+            id: explainCol
+            x: 20; y: 16
+            width: parent.width - 40
+            spacing: 6
+            Text {
+                width: parent.width
+                text: explainCard.info.title ?? ""
+                color: "white"
+                font.pixelSize: 22
+                font.bold: true
+                wrapMode: Text.WordWrap
+            }
+            Text {
+                width: parent.width
+                text: explainCard.info.text ?? ""
+                color: "#d7dde8"
+                font.pixelSize: 18
+                wrapMode: Text.WordWrap
+            }
+            Text {
+                width: parent.width
+                text: qsTr("Hold any button to see what it does. Touch here to close.")
+                color: "#8a94a6"
+                font.pixelSize: 13
+                wrapMode: Text.WordWrap
+            }
+        }
+        MouseArea { anchors.fill: parent; onClicked: root.controller.clearExplanation() }
+    }
+
     Connections {
         target: root.controller
         function onStatusChanged() { root.toast(root.controller.statusText) }

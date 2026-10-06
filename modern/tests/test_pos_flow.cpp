@@ -821,6 +821,39 @@ TEST_CASE("UI: each person's text size, left hand and start screen; a start scre
     CHECK(s.pos.userPrefs().isEmpty());
 }
 
+TEST_CASE("UI: holding a button explains it instead of pressing it", "[flow][ui][explain]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    QTest::qWait(60);
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    QQuickItem *send = Screen::findBy(s.window->contentItem(), "text", u"Send"_s);
+    REQUIRE(send);
+    // Held: nothing sent, the card says what it does.
+    const QPoint at = send->mapToScene(QPointF(send->width() / 2, send->height() / 2)).toPoint();
+    QTest::mousePress(s.window, Qt::LeftButton, {}, at);
+    QTest::qWait(1000);
+    QTest::mouseRelease(s.window, Qt::LeftButton, {}, at);
+    QTest::qWait(60);
+    REQUIRE(find(u"explainCard"_s));
+    CHECK(s.c.explanation().value(u"text"_s).toString().contains(u"kitchen"_s));
+    s.shot("63-explain");
+    CHECK(s.pos.lines().isEmpty());
+
+    // An item button names the item and its price; a page button the page.
+    s.c.explain(u"item-1"_s);
+    CHECK(s.c.explanation().value(u"text"_s).toString().startsWith(u"Adds Classic Burger ($"_s));
+    s.c.explain(u"tab-find"_s);
+    CHECK(s.c.explanation().value(u"text"_s).toString() != QString());
+
+    // A touch closes it.
+    s.tapItem(find(u"explainCard"_s));
+    QTest::qWait(40);
+    CHECK_FALSE(find(u"explainCard"_s));
+}
+
 TEST_CASE("UI: the Popular page fills itself with today's best sellers", "[flow][ui][popular]")
 {
     Screen s;

@@ -41,6 +41,8 @@ class LayoutController : public QObject {
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY pageChanged)
     Q_PROPERTY(ZoneModel *zones READ zones CONSTANT)
     Q_PROPERTY(QString statusText READ statusText NOTIFY statusChanged)
+    // What a held button does: {title, text}; empty when nothing is explained.
+    Q_PROPERTY(QVariantMap explanation READ explanation NOTIFY explanationChanged)
     Q_PROPERTY(bool editing READ editing NOTIFY editingChanged)
     // Screen saver: dimmed after no touches for a while (Store Settings).
     Q_PROPERTY(bool asleep READ asleep NOTIFY asleepChanged)
@@ -158,6 +160,11 @@ public:
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goHome();
     Q_INVOKABLE bool jumpTo(const QString &pageId);
+    // Holding a button: what it does, in plain words, instead of doing it.
+    Q_INVOKABLE void explain(const QString &zoneId);
+    Q_INVOKABLE void clearExplanation();
+    QVariantMap explanation() const { return explanation_; }
+    QString describeAction(const vt::layout::Action &action) const;
     // Pages to start on, for the admin forms: [{value: id, text: name}], empty first.
     Q_INVOKABLE QVariantList pageChoices() const;
     // Switch pages without remembering the current one (editor page list).
@@ -186,6 +193,7 @@ signals:
     // A manager asked to close ViewTouch (the closeApp command).
     void closeRequested();
     void statusChanged();
+    void explanationChanged();
     void editingChanged();
     void asleepChanged();
     void mealPeriodChanged();
@@ -238,6 +246,7 @@ private:
     vt::app::Navigator nav_;
     ZoneModel zones_;
     QString status_;
+    QVariantMap explanation_;
     // While leaving edit mode the editor object outlives `editing_` briefly,
     // so QML panels unload before the editor they bind to goes away.
     QPointer<EditorController> editor_;
