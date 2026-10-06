@@ -460,6 +460,10 @@ The first time a manager logs in to a new store, the **setup guide** opens (Mana
 
 Edit mode → **Theme** tab → **Looks**: ViewTouch Dark, Daylight, High Contrast, Warm Café, Ocean, Forest and Berry, plus two made from the store logo's own colors (dark and light) once a logo is set. One touch recolors the theme (background, buttons, panels, text, the pressed/chosen color, the panels' own buttons); fonts, sizes and each page's own colors stay. It's one Undo step; Save keeps it. Text on any button turns dark or white by itself when its color wouldn't read on the button's fill (WCAG AA contrast).
 
+## How many: − 2 + and Again
+
+The touched line on the check (a new item is the touched one) shows **− 2 +** and **Again**. **+** and **−** change how many (the line reads "3 × Bacon Burger", priced, printed and counted as 3); **−** on the last one takes it off. **Again** adds one more the same way, choices and all, as its own line, so it can be changed on its own. A line already sent can't change: it shows only **Again**, which adds a new line for the next Send (taking one off is still a Void). Weighed items, gift cards and notes have no quantity. Commands for buttons: `lineMore`, `lineLess`, `repeatLine`; the bar is the order list's built-in "quantity" button.
+
 ## Separate checks at one table
 
 On a table's order screen the check panel has a row of the table's checks: **Check 1 · Check 2 · + Check** (just **1 2 3 4 5 6 +** from three on). It stays one line however many there are: what doesn't fit is behind **‹ ›**, the open check is always on the part shown, and **+** stays at the right end. **+** opens another check at the same table, right there; touching a number switches to that check without leaving the page. Each check is its own (its own items, Send, Pay); the header says which one is open ("T5 · Check 3"), and touching the table on the floor plan asks which check. `PosSession::tableChecks`, `newTableCheck` (also a button command), `switchCheck`; the row is the order list's built-in "tableChecks" button, so the editor can hide or rename it.

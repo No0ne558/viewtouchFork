@@ -285,7 +285,7 @@ Item {
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: row.modelData.name
+                            text: (row.modelData.quantity > 1 ? row.modelData.quantity + " × " : "") + row.modelData.name
                             color: row.modelData.voided ? "#8a94a6" : w.ink
                             font.family: w.face
                             font.pixelSize: w.unit
@@ -330,6 +330,51 @@ Item {
                                 font.family: w.face
                                 font.pixelSize: w.unit * 0.8
                             }
+                        }
+                    }
+                    // The touched line: − 2 + to change how many, Again for one
+                    // more the same way (a sent line: only more, as a new line).
+                    Row {
+                        id: qtyBar
+                        visible: row.modelData.selected && row.modelData.countable && w.zone.keyShown("quantity")
+                        Layout.topMargin: w.unit * 0.25
+                        Layout.leftMargin: w.unit * 0.8
+                        spacing: w.unit * 0.25
+                        readonly property real key: w.unit * 1.6
+                        WidgetKey {
+                            objectName: "lineLess"
+                            visible: !row.modelData.sent
+                            width: qtyBar.key * 1.3; height: qtyBar.key
+                            fontScale: 0.6
+                            text: "−"
+                            onClicked: w.pos.lineLess(row.modelData.id)
+                        }
+                        Text {
+                            visible: !row.modelData.sent
+                            width: qtyBar.key * 1.1
+                            height: qtyBar.key
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            text: row.modelData.quantity
+                            color: "white"
+                            font.family: w.face
+                            font.pixelSize: qtyBar.key * 0.6
+                            font.bold: true
+                        }
+                        WidgetKey {
+                            objectName: "lineMore"
+                            visible: !row.modelData.sent
+                            width: qtyBar.key * 1.3; height: qtyBar.key
+                            fontScale: 0.6
+                            text: "+"
+                            onClicked: w.pos.lineMore(row.modelData.id)
+                        }
+                        WidgetKey {
+                            objectName: "lineAgain"
+                            width: qtyBar.key * 3; height: qtyBar.key
+                            fontScale: 0.45
+                            text: w.zone.keyText("quantity", qsTr("Again"))
+                            onClicked: w.pos.repeatLine(row.modelData.id)
                         }
                     }
                 }

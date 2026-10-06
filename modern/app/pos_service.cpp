@@ -945,6 +945,68 @@ bool PosService::voidItem()
     return true;
 }
 
+bool PosService::setLineQuantity(qint64 lineId, int quantity)
+{
+    if (!require(perm::Order, tr("Ordering")))
+        return false;
+    Check *c = current();
+    OrderLine *l = c ? c->line(lineId ? lineId : selectedLine_) : nullptr;
+    if (!l || l->isComment() || l->voided)
+        return fail(tr("Touch an item on the check first."));
+    if (l->sent)
+        return fail(tr("%1 was sent: Again adds more, Void takes it off.").arg(qs(l->displayName())));
+    if (l->weight > 0 || l->isGiftCard())
+        return fail(tr("%1 can't have a quantity.").arg(qs(l->displayName())));
+    quantity = std::clamp(quantity, 1, 99);
+    if (quantity == l->quantity)
+        return true;
+    if (quantity > l->quantity)
+        if (const MenuItem *m = findItem(qs(l->itemId)); m && m->ticketCapacity > 0
+            && ticketsLeft(*m) < quantity - l->quantity)
+            return fail(tr("%1 is sold out (%2 tickets).").arg(qs(m->name)).arg(m->ticketCapacity));
+    l->quantity = quantity;
+    selectedLine_ = l->id;
+    changed(*c);
+    return true;
+}
+
+bool PosService::changeLineQuantity(qint64 lineId, int by)
+{
+    Check *c = current();
+    const OrderLine *l = c ? c->line(lineId ? lineId : selectedLine_) : nullptr;
+    if (l && l->sent && by > 0)
+        return repeatLine(l->id);
+    if (l && !l->sent && !l->voided && l->quantity + by < 1)   // the last one: off the check
+        return voidItem();
+    return setLineQuantity(l ? l->id : 0, (l ? l->quantity : 1) + by);
+}
+
+bool PosService::repeatLine(qint64 lineId)
+{
+    if (!require(perm::Order, tr("Ordering")))
+        return false;
+    Check *c = current();
+    const OrderLine *l = c ? c->line(lineId ? lineId : selectedLine_) : nullptr;
+    if (!l || l->isComment() || l->isGiftCard())
+        return fail(tr("Touch an item on the check first."));
+    const MenuItem *m = findItem(qs(l->itemId));
+    if (!m || !m->available)
+        return fail(tr("%1 is sold out.").arg(qs(l->name)));
+    if (m->ticketCapacity > 0 && ticketsLeft(*m) < 1)
+        return fail(tr("%1 is sold out (%2 tickets).").arg(qs(m->name)).arg(m->ticketCapacity));
+    OrderLine copy = *l;
+    copy.id = c->nextLineId++;
+    copy.quantity = 1;
+    copy.sent = copy.voided = copy.made = copy.served = false;
+    copy.sentAt = copy.madeAt = copy.servedAt = 0;
+    c->lines.push_back(copy);
+    selectedLine_ = copy.id;
+    choosingLine_ = 0;
+    emit notice(tr("One more %1").arg(qs(copy.displayName())));
+    changed(*c);
+    return true;
+}
+
 QString PosService::dueText(std::int64_t at) const
 {
     const QDate today = dateOf(now());
@@ -1350,6 +1412,8 @@ QVariantList PosService::lines() const
             {u"id"_s, qint64(l.id)}, {u"name"_s, qs(l.displayName())}, {u"quantity"_s, l.quantity},
             {u"price"_s, l.isComment() ? QString() : format(l.total())}, {u"comment"_s, l.isComment()},
             {u"sent"_s, l.sent}, {u"voided"_s, l.voided}, {u"modifiers"_s, mods},
+            // − / + / Again apply (not a comment, gift card or weighed item).
+            {u"countable"_s, !l.isComment() && !l.isGiftCard() && !l.voided && l.weight == 0},
             {u"selected"_s, qint64(l.id) == selectedLine_},
             {u"seat"_s, l.seat}, {u"course"_s, l.course}, {u"held"_s, c->held(l)},
             // Its modifier groups can still be changed / a required one is missing.
@@ -1888,6 +1952,10 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"selectPayment"_s, [](PosService &p, const QVariantList &a) { p.selectPayment(a.value(0).toLongLong()); return QVariant(true); }},
         {u"setCheckFilter"_s, [](PosService &p, const QVariantList &a) { p.setCheckFilter(a.value(0).toString()); return QVariant(true); }},
         {u"voidItem"_s, [](PosService &p, const QVariantList &) { return QVariant(p.voidItem()); }},
+        {u"setLineQuantity"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setLineQuantity(a.value(0).toLongLong(), a.value(1).toInt())); }},
+        {u"lineMore"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.changeLineQuantity(a.value(0).toLongLong(), 1)); }},
+        {u"lineLess"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.changeLineQuantity(a.value(0).toLongLong(), -1)); }},
+        {u"repeatLine"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.repeatLine(a.value(0).toLongLong())); }},
         {u"sendOrder"_s, [](PosService &p, const QVariantList &) { return QVariant(p.sendOrder()); }},
         {u"setKitchenStation"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.setKitchenStation(a.value(0).toString())); }},

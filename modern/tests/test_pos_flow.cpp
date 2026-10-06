@@ -821,6 +821,65 @@ TEST_CASE("UI: each person's text size, left hand and start screen; a start scre
     CHECK(s.pos.userPrefs().isEmpty());
 }
 
+TEST_CASE("UI: − 2 + and Again on a touched line", "[flow][ui][quantity]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.selectTable(u"T4"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    s.pos.addItem(u"bacon-burger"_s);
+    REQUIRE(s.pos.chooseOption(u"temperature"_s, 1));   // Medium Rare
+    REQUIRE(s.pos.chooseOption(u"side"_s, 2));          // Onion Rings (+1.00)
+    REQUIRE(s.pos.finishChoosing());
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    QTest::qWait(60);
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    const auto line = [&](int i) { return s.pos.lines().value(i).toMap(); };
+    const qint64 one = std::llround(line(0)[u"price"_s].toString().remove(u'$').toDouble() * 100);
+
+    // The new line is the touched one: + + makes it 3.
+    QQuickItem *more = find(u"lineMore"_s);
+    REQUIRE(more);
+    s.tapItem(more);
+    QTest::qWait(40);
+    s.tapItem(find(u"lineMore"_s));
+    QTest::qWait(40);
+    REQUIRE(s.pos.lines().size() == 1);
+    CHECK(line(0)[u"quantity"_s].toInt() == 3);
+    CHECK(std::llround(line(0)[u"price"_s].toString().remove(u'$').toDouble() * 100) == one * 3);
+    CHECK(Screen::findBy(s.window->contentItem(), "text", u"3 × Bacon Burger"_s));
+    s.shot("57-quantity");
+    s.tapItem(find(u"lineLess"_s));
+    QTest::qWait(40);
+    CHECK(line(0)[u"quantity"_s].toInt() == 2);
+
+    // Again: one more the same way, choices and all, as its own line.
+    s.tapItem(find(u"lineAgain"_s));
+    QTest::qWait(40);
+    REQUIRE(s.pos.lines().size() == 2);
+    CHECK(line(1)[u"quantity"_s].toInt() == 1);
+    CHECK(line(1)[u"modifiers"_s].toList().size() == line(0)[u"modifiers"_s].toList().size());
+    CHECK(line(1)[u"selected"_s].toBool());
+
+    // − on the last one takes it off the check.
+    s.tapItem(find(u"lineLess"_s));
+    QTest::qWait(40);
+    CHECK(s.pos.lines().size() == 1);
+
+    // Sent: no − / +, only Again (a new line, sent with the next Send).
+    REQUIRE(s.pos.sendOrder());
+    s.pos.selectLine(line(0)[u"id"_s].toLongLong());
+    QTest::qWait(40);
+    CHECK_FALSE(find(u"lineMore"_s));
+    CHECK_FALSE(s.pos.setLineQuantity(line(0)[u"id"_s].toLongLong(), 5));
+    s.tapItem(find(u"lineAgain"_s));
+    QTest::qWait(40);
+    REQUIRE(s.pos.lines().size() == 2);
+    CHECK_FALSE(line(1)[u"sent"_s].toBool());
+    CHECK(line(0)[u"quantity"_s].toInt() == 2);
+}
+
 TEST_CASE("UI: separate checks at one table, switched on the order screen", "[flow][ui][tablechecks]")
 {
     Screen s;

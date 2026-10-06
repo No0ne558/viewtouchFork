@@ -292,6 +292,11 @@ public:
     Q_INVOKABLE void setCustomer(const QVariantMap &customer) { invoke(QStringLiteral("setCustomer"), {customer}); }
     Q_INVOKABLE void setSeat(int seat) { invoke(QStringLiteral("setSeat"), {seat}); }
     // Another check at this table (a guest paying on their own), made current.
+    // How many of a line (0: the selected one); − / + (a sent line: + is a new line); Again.
+    Q_INVOKABLE void setLineQuantity(qint64 lineId, int quantity) { invoke(QStringLiteral("setLineQuantity"), {lineId, quantity}); }
+    Q_INVOKABLE void lineMore(qint64 lineId = 0) { invoke(QStringLiteral("lineMore"), {lineId}); }
+    Q_INVOKABLE void lineLess(qint64 lineId = 0) { invoke(QStringLiteral("lineLess"), {lineId}); }
+    Q_INVOKABLE void repeatLine(qint64 lineId = 0) { invoke(QStringLiteral("repeatLine"), {lineId}); }
     Q_INVOKABLE void newTableCheck() { invoke(QStringLiteral("newTableCheck"), {}); }
     // Another open check made current, staying on this page (the table's checks).
     Q_INVOKABLE void switchCheck(qint64 checkId) { invoke(QStringLiteral("openCheck"), {checkId}); }

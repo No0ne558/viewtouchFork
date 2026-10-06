@@ -306,6 +306,12 @@ public:
     void selectLine(qint64 lineId) override;
     void selectPayment(qint64 paymentId) override;
     bool voidItem();
+    // How many of an unsent line (1-99); 0: the selected line. A sent line
+    // can't change: more of it is a new line (repeatLine).
+    bool setLineQuantity(qint64 lineId, int quantity);
+    bool changeLineQuantity(qint64 lineId, int by);
+    // One more the same way (its choices too), as a new unsent line.
+    bool repeatLine(qint64 lineId);
     bool sendOrder();
     // Orders for later: ready at `at` (epoch ms; 0 = as soon as possible).
     bool setDueAt(qint64 at);
