@@ -144,7 +144,8 @@ public:
 
     Q_INVOKABLE void activate(const QString &zoneId);
     // Order a menu item as an Add Item button would (menuGrid panels).
-    Q_INVOKABLE void orderItem(const QString &itemId);
+    // clearTyped: the typed text cleared too (the Find page, ready for the next).
+    Q_INVOKABLE void orderItem(const QString &itemId, bool clearTyped = false);
     // Ready-made looks: [{id, name, colors: [background, buttons, panels, text, accent]}],
     // with two made from the store logo's colors when there is one.
     Q_INVOKABLE QVariantList looks() const;

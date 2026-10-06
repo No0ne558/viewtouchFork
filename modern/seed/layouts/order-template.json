@@ -220,7 +220,7 @@
           "rect": {
             "x": 592,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -243,9 +243,9 @@
           "id": "tab-lunch",
           "kind": "button",
           "rect": {
-            "x": 850,
+            "x": 810,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -268,9 +268,9 @@
           "id": "tab-dinner",
           "kind": "button",
           "rect": {
-            "x": 1108,
+            "x": 1028,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -281,6 +281,35 @@
               "type": "jump",
               "mode": "replace",
               "page": "index-dinner"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fontSize": 26
+            }
+          }
+        },
+        {
+          "id": "tab-find",
+          "kind": "button",
+          "rect": {
+            "x": 1246,
+            "y": 16,
+            "w": 120,
+            "h": 72
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Find",
+          "actions": [
+            {
+              "type": "command",
+              "name": "clearText"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "find-item"
             }
           ],
           "style": {
@@ -583,7 +612,7 @@
           "rect": {
             "x": 592,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -606,9 +635,9 @@
           "id": "tab-lunch",
           "kind": "button",
           "rect": {
-            "x": 850,
+            "x": 810,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -631,9 +660,9 @@
           "id": "tab-dinner",
           "kind": "button",
           "rect": {
-            "x": 1108,
+            "x": 1028,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -644,6 +673,35 @@
               "type": "jump",
               "mode": "replace",
               "page": "index-dinner"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fontSize": 26
+            }
+          }
+        },
+        {
+          "id": "tab-find",
+          "kind": "button",
+          "rect": {
+            "x": 1246,
+            "y": 16,
+            "w": 120,
+            "h": 72
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Find",
+          "actions": [
+            {
+              "type": "command",
+              "name": "clearText"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "find-item"
             }
           ],
           "style": {
@@ -946,7 +1004,7 @@
           "rect": {
             "x": 592,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -969,9 +1027,9 @@
           "id": "tab-lunch",
           "kind": "button",
           "rect": {
-            "x": 850,
+            "x": 810,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -994,9 +1052,9 @@
           "id": "tab-dinner",
           "kind": "button",
           "rect": {
-            "x": 1108,
+            "x": 1028,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -1007,6 +1065,35 @@
               "type": "jump",
               "mode": "replace",
               "page": "index-dinner"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fontSize": 26
+            }
+          }
+        },
+        {
+          "id": "tab-find",
+          "kind": "button",
+          "rect": {
+            "x": 1246,
+            "y": 16,
+            "w": 120,
+            "h": 72
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Find",
+          "actions": [
+            {
+              "type": "command",
+              "name": "clearText"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "find-item"
             }
           ],
           "style": {
@@ -1309,7 +1396,7 @@
           "rect": {
             "x": 16,
             "y": 980,
-            "w": 308,
+            "w": 262,
             "h": 84
           },
           "shape": "rect",
@@ -1332,9 +1419,9 @@
           "id": "tab-lunch",
           "kind": "button",
           "rect": {
-            "x": 332,
+            "x": 286,
             "y": 980,
-            "w": 308,
+            "w": 262,
             "h": 84
           },
           "shape": "rect",
@@ -1357,9 +1444,9 @@
           "id": "tab-dinner",
           "kind": "button",
           "rect": {
-            "x": 648,
+            "x": 556,
             "y": 980,
-            "w": 308,
+            "w": 262,
             "h": 84
           },
           "shape": "rect",
@@ -1379,12 +1466,41 @@
           }
         },
         {
+          "id": "tab-find",
+          "kind": "button",
+          "rect": {
+            "x": 826,
+            "y": 980,
+            "w": 262,
+            "h": 84
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Find",
+          "actions": [
+            {
+              "type": "command",
+              "name": "clearText"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "find-item"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fontSize": 26
+            }
+          }
+        },
+        {
           "id": "tab-categories",
           "kind": "button",
           "rect": {
-            "x": 964,
+            "x": 1096,
             "y": 980,
-            "w": 308,
+            "w": 262,
             "h": 84
           },
           "shape": "rect",
@@ -1406,9 +1522,9 @@
           "id": "tab-note",
           "kind": "button",
           "rect": {
-            "x": 1280,
+            "x": 1366,
             "y": 980,
-            "w": 308,
+            "w": 262,
             "h": 84
           },
           "shape": "rect",
@@ -1431,9 +1547,9 @@
           "id": "tab-check",
           "kind": "button",
           "rect": {
-            "x": 1596,
+            "x": 1636,
             "y": 980,
-            "w": 308,
+            "w": 262,
             "h": 84
           },
           "shape": "rect",
@@ -1702,7 +1818,7 @@
           "rect": {
             "x": 592,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -1726,9 +1842,9 @@
           "id": "tab-lunch",
           "kind": "button",
           "rect": {
-            "x": 850,
+            "x": 810,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -1752,9 +1868,9 @@
           "id": "tab-dinner",
           "kind": "button",
           "rect": {
-            "x": 1108,
+            "x": 1028,
             "y": 16,
-            "w": 250,
+            "w": 210,
             "h": 72
           },
           "shape": "rect",
@@ -1765,6 +1881,36 @@
               "type": "jump",
               "mode": "replace",
               "page": "index-dinner"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f6f73",
+              "fontSize": 26
+            }
+          }
+        },
+        {
+          "id": "tab-find",
+          "kind": "button",
+          "rect": {
+            "x": 1246,
+            "y": 16,
+            "w": 120,
+            "h": 72
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Find",
+          "actions": [
+            {
+              "type": "command",
+              "name": "clearText"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "find-item"
             }
           ],
           "style": {

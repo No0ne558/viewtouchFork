@@ -401,8 +401,11 @@ for i, (zid, text, acts, kw) in enumerate(flow):
 for i, (zid, text, target) in enumerate([("tab-breakfast", "Breakfast", "index-breakfast"),
                                           ("tab-lunch", "Lunch", "index-lunch"),
                                           ("tab-dinner", "Dinner", "index-dinner")]):
-    tmpl.append(zone(zid, 592 + i * 258, 16, 250, 72, text, actions=[jump(page=target, mode="replace")],
+    tmpl.append(zone(zid, 592 + i * 218, 16, 210, 72, text, actions=[jump(page=target, mode="replace")],
                      style={"normal": {"fontSize": 26}}))
+# Find an item by typing part of its name.
+tmpl.append(zone("tab-find", 1246, 16, 120, 72, "Find", actions=[command("clearText"), jump(page="find-item")],
+                 style={"normal": {"fontSize": 26}}))
 tmpl.append(zone("tab-categories", 1374, 16, 170, 72, "‹ Menu", actions=[jump(mode="index")],
                  style={"normal": {"fontSize": 26}}))
 tmpl.append(zone("tab-note", 1560, 16, 160, 72, "Note", actions=[jump(page="note")],
@@ -430,6 +433,12 @@ index_page("index-lunch", "Lunch", "lunch",
 index_page("index-dinner", "Dinner", "dinner",
            [("Burgers", "items-burgers", AMBER), ("Salads", "items-salads", GREEN),
             ("Drinks", "items-drinks", TEAL), ("Everything", "menu-all", PURPLE)])
+
+# Find: type part of a name, touch the item.
+page("find-item", "Find an Item", "items", [
+    zone("results", 592, 104, 1312, 400, kind="menuGrid", props={"search": True, "columns": 4}),
+    zone("keyboard", 592, 516, 1312, 448, kind="keyboard", props={"placeholder": "Part of a name…"}),
+], templateId="order-template")
 
 # The whole menu, laid out by itself: new items appear with no editing.
 page("menu-all", "Everything", "items", [
@@ -930,8 +939,9 @@ top_tabs, _ = grid_buttons([
     ("tab-categories", "‹ Menu", [jump(mode="index")], {"style": TAB}),
     ("tab-note", "Note", [jump(page="note")], {"style": TAB}),
     ("tab-check", "Check…", [jump(page="check-options")], {"style": TAB}),
+    ("tab-find", "Find", [command("clearText"), jump(page="find-item")], {"style": TAB}),
     ("flow-tables", "Tables", [command("releaseCheck"), jump(role="tables", mode="replace")], {"style": TAB}),
-], 16, 4, 110, x=16, width=PW - 32)
+], 16, 5, 110, x=16, width=PW - 32)
 phone_page("order-template", "Order Template", "template", [
     *top_tabs,
     zone("order-list", 16, 142, 1048, 720, kind="orderList"),
@@ -1076,7 +1086,7 @@ layouts("tables", [
 # The order screen (the frame around every menu page). The menu area stays
 # where every menu page puts its buttons: x 592-1904, y 104-964.
 flow_ids = [f[0] for f in flow]
-tab_ids = ["tab-breakfast", "tab-lunch", "tab-dinner", "tab-categories", "tab-note", "tab-check"]
+tab_ids = ["tab-breakfast", "tab-lunch", "tab-dinner", "tab-find", "tab-categories", "tab-note", "tab-check"]
 layouts("order-template", [
     arrangement("order-template", "classic", "Classic", "The check on the left, the buttons along the bottom."),
     arrangement("order-template", "buttons-under-check", "Buttons under the check",
@@ -1088,7 +1098,7 @@ layouts("order-template", [
         "flow-void": (1024, 980, 200, 84), "flow-send": (1232, 980, 330, 84), "flow-pay": (1570, 980, 334, 84)}),
     arrangement("order-template", "tabs-below", "Menus below", "The buttons on top, the menu tabs along the bottom.", {
         **{zid: (592 + i * 146, 16, 138, 72) for i, zid in enumerate(flow_ids)},
-        **{zid: (16 + i * 316, 980, 308, 84) for i, zid in enumerate(tab_ids)}}),
+        **{zid: (16 + i * 270, 980, 262, 84) for i, zid in enumerate(tab_ids)}}),
     arrangement("order-template", "colorful", "Colorful", "The classic arrangement, every button in its own color.",
                 styles={**{zid: fill(c) for zid, c in zip(flow_ids, [BLUE, AMBER, AMBER, AMBER, AMBER, AMBER,
                                                                      RED, GREEN, BLUE])},

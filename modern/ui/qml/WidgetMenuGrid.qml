@@ -4,7 +4,8 @@ import QtQuick.Layouts
 // The menu, laid out by itself: a button for every item of a family (or of
 // every family, with a chip for each across the top). New items, prices and
 // sold-out items show up with no page editing. props.family: one family, or
-// empty for all; props.columns; props.photos: show item photos.
+// empty for all; props.columns; props.photos: show item photos;
+// props.search: the items whose name has what's typed (the Find page).
 Item {
     id: w
     property ZoneItem zone
@@ -12,6 +13,8 @@ Item {
     readonly property string fixedFamily: zone && zone.props && zone.props.family ? zone.props.family : ""
     readonly property int columns: zone && zone.props && zone.props.columns > 0 ? zone.props.columns : 4
     readonly property bool photos: zone && zone.props && zone.props.photos === true
+    readonly property bool search: zone && zone.props && zone.props.search === true
+    readonly property string typed: pos && search ? pos.textEntry.trim().toLowerCase() : ""
     readonly property string face: zone.st.font ?? "DejaVu Sans"
 
     readonly property var items: pos ? pos.menuItems.filter(i => !i.modifier) : []
@@ -26,7 +29,20 @@ Item {
     property string chosen: zone && zone.controller ? (zone.controller.widgetState(zone.zoneId + ".family") ?? "") : ""
     readonly property string family: fixedFamily !== "" ? fixedFamily
                                     : families.includes(chosen) ? chosen : (families[0] ?? "")
-    readonly property var shown: items.filter(i => i.family === family)
+    // Searching: every family, best matches first (the name starts with it, then a word does).
+    readonly property var shown: {
+        if (!search)
+            return items.filter(i => i.family === family)
+        if (typed === "")
+            return []
+        const rank = i => {
+            const n = i.name.toLowerCase()
+            return n.startsWith(typed) ? 0 : n.split(/[^a-z0-9]+/).some(word => word.startsWith(typed)) ? 1
+                 : n.includes(typed) ? 2 : -1
+        }
+        return items.map(i => ({ item: i, rank: rank(i) })).filter(x => x.rank >= 0)
+                    .sort((a, b) => a.rank - b.rank || a.item.name.localeCompare(b.item.name)).map(x => x.item)
+    }
     function title(f) { return f === "" ? qsTr("Other") : qsTranslate("Page", f.charAt(0).toUpperCase() + f.slice(1)) }
     function img(ref) { return w.pos && ref ? (w.pos.imageRevision, w.pos.imageUrl(ref)) : "" }
 
@@ -39,7 +55,7 @@ Item {
         // Families across the top (only when showing them all).
         Flow {
             Layout.fillWidth: true
-            visible: w.fixedFamily === "" && w.families.length > 1
+            visible: !w.search && w.fixedFamily === "" && w.families.length > 1
             spacing: w.gap * 0.6
             Repeater {
                 model: w.families
@@ -134,7 +150,8 @@ Item {
                         id: press
                         anchors.fill: parent
                         enabled: cell.modelData.available
-                        onClicked: w.zone.controller.orderItem(cell.modelData.id)
+                        // Searching: the typed text is cleared too, ready for the next one.
+                        onClicked: w.zone.controller.orderItem(cell.modelData.id, w.search)
                     }
                 }
             }
@@ -142,7 +159,10 @@ Item {
         Text {
             visible: w.shown.length === 0
             Layout.alignment: Qt.AlignHCenter
-            text: w.pos && w.pos.loggedIn ? qsTr("Nothing on the menu here yet (Manager -> Menu).") : ""
+            text: !w.pos || !w.pos.loggedIn ? ""
+                : w.search ? (w.typed === "" ? qsTr("Type part of a name: \"cob\" finds Cobb.")
+                                              : qsTr("Nothing on the menu has \"%1\".").arg(w.typed))
+                : qsTr("Nothing on the menu here yet (Manager -> Menu).")
             color: "#8a94a6"
             font.pixelSize: 24
         }

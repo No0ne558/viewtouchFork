@@ -723,6 +723,45 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: find an item by typing part of its name", "[flow][ui][find]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"index-lunch"_s));
+    s.pos.textKey(u"x"_s);                                   // left over from somewhere
+    s.c.activate(u"tab-find"_s);
+    QTest::qWait(80);
+    REQUIRE(s.c.pageId() == u"find-item"_s);
+    CHECK(s.pos.textEntry().isEmpty());                       // Find starts clean
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    for (const QChar ch : u"cob"_s)
+        s.pos.textKey(QString(ch));
+    QTest::qWait(60);
+    QQuickItem *cobb = find(u"menuItem-cobb"_s);
+    REQUIRE(cobb);
+    CHECK_FALSE(find(u"menuItem-caesar"_s));                  // only what matches
+    s.shot("51-find-item");
+    s.tapItem(cobb);
+    QTest::qWait(60);
+    CHECK(s.pos.lines().size() == 1);
+    CHECK(s.pos.textEntry().isEmpty());                       // ready for the next one
+    s.c.finishChoosing();                                     // Cobb's protein (optional)
+    QTest::qWait(60);
+    CHECK(s.c.pageId() == u"find-item"_s);
+
+    // A word inside the name counts; nothing found says so.
+    for (const QChar ch : u"bur"_s)
+        s.pos.textKey(QString(ch));
+    QTest::qWait(60);
+    CHECK(find(u"menuItem-classic-burger"_s));                // "Classic Burger": a word starts with it
+    s.pos.textKey(u"clear"_s);
+    for (const QChar ch : u"zzz"_s)
+        s.pos.textKey(QString(ch));
+    QTest::qWait(60);
+    CHECK(Screen::findBy(s.window->contentItem(), "text", u"Nothing on the menu has \"zzz\"."_s));
+}
+
 TEST_CASE("UI: ready-made layouts for each screen, and page files", "[flow][ui][layouts]")
 {
     Screen s;

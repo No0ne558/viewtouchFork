@@ -460,6 +460,10 @@ The first time a manager logs in to a new store, the **setup guide** opens (Mana
 
 Edit mode → **Theme** tab → **Looks**: ViewTouch Dark, Daylight, High Contrast, Warm Café, Ocean, Forest and Berry, plus two made from the store logo's own colors (dark and light) once a logo is set. One touch recolors the theme (background, buttons, panels, text, the pressed/chosen color, the panels' own buttons); fonts, sizes and each page's own colors stay. It's one Undo step; Save keeps it. Text on any button turns dark or white by itself when its color wouldn't read on the button's fill (WCAG AA contrast).
 
+## Find an item by typing
+
+**Find** on the order screen opens a keyboard with the menu above it: type part of a name ("cob" finds Cobb, "bur" every burger) and touch the item. Names that start with it come first, then names with a word that does. After ordering, the text clears for the next one; items with choices or a weight ask for them as usual. It's a menuGrid panel with *Find by name* on, next to a keyboard panel, so any page can have one.
+
 ## The menu laid out by itself
 
 A **menuGrid** panel (+ Panel → menuGrid) shows the menu as buttons by itself: one family (its *Family* setting) or every family with a button for each across the top. New items, price changes and sold-out items show up with no page editing; items with choices or a weight ask for them as their own buttons would. Settings: *Columns*, *Show photos*. The demo's menu pages have an **Everything** button that opens one.

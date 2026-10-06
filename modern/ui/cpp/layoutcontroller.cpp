@@ -818,10 +818,12 @@ bool LayoutController::applyLook(const QString &id)
     return true;
 }
 
-void LayoutController::orderItem(const QString &itemId)
+void LayoutController::orderItem(const QString &itemId, bool clearTyped)
 {
     if (editing() || busy())
         return;
+    if (clearTyped && pos_)
+        pos_->invoke(u"textKey"_s, {u"clear"_s});
     // As a button that adds it would: then its choices, or its weight.
     Action a;
     a.data = QJsonObject{{u"type"_s, u"addItem"_s}, {u"item"_s, itemId}};
