@@ -788,7 +788,8 @@ for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees
                          ("admin-inventory", "Inventory", "inventory"),
                          ("admin-vendors", "Vendors", "vendors"),
                          ("admin-promotions", "Promotions", "promotions"),
-                         ("admin-punches", "Time Punches", "punches")]:
+                         ("admin-punches", "Time Punches", "punches"),
+                         ("admin-requests", "Time Off & Swaps", "requests")]:
     # Inventory: vendors, and receiving what they deliver.
     extra = [zone("vendors", 1008, 944, 432, 120, "Vendors…", actions=[command("openAdmin", panel="vendors")]),
              zone("receive", 1472, 944, 432, 120, "Receive a Delivery…", actions=[jump(page="receive-delivery")],
@@ -842,6 +843,9 @@ page("admin-schedule", "Schedule", "manager", [
     # Fix a missed or wrong punch (the change and why go on the Labor report).
     zone("punches", 1472, 944, 432, 120, "Time Punches…", actions=[command("openAdmin", panel="punches")],
          style=fill(TEAL)),
+    # Time off and shift swaps asked for on the Time Clock.
+    zone("requests", 1024, 944, 432, 120, "Requests…", actions=[command("openAdmin", panel="requests")],
+         style=fill(AMBER)),
 ], permission="manager")
 
 page("reports", "Reports", "manager", [

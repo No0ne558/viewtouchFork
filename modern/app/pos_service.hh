@@ -291,6 +291,11 @@ public:
     QVariantMap timeClock() const override;
     bool timeClockStart(const QString &pin);
     bool timeClockAct(const QString &action);   // "in", "out", "break"
+    // Time off and shift swaps (pos_requests.cpp).
+    bool timeClockRequestOff(const QString &date, const QString &reason);
+    bool timeClockGiveAway(qint64 shiftId);
+    bool timeClockTake(qint64 requestId);
+    bool timeClockCancelRequest(qint64 requestId);
     void timeClockDone();
     bool clockOut();
 
@@ -761,6 +766,18 @@ private:
     // Hours this pay week and today, and how long until overtime (daily or
     // weekly rule, whichever comes first): {weekHours, todayHours, leftMinutes, state ok|soon|over}.
     QVariantMap overtimeFor(const std::string &employeeId) const;
+    // Time off and shift swaps (pos_requests.cpp).
+    core::PosSettings::StaffRequest *staffRequest(std::int64_t id);
+    const core::Shift *shiftById(std::int64_t id) const;
+    QString requestText(const core::PosSettings::StaffRequest &r) const;
+    QString requestStatusText(const core::PosSettings::StaffRequest &r) const;
+    void addStaffRequest(core::PosSettings::StaffRequest r);
+    QVariantMap requestsFor(const std::string &employeeId) const;
+    std::vector<core::PosSettings::StaffRequest *> requestList();
+    QVariantList requestFields();
+    QVariantList requestRecords();
+    bool saveRequestRecord(int index, const QVariantMap &record);
+    int requestsWaiting() const;
     // Manager -> Time Punches: the last week's, newest first; change, add, remove.
     std::vector<core::TimePunch *> punchList();
     QVariantList punchFields();

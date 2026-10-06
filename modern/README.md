@@ -476,6 +476,10 @@ Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose button
 
 Once drinks have been sent on a check, **Another Round** appears beside its name: it orders the drinks of the latest Send again (same choices and quantities) as new lines, ready for Send. Drinks are what the bar prints, or items in a drinks family; sold-out ones are skipped and named. Command `anotherRound`; the order list's built-in "round" button.
 
+## Time off and shift swaps
+
+On the Time Clock (by PIN, not logged in): **Ask for Time Off…** picks a day in the next four weeks and an optional reason; **Give Away** on a shift puts it *up for grabs*, and everyone else's Time Clock lists it with **Take It**. A manager decides under Schedule → **Requests…** (an admin form: Approve / Don't approve); approving a swap moves the shift to whoever took it, and a time-off request on a scheduled day says so. Each person sees their requests' status; the dashboard shows how many wait. Kept in `PosSettings::staffRequests` (pos_requests.cpp).
+
 ## Overtime warnings
 
 Using the store's overtime rules (Manager → Store: daily and weekly hours, pay week start), the Time Clock shows each person's hours this week and, within two hours of overtime, "1.5 h until overtime" (red once they're in it); clocking in that close says so on screen; and the dashboard's On the clock list marks them "OT in 1.5 h" or "overtime". `PosService::overtimeFor`.

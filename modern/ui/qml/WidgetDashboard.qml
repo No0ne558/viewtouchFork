@@ -203,9 +203,21 @@ Item {
                 Item { Layout.fillHeight: true }
             }
         }
-        Small {
+        RowLayout {
+            Layout.fillWidth: true
             Layout.fillHeight: false
-            text: qsTr("As of %1. It updates as checks close and orders go out.").arg(w.d.at ?? "")
+            Small {
+                text: qsTr("As of %1. It updates as checks close and orders go out.").arg(w.d.at ?? "")
+            }
+            Text {
+                objectName: "dashRequests"
+                visible: (w.d.requestsWaiting ?? 0) > 0
+                text: qsTr("%n request(s) waiting: Schedule → Requests", "", w.d.requestsWaiting ?? 0)
+                color: w.warn
+                font.family: w.face
+                font.pixelSize: w.unit * 0.9
+                font.bold: true
+            }
         }
     }
 }

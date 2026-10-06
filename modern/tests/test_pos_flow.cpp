@@ -1009,6 +1009,82 @@ TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labo
     CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
 }
 
+TEST_CASE("UI: time off and shift swaps from the Time Clock, decided by a manager", "[flow][ui][requests]")
+{
+    Screen s;
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    // Sam works tomorrow 4-10 PM.
+    const QDateTime tomorrow(QDate::currentDate().addDays(1), QTime(16, 0));
+    core::Shift shift;
+    shift.id = 501;
+    shift.employeeId = "sam";
+    shift.start = tomorrow.toMSecsSinceEpoch();
+    shift.end = tomorrow.addSecs(6 * 3600).toMSecsSinceEpoch();
+    s.pos.shared()->shifts.push_back(shift);
+    REQUIRE(s.c.jumpTo(u"time-clock"_s));
+
+    // Sam gives it away, and asks for a day off three days out.
+    REQUIRE(s.pos.timeClockStart(u"1111"_s));
+    QTest::qWait(60);
+    s.tapItem(find(u"giveAway-501"_s));
+    QTest::qWait(40);
+    CHECK_FALSE(find(u"giveAway-501"_s));                       // now "up for grabs"
+    s.tapItem(find(u"timeOff"_s));
+    QTest::qWait(40);
+    REQUIRE(find(u"offPicker"_s));
+    s.tapItem(find(u"offDay-3"_s));
+    s.shot("72-time-off");
+    s.tapItem(find(u"askOff"_s));
+    QTest::qWait(40);
+    QVariantList mine = s.pos.timeClock()[u"requests"_s].toMap()[u"mine"_s].toList();
+    REQUIRE(mine.size() == 2);
+    CHECK_FALSE(s.pos.timeClockRequestOff(QDate::currentDate().addDays(3).toString(u"yyyy-MM-dd"_s), {}));   // again
+    s.pos.timeClockDone();
+
+    // Casey sees it up for grabs and takes it.
+    REQUIRE(s.pos.timeClockStart(u"2222"_s));
+    QTest::qWait(60);
+    const QVariantList grabs = s.pos.timeClock()[u"requests"_s].toMap()[u"upForGrabs"_s].toList();
+    REQUIRE(grabs.size() == 1);
+    const qint64 swapId = grabs[0].toMap()[u"id"_s].toLongLong();
+    s.shot("73-up-for-grabs");
+    s.tapItem(find(u"take-"_s + QString::number(swapId)));
+    QTest::qWait(40);
+    CHECK(s.pos.timeClock()[u"requests"_s].toMap()[u"upForGrabs"_s].toList().isEmpty());
+    s.pos.timeClockDone();
+
+    // The manager: two waiting (on the dashboard too); the swap approved, the day off not.
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    CHECK(s.pos.dashboard()[u"requestsWaiting"_s].toInt() == 2);
+    QVariantList records = s.pos.adminRecords(u"requests"_s);
+    REQUIRE(records.size() == 2);
+    for (int i = 0; i < records.size(); ++i) {
+        QVariantMap r = records[i].toMap();
+        r[u"status"_s] = r[u"_title"_s].toString().contains(u"Give away"_s) ? u"approved"_s : u"denied"_s;
+        REQUIRE(s.pos.adminSave(u"requests"_s, i, r));
+        records = s.pos.adminRecords(u"requests"_s);   // re-sorted: waiting first
+        i = -1;
+        if (std::ranges::none_of(records, [](const QVariant &v) { return v.toMap()[u"status"_s] == u"pending"_s; }))
+            break;
+    }
+    CHECK(s.pos.shared()->shifts.back().employeeId == "casey");
+    CHECK(s.pos.dashboard()[u"requestsWaiting"_s].toInt() == 0);
+    REQUIRE(s.c.jumpTo(u"admin-schedule"_s));
+    s.c.activate(u"requests"_s);
+    QTest::qWait(60);
+    CHECK(s.c.pageId() == u"admin-requests"_s);
+    s.pos.logout();
+
+    // Sam sees how both went.
+    REQUIRE(s.pos.timeClockStart(u"1111"_s));
+    mine = s.pos.timeClock()[u"requests"_s].toMap()[u"mine"_s].toList();
+    QStringList statuses;
+    for (const QVariant &v : mine)
+        statuses << v.toMap()[u"status"_s].toString();
+    statuses.sort();
+    CHECK(statuses == QStringList{u"approved"_s, u"denied"_s});
+}
+
 TEST_CASE("UI: overtime warnings on the Time Clock, at clock-in and on the dashboard", "[flow][ui][overtime]")
 {
     Screen s;

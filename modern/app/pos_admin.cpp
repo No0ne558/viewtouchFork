@@ -189,6 +189,8 @@ QVariantList PosService::adminFields(const QString &panel)
     }
     if (panel == u"punches")
         return punchFields();
+    if (panel == u"requests")
+        return requestFields();
     if (panel == u"vendors") {
         return {
             field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
@@ -617,6 +619,8 @@ QVariantList PosService::adminRecords(const QString &panel)
                     + (p.active ? QString() : tr(" · off")));
     } else if (panel == u"punches") {
         return punchRecords();
+    } else if (panel == u"requests") {
+        return requestRecords();
     } else if (panel == u"vendors") {
         for (const Vendor &v : s_->settings.vendors)
             add({{u"id"_s, qs(v.id)}, {u"name"_s, qs(v.name)}, {u"phone"_s, qs(v.phone)}, {u"account"_s, qs(v.account)},
@@ -722,6 +726,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         ok = savePromotionRecord(index, record);
     } else if (panel == u"punches") {
         ok = savePunchRecord(index, record);
+    } else if (panel == u"requests") {
+        ok = saveRequestRecord(index, record);
     } else if (panel == u"vendors") {
         auto &list = s_->settings.vendors;
         const QString name = record.value(u"name"_s).toString().trimmed();

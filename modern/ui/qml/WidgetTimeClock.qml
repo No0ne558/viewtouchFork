@@ -11,6 +11,11 @@ Item {
     readonly property var info: pos ? pos.timeClock : ({})
     readonly property bool someone: !!info.name
     readonly property var ot: info.overtime ?? ({})
+    readonly property var grabs: info.requests ? info.requests.upForGrabs : []
+    readonly property var mine: info.requests ? info.requests.mine : []
+    property bool pickingOff: false
+    property string offDay: ""
+    onSomeoneChanged: pickingOff = false
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     readonly property color ink: zone.st.textColor ?? "white"
     readonly property real unit: Math.max(14, Math.min(w.width / 46, w.height / 26))
@@ -165,6 +170,14 @@ Item {
                     onClicked: { w.touched(); w.pos.timeClockAct("out") }
                 }
                 WidgetKey {
+                    objectName: "timeOff"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: w.unit * 2.2
+                    text: qsTr("Ask for Time Off…")
+                    fontScale: 0.32
+                    onClicked: { w.touched(); w.offDay = ""; w.pickingOff = true }
+                }
+                WidgetKey {
                     objectName: "clockDone"
                     Layout.fillWidth: true
                     Layout.preferredHeight: w.unit * 2.2
@@ -192,6 +205,102 @@ Item {
                 color: "#8a94a6"
                 font.family: w.face
                 font.pixelSize: w.unit * 1.1
+            }
+
+            // Asking for a day off: the day, a reason, Ask.
+            Rectangle {
+                objectName: "offPicker"
+                visible: w.someone && w.pickingOff
+                z: 5
+                anchors.fill: parent
+                radius: 12
+                color: "#1d2128"
+                MouseArea { anchors.fill: parent }
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: w.unit
+                    spacing: w.unit * 0.5
+                    Text {
+                        text: qsTr("Which day off?")
+                        color: w.ink
+                        font.family: w.face
+                        font.pixelSize: w.unit * 1.3
+                        font.bold: true
+                    }
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 7
+                        rowSpacing: w.unit * 0.25
+                        columnSpacing: w.unit * 0.25
+                        Repeater {
+                            model: 28
+                            delegate: WidgetKey {
+                                required property int index
+                                readonly property date day: new Date(new Date().getFullYear(), new Date().getMonth(),
+                                                                     new Date().getDate() + index)
+                                readonly property string iso: Qt.formatDate(day, "yyyy-MM-dd")
+                                objectName: "offDay-" + index
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: w.unit * 2.2
+                                text: Qt.formatDate(day, "ddd") + "\n" + Qt.formatDate(day, "MMM d")
+                                accent: w.offDay === iso
+                                fontScale: 0.28
+                                onClicked: { w.touched(); w.offDay = iso }
+                            }
+                        }
+                    }
+                    Text {
+                        text: qsTr("Why? (optional)")
+                        color: "#8a94a6"
+                        font.family: w.face
+                        font.pixelSize: w.unit * 0.85
+                    }
+                    RowLayout {
+                        id: reasons
+                        property string chosen: ""
+                        Layout.fillWidth: true
+                        spacing: w.unit * 0.3
+                        Repeater {
+                            model: [QT_TR_NOOP("Personal"), QT_TR_NOOP("Sick"), QT_TR_NOOP("Vacation"), QT_TR_NOOP("School")]
+                            delegate: WidgetKey {
+                                required property string modelData
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: w.unit * 1.8
+                                text: qsTr(modelData)
+                                accent: reasons.chosen === modelData
+                                fontScale: 0.34
+                                onClicked: reasons.chosen = reasons.chosen === modelData ? "" : modelData
+                            }
+                        }
+                    }
+                    Item { Layout.fillHeight: true }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: w.unit * 0.4
+                        WidgetKey {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: w.unit * 2.4
+                            text: qsTr("Cancel")
+                            fontScale: 0.32
+                            onClicked: { w.touched(); w.pickingOff = false }
+                        }
+                        WidgetKey {
+                            objectName: "askOff"
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: w.unit * 2.4
+                            enabled: w.offDay !== ""
+                            opacity: enabled ? 1 : 0.4
+                            text: qsTr("Ask")
+                            baseColor: "#1f6b40"
+                            fontScale: 0.32
+                            onClicked: {
+                                w.touched()
+                                w.pos.timeClockRequestOff(w.offDay, reasons.chosen)
+                                w.pickingOff = false
+                            }
+                        }
+                    }
+                }
             }
 
             ColumnLayout {
@@ -266,6 +375,95 @@ Item {
                                 font.pixelSize: w.unit * 0.8
                                 font.bold: modelData.now
                             }
+                            WidgetKey {
+                                objectName: "giveAway-" + modelData.id
+                                visible: modelData.future && !modelData.givingAway
+                                Layout.preferredWidth: w.unit * 5.2
+                                Layout.preferredHeight: w.unit * 1.7
+                                text: qsTr("Give Away")
+                                fontScale: 0.36
+                                onClicked: { w.touched(); w.pos.timeClockGiveAway(modelData.id) }
+                            }
+                            Text {
+                                visible: modelData.givingAway
+                                text: qsTr("up for grabs")
+                                color: "#f5b940"
+                                font.family: w.face
+                                font.pixelSize: w.unit * 0.75
+                            }
+                        }
+                    }
+                }
+                // Others' shifts given away: take one (a manager approves).
+                Text {
+                    visible: w.grabs.length > 0
+                    text: qsTr("Up for grabs")
+                    color: "#f5b940"
+                    font.family: w.face
+                    font.pixelSize: w.unit
+                    font.bold: true
+                }
+                Repeater {
+                    model: w.grabs
+                    delegate: RowLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Text {
+                            Layout.fillWidth: true
+                            text: modelData.day + "  " + modelData.hours + "  ·  " + modelData.who
+                            color: w.ink
+                            font.family: w.face
+                            font.pixelSize: w.unit * 0.9
+                            elide: Text.ElideRight
+                        }
+                        WidgetKey {
+                            objectName: "take-" + modelData.id
+                            Layout.preferredWidth: w.unit * 5
+                            Layout.preferredHeight: w.unit * 1.7
+                            text: qsTr("Take It")
+                            baseColor: "#1f6b40"
+                            fontScale: 0.36
+                            onClicked: { w.touched(); w.pos.timeClockTake(modelData.id) }
+                        }
+                    }
+                }
+                // My requests and where they stand.
+                Text {
+                    visible: w.mine.length > 0
+                    text: qsTr("My requests")
+                    color: w.ink
+                    font.family: w.face
+                    font.pixelSize: w.unit
+                    font.bold: true
+                }
+                Repeater {
+                    model: w.mine
+                    delegate: RowLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Text {
+                            Layout.fillWidth: true
+                            text: modelData.text
+                            color: w.ink
+                            font.family: w.face
+                            font.pixelSize: w.unit * 0.85
+                            elide: Text.ElideRight
+                        }
+                        Text {
+                            objectName: "requestStatus-" + modelData.id
+                            text: modelData.statusText
+                            color: modelData.status === "approved" ? "#5fd08a"
+                                 : modelData.status === "denied" ? "#ff8a8f" : "#f5b940"
+                            font.family: w.face
+                            font.pixelSize: w.unit * 0.8
+                        }
+                        WidgetKey {
+                            visible: modelData.canCancel
+                            Layout.preferredWidth: w.unit * 4
+                            Layout.preferredHeight: w.unit * 1.5
+                            text: modelData.taking ? qsTr("Drop") : qsTr("Cancel")
+                            fontScale: 0.36
+                            onClicked: { w.touched(); w.pos.timeClockCancelRequest(modelData.id) }
                         }
                     }
                 }

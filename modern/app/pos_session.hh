@@ -324,6 +324,10 @@ public:
     Q_INVOKABLE void timeClockStart(const QString &pin) { invoke(QStringLiteral("timeClockStart"), {pin}); }
     Q_INVOKABLE void timeClockAct(const QString &action) { invoke(QStringLiteral("timeClockAct"), {action}); }
     Q_INVOKABLE void clockOutPunch(qint64 punchId) { invoke(QStringLiteral("clockOutPunch"), {punchId}); }
+    Q_INVOKABLE void timeClockRequestOff(const QString &date, const QString &reason) { invoke(QStringLiteral("timeClockRequestOff"), {date, reason}); }
+    Q_INVOKABLE void timeClockGiveAway(qint64 shiftId) { invoke(QStringLiteral("timeClockGiveAway"), {shiftId}); }
+    Q_INVOKABLE void timeClockTake(qint64 requestId) { invoke(QStringLiteral("timeClockTake"), {requestId}); }
+    Q_INVOKABLE void timeClockCancelRequest(qint64 requestId) { invoke(QStringLiteral("timeClockCancelRequest"), {requestId}); }
     Q_INVOKABLE void timeClockDone() { invoke(QStringLiteral("timeClockDone"), {}); }
     Q_INVOKABLE void undoLast() { invoke(QStringLiteral("undoLast"), {}); }
     Q_INVOKABLE void newTableCheck() { invoke(QStringLiteral("newTableCheck"), {}); }

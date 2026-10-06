@@ -732,6 +732,15 @@ QJsonObject toJson(const PosSettings &s)
              return QJsonObject{{u"enabled"_s, s.loyaltyEnabled}, {u"pointsPerDollar"_s, s.pointsPerDollar},
                                 {u"rewards"_s, rewards}};
          }()},
+        {u"staffRequests"_s, [&] {
+             QJsonArray a;
+             for (const PosSettings::StaffRequest &r : s.staffRequests)
+                 a.append(QJsonObject{{u"id"_s, qint64(r.id)}, {u"kind"_s, qs(r.kind)}, {u"employeeId"_s, qs(r.employeeId)},
+                                      {u"at"_s, qint64(r.at)}, {u"day"_s, qint64(r.day)}, {u"shiftId"_s, qint64(r.shiftId)},
+                                      {u"takerId"_s, qs(r.takerId)}, {u"note"_s, qs(r.note)}, {u"status"_s, qs(r.status)},
+                                      {u"decidedBy"_s, qs(r.decidedBy)}, {u"decidedAt"_s, qint64(r.decidedAt)}});
+             return a;
+         }()},
         {u"punchChanges"_s, [&] {
              QJsonArray a;
              for (const PosSettings::PunchChange &c : s.punchChanges)
@@ -881,6 +890,22 @@ PosSettings settingsFromJson(const QJsonObject &o)
         const QJsonObject r = v.toObject();
         if (r.value(u"points").toInt() > 0)
             s.rewards.push_back({r.value(u"points").toInt(), Money::fromCents(centsFromDecimal(r.value(u"value").toDouble()))});
+    }
+    for (const QJsonValue &v : o.value(u"staffRequests").toArray()) {
+        const QJsonObject x = v.toObject();
+        PosSettings::StaffRequest r;
+        r.id = i64(x.value(u"id"));
+        r.kind = ss(x.value(u"kind").toString());
+        r.employeeId = ss(x.value(u"employeeId").toString());
+        r.at = i64(x.value(u"at"));
+        r.day = i64(x.value(u"day"));
+        r.shiftId = i64(x.value(u"shiftId"));
+        r.takerId = ss(x.value(u"takerId").toString());
+        r.note = ss(x.value(u"note").toString());
+        r.status = ss(x.value(u"status").toString(u"pending"_s));
+        r.decidedBy = ss(x.value(u"decidedBy").toString());
+        r.decidedAt = i64(x.value(u"decidedAt"));
+        s.staffRequests.push_back(r);
     }
     for (const QJsonValue &v : o.value(u"punchChanges").toArray()) {
         const QJsonObject x = v.toObject();

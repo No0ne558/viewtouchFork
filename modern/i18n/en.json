@@ -34,5 +34,9 @@
  "Another round: %n drink(s) (sold out: %1)": {
   "one": "Another round: %n drink (sold out: %1)",
   "other": "Another round: %n drinks (sold out: %1)"
+ },
+ "%n request(s) waiting: Schedule → Requests": {
+  "one": "%n request waiting: Schedule → Requests",
+  "other": "%n requests waiting: Schedule → Requests"
  }
 }

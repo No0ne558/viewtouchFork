@@ -281,9 +281,12 @@ void LayoutController::restAtLoginPage()
     // Logged out and resting on the login or Time Clock page: the one this terminal uses.
     if (!pos_ || pos_->loggedIn() || editing())
         return;
+    // Only toward the Time Clock (a terminal set to it, resting on the login
+    // page); someone who opened the Time Clock from the login page stays there.
     const QString want = loginPage();
     const vt::layout::Page *here = currentPage();
-    if (!here || here->id == want || (here->role != u"login" && here->role != u"timeClock"))
+    const vt::layout::Page *target = activeLayout().page(want);
+    if (!here || !target || here->id == want || target->role != u"timeClock" || here->role != u"login")
         return;
     nav_.reset(want);
     refresh();
@@ -1007,6 +1010,7 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
             {u"modifierGroups"_s, u"admin-modifier-groups"_s}, {u"inventory"_s, u"admin-inventory"_s},
             {u"schedule"_s, u"admin-schedule"_s}, {u"promotions"_s, u"admin-promotions"_s},
             {u"vendors"_s, u"admin-vendors"_s}, {u"punches"_s, u"admin-punches"_s},
+            {u"requests"_s, u"admin-requests"_s},
         };
         const QString page = pages.value(args.value(u"panel"_s).toString());
         if (!page.isEmpty() && activeLayout().page(page))

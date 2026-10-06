@@ -192,7 +192,11 @@ QVariantMap PosService::timeClock() const
         const QDate day = QDateTime::fromMSecsSinceEpoch(s->start).date();
         if (day < today.addDays(7))
             weekHours += s->hours();
+        bool givingAway = false;
+        for (const PosSettings::StaffRequest &r : s_->settings.staffRequests)
+            givingAway = givingAway || (r.kind == "swap" && r.shiftId == s->id && r.status == "pending");
         shifts.append(QVariantMap{
+            {u"id"_s, qint64(s->id)}, {u"givingAway"_s, givingAway}, {u"future"_s, s->start > t},
             {u"day"_s, day == today ? tr("Today") : day == today.addDays(1) ? tr("Tomorrow")
                                                                             : QLocale().toString(day, u"ddd MMM d"_s)},
             {u"hours"_s, tr("%1 - %2").arg(hourText(s->start), hourText(s->end))},
@@ -205,7 +209,7 @@ QVariantMap PosService::timeClock() const
             {u"breakSince"_s, breakSince}, {u"todayHours"_s, QLocale().toString(double(workedMs) / 3'600'000.0, 'f', 2)},
             {u"punches"_s, punches}, {u"shifts"_s, shifts},
             {u"weekHours"_s, QLocale().toString(weekHours, 'f', 1)}, {u"overtime"_s, overtimeFor(e->id)},
-            {u"choosingJob"_s, jobChoice_ == e->id}};
+            {u"choosingJob"_s, jobChoice_ == e->id}, {u"requests"_s, requestsFor(e->id)}};
 }
 
 QString PosService::scheduleCheck(const Employee &e) const

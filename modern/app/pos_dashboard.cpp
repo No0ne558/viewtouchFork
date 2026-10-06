@@ -162,7 +162,7 @@ QVariantMap PosService::dashboard() const
     return {{u"sales"_s, sales}, {u"labor"_s, laborInfo},
             {u"open"_s, QVariantMap{{u"count"_s, open}, {u"due"_s, format(due)}}},
             {u"kitchen"_s, kitchenInfo}, {u"top"_s, top}, {u"low"_s, low}, {u"soldOut"_s, out},
-            {u"at"_s, clock(t)}};
+            {u"requestsWaiting"_s, requestsWaiting()}, {u"at"_s, clock(t)}};
 }
 
 } // namespace vt::app

@@ -267,6 +267,23 @@ struct PosSettings {
         bool operator==(const PunchChange &) const = default;
     };
     std::vector<PunchChange> punchChanges;
+    // Asked for on the Time Clock, decided by a manager (Schedule -> Requests):
+    // a day off, or giving a shift away (someone takes it, then it's approved).
+    struct StaffRequest {
+        std::int64_t id = 0;
+        std::string kind;          // "timeOff" | "swap"
+        std::string employeeId;
+        std::int64_t at = 0;       // when asked
+        std::int64_t day = 0;      // time off: that day's midnight
+        std::int64_t shiftId = 0;  // swap: the shift given away
+        std::string takerId;       // swap: who takes it (empty: up for grabs)
+        std::string note;          // the reason
+        std::string status = "pending";   // pending | approved | denied | cancelled
+        std::string decidedBy;
+        std::int64_t decidedAt = 0;
+        bool operator==(const StaffRequest &) const = default;
+    };
+    std::vector<StaffRequest> staffRequests;
     // Kitchen stations, each with its own screen (Manager -> Menu: where an item is made).
     std::vector<Station> stations;
     // Tip choices offered to the guest (percent of the check before gratuity).
