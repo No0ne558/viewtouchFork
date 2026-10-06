@@ -140,6 +140,12 @@ public:
     Q_INVOKABLE void activate(const QString &zoneId);
     // Order a menu item as an Add Item button would (menuGrid panels).
     Q_INVOKABLE void orderItem(const QString &itemId);
+    // Ready-made looks: [{id, name, colors: [background, buttons, panels, text, accent]}],
+    // with two made from the store logo's colors when there is one.
+    Q_INVOKABLE QVariantList looks() const;
+    // Recolor the theme with a look: in edit mode one undo step (Save keeps
+    // it); otherwise saved at once (managers: the setup guide).
+    Q_INVOKABLE bool applyLook(const QString &id);
     // Small choices a panel keeps while pages are rebuilt (a menuGrid's family...).
     Q_INVOKABLE QVariant widgetState(const QString &key) const { return widgetState_.value(key); }
     Q_INVOKABLE void setWidgetState(const QString &key, const QVariant &value) { widgetState_.insert(key, value); }

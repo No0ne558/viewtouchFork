@@ -48,7 +48,7 @@ if(Qt6_FOUND)
     set_target_properties(vtm_layout PROPERTIES AUTOMOC OFF)
 
     # page editor: draft layout + undo stack (QUndoStack lives in QtGui)
-    add_library(vtm_editor STATIC app/layout_editor.hh app/layout_editor.cpp)
+    add_library(vtm_editor STATIC app/layout_editor.hh app/layout_editor.cpp app/looks.hh app/looks.cpp)
     target_link_libraries(vtm_editor PUBLIC vtm_layout Qt6::Gui)
     set_target_properties(vtm_editor PROPERTIES AUTOMOC OFF)
 

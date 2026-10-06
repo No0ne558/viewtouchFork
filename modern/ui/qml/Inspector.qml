@@ -118,6 +118,61 @@ Rectangle {
                     font.pixelSize: 12
                 }
 
+                // Ready-made looks: one touch recolors the theme (Undo takes it back).
+                Label {
+                    visible: inspector.mode === "theme"
+                    Layout.leftMargin: 12
+                    text: qsTr("Looks")
+                    font.bold: true
+                    font.pixelSize: 14
+                }
+                Flow {
+                    visible: inspector.mode === "theme"
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 12
+                    Layout.rightMargin: 12
+                    spacing: 8
+                    Repeater {
+                        model: inspector.mode === "theme" ? inspector.controller.looks() : []
+                        delegate: Rectangle {
+                            id: lookCard
+                            required property var modelData
+                            objectName: "look-" + modelData.id
+                            width: 140
+                            height: 74
+                            radius: 8
+                            color: modelData.colors[0]
+                            border.color: lookTap.pressed ? modelData.colors[4] : EditorStyle.muted
+                            border.width: lookTap.pressed ? 3 : 1
+                            Row {
+                                x: 8; y: 8
+                                spacing: 4
+                                Repeater {
+                                    model: [1, 2, 4]
+                                    delegate: Rectangle {
+                                        required property int modelData
+                                        width: 36; height: 24; radius: 4
+                                        color: lookCard.modelData.colors[modelData]
+                                        border.color: Qt.rgba(0.5, 0.5, 0.5, 0.5)
+                                    }
+                                }
+                            }
+                            Text {
+                                x: 8
+                                anchors.bottom: parent.bottom
+                                anchors.bottomMargin: 8
+                                width: parent.width - 16
+                                elide: Text.ElideRight
+                                text: qsTranslate("Looks", lookCard.modelData.name)
+                                color: lookCard.modelData.colors[3]
+                                font.pixelSize: 12
+                                font.bold: true
+                            }
+                            TapHandler { id: lookTap; onTapped: inspector.controller.applyLook(lookCard.modelData.id) }
+                        }
+                    }
+                }
+
                 Repeater {
                     model: inspector.groups
 

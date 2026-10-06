@@ -668,6 +668,14 @@ QStringList LayoutEditor::referencesTo(const QString &pageId) const
 
 // --- theme -------------------------------------------------------------------
 
+bool LayoutEditor::setTheme(const layout::Theme &theme, const QString &text)
+{
+    return apply(text, [&](Layout &l) {
+        l.theme = theme;
+        return true;
+    });
+}
+
 bool LayoutEditor::setThemeField(const QString &path, const QJsonValue &value)
 {
     return apply(u"Change theme %1"_s.arg(path), [&](Layout &l) {

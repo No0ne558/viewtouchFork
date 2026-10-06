@@ -3,6 +3,7 @@
 #include "layoutcontroller.hh"
 #include "print/raster.hh"
 #include "editorcontroller.hh"
+#include <QBuffer>
 #include <QColor>
 #include <QImage>
 #include <QPainter>
@@ -720,6 +721,80 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     QTest::qWait(50);
     CHECK_FALSE(s.pos.selfOrderInfo()[u"on"_s].toBool());
     CHECK_FALSE(kiosk->isVisible());
+}
+
+TEST_CASE("UI: ready-made looks recolor every screen; one comes from the logo", "[flow][ui][looks]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));                 // a server can't
+    CHECK_FALSE(s.c.applyLook(u"light"_s));
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    QStringList ids;
+    for (const QVariant &v : s.c.looks())
+        ids << v.toMap()[u"id"_s].toString();
+    CHECK(ids.contains(u"light"_s));
+    CHECK_FALSE(ids.contains(u"logo-dark"_s));             // no logo yet
+
+    const auto tour = [&](const QString &look) {
+        REQUIRE(s.c.applyLook(look));
+        REQUIRE(s.c.jumpTo(u"tables"_s));
+        QTest::qWait(80);
+        s.shot(qPrintable(u"44-look-%1-tables"_s.arg(look)));
+        if (!s.pos.hasCheck()) {
+            REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+            s.pos.addItem(u"caesar"_s);
+            s.pos.finishChoosing();
+            s.pos.addItem(u"soda"_s);
+            s.pos.chooseOption(u"drink-size"_s, 1);
+            s.pos.finishChoosing();
+        }
+        REQUIRE(s.c.jumpTo(u"index-lunch"_s));
+        QTest::qWait(80);
+        s.shot(qPrintable(u"44-look-%1-order"_s.arg(look)));
+        REQUIRE(s.c.jumpTo(u"settle"_s));
+        QTest::qWait(80);
+        s.shot(qPrintable(u"44-look-%1-settle"_s.arg(look)));
+    };
+    tour(u"light"_s);
+    CHECK(s.c.activeLayout().theme.background.value(u"fill"_s).toString() == u"#e9edf2"_s);
+    tour(u"contrast"_s);
+    tour(u"cafe"_s);
+
+    // With a logo: looks in its colors.
+    QImage logo(200, 200, QImage::Format_ARGB32);
+    logo.fill(Qt::transparent);
+    for (int y = 40; y < 160; ++y)
+        for (int x = 40; x < 160; ++x)
+            logo.setPixel(x, y, x < 100 ? qRgb(0x0b, 0x6e, 0x4f) : qRgb(0xf2, 0xa5, 0x41));
+    QByteArray png;
+    QBuffer buffer(&png);
+    buffer.open(QIODevice::WriteOnly);
+    logo.save(&buffer, "PNG");
+    REQUIRE(s.pos.addStoreImage(u"logo.png"_s, QString::fromLatin1(png.toBase64())));
+    s.pos.shared()->settings.displayLogo = "store:logo.png";
+    ids.clear();
+    for (const QVariant &v : s.c.looks())
+        ids << v.toMap()[u"id"_s].toString();
+    REQUIRE(ids.contains(u"logo-dark"_s));
+    tour(u"logo-dark"_s);
+    tour(u"logo-light"_s);
+
+    // In the editor: Theme tab -> Looks; one undo step.
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    s.tapItem(Screen::findBy(s.window->contentItem(), "text", u"Theme"_s));
+    QTest::qWait(120);
+    QQuickItem *ocean = Screen::findBy(s.window->contentItem(), "objectName", u"look-ocean"_s);
+    REQUIRE(ocean);
+    s.shot("45-looks-gallery");
+    s.tapItem(ocean);
+    QTest::qWait(60);
+    CHECK(e->editor().layout().theme.name == u"Ocean"_s);
+    e->undo();
+    CHECK(e->editor().layout().theme.name == u"From the logo (light)"_s);
+    REQUIRE(s.c.leaveEditMode(false));
 }
 
 TEST_CASE("UI: the store's own font: added once, in every font list, on buttons", "[flow][ui][fonts]")

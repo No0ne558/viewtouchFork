@@ -14,7 +14,7 @@ Item {
                                   : status.current ? zone.statusColor("tableCurrent", "#2f6fd6")
                                   : status.mine ? zone.statusColor("tableMine", "#1f8a4c")
                                   : zone.statusColor("tableOpen", "#a86a12")
-    readonly property color ink: zone.st.textColor ?? "white"
+    readonly property color ink: zone.readable(zone.st.textColor ?? "white", tint)
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     readonly property int seats: zone && zone.props ? (zone.props.seats ?? 0) : 0
     // How long the table has been seated, kept current.

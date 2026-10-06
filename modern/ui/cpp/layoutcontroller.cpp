@@ -2,6 +2,9 @@
 
 #include <QFile>
 #include <QFontDatabase>
+#include <QImage>
+
+#include "app/looks.hh"
 #include <QUrl>
 
 #include <QCoreApplication>
@@ -727,6 +730,66 @@ void LayoutController::installStoreFonts()
     }
     if (added)
         emit fontsChanged();
+}
+
+namespace {
+QList<vt::app::Look> allLooks(vt::app::PosSession *pos)
+{
+    QList<vt::app::Look> looks = vt::app::builtInLooks();
+    if (!pos)
+        return looks;
+    const QString url = pos->imageUrl(u"logo:"_s);
+    if (url.isEmpty())
+        return looks;
+    const QList<QColor> colors = vt::app::mainColors(QImage(QUrl(url).toLocalFile()));
+    if (!colors.isEmpty()) {
+        looks.prepend(vt::app::lookFromColors(colors, false));
+        looks.prepend(vt::app::lookFromColors(colors, true));
+    }
+    return looks;
+}
+} // namespace
+
+QVariantList LayoutController::looks() const
+{
+    QVariantList out;
+    for (const vt::app::Look &l : allLooks(pos_))
+        out.append(QVariantMap{{u"id"_s, l.id}, {u"name"_s, l.name},
+                               {u"colors"_s, QStringList{l.background.name(), l.surface.name(), l.panel.name(),
+                                                         l.text.name(), l.accent.name()}}});
+    return out;
+}
+
+bool LayoutController::applyLook(const QString &id)
+{
+    const QList<vt::app::Look> looks = allLooks(pos_);
+    const auto it = std::ranges::find_if(looks, [&](const vt::app::Look &l) { return l.id == id; });
+    if (it == looks.end())
+        return false;
+    if (editing_ && editor_) {
+        vt::layout::Theme theme = editor_->editor().layout().theme;
+        vt::app::applyLook(theme, *it);
+        const bool ok = editor_->editor().setTheme(theme, tr("Look: %1").arg(it->name));
+        if (ok)
+            setStatus(tr("Look: %1 (Save keeps it)").arg(it->name));
+        return ok;
+    }
+    if (pos_ && !pos_->can(QString::fromLatin1(vt::core::perm::EditLayout))) {
+        setStatus(tr("Changing the look needs a manager."));
+        return false;
+    }
+    Layout changed = layout_;
+    vt::app::applyLook(changed.theme, *it);
+    if (saver_) {
+        QString error;
+        if (!saver_(changed, &error)) {
+            setStatus(tr("Could not save: %1").arg(error));
+            return false;
+        }
+    }
+    replaceLayout(changed);
+    setStatus(tr("Look: %1").arg(it->name));
+    return true;
 }
 
 void LayoutController::orderItem(const QString &itemId)

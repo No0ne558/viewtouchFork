@@ -81,6 +81,8 @@ public:
 
     // --- theme --------------------------------------------------------------
     bool setThemeField(const QString &path, const QJsonValue &value);
+    // The whole theme at once (a ready-made look), one undo step.
+    bool setTheme(const layout::Theme &theme, const QString &text);
     QJsonValue themeField(const QString &path) const;
 
     // --- import / export ----------------------------------------------------

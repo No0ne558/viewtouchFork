@@ -61,6 +61,22 @@ Item {
                                                   || ids.indexOf(a) - ids.indexOf(b))
         return sorted.indexOf(id)
     }
+    // Text that reads on its fill: the style's text color, unless it's too close
+    // to the fill (a theme's dark text on a green button): then dark or white.
+    function readable(text, fill) {
+        const t = Qt.color(text), f = Qt.color(fill || "transparent")
+        if (f.a < 0.5)
+            return t
+        const lum = c => {
+            const ch = v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+            return 0.2126 * ch(c.r) + 0.7152 * ch(c.g) + 0.0722 * ch(c.b)
+        }
+        const a = lum(t), b = lum(f)
+        const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+        return ratio >= 4.5 ? t : (b > 0.35 ? Qt.color("#1b1b1b") : Qt.color("white"))   // WCAG AA
+    }
+    readonly property color ink: readable(st.textColor ?? "white", st.fill)
+
     // A status color from the theme (Theme -> Status colors), else the usual one.
     function statusColor(name, usual) {
         const c = controller ? controller.statusColors : null
@@ -210,7 +226,7 @@ Item {
         wrapMode: Text.WordWrap
         fontSizeMode: Text.Fit
         minimumPixelSize: 10
-        color: zone.st.textColor ?? "white"
+        color: zone.ink
         font.family: zone.st.font ?? "DejaVu Sans"
         font.pixelSize: zone.st.fontSize ?? 28
         font.bold: zone.st.bold ?? true
