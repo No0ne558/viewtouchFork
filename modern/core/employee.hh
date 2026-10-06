@@ -48,6 +48,12 @@ struct Employee {
     // Cash handling for this person: "serverBank" (own bank), "drawer" (the
     // terminal's drawer), or empty for the store's setting.
     std::string language;          // "en", "es"...; empty: the store's
+    // Their own screen: text size (percent, 100 normal), the order screens
+    // mirrored for the left hand (the check on the right), and the page they
+    // start on at login (empty: their job's, PosSettings::startPages).
+    int textSize = 100;
+    bool leftHanded = false;
+    std::string startPage;
     // Pay for their role, and other jobs they can clock in as (a server who
     // also bartends), each at its own rate.
     Money payRate;

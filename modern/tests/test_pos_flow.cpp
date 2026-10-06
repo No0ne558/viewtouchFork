@@ -757,6 +757,70 @@ TEST_CASE("UI: switch user keeps each person's check for when they're back", "[f
     CHECK_FALSE(s.pos.hasCheck());
 }
 
+TEST_CASE("UI: each person's text size, left hand and start screen; a start screen per job", "[flow][ui][prefs]")
+{
+    Screen s;
+    const auto rectOf = [&](const QString &id) {
+        ZoneModel *m = s.c.zones();
+        for (int r = 0; r < m->rowCount(); ++r)
+            if (const QModelIndex i = m->index(r); m->data(i, ZoneModel::ZoneIdRole).toString() == id)
+                return QRect(m->data(i, ZoneModel::ZoneXRole).toInt(), m->data(i, ZoneModel::ZoneYRole).toInt(),
+                             m->data(i, ZoneModel::ZoneWRole).toInt(), m->data(i, ZoneModel::ZoneHRole).toInt());
+        return QRect();
+    };
+    const auto save = [&](const QString &panel, const QString &name, const QVariantMap &changes) {
+        const QVariantList records = s.pos.adminRecords(panel);
+        for (int i = 0; i < records.size(); ++i) {
+            QVariantMap r = records[i].toMap();
+            if (!name.isEmpty() && r[u"name"_s] != name)
+                continue;
+            r.insert(changes);
+            return s.pos.adminSave(panel, i, r);
+        }
+        return false;
+    };
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    // Servers start on the whole menu (Store settings).
+    REQUIRE(save(u"store"_s, {}, {{u"startPage.server"_s, u"menu-all"_s}}));
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));   // Sam, a server
+    QTest::qWait(30);
+    CHECK(s.c.pageId() == u"menu-all"_s);
+    CHECK_FALSE(s.pos.userPrefs().value(u"leftHanded"_s).toBool());
+    const QRect normal = rectOf(u"order-list"_s);
+    CHECK(normal.x() < 960);
+    s.pos.logout();
+
+    // Sam's own: bigger text, left-handed, starting on Lunch.
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(save(u"employees"_s, u"Sam"_s, {{u"textSize"_s, u"130"_s}, {u"leftHanded"_s, true},
+                                           {u"startPage"_s, u"index-lunch"_s}}));
+    CHECK(s.c.pageId() != u"index-lunch"_s);   // the manager's own screen didn't change
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    QTest::qWait(60);
+    CHECK(s.c.pageId() == u"index-lunch"_s);
+    const QRect mirrored = rectOf(u"order-list"_s);
+    CHECK(mirrored.x() == 1920 - normal.x() - normal.width());   // the check on the right
+    CHECK(rectOf(u"tab-breakfast"_s).x() < rectOf(u"tab-lunch"_s).x());   // rows keep their order
+    CHECK(rectOf(u"tab-breakfast"_s).x() == normal.x());
+    CHECK(mirrored.width() == normal.width());
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    s.pos.addItem(u"water"_s);
+    QTest::qWait(60);
+    s.shot("53-left-handed");
+    REQUIRE(s.c.jumpTo(u"settle"_s));
+    QTest::qWait(40);
+    s.shot("54-left-handed-pay");
+    CHECK(s.pos.userPrefs().value(u"textSize"_s).toInt() == 130);
+    // The floor plan isn't mirrored.
+    s.pos.releaseCheck();
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    CHECK(rectOf(u"quick"_s).x() > 960);
+    s.pos.logout();
+    CHECK(s.pos.userPrefs().isEmpty());
+}
+
 TEST_CASE("UI: find an item by typing part of its name", "[flow][ui][find]")
 {
     Screen s;

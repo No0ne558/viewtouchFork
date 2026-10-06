@@ -460,6 +460,10 @@ The first time a manager logs in to a new store, the **setup guide** opens (Mana
 
 Edit mode → **Theme** tab → **Looks**: ViewTouch Dark, Daylight, High Contrast, Warm Café, Ocean, Forest and Berry, plus two made from the store logo's own colors (dark and light) once a logo is set. One touch recolors the theme (background, buttons, panels, text, the pressed/chosen color, the panels' own buttons); fonts, sizes and each page's own colors stay. It's one Undo step; Save keeps it. Text on any button turns dark or white by itself when its color wouldn't read on the button's fill (WCAG AA contrast).
 
+## Each person's own screen, and a start screen per job
+
+Manager → Employees has, for each person: **Text size** (Normal, Bigger, Biggest: button and check text), **Left-handed** (on the order and Pay screens the check's column moves to the right and what was beside it to the left, each row in its order; what's below the check stays), **Start screen** (the page they land on after login) and the **Language** they already had. Manager → Store sets a start screen for each job (servers, bartenders, cashiers, hosts, managers); the job is the one they clocked in as, else their role. With none, everyone starts on the floor plan. These come with the session (`PosSession::userPrefs`), so remote terminals follow them too.
+
 ## Switch User
 
 **Switch User** (on the floor plan, and on the order screen's **Check…** page) logs this person out so the next one can type their PIN, without closing anything. The check they were on is remembered: at their next login, on any terminal, it opens again on its order screen ("Welcome back, Sam: Takeout 1 is open again"), unless someone else has it open. The same happens after an automatic logout when the screen sits idle.

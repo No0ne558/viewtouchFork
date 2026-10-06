@@ -371,6 +371,7 @@ QJsonObject toJson(const Employee &e)
         {u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
         {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active}, {u"training"_s, e.training}, {u"sample"_s, e.sample},
         {u"cashMode"_s, qs(e.cashMode)}, {u"checkout"_s, qs(e.checkout)}, {u"language"_s, qs(e.language)},
+        {u"textSize"_s, e.textSize}, {u"leftHanded"_s, e.leftHanded}, {u"startPage"_s, qs(e.startPage)},
         {u"payRate"_s, e.payRate.cents() / 100.0}, {u"otherJobs"_s, [&] {
              QJsonArray jobs;
              for (const Job &job : e.otherJobs)
@@ -393,6 +394,9 @@ Employee employeeFromJson(const QJsonObject &o)
     e.cashMode = ss(o.value(u"cashMode").toString());
     e.checkout = ss(o.value(u"checkout").toString());
     e.language = ss(o.value(u"language").toString());
+    e.textSize = std::clamp(o.value(u"textSize").toInt(100), 80, 160);
+    e.leftHanded = o.value(u"leftHanded").toBool(false);
+    e.startPage = ss(o.value(u"startPage").toString());
     e.payRate = Money::fromCents(centsFromDecimal(o.value(u"payRate").toDouble()));
     for (const QJsonValue &v : o.value(u"otherJobs").toArray())
         e.otherJobs.push_back({ss(v.toObject().value(u"role").toString()),
@@ -688,6 +692,12 @@ QJsonObject toJson(const PosSettings &s)
         {u"autoLogoutMinutes"_s, s.autoLogoutMinutes}, {u"tableLongMinutes"_s, s.tableLongMinutes},
         {u"screenSaverMinutes"_s, s.screenSaverMinutes},
         {u"replicaKey"_s, qs(s.replicaKey)}, {u"language"_s, qs(s.language)},
+        {u"startPages"_s, [&] {
+             QJsonObject o;
+             for (const auto &[job, page] : s.startPages)
+                 o.insert(qs(job), qs(page));
+             return o;
+         }()},
         {u"extraPercent"_s, s.extraPercent}, {u"extraCharge"_s, decimalFromCents(s.extraCharge.cents())},
         {u"royaltyBp"_s, qint64(s.royaltyBp)}, {u"adFundBp"_s, qint64(s.adFundBp)},
         {u"accounts"_s, [&] {
@@ -813,6 +823,10 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.screenSaverMinutes = std::clamp(o.value(u"screenSaverMinutes").toInt(10), 0, 240);
     s.replicaKey = ss(o.value(u"replicaKey").toString());
     s.language = ss(o.value(u"language").toString(u"en"_s));
+    const QJsonObject starts = o.value(u"startPages").toObject();
+    for (auto it = starts.begin(); it != starts.end(); ++it)
+        if (!it.value().toString().isEmpty())
+            s.startPages[ss(it.key())] = ss(it.value().toString());
     s.extraPercent = std::clamp(o.value(u"extraPercent").toInt(0), 0, 500);
     s.extraCharge = Money::fromCents(centsFromDecimal(o.value(u"extraCharge").toDouble()));
     s.royaltyBp = std::clamp<std::int64_t>(o.value(u"royaltyBp").toInteger(0), 0, 10000);

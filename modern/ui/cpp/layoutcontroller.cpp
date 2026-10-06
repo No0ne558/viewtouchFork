@@ -273,6 +273,15 @@ void LayoutController::call(const QString &method, const QVariantList &args,
     });
 }
 
+QVariantList LayoutController::pageChoices() const
+{
+    QVariantList out{QVariantMap{{u"value"_s, QString()}, {u"text"_s, QString()}}};
+    for (const vt::layout::Page &p : activeLayout().pages)
+        if (p.kind != u"template" && p.kind != u"library")
+            out.append(QVariantMap{{u"value"_s, p.id}, {u"text"_s, p.name}});
+    return out;
+}
+
 QString LayoutController::rolePage(const QString &role) const
 {
     const vt::layout::Page *p = activeLayout().pageByRole(role);
@@ -288,9 +297,13 @@ void LayoutController::onLoggedInChanged(bool loggedIn)
     else if (pos_ && !editing() && pos_->can(QString::fromLatin1(vt::core::perm::Manager))
              && !pos_->setupInfo().value(u"done"_s).toBool())
         openSetup();
-    // Logged in, "home" is the floor (tables); logged out, it is the login page.
+    // Logged in, "home" is their start page (theirs, or their job's), else the
+    // floor (tables); logged out, it is the login page.
     const QString login = homePageOf(layout_);
-    const QString tables = rolePage(u"tables"_s);
+    QString tables = rolePage(u"tables"_s);
+    if (const QString start = pos_ ? pos_->userPrefs().value(u"startPage"_s).toString() : QString();
+        loggedIn && !start.isEmpty() && activeLayout().page(start))
+        tables = start;
     const QString home = loggedIn && !tables.isEmpty() ? tables : login;
     nav_.reset(home);
     if (editing_ && editor_)
@@ -1046,13 +1059,39 @@ void LayoutController::refresh()
     const bool onItemPage = page && (page->kind == u"items" || page->kind == u"modifier");
 
     const Shown s = shown();
+    // Left-handed: on the order and Pay screens the check's column moves to the
+    // right and what was right of it moves left, each row keeping its order.
+    // What's above or below the check (the bottom buttons) stays.
+    int colLeft = -1, colRight = -1, nextLeft = -1, colTop = 0, colBottom = 0;
+    if (!editing() && pos_ && page && pos_->userPrefs().value(u"leftHanded"_s).toBool()
+        && (page->kind == u"index" || page->kind == u"items" || page->kind == u"modifier" || page->kind == u"settle")) {
+        for (const Layout::PlacedZone &pz : s.zones)
+            if ((pz.zone->kind == u"orderList" || pz.zone->kind == u"paymentPanel") && !s.moved.contains(pz.zone)) {
+                colLeft = pz.zone->rect.x();
+                colRight = pz.zone->rect.x() + pz.zone->rect.width();
+                colTop = pz.zone->rect.y();
+                colBottom = pz.zone->rect.y() + pz.zone->rect.height();
+                break;
+            }
+        for (const Layout::PlacedZone &pz : s.zones)
+            if (colRight >= 0 && pz.zone->rect.x() >= colRight && pz.zone->rect.y() >= colTop
+                && pz.zone->rect.y() + pz.zone->rect.height() <= colBottom && (nextLeft < 0 || pz.zone->rect.x() < nextLeft))
+                nextLeft = pz.zone->rect.x();
+    }
+    const int canvasW = page ? page->canvas.width() : 1920;
     QList<ZoneModel::Row> rows;
     for (const Layout::PlacedZone &pz : s.zones) {
         const vt::layout::Zone &z = *pz.zone;
         // Laid out again for a phone: its own rect there, a plain shape, and
         // the look it has on its own page.
         const bool moved = s.moved.contains(pz.zone);
-        const QRect rect = moved ? s.moved.value(pz.zone) : z.rect;
+        QRect rect = moved ? s.moved.value(pz.zone) : z.rect;
+        if (nextLeft >= 0 && !moved && rect.y() >= colTop && rect.y() + rect.height() <= colBottom) {
+            if (rect.x() >= colLeft && rect.x() + rect.width() <= colRight)
+                rect.translate(canvasW - colLeft - colRight, 0);          // the check's column: right
+            else if (rect.x() >= colRight)
+                rect.translate(colLeft - nextLeft, 0);                    // the rest: left
+        }
         const QString shape = moved && z.shape != u"rect" ? u"rounded"_s : z.shape;
         const QString stylePage = moved ? pageId : s.pageId;
         // A button that orders an 86'd item: marked, and touching it does nothing.

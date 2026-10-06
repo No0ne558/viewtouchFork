@@ -39,6 +39,8 @@ Item {
     function touch(px) { return px / Math.max(0.1, screenScale) }
     property LayoutController controller
     property PosService pos
+    // The logged-in person's text size (Employees: Text size); never while editing.
+    readonly property real textScale: pos && !editing && pos.userPrefs.textSize ? pos.userPrefs.textSize / 100 : 1
 
     // A widget's own buttons, hidden or renamed in the editor
     // (props.hideButtons, props.buttons.<id>.hide / .label).
@@ -228,7 +230,7 @@ Item {
         minimumPixelSize: 10
         color: zone.ink
         font.family: zone.st.font ?? "DejaVu Sans"
-        font.pixelSize: zone.st.fontSize ?? 28
+        font.pixelSize: (zone.st.fontSize ?? 28) * zone.textScale
         font.bold: zone.st.bold ?? true
         style: zone.st.textStyle === "embossed" ? Text.Raised
              : zone.st.textStyle === "outline" ? Text.Outline : Text.Normal

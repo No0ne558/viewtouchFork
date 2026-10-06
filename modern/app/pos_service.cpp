@@ -286,6 +286,24 @@ QString PosService::language() const
     return qs(s_->settings.language);
 }
 
+QVariantMap PosService::userPrefs() const
+{
+    const core::Employee *e = user();
+    if (!e)
+        return {};
+    // Their own start page, else their job's: the one they're clocked in as, or their role.
+    std::string start = e->startPage;
+    if (start.empty()) {
+        std::string job = e->role;
+        for (const TimePunch &p : s_->punches)
+            if (p.employeeId == e->id && p.open() && !p.job.empty())
+                job = p.job;
+        if (const auto it = s_->settings.startPages.find(job); it != s_->settings.startPages.end())
+            start = it->second;
+    }
+    return {{u"textSize"_s, e->textSize}, {u"leftHanded"_s, e->leftHanded}, {u"startPage"_s, qs(start)}};
+}
+
 QVariantMap PosService::networkInfo() const
 {
     if (!can(u"manager"_s))

@@ -81,6 +81,8 @@ class PosSession : public QObject {
     Q_PROPERTY(bool standbyReady READ standbyReady NOTIFY sessionChanged)
     // This screen's language: the logged-in person's, else the store's.
     Q_PROPERTY(QString language READ language NOTIFY sessionChanged)
+    // The logged-in person's own screen: {textSize (percent), leftHanded, startPage}.
+    Q_PROPERTY(QVariantMap userPrefs READ userPrefs NOTIFY sessionChanged)
     // The store's: the customer display's language.
     Q_PROPERTY(QString storeLanguage READ storeLanguage NOTIFY adminChanged)
     // Self-order kiosk: {on, toGo, ordering, idleSeconds, lastOrder: {number,
@@ -211,6 +213,7 @@ public:
     // A screen that lost its server: the store's standby is there, ready.
     virtual bool standbyReady() const { return false; }
     virtual QString language() const = 0;
+    virtual QVariantMap userPrefs() const = 0;
     virtual QString storeLanguage() const = 0;
     virtual QVariantMap selfOrderInfo() const = 0;
     virtual QVariantMap kioskMenu() const = 0;

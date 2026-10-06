@@ -158,6 +158,8 @@ public:
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goHome();
     Q_INVOKABLE bool jumpTo(const QString &pageId);
+    // Pages to start on, for the admin forms: [{value: id, text: name}], empty first.
+    Q_INVOKABLE QVariantList pageChoices() const;
     // Switch pages without remembering the current one (editor page list).
     Q_INVOKABLE bool showPage(const QString &pageId);
     Q_INVOKABLE bool triggerHotkey(const QString &key);

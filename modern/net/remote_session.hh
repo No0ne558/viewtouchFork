@@ -116,6 +116,7 @@ public:
     bool standbyReady() const override { return !welcomed_ && !standbyHost_.isEmpty(); }
     QVariantMap networkInfo() const override { return v(u"network").toMap(); }
     QString language() const override { return v(u"language").toString(); }
+    QVariantMap userPrefs() const override { return v(u"userPrefs").toMap(); }
     QString storeLanguage() const override { return v(u"storeLanguage").toString(); }
     QVariantMap selfOrderInfo() const override { return v(u"selfOrder").toMap(); }
     QVariantMap clockInJobs() const override { return v(u"clockInJobs").toMap(); }

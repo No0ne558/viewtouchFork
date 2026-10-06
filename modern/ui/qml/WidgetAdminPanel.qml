@@ -229,6 +229,7 @@ Item {
                                 required property var modelData
                                 field: modelData
                                 pos: w.pos
+                                pages: modelData.type === "page" && w.zone ? w.zone.controller.pageChoices() : []
                                 value: w.draft[modelData.path]
                                 isSet: true
                                 readOnly: modelData.readonlyExisting === true && w.index >= 0

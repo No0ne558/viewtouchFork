@@ -12,6 +12,7 @@ ColumnLayout {
     property EditorController editor
     // For pictures: the store's picture library.
     property PosService pos
+    property var pages: []   // page choices when there's no editor: [{value, text}]
     property var value
     property bool mixed: false
     property bool isSet: value !== undefined
@@ -323,10 +324,11 @@ ColumnLayout {
     Component {
         id: pageCombo
         ComboBox {
+            // From the editor, or the owner's list (admin forms); field.emptyText names "none".
             readonly property var opts: {
-                if (!fe.editor) return []
-                void fe.editor.revision   // re-query when pages change
-                return fe.editor.pageOptions()
+                const list = fe.editor ? (fe.editor.revision, fe.editor.pageOptions()) : fe.pages
+                return list.map((o, i) => i === 0 && o.value === "" && fe.field.emptyText
+                                ? { value: "", text: fe.field.emptyText } : o)
             }
             model: opts
             textRole: "text"

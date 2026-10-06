@@ -220,6 +220,13 @@ QVariantList PosService::adminFields(const QString &panel)
                      "They choose the job when they clock in. Jobs: server, bartender, cashier, host, busser, manager.")),
             with(field(u"language"_s, tr("Language"), u"enum"_s, tr("The screens switch to it when this person logs in.")),
                  u"options"_s, languageOptions(true)),
+            with(field(u"textSize"_s, tr("Text size"), u"enum"_s, tr("Bigger button and check text, for them only.")),
+                 u"options"_s, options({{"100", "Normal"}, {"115", "Bigger"}, {"130", "Biggest"}})),
+            field(u"leftHanded"_s, tr("Left-handed"), u"bool"_s,
+                  tr("On their order and Pay screens the check is on the right and the menu on the left.")),
+            with(field(u"startPage"_s, tr("Start screen"), u"page"_s,
+                       tr("The page they see first when they log in. Empty: their job's (Store settings).")),
+                 u"emptyText"_s, tr("(their job's)")),
             field(u"active"_s, tr("Active (can log in)"), u"bool"_s),
             field(u"training"_s, tr("In training (practice only)"), u"bool"_s,
                   tr("Their checks never go to the kitchen and don't count as sales, stock or cash.")),
@@ -289,6 +296,13 @@ QVariantList PosService::adminFields(const QString &panel)
                        tr("For screens nobody is logged in to, the customer display, receipts and tickets. "
                           "Each person can have their own (Employees).")),
                  u"options"_s, languageOptions(false)),
+            with(field(u"startPage.server"_s, tr("Servers start on"), u"page"_s,
+                       tr("The first page after login, for each job. Each person can have their own (Employees).")),
+                 u"emptyText"_s, tr("(the floor plan)")),
+            with(field(u"startPage.bartender"_s, tr("Bartenders start on"), u"page"_s), u"emptyText"_s, tr("(the floor plan)")),
+            with(field(u"startPage.cashier"_s, tr("Cashiers start on"), u"page"_s), u"emptyText"_s, tr("(the floor plan)")),
+            with(field(u"startPage.host"_s, tr("Hosts start on"), u"page"_s), u"emptyText"_s, tr("(the floor plan)")),
+            with(field(u"startPage.manager"_s, tr("Managers start on"), u"page"_s), u"emptyText"_s, tr("(the floor plan)")),
             field(u"currencySymbol"_s, tr("Currency symbol"), u"string"_s),
             field(u"receiptHeader"_s, tr("Receipt header"), u"text"_s, tr("Address, phone… one per line")),
             field(u"receiptFooter"_s, tr("Receipt footer"), u"text"_s),
@@ -471,6 +485,7 @@ QVariantList PosService::adminRecords(const QString &panel)
         for (const Employee &e : s_->employees) {
             QVariantMap r{{u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
                           {u"active"_s, e.active}, {u"training"_s, e.training}, {u"pin"_s, QString()}, {u"cashMode"_s, qs(e.cashMode)}, {u"language"_s, qs(e.language)},
+                          {u"textSize"_s, QString::number(e.textSize)}, {u"leftHanded"_s, e.leftHanded}, {u"startPage"_s, qs(e.startPage)},
                           {u"payRate"_s, e.payRate.cents() / 100.0}, {u"otherJobs"_s, [&] {
                                QStringList lines;
                                for (const Job &j : e.otherJobs)
@@ -582,6 +597,12 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"overtimeWeeklyHours"_s, s_->settings.overtimeWeeklyHours},
              {u"weekStartsOn"_s, QString::number(s_->settings.weekStartsOn)}},
             tr("Store"), QString());
+        // The page each job starts on.
+        QVariantMap store = out.last().toMap();
+        for (const char *job : {"server", "bartender", "cashier", "host", "manager"})
+            store.insert(u"startPage."_s + QLatin1StringView(job),
+                         s_->settings.startPages.contains(job) ? qs(s_->settings.startPages.at(job)) : QString());
+        out.last() = store;
     } else if (panel == u"promotions") {
         for (const PosSettings::Promotion &p : s_->settings.promotions)
             add(promotionRecord(p), qs(p.name),
@@ -640,6 +661,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
                 {u"active"_s, true}, {u"training"_s, false}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()},
                 {u"payRate"_s, 0.0}, {u"otherJobs"_s, QString()}, {u"language"_s, QString()},
+                {u"textSize"_s, u"100"_s}, {u"leftHanded"_s, false}, {u"startPage"_s, QString()},
                 {u"perm:order"_s, QString()}, {u"perm:check.settle"_s, QString()}, {u"perm:check.discount"_s, QString()},
                 {u"perm:order.void"_s, QString()}, {u"perm:manager"_s, QString()}, {u"perm:layout.edit"_s, QString()}};
     if (panel == u"tenders")
@@ -801,6 +823,15 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             if (std::ranges::none_of(i18n::languages(), [&](const i18n::Language &l) { return l.code == lang; }))
                 return fail(tr("Choose a language."));
             s_->settings.language = ss(lang);
+        }
+        for (const char *job : {"server", "bartender", "cashier", "host", "manager"}) {
+            const QString key = u"startPage."_s + QLatin1StringView(job);
+            if (!record.contains(key))
+                continue;
+            if (const QString page = record.value(key).toString(); page.isEmpty())
+                s_->settings.startPages.erase(job);
+            else
+                s_->settings.startPages[job] = ss(page);
         }
         if (record.contains(u"terminalsHaveDrawer"_s))
             s_->settings.terminalsHaveDrawer = record.value(u"terminalsHaveDrawer"_s).toBool();
@@ -1165,6 +1196,9 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     e.payRate = Money::fromCents(std::llround(rate * 100));
     e.otherJobs = otherJobs;
     e.language = ss(language);
+    e.textSize = std::clamp(record.value(u"textSize"_s, e.textSize).toInt(), 80, 160);
+    e.leftHanded = record.value(u"leftHanded"_s, e.leftHanded).toBool();
+    e.startPage = ss(record.value(u"startPage"_s, qs(e.startPage)).toString());
     e.cashMode = ss(cashMode);
     e.checkout = ss(checkout);
     e.allow = allow;

@@ -513,6 +513,7 @@ public:
     QVariantList messages() const override;
     QVariantMap networkInfo() const override;
     QString language() const override;
+    QVariantMap userPrefs() const override;
     QString storeLanguage() const override { return QString::fromStdString(s_->settings.language); }
 
     // --- manager approval ---------------------------------------------------------
