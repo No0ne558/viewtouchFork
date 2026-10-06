@@ -243,15 +243,30 @@ Item {
                     }
                 }
             }
+            // Fire it later: in 5, 10, 15 or 20 minutes (or not after all).
+            WidgetKey {
+                objectName: "fireLater"
+                visible: fireKey.visible
+                anchors.right: fireKey.left
+                anchors.rightMargin: bar.key * 0.15
+                width: bar.key * 1.05
+                height: parent.height
+                text: "⏱"
+                fontScale: 0.5
+                accent: !!w.check.firesAt
+                onClicked: sheet.mode = "fire"
+            }
             WidgetKey {
                 id: fireKey
                 visible: w.nextCourse > 0 && w.zone.keyShown("fire")
                 anchors.right: parent.right
-                width: bar.key * 3.4
+                width: bar.key * 2.25
                 height: parent.height
-                text: w.zone.keyText("fire", qsTr("Fire Course %1").arg(w.nextCourse))
+                text: w.check.firesAt ? qsTr("Course %1 at %2").arg(w.nextCourse).arg(w.check.firesAt)
+                                      : w.zone.keyText("fire", qsTr("Fire Course %1").arg(w.nextCourse))
                 baseColor: "#a86a12"
                 fontScale: 0.28
+                objectName: "fireCourse"
                 onClicked: w.pos.fireCourse()
             }
         }
@@ -519,6 +534,10 @@ Item {
             mode = ""
             action()
         }
+        function fireIn(minutes) {   // 0: now; -1: not on a timer after all
+            mode = ""
+            w.pos.fireCourseIn(minutes)
+        }
         function moveTo(checkId) {   // 0: a new check
             mode = ""
             w.pos.splitLine(checkId)
@@ -533,7 +552,8 @@ Item {
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 text: sheet.mode === "move" ? qsTr("Move %1 to…").arg(w.pos.lines.find(l => l.selected)?.name ?? "")
-                                            : (w.check.label ?? "")
+                    : sheet.mode === "fire" ? qsTr("Fire course %1").arg(w.nextCourse)
+                    : (w.check.label ?? "")
                 color: "white"
                 font.family: w.face
                 font.pixelSize: w.unit
@@ -564,6 +584,34 @@ Item {
                 fontScale: 0.38
                 text: qsTr("Put Them Back Together")
                 onClicked: sheet.run(() => w.pos.combineTableChecks())
+            }
+            // Fire the next course: now, or paced.
+            Flow {
+                visible: sheet.mode === "fire"
+                width: parent.width
+                spacing: w.unit * 0.3
+                Repeater {
+                    model: sheet.mode === "fire" ? [0, 5, 10, 15, 20] : []
+                    delegate: WidgetKey {
+                        required property int modelData
+                        objectName: "fireIn-" + modelData
+                        width: modelData === 0 ? parent.width : (parent.width - w.unit * 0.9) / 4
+                        height: sheet.key
+                        fontScale: 0.4
+                        text: modelData === 0 ? qsTr("Now") : qsTr("In %1 min").arg(modelData)
+                        baseColor: modelData === 0 ? "#a86a12" : "#343c49"
+                        onClicked: sheet.fireIn(modelData)
+                    }
+                }
+                WidgetKey {
+                    objectName: "fireCancel"
+                    visible: !!w.check.firesAt
+                    width: parent.width
+                    height: sheet.key * 0.8
+                    fontScale: 0.4
+                    text: qsTr("Don't fire it at %1").arg(w.check.firesAt ?? "")
+                    onClicked: sheet.fireIn(-1)
+                }
             }
             // Move the touched line
             Flow {

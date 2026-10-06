@@ -121,7 +121,7 @@ QJsonObject toJson(const Check &c)
         {u"customer"_s, QJsonObject{{u"name"_s, qs(c.customer.name)}, {u"phone"_s, qs(c.customer.phone)},
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
         {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse}, {u"customerId"_s, qs(c.customerId)},
-        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"kiosk"_s, c.kiosk}, {u"dueAt"_s, qint64(c.dueAt)}, {u"pointsEarned"_s, c.pointsEarned}, {u"training"_s, c.training},
+        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"kiosk"_s, c.kiosk}, {u"dueAt"_s, qint64(c.dueAt)}, {u"fireAt"_s, qint64(c.fireAt)}, {u"pointsEarned"_s, c.pointsEarned}, {u"training"_s, c.training},
     };
 }
 
@@ -206,6 +206,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     c.rush = o.value(u"rush").toBool();
     c.kiosk = o.value(u"kiosk").toBool();
     c.dueAt = o.value(u"dueAt").toInteger(0);
+    c.fireAt = o.value(u"fireAt").toInteger(0);
     c.vip = o.value(u"vip").toBool();
     c.pointsEarned = o.value(u"pointsEarned").toInt();
     c.training = o.value(u"training").toBool();

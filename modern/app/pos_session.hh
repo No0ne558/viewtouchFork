@@ -339,6 +339,7 @@ public:
     Q_INVOKABLE void switchCheck(qint64 checkId) { invoke(QStringLiteral("openCheck"), {checkId}); }
     Q_INVOKABLE void setCourse(int course) { invoke(QStringLiteral("setCourse"), {course}); }
     Q_INVOKABLE void fireCourse() { invoke(QStringLiteral("fireCourse")); }
+    Q_INVOKABLE void fireCourseIn(int minutes) { invoke(QStringLiteral("fireCourseIn"), {minutes}); }
     Q_INVOKABLE void chooseOption(const QString &groupId, int index) { invoke(QStringLiteral("chooseOption"), {groupId, index}); }
     Q_INVOKABLE void finishChoosing() { invoke(QStringLiteral("finishChoosing")); }
     Q_INVOKABLE void cancelChoosing() { invoke(QStringLiteral("cancelChoosing")); }

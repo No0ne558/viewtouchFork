@@ -1009,6 +1009,56 @@ TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labo
     CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
 }
 
+TEST_CASE("UI: course pacing: fire the next course in 10 minutes", "[flow][ui][pacing]")
+{
+    Screen s;
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.selectTable(u"T4"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    s.pos.addItem(u"house-salad"_s);                            // course 1
+    REQUIRE(s.pos.chooseOption(u"dressing"_s, 0));
+    REQUIRE(s.pos.chooseOption(u"salad-protein"_s, 0));
+    s.pos.finishChoosing();
+    s.pos.selectLine(0);                                         // course 2 for what's ordered next
+    s.pos.setCourse(2);
+    s.pos.addItem(u"cobb"_s);                                   // course 2: held
+    REQUIRE(s.pos.chooseOption(u"salad-protein"_s, 0));
+    s.pos.finishChoosing();
+    REQUIRE(s.pos.sendOrder());
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    QTest::qWait(60);
+
+    s.tapItem(find(u"fireLater"_s));
+    QTest::qWait(40);
+    REQUIRE(find(u"fireIn-10"_s));
+    s.shot("76-fire-in");
+    s.tapItem(find(u"fireIn-10"_s));
+    QTest::qWait(40);
+    QVariantMap check = s.pos.checkInfo();
+    CHECK_FALSE(check[u"firesAt"_s].toString().isEmpty());
+    CHECK(check[u"heldCount"_s].toInt() == 1);
+    CHECK(s.pos.fireDueOrders() == 0);                          // not yet
+
+    // Ten minutes later (the store's 30-second check): it fires by itself.
+    for (auto &[id, c] : s.pos.shared()->open)
+        if (c.fireAt > 0)
+            c.fireAt = QDateTime::currentMSecsSinceEpoch() - 1000;
+    CHECK(s.pos.fireDueOrders() == 1);
+    check = s.pos.checkInfo();
+    CHECK(check[u"heldCount"_s].toInt() == 0);
+    CHECK(check[u"firesAt"_s].toString().isEmpty());
+
+    // Changed one's mind: back to firing by hand.
+    s.pos.selectLine(0);
+    s.pos.setCourse(3);
+    s.pos.addItem(u"water"_s);
+    CHECK_FALSE(s.pos.sendOrder());                              // held: "fire it when it's time"
+    REQUIRE(s.pos.fireCourseIn(15));
+    REQUIRE(s.pos.fireCourseIn(-1));
+    CHECK(s.pos.checkInfo()[u"firesAt"_s].toString().isEmpty());
+}
+
 TEST_CASE("UI: kitchen tickets are late past what their items usually take", "[flow][ui][preptimes]")
 {
     Screen s;

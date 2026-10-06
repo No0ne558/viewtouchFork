@@ -200,6 +200,8 @@ struct Check {
     // An order for later: ready at this time (epoch ms; 0 = now). It goes to
     // the kitchen by itself shortly before (PosSettings::laterLeadMinutes).
     std::int64_t dueAt = 0;
+    // Course pacing: the next held course fires by itself at this time (0: when someone fires it).
+    std::int64_t fireAt = 0;
 
     void note(std::int64_t at, const std::string &who, const std::string &what, const std::string &kind = {},
               Money amount = {})

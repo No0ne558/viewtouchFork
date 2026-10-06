@@ -1171,6 +1171,22 @@ bool PosService::setDueAt(qint64 at)
 int PosService::fireDueOrders()
 {
     int fired = 0;
+    // Paced courses whose time has come.
+    for (auto &[id, c] : s_->open) {
+        if (c.fireAt <= 0 || c.fireAt > now())
+            continue;
+        if (c.heldCount() == 0) {
+            c.fireAt = 0;
+            continue;
+        }
+        if (!fireCourseOn(c, true)) {
+            c.fireAt = 0;   // can't (a choice is missing): don't keep trying; the server fires it
+            emit notice(tr("%1: the next course didn't fire (see the check).").arg(qs(c.label)));
+            changed(c);
+        } else {
+            ++fired;
+        }
+    }
     for (auto &[id, c] : s_->open) {
         if (c.dueAt <= 0 || c.unsentCount() == 0 || waitingForLater(c) || c.training)
             continue;
@@ -1539,7 +1555,8 @@ QVariantMap PosService::checkInfo() const
         {u"id"_s, qint64(c->id)}, {u"label"_s, qs(c->label)}, {u"guests"_s, c->guests},
         {u"server"_s, qs(c->serverName)}, {u"type"_s, qs(toString(c->type))},
         {u"seat"_s, seat_}, {u"course"_s, course_}, {u"firedCourse"_s, c->firedCourse},
-        {u"heldCount"_s, c->heldCount()}, {u"roundSize"_s, int(lastRound(*c).size())}, {u"rush"_s, c->rush}, {u"vip"_s, c->vip},
+        {u"heldCount"_s, c->heldCount()}, {u"roundSize"_s, int(lastRound(*c).size())},
+        {u"firesAt"_s, c->fireAt ? timeOfDay(c->fireAt) : QString()}, {u"rush"_s, c->rush}, {u"vip"_s, c->vip},
         {u"opened"_s, timeOfDay(c->openedAt)},
         {u"dueAt"_s, qint64(c->dueAt)}, {u"due"_s, c->dueAt ? dueText(c->dueAt) : QString()},
         {u"customer"_s, QVariantMap{{u"name"_s, qs(c->customer.name)}, {u"phone"_s, qs(c->customer.phone)},
@@ -2249,6 +2266,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
              return QVariant(p.setAvailable(a.value(0).toString(), a.value(1).toBool())); }},
         {u"setCourse"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setCourse(a.value(0).toInt())); }},
         {u"fireCourse"_s, [](PosService &p, const QVariantList &) { return QVariant(p.fireCourse()); }},
+        {u"fireCourseIn"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.fireCourseIn(a.value(0).toInt())); }},
         {u"startPairing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.startPairing()); }},
         {u"transferCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.transferCheck(a.value(0).toString())); }},
         {u"moveCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.moveCheck(a.value(0).toString())); }},

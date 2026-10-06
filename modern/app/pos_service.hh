@@ -391,6 +391,9 @@ public:
     bool setCourse(int course);
     // Send the next course that is on hold.
     bool fireCourse();
+    // Course pacing: fire the next held course in `minutes` (0: now; -1: never mind).
+    bool fireCourseIn(int minutes);
+    bool fireCourseOn(core::Check &c, bool paced);
 
     // --- managing checks (app/pos_checks.cpp) ----------------------------------------
     // On the current check. Servers may do this to their own checks,

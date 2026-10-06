@@ -191,6 +191,35 @@ bool PosService::fireCourse()
     Check *c = current();
     if (!c)
         return fail(tr("No check is open."));
+    return fireCourseOn(*c, false);
+}
+
+bool PosService::fireCourseIn(int minutes)
+{
+    if (!require(perm::Order, tr("Firing courses")))
+        return false;
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    if (minutes < 0) {
+        c->fireAt = 0;
+        emit notice(tr("The next course waits until someone fires it."));
+        changed(*c);
+        return true;
+    }
+    if (minutes == 0)
+        return fireCourseOn(*c, false);
+    if (c->heldCount() == 0)
+        return fail(tr("No course is on hold."));
+    c->fireAt = now() + std::int64_t(std::min(minutes, 120)) * 60'000;
+    emit notice(tr("The next course fires at %1.").arg(QLocale().toString(QDateTime::fromMSecsSinceEpoch(c->fireAt).time(), QLocale::ShortFormat)));
+    changed(*c);
+    return true;
+}
+
+bool PosService::fireCourseOn(Check &check, bool paced)
+{
+    Check *c = &check;
     // The course about to go out must be complete.
     int next = 0;
     for (const OrderLine &l : c->lines) {
@@ -209,11 +238,13 @@ bool PosService::fireCourse()
     const int course = c->fireNextCourse();
     if (course == 0)
         return fail(tr("No course is on hold."));
+    c->fireAt = 0;   // fired: any pacing is done
     const std::vector<OrderLine> fresh = c->sendable();
     const int n = c->sendAll(now());
     if (s_->printer && !fresh.empty() && !c->training)
         s_->printer->printKitchen(s_->settings, *c, fresh, false);
-    emit notice(tr("Fired course %1 (%2 items)").arg(course).arg(n));
+    emit notice(paced ? tr("%1: course %2 fired on time (%3 items)").arg(qs(c->label)).arg(course).arg(n)
+                      : tr("Fired course %1 (%2 items)").arg(course).arg(n));
     changed(*c);
     return true;
 }
