@@ -315,6 +315,8 @@ public:
     bool changeLineQuantity(qint64 lineId, int by);
     // One more the same way (its choices too), as a new unsent line.
     bool repeatLine(qint64 lineId);
+    // Puts back the item last taken off (or made fewer), for a little while.
+    bool undoLast();
     bool sendOrder();
     // Orders for later: ready at `at` (epoch ms; 0 = as soon as possible).
     bool setDueAt(qint64 at);
@@ -480,6 +482,7 @@ public:
     bool hasCheck() const override { return currentCheck() != nullptr; }
     QVariantMap checkInfo() const override;
     QVariantList tableChecks() const override;
+    QString undoText() const override;
     QVariantList lines() const override;
     QVariantMap totals() const override;
     QVariantList payments() const override;
@@ -772,6 +775,17 @@ private:
     QString weighing_;                // an item sold by weight, waiting for its weight
     bool retireMeAtFinish_ = false;   // setup guide: this sample manager goes off at Finish
     qint64 selectedLine_ = 0;
+    // The last item taken off (or made fewer) on this terminal's check, for Undo.
+    struct LastChange {
+        std::int64_t checkId = 0;
+        core::OrderLine before;   // the line as it was
+        std::size_t index = 0;    // where it was on the check
+        bool removed = false;
+        std::int64_t at = 0;
+        QString text;
+    };
+    std::optional<LastChange> lastChange_;
+    void rememberChange(const core::Check &c, const core::OrderLine &before, bool removed, const QString &text);
     qint64 selectedPayment_ = 0;
     core::Qualifier qualifier_ = core::Qualifier::None;
     std::int64_t lastClosedId_ = 0;

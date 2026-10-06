@@ -45,6 +45,8 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantMap check READ checkInfo NOTIFY checkChanged)
     // A table with separate checks: [{id, number (1, 2…), total, lines, current}].
     Q_PROPERTY(QVariantList tableChecks READ tableChecks NOTIFY checkChanged)
+    // "Removed Cobb" while Undo can put it back; empty otherwise.
+    Q_PROPERTY(QString undoText READ undoText NOTIFY checkChanged)
     Q_PROPERTY(QVariantList lines READ lines NOTIFY checkChanged)
     Q_PROPERTY(QVariantMap totals READ totals NOTIFY checkChanged)
     Q_PROPERTY(QVariantList payments READ payments NOTIFY checkChanged)
@@ -180,6 +182,7 @@ public:
     virtual qint64 selectedPayment() const = 0;
     virtual QVariantList openChecks() const = 0;
     virtual QVariantList tableChecks() const = 0;
+    virtual QString undoText() const = 0;
     virtual QVariantList closedChecks() const = 0;
     virtual QVariantList staff() const = 0;
     virtual QVariantList checkHistory() const = 0;
@@ -301,6 +304,7 @@ public:
     Q_INVOKABLE void printTableChecks() { invoke(QStringLiteral("printTableChecks"), {}); }
     Q_INVOKABLE void testPrinter(const QString &printerId, bool kickDrawer = false) { invoke(QStringLiteral("testPrinter"), {printerId, kickDrawer}); }
     Q_INVOKABLE void combineTableChecks() { invoke(QStringLiteral("combineTableChecks"), {}); }
+    Q_INVOKABLE void undoLast() { invoke(QStringLiteral("undoLast"), {}); }
     Q_INVOKABLE void newTableCheck() { invoke(QStringLiteral("newTableCheck"), {}); }
     // Another open check made current, staying on this page (the table's checks).
     Q_INVOKABLE void switchCheck(qint64 checkId) { invoke(QStringLiteral("openCheck"), {checkId}); }

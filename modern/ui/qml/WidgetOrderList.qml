@@ -402,6 +402,47 @@ Item {
                 }
             }
 
+            // "Removed Cobb  Undo": for a few seconds after an item comes off.
+            Rectangle {
+                id: undoBar
+                objectName: "undoBar"
+                readonly property string text: w.pos ? w.pos.undoText : ""
+                property bool timedOut: false
+                onTextChanged: { timedOut = false; undoTimer.restart() }
+                Timer { id: undoTimer; interval: 8000; onTriggered: undoBar.timedOut = true }
+                visible: text !== "" && !timedOut && w.zone.keyShown("undo")
+                z: 2
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: w.unit * 2
+                radius: 6
+                color: "#1d2128"
+                border.color: "#f5b940"
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: w.unit * 0.5
+                    anchors.rightMargin: w.unit * 0.25
+                    Text {
+                        Layout.fillWidth: true
+                        text: undoBar.text
+                        color: "white"
+                        font.family: w.face
+                        font.pixelSize: w.unit * 0.75
+                        elide: Text.ElideRight
+                    }
+                    WidgetKey {
+                        objectName: "undoLast"
+                        Layout.preferredWidth: w.unit * 3.6
+                        Layout.preferredHeight: w.unit * 1.5
+                        fontScale: 0.5
+                        baseColor: "#a86a12"
+                        text: w.zone.keyText("undo", qsTr("Undo"))
+                        onClicked: w.pos.undoLast()
+                    }
+                }
+            }
+
             Text {
                 anchors.centerIn: parent
                 width: parent.width * 0.8

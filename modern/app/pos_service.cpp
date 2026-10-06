@@ -926,8 +926,8 @@ bool PosService::voidItem()
         return fail(tr("Nothing to void."));
     const QString name = qs(l->displayName());
     if (!l->sent) {
+        rememberChange(*c, *l, true, tr("Removed %1").arg(name));
         c->removeLine(l->id);
-        emit notice(tr("Removed %1").arg(name));
     } else {
         if (!require(perm::Void, tr("Voiding sent items")))
             return false;
@@ -964,8 +964,47 @@ bool PosService::setLineQuantity(qint64 lineId, int quantity)
         if (const MenuItem *m = findItem(qs(l->itemId)); m && m->ticketCapacity > 0
             && ticketsLeft(*m) < quantity - l->quantity)
             return fail(tr("%1 is sold out (%2 tickets).").arg(qs(m->name)).arg(m->ticketCapacity));
+    if (quantity < l->quantity)
+        rememberChange(*c, *l, false, tr("%1: %2 instead of %3").arg(qs(l->displayName())).arg(quantity).arg(l->quantity));
     l->quantity = quantity;
     selectedLine_ = l->id;
+    changed(*c);
+    return true;
+}
+
+void PosService::rememberChange(const Check &c, const OrderLine &before, bool removed, const QString &text)
+{
+    const auto it = std::ranges::find(c.lines, before.id, &OrderLine::id);
+    lastChange_ = LastChange{c.id, before, std::size_t(it - c.lines.begin()), removed, now(), text};
+}
+
+QString PosService::undoText() const
+{
+    // For a short while, and only on the check it happened on.
+    if (!lastChange_ || lastChange_->checkId != currentId_ || now() - lastChange_->at > 30'000)
+        return {};
+    return lastChange_->text;
+}
+
+bool PosService::undoLast()
+{
+    Check *c = current();
+    if (undoText().isEmpty() || !c)
+        return fail(tr("Nothing to undo."));
+    const LastChange u = *lastChange_;
+    lastChange_.reset();
+    if (u.removed) {
+        if (c->line(u.before.id))
+            return fail(tr("Nothing to undo."));
+        c->lines.insert(c->lines.begin() + std::ptrdiff_t(std::min(u.index, c->lines.size())), u.before);
+    } else {
+        OrderLine *l = c->line(u.before.id);
+        if (!l || l->sent)
+            return fail(tr("Nothing to undo."));
+        l->quantity = u.before.quantity;
+    }
+    selectedLine_ = u.before.id;
+    emit notice(tr("Put back %1").arg(qs(u.before.displayName())));
     changed(*c);
     return true;
 }
@@ -1959,6 +1998,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"setLineQuantity"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setLineQuantity(a.value(0).toLongLong(), a.value(1).toInt())); }},
         {u"lineMore"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.changeLineQuantity(a.value(0).toLongLong(), 1)); }},
         {u"lineLess"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.changeLineQuantity(a.value(0).toLongLong(), -1)); }},
+        {u"undoLast"_s, [](PosService &p, const QVariantList &) { return QVariant(p.undoLast()); }},
         {u"repeatLine"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.repeatLine(a.value(0).toLongLong())); }},
         {u"sendOrder"_s, [](PosService &p, const QVariantList &) { return QVariant(p.sendOrder()); }},
         {u"setKitchenStation"_s, [](PosService &p, const QVariantList &a) {

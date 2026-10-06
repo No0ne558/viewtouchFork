@@ -464,6 +464,10 @@ Edit mode → **Theme** tab → **Looks**: ViewTouch Dark, Daylight, High Contra
 
 Manager → Printers → a printer → **Test Print** (and **Test Print + Open Drawer** when a drawer is wired to it) sends a test page with the current saved settings: the store logo (ESC/POS), normal, bold, big and right-aligned text, a receipt-style item and total, a ruler of digits that should exactly fill one line (so *Characters per line* is right), accented letters, then the cut. "Receipt took the test page" appears when the printer accepted it; otherwise the usual "did not print" message says why.
 
+## Undo
+
+Taking an unsent item off (Void, or − on the last one) or making it fewer shows **Removed Bacon Burger · Undo** at the bottom of the check for a few seconds; **Undo** puts it back where it was, choices and all (or the number it was). Only on the check it happened on, once, within 30 seconds. `PosSession::undoText`, `undoLast`; the bar is the order list's built-in "undo" button.
+
 ## How many: − 2 + and Again
 
 The touched line on the check (a new item is the touched one) shows **− 2 +** and **Again**. **+** and **−** change how many (the line reads "3 × Bacon Burger", priced, printed and counted as 3); **−** on the last one takes it off. **Again** adds one more the same way, choices and all, as its own line, so it can be changed on its own. A line already sent can't change: it shows only **Again**, which adds a new line for the next Send (taking one off is still a Void). Weighed items, gift cards and notes have no quantity. Commands for buttons: `lineMore`, `lineLess`, `repeatLine`; the bar is the order list's built-in "quantity" button.

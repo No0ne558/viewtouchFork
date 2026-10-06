@@ -821,6 +821,54 @@ TEST_CASE("UI: each person's text size, left hand and start screen; a start scre
     CHECK(s.pos.userPrefs().isEmpty());
 }
 
+TEST_CASE("UI: Undo puts back the item just removed", "[flow][ui][undo]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    s.pos.addItem(u"water"_s);
+    s.pos.addItem(u"bacon-burger"_s);
+    REQUIRE(s.pos.chooseOption(u"temperature"_s, 1));
+    REQUIRE(s.pos.chooseOption(u"side"_s, 2));
+    REQUIRE(s.pos.finishChoosing());
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    s.pos.addItem(u"water"_s);
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    CHECK_FALSE(find(u"undoBar"_s));
+
+    // Take the burger off: the bar offers it back, in its place, choices and all.
+    const QVariantMap burger = s.pos.lines().value(1).toMap();
+    s.pos.selectLine(burger[u"id"_s].toLongLong());
+    REQUIRE(s.pos.voidItem());
+    QTest::qWait(60);
+    REQUIRE(s.pos.lines().size() == 2);
+    REQUIRE(find(u"undoBar"_s));
+    CHECK(s.pos.undoText() == u"Removed Bacon Burger"_s);
+    s.shot("60-undo");
+    s.tapItem(find(u"undoLast"_s));
+    QTest::qWait(60);
+    REQUIRE(s.pos.lines().size() == 3);
+    CHECK(s.pos.lines().value(1).toMap()[u"name"_s] == burger[u"name"_s]);
+    CHECK(s.pos.lines().value(1).toMap()[u"modifiers"_s].toList().size() == burger[u"modifiers"_s].toList().size());
+    CHECK_FALSE(find(u"undoBar"_s));
+    CHECK_FALSE(s.pos.undoLast());                 // once
+
+    // Fewer: Undo puts the number back.
+    s.pos.selectLine(burger[u"id"_s].toLongLong());
+    REQUIRE(s.pos.setLineQuantity(0, 3));
+    REQUIRE(s.pos.changeLineQuantity(0, -1));
+    CHECK(s.pos.undoText().contains(u"2 instead of 3"_s));
+    REQUIRE(s.pos.undoLast());
+    CHECK(s.pos.lines().value(1).toMap()[u"quantity"_s].toInt() == 3);
+
+    // Only on the check it happened on.
+    REQUIRE(s.pos.voidItem());
+    s.pos.releaseCheck();
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    CHECK(s.pos.undoText().isEmpty());
+}
+
 TEST_CASE("UI: − 2 + and Again on a touched line", "[flow][ui][quantity]")
 {
     Screen s;
