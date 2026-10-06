@@ -1,5 +1,6 @@
 #include "editorcontroller.hh"
 
+#include "app/pos_session.hh"
 #include "layout/schema.hh"
 
 #include <QDir>
@@ -7,7 +8,9 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QRegularExpression>
 #include <QSaveFile>
+#include <QSet>
 
 using namespace Qt::StringLiterals;
 using vt::app::LayoutEditor;
@@ -503,10 +506,54 @@ QString EditorController::templateOf(const QString &zoneId) const
 
 // --- files ---------------------------------------------------------------------------
 
+QJsonObject EditorController::withPictures(QJsonObject json) const
+{
+    if (!pos_)
+        return json;
+    // The store pictures the pages name ("store:menu-board.png"), and every
+    // store font (pages name fonts by family, not file).
+    QSet<QString> wanted;
+    static const QRegularExpression ref(uR"re("store:([^"]+)")re"_s);
+    const QString text = QString::fromUtf8(QJsonDocument(json).toJson(QJsonDocument::Compact));
+    for (auto it = ref.globalMatch(text); it.hasNext();)
+        wanted.insert(it.next().captured(1));
+    for (const QVariant &v : pos_->storeImages())
+        if (v.toMap().value(u"kind"_s).toString() == u"font")
+            wanted.insert(v.toMap().value(u"name"_s).toString());
+    QJsonObject pictures;
+    for (const QString &name : std::as_const(wanted)) {
+        QFile f(QUrl(pos_->imageUrl(u"store:"_s + name)).toLocalFile());
+        if (f.open(QIODevice::ReadOnly))
+            pictures.insert(name, QString::fromLatin1(f.readAll().toBase64()));
+    }
+    if (!pictures.isEmpty())
+        json.insert(u"images"_s, pictures);
+    return json;
+}
+
+int EditorController::addPictures(QJsonObject *json)
+{
+    const QJsonObject pictures = json->value(u"images"_s).toObject();
+    json->remove(u"images"_s);   // not part of the pages themselves
+    if (!pos_ || pictures.isEmpty())
+        return 0;
+    QSet<QString> have;
+    for (const QVariant &v : pos_->storeImages())
+        have.insert(v.toMap().value(u"name"_s).toString());
+    int added = 0;
+    for (auto it = pictures.begin(); it != pictures.end(); ++it) {
+        if (have.contains(it.key()) || !it.value().isString())
+            continue;
+        pos_->invoke(u"addStoreImage"_s, {it.key(), it.value().toString()});
+        ++added;
+    }
+    return added;
+}
+
 bool EditorController::exportPage(const QUrl &file)
 {
     QString why;
-    if (!writeJsonFile(file, editor_.exportPage(pageId_), &why))
+    if (!writeJsonFile(file, withPictures(editor_.exportPage(pageId_)), &why))
         return fail(why);
     setNotice(tr("Exported page to %1").arg(file.fileName()));
     return true;
@@ -515,9 +562,10 @@ bool EditorController::exportPage(const QUrl &file)
 bool EditorController::importPage(const QUrl &file)
 {
     QString why;
-    const auto json = readJsonFile(file, &why);
+    auto json = readJsonFile(file, &why);
     if (!json)
         return fail(why);
+    addPictures(&*json);
     const QString id = editor_.importPage(*json, &why);
     if (id.isEmpty())
         return fail(why);
@@ -589,9 +637,10 @@ bool EditorController::useArrangement(const QString &id)
 bool EditorController::importPageHere(const QUrl &file)
 {
     QString why;
-    const auto json = readJsonFile(file, &why);
+    auto json = readJsonFile(file, &why);
     if (!json)
         return fail(why);
+    addPictures(&*json);
     QStringList errors;
     if (!Layout::checkSchema(*json, u"page"_s, &errors))
         return fail(errors.join(u'\n'));
@@ -610,18 +659,22 @@ bool EditorController::importPageHere(const QUrl &file)
 bool EditorController::exportLayout(const QUrl &file)
 {
     QString why;
-    if (!writeJsonFile(file, editor_.layout().toJson(), &why))
+    const QJsonObject out = withPictures(editor_.layout().toJson());
+    if (!writeJsonFile(file, out, &why))
         return fail(why);
-    setNotice(tr("Exported all pages to %1").arg(file.fileName()));
+    const int pictures = out.value(u"images"_s).toObject().size();
+    setNotice(pictures ? tr("Exported all pages to %1, with %n picture(s) and font(s)", nullptr, pictures).arg(file.fileName())
+                       : tr("Exported all pages to %1").arg(file.fileName()));
     return true;
 }
 
 bool EditorController::importLayout(const QUrl &file)
 {
     QString why;
-    const auto json = readJsonFile(file, &why);
+    auto json = readJsonFile(file, &why);
     if (!json)
         return fail(why);
+    const int pictures = addPictures(&*json);
     QStringList errors;
     const auto imported = Layout::fromJson(*json, &errors);
     if (!imported || imported->pages.isEmpty())
@@ -629,5 +682,7 @@ bool EditorController::importLayout(const QUrl &file)
     if (!imported->pageByRole(u"login"_s))
         return fail(tr("That layout has no login page."));
     editor_.replaceLayout(*imported, tr("Import layout"));
+    if (pictures)
+        setNotice(tr("Imported every page, and added %n picture(s) and font(s) to the store", nullptr, pictures));
     return true;
 }

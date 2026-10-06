@@ -450,7 +450,7 @@ Manager widgets:
 
 Edit mode → **Layouts…** shows five arrangements of the page being edited, with a preview of each: the login page, the tables, the order screen (from any menu page: the frame around it), Pay and the kitchen screen. They're the same buttons (same ids and actions) moved and resized, so nothing stops working; one touch applies one, Undo takes it back, Save keeps it. The kitchen's side-by-side layouts (Grill | Fryer, Grill | Fryer | Cold, Kitchen | Bar, Kitchen | Expo) keep each panel's station (`props.lockStation`). They're generated in `tools/gen_seed.py` into `seed/layouts/<page>.json`.
 
-The same window shares designs between stores: **Use a Page File for This Page…** (someone's exported page replaces this one's zones and background, keeping its name and role), **Add a Page from a File…**, **Export This Page…**, and for the whole restaurant **Export Every Page…** and **Replace Every Page from a File…** (after a confirmation). Page files are `.vtpage.json`, whole layouts `.vtlayout.json`.
+The same window shares designs between stores: **Use a Page File for This Page…** (someone's exported page replaces this one's zones and background, keeping its name and role), **Add a Page from a File…**, **Export This Page…**, and for the whole restaurant **Export Every Page…** and **Replace Every Page from a File…** (after a confirmation). Page files are `.vtpage.json`, whole layouts `.vtlayout.json`. They carry the store pictures their pages use and the store's fonts (`"images": {name: base64}`); importing adds the ones the store doesn't have, so another store gets the whole look in one file (its own logo stays its own).
 
 ## The setup guide
 

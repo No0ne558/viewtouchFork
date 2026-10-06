@@ -2,6 +2,10 @@
 
 #include "app/layout_editor.hh"
 
+#include <QJsonObject>
+
+namespace vt::app { class PosSession; }
+
 #include <QObject>
 #include <QStringList>
 #include <QUrl>
@@ -117,6 +121,8 @@ public:
     Q_INVOKABLE bool exportPage(const QUrl &file);
     Q_INVOKABLE bool importPage(const QUrl &file);
     Q_INVOKABLE bool exportLayout(const QUrl &file);
+    // The store's pictures and fonts, for page and layout files to carry.
+    void setPos(vt::app::PosSession *pos) { pos_ = pos; }
     Q_INVOKABLE bool importLayout(const QUrl &file);
     // Ready-made layouts for the page being edited (by its role, else its id):
     // [{id, name, description, zones, background}].
@@ -151,4 +157,9 @@ private:
     QStringList selection_;
     QString notice_;
     int revision_ = 0;
+    vt::app::PosSession *pos_ = nullptr;
+    // Page and layout files carry the store pictures they use and the store's
+    // fonts ("images": {name: base64}); a file's are added where missing.
+    QJsonObject withPictures(QJsonObject json) const;
+    int addPictures(QJsonObject *json);
 };

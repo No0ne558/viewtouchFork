@@ -1009,6 +1009,76 @@ TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labo
     CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
 }
 
+TEST_CASE("Layout files carry their pictures and fonts to another store", "[flow][ui][bundle]")
+{
+    QTemporaryDir dir;
+    QImage image(40, 20, QImage::Format_RGB32);
+    image.fill(Qt::red);
+    QByteArray png;
+    QBuffer buffer(&png);
+    buffer.open(QIODevice::WriteOnly);
+    image.save(&buffer, "PNG");
+    QFile font(u"/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf"_s);
+    const bool haveFont = font.open(QIODevice::ReadOnly);
+    const QByteArray fontBytes = haveFont ? font.readAll() : QByteArray();
+    const QUrl withPicture = QUrl::fromLocalFile(dir.filePath(u"with-picture.vtlayout.json"_s));
+    const QUrl exported = QUrl::fromLocalFile(dir.filePath(u"bundle.vtlayout.json"_s));
+    {
+        // Store A: a picture on the login page, and a font.
+        Screen a;
+        REQUIRE(a.pos.loginWithPin(u"1234"_s));
+        REQUIRE(a.pos.addStoreImage(u"menu-board.png"_s, QString::fromLatin1(png.toBase64())));
+        if (haveFont)
+            REQUIRE(a.pos.addStoreImage(u"House Font.ttf"_s, QString::fromLatin1(fontBytes.toBase64())));
+        QJsonObject layout = a.c.layout().toJson();
+        QJsonArray pages = layout.value(u"pages"_s).toArray();
+        for (int i = 0; i < pages.size(); ++i) {
+            QJsonObject page = pages[i].toObject();
+            if (page.value(u"role"_s).toString() != u"login")
+                continue;
+            QJsonArray zones = page.value(u"zones"_s).toArray();
+            for (int z = 0; z < zones.size(); ++z)
+                if (zones[z].toObject().value(u"id"_s).toString() == u"logo") {
+                    QJsonObject zone = zones[z].toObject();
+                    zone.insert(u"imagePath"_s, u"store:menu-board.png"_s);
+                    zones[z] = zone;
+                }
+            page.insert(u"zones"_s, zones);
+            pages[i] = page;
+        }
+        layout.insert(u"pages"_s, pages);
+        QFile f(withPicture.toLocalFile());
+        REQUIRE(f.open(QIODevice::WriteOnly));
+        f.write(QJsonDocument(layout).toJson());
+        f.close();
+        a.c.enterEditMode();
+        REQUIRE(a.c.editor()->importLayout(withPicture));
+        REQUIRE(a.c.editor()->exportLayout(exported));
+        QFile out(exported.toLocalFile());
+        REQUIRE(out.open(QIODevice::ReadOnly));
+        const QJsonObject images = QJsonDocument::fromJson(out.readAll()).object().value(u"images"_s).toObject();
+        CHECK(images.contains(u"menu-board.png"_s));
+        CHECK(images.size() == (haveFont ? 2 : 1));              // only what's used, and the fonts
+        a.c.leaveEditMode(false);
+    }
+    // Store B: importing brings them; the saved pages don't carry the pictures.
+    Screen b;
+    REQUIRE(b.pos.loginWithPin(u"1234"_s));
+    const auto names = [&] {
+        QStringList out;
+        for (const QVariant &v : b.pos.storeImages())
+            out << v.toMap()[u"name"_s].toString();
+        return out;
+    };
+    CHECK_FALSE(names().contains(u"menu-board.png"_s));
+    b.c.enterEditMode();
+    REQUIRE(b.c.editor()->importLayout(exported));
+    CHECK(names().contains(u"menu-board.png"_s));
+    if (haveFont)
+        CHECK(names().join(u","_s).contains(u".ttf"_s, Qt::CaseInsensitive));
+    CHECK_FALSE(b.c.editor()->editor().layout().toJson().contains(u"images"_s));
+}
+
 TEST_CASE("UI: a manager arranges the self-filling menu by touch", "[flow][ui][arrange]")
 {
     Screen s;

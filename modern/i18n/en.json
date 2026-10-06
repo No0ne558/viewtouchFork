@@ -42,5 +42,13 @@
  "%n closing task(s) not done yet": {
   "one": "%n closing task not done yet",
   "other": "%n closing tasks not done yet"
+ },
+ "Exported all pages to %1, with %n picture(s) and font(s)": {
+  "one": "Exported all pages to %1, with %n picture or font",
+  "other": "Exported all pages to %1, with %n pictures and fonts"
+ },
+ "Imported every page, and added %n picture(s) and font(s) to the store": {
+  "one": "Imported every page, and added %n picture or font to the store",
+  "other": "Imported every page, and added %n pictures and fonts to the store"
  }
 }

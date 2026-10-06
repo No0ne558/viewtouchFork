@@ -668,6 +668,10 @@
  "Export all pages…": "Exportar todas las páginas…",
  "Export this page…": "Exportar esta página…",
  "Exported all pages to %1": "Todas las páginas exportadas a %1",
+ "Exported all pages to %1, with %n picture(s) and font(s)": {
+  "one": "Todas las páginas exportadas a %1, con %n imagen o fuente",
+  "other": "Todas las páginas exportadas a %1, con %n imágenes y fuentes"
+ },
  "Exported page to %1": "Página exportada a %1",
  "Extra": "Extra",
  "Extra: amount added": "Extra: cantidad agregada",
@@ -776,6 +780,10 @@
  "ID": "ID",
  "Import a page…": "Importar una página…",
  "Import layout": "Importar diseño",
+ "Imported every page, and added %n picture(s) and font(s) to the store": {
+  "one": "Todas las páginas importadas, y se agregó %n imagen o fuente a la tienda",
+  "other": "Todas las páginas importadas, y se agregaron %n imágenes y fuentes a la tienda"
+ },
  "In %1 min": "En %1 min",
  "In sync with the main server at %1.": "Sincronizado con el servidor principal en %1.",
  "In sync: %1 has a live copy of everything (since %2). If this computer stops, it takes over within about 20 seconds.": "Sincronizado: %1 tiene una copia al día de todo (desde %2). Si esta computadora se detiene, toma el control en unos 20 segundos.",

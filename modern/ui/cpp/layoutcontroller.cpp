@@ -712,6 +712,7 @@ void LayoutController::enterEditMode()
     if (editing_)
         return;
     editor_ = new EditorController(layout_, this);
+    editor_->setPos(pos_);
     if (pos_)
         editor_->setMealPeriods(pos_->mealPeriods());
     connect(editor_, &EditorController::layoutChanged, this, &LayoutController::onDraftChanged);
