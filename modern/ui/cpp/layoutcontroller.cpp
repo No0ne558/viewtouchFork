@@ -206,6 +206,8 @@ void LayoutController::setStore(vt::storage::LayoutStore *store)
 void LayoutController::replaceLayout(Layout layout)
 {
     layout_ = std::move(layout);
+    if (lookedLayout_)
+        updateTerminalLook();   // the new pages, in this screen's look
     if (editing_) {
         setStatus(tr("Pages were changed on another terminal. Saving your edits will replace them."));
         return;
@@ -229,6 +231,8 @@ void LayoutController::setPos(PosSession *pos)
         connect(pos_, &PosSession::checkClosed, this, [this] { navigate(Navigator::Mode::Home); });
         connect(pos_, &PosSession::qualifierChanged, this, &LayoutController::refresh);
         connect(pos_, &PosSession::adminChanged, this, [this] {
+            if (pos_->terminalLook() != lookedId_)
+                updateTerminalLook();   // Manager -> Terminals: this screen's look
             restAtLoginPage();      // a terminal just set to (or from) Time Clock
             installStoreFonts();   // before pages and font lists look for them
             updateMealPeriod();
@@ -256,6 +260,7 @@ void LayoutController::setPos(PosSession *pos)
     installStoreFonts();
     restartSleep();
     restAtLoginPage();   // a Time Clock terminal starts on its page
+    updateTerminalLook();
 }
 
 void LayoutController::call(const QString &method, const QVariantList &args,
@@ -421,9 +426,35 @@ bool LayoutController::requestEditMode()
     return true;
 }
 
+namespace {
+QList<vt::app::Look> allLooks(vt::app::PosSession *pos);
+}
+
 const Layout &LayoutController::activeLayout() const
 {
-    return editing_ && editor_ ? editor_->layout() : layout_;
+    if (editing_ && editor_)
+        return editor_->layout();
+    return lookedLayout_ ? *lookedLayout_ : layout_;
+}
+
+void LayoutController::updateTerminalLook()
+{
+    const QString id = pos_ ? pos_->terminalLook() : QString();
+    std::optional<Layout> next;
+    if (!id.isEmpty()) {
+        const QList<vt::app::Look> looks = allLooks(pos_);
+        if (const auto it = std::ranges::find_if(looks, [&](const vt::app::Look &l) { return l.id == id; }); it != looks.end()) {
+            next = layout_;
+            vt::app::applyLook(next->theme, *it);
+        }
+    }
+    const bool was = lookedLayout_.has_value();
+    lookedLayout_ = std::move(next);
+    lookedId_ = id;
+    if (was || lookedLayout_) {
+        refresh();
+        emit pageChanged();
+    }
 }
 
 QString LayoutController::pageName() const
@@ -707,6 +738,8 @@ bool LayoutController::saveEdits()
         }
     }
     layout_ = draft;
+    if (lookedLayout_)
+        updateTerminalLook();
     editor_->editor().markClean();
     setStatus(saver_ ? tr("Saved") : tr("Applied (not saved to disk)"));
     return true;

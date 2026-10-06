@@ -469,6 +469,8 @@ QVariantList PosService::adminFields(const QString &panel)
                  u"options"_s, options({{"", "Automatic (phone pages on phones)"}, {"standard", "Standard pages"},
                                         {"phone", "Phone pages"}, {"selfOrder", "Self-order kiosk (guests order on their own)"},
                                         {"timeClock", "Time Clock (clock in / out and schedules only)"}})),
+            // Choices filled in by the screen (its looks).
+            field(u"look"_s, tr("Look"), u"look"_s, tr("This screen's colors; the store's look elsewhere.")),
         };
     }
     return {};
@@ -659,7 +661,7 @@ QVariantList PosService::adminRecords(const QString &panel)
         for (const TerminalConfig &t : s_->settings.terminals) {
             const PrinterConfig *p = s_->settings.printer(t.receiptPrinter);
             add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}, {u"drawer"_s, qs(t.drawer)},
-                 {u"screen"_s, qs(t.screen)}},
+                 {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)}},
                 qs(t.name), (p ? qs(p->name) : tr("Receipt (default)"))
                                 + (s_->settings.hasDrawer(t.name) ? QString() : tr(" · no drawer"))
                                 + (t.key.empty() ? QString() : tr(" · paired device")));
@@ -689,7 +691,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"staffMeal"_s, false}};
     if (panel == u"terminals")
         return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}, {u"drawer"_s, QString()},
-                {u"screen"_s, QString()}};
+                {u"screen"_s, QString()}, {u"look"_s, QString()}};
     if (panel == u"mealPeriods")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"modifierGroups")
@@ -803,6 +805,7 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         if (!QStringList{QString(), u"standard"_s, u"phone"_s, u"selfOrder"_s, u"timeClock"_s}.contains(screen))
             return fail(tr("Choose the terminal's screen layout."));
         t.screen = ss(screen);
+        t.look = ss(record.value(u"look"_s).toString().left(40));
         if (index >= 0 && index < int(list.size()))
             list[index] = t;
         else
@@ -1722,6 +1725,14 @@ bool PosService::stopPairing()
     ++s_->adminRevision;
     emit s_->adminChanged();
     return true;
+}
+
+QString PosService::terminalLook() const
+{
+    for (const TerminalConfig &t : s_->settings.terminals)
+        if (qs(t.name) == terminal_)
+            return qs(t.look);
+    return {};
 }
 
 QString PosService::screenMode() const

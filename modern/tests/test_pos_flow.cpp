@@ -1009,6 +1009,44 @@ TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labo
     CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
 }
 
+TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    const auto fillOf = [&](const QString &id) {
+        ZoneModel *m = s.c.zones();
+        for (int r = 0; r < m->rowCount(); ++r)
+            if (m->data(m->index(r), ZoneModel::ZoneIdRole).toString() == id)
+                return m->data(m->index(r), ZoneModel::StyleNormalRole).toMap().value(u"fill"_s).toString();
+        return QString();
+    };
+    const QString before = fillOf(u"checks"_s);
+    const QVariantList looks = s.c.looks();
+    REQUIRE(looks.size() >= 2);
+    QString lookId;
+    for (const QVariant &v : looks)
+        if (v.toMap()[u"colors"_s].toStringList().value(1) != before)
+            lookId = v.toMap()[u"id"_s].toString();
+    REQUIRE_FALSE(lookId.isEmpty());
+
+    QVariantMap t = s.pos.adminNewRecord(u"terminals"_s);
+    t[u"name"_s] = s.pos.terminalName();
+    t[u"look"_s] = lookId;
+    REQUIRE(s.pos.adminSave(u"terminals"_s, -1, t));
+    QTest::qWait(60);
+    CHECK(s.pos.terminalLook() == lookId);
+    CHECK(fillOf(u"checks"_s) != before);                      // this screen, recolored
+    s.shot("77-terminal-look");
+
+    // The store's look is untouched; clearing goes back to it.
+    t = s.pos.adminRecords(u"terminals"_s).last().toMap();
+    t[u"look"_s] = QString();
+    REQUIRE(s.pos.adminSave(u"terminals"_s, s.pos.adminRecords(u"terminals"_s).size() - 1, t));
+    QTest::qWait(60);
+    CHECK(fillOf(u"checks"_s) == before);
+}
+
 TEST_CASE("UI: course pacing: fire the next course in 10 minutes", "[flow][ui][pacing]")
 {
     Screen s;

@@ -51,6 +51,8 @@ struct TerminalConfig {
     std::string screen;
     // Its kitchen screen shows this station (a Station id or a printer id; empty = the page's).
     std::string station;
+    // Its own look (a Look id: the bar dark, the patio light); empty = the store's.
+    std::string look;
 
     bool operator==(const TerminalConfig &) const = default;
 };

@@ -253,6 +253,10 @@ private:
     vt::app::Navigator nav_;
     ZoneModel zones_;
     QString status_;
+    // The pages in this terminal's own look (Manager -> Terminals), when it has one.
+    std::optional<vt::layout::Layout> lookedLayout_;
+    QString lookedId_;
+    void updateTerminalLook();
     QVariantMap explanation_;
     QString typedNumber_;
     // While leaving edit mode the editor object outlives `editing_` briefly,

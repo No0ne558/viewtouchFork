@@ -476,6 +476,10 @@ Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose button
 
 Once drinks have been sent on a check, **Another Round** appears beside its name: it orders the drinks of the latest Send again (same choices and quantities) as new lines, ready for Send. Drinks are what the bar prints, or items in a drinks family; sold-out ones are skipped and named. Command `anotherRound`; the order list's built-in "round" button.
 
+## A look per terminal
+
+Manager → Terminals → a terminal → **Look**: one of the looks (or the store's). That screen shows every page recolored with it; the saved pages and other screens keep the store's look (`TerminalConfig::look`, `PosSession::terminalLook`; the controller keeps a recolored copy of the layout for this screen).
+
 ## Course pacing
 
 With a later course on hold, **⏱** next to **Fire Course 2** offers Now, or in 5, 10, 15 or 20 minutes; the button then reads "Course 2 at 7:45" and the course fires by itself then (the same 30-second check as orders for later; `Check::fireAt`, `PosService::fireCourseIn`). Firing it by hand earlier, or "Don't fire it at…", ends the wait.

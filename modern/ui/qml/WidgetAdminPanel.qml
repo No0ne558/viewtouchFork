@@ -227,7 +227,13 @@ Item {
                             model: w.fields
                             delegate: FieldEditor {
                                 required property var modelData
-                                field: modelData
+                                // A "look" field: an enum of this screen's looks.
+                                field: modelData.type !== "look" || !w.zone ? modelData
+                                     : Object.assign({}, modelData, {
+                                           type: "enum",
+                                           options: [{ value: "", text: qsTr("The store's look") }].concat(
+                                               w.zone.controller.looks().map(l => ({ value: l.id, text: qsTranslate("Looks", l.name) })))
+                                       })
                                 pos: w.pos
                                 pages: modelData.type === "page" && w.zone ? w.zone.controller.pageChoices() : []
                                 value: w.draft[modelData.path]
