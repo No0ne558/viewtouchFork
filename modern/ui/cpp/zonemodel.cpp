@@ -37,6 +37,7 @@ QHash<int, QByteArray> ZoneModel::roleNames() const
         {PropsRole, "props"},
         {SoldOutRole, "soldOut"},
         {ShowWhenRole, "showWhen"},
+        {ItemIdRole, "itemId"},
     };
 }
 

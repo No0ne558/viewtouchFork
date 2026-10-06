@@ -1009,6 +1009,35 @@ TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labo
     CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
 }
 
+TEST_CASE("UI: dishes running low show how many are left", "[flow][ui][stock]")
+{
+    Screen s;
+    for (core::Ingredient &g : s.pos.shared()->ingredients)
+        if (g.id == "bun")
+            g.onHand = 4;                                       // low at 12
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    QVariantMap left = s.pos.stockLeft();
+    CHECK(left.value(u"classic-burger"_s).toInt() == 4);
+    CHECK(left.value(u"cheeseburger"_s).toInt() == 4);
+    CHECK_FALSE(left.contains(u"cobb"_s));                      // no buns in it
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    QTest::qWait(60);
+    REQUIRE(Screen::findBy(s.window->contentItem(), "text", u"4 left"_s));
+
+    // One sells: 3 left.
+    s.pos.addItem(u"classic-burger"_s);
+    REQUIRE(s.pos.chooseOption(u"temperature"_s, 1));
+    REQUIRE(s.pos.chooseOption(u"side"_s, 2));
+    REQUIRE(s.pos.finishChoosing());
+    REQUIRE(s.pos.sendOrder());
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    QTest::qWait(60);
+    CHECK(s.pos.stockLeft().value(u"classic-burger"_s).toInt() == 3);
+    CHECK(Screen::findBy(s.window->contentItem(), "text", u"3 left"_s));
+    s.shot("69-stock-left");
+}
+
 TEST_CASE("UI: End of Day lists who's still clocked in, and clocks them out", "[flow][ui][punches][endofday]")
 {
     Screen s;

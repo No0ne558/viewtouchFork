@@ -121,6 +121,8 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantMap setup READ setupInfo NOTIFY adminChanged)
     // Sold-out (86'd) items: their ids and lower-case names.
     Q_PROPERTY(QStringList soldOut READ soldOut NOTIFY adminChanged)
+    // Dishes an ingredient is running low for: item id (and lowercase name) -> how many can still be made.
+    Q_PROPERTY(QVariantMap stockLeft READ stockLeft NOTIFY dayChanged)
     // The menu for the 86 list [{id, name, family, price, modifier, available}].
     Q_PROPERTY(QVariantList menuItems READ menuItems NOTIFY adminChanged)
     // The current check's history [{time, who, what}].
@@ -235,6 +237,7 @@ public:
     virtual QVariantMap checkSearch() const = 0;
     virtual QVariantMap networkInfo() const = 0;
     virtual bool training() const = 0;
+    virtual QVariantMap stockLeft() const = 0;
     virtual QStringList soldOut() const = 0;
     virtual QVariantList menuItems() const = 0;
     virtual QString checkFilter() const = 0;

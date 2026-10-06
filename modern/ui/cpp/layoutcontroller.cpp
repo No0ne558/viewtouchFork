@@ -1128,6 +1128,8 @@ void LayoutController::refresh()
         const QString stylePage = moved ? pageId : s.pageId;
         // A button that orders an 86'd item: marked, and touching it does nothing.
         bool soldOut = false;
+        const QString orders = !z.actions.isEmpty() && z.actions.first().type() == u"addItem"
+                                   ? z.actions.first().str(u"item") : QString();
         if (pos_ && !editing() && !z.actions.isEmpty() && z.actions.first().type() == u"addItem") {
             const QString item = z.actions.first().str(u"item");
             const QStringList out = pos_->soldOut();
@@ -1162,6 +1164,7 @@ void LayoutController::refresh()
             {ZoneModel::PropsRole, z.props.toVariantMap()},
             {ZoneModel::SoldOutRole, soldOut},
             {ZoneModel::ShowWhenRole, z.extra.value(u"showWhen").toObject().toVariantMap()},
+            {ZoneModel::ItemIdRole, orders},
         });
     }
     zones_.setRows(std::move(rows));

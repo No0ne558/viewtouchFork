@@ -24,6 +24,14 @@ Item {
     required property var props
     required property bool soldOut   // its item is 86'd: shown, not orderable
     required property var showWhen   // show/hide rules (LayoutController::ruleShows does the same)
+    required property string itemId  // the item it orders (empty: it doesn't)
+    // Running low: how many can still be made (-1: plenty, or not an item).
+    readonly property int stockLeft: {
+        if (!itemId || !pos || editing)
+            return -1
+        const left = pos.stockLeft
+        return left[itemId] ?? left[itemId.toLowerCase()] ?? -1
+    }
 
     // POS session and controller, for widgets.
     // Screen pixels per canvas unit (the page is scaled to fit the screen).
@@ -236,6 +244,30 @@ Item {
         style: zone.st.textStyle === "embossed" ? Text.Raised
              : zone.st.textStyle === "outline" ? Text.Outline : Text.Normal
         styleColor: Qt.darker(color, 3)
+    }
+
+    // Running low: "5 left", so the server can warn the guest.
+    Rectangle {
+        objectName: "stockLeft"
+        visible: zone.stockLeft > 0 && !zone.soldOut
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 6
+        width: leftText.implicitWidth + 14
+        height: leftText.implicitHeight + 6
+        radius: height / 2
+        color: "#e0161a20"
+        border.color: zone.statusColor("low", "#f5b940")
+        border.width: 2
+        Text {
+            id: leftText
+            anchors.centerIn: parent
+            text: qsTr("%1 left").arg(zone.stockLeft)
+            color: zone.statusColor("low", "#f5b940")
+            font.family: zone.st.font ?? "DejaVu Sans"
+            font.pixelSize: Math.max(11, Math.min(zone.height * 0.16, 22))
+            font.bold: true
+        }
     }
 
     // 86'd: the item can't be ordered right now.

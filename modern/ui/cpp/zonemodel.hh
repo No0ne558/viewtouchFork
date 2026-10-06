@@ -36,6 +36,7 @@ public:
         PropsRole,
         SoldOutRole,   // orders an item that is 86'd
         ShowWhenRole,  // show/hide rules (zone "showWhen"): see ZoneItem.qml
+        ItemIdRole,    // the menu item it orders (its first action), for "5 left"
     };
 
     using Row = QHash<int, QVariant>;

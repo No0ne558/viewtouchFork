@@ -476,6 +476,10 @@ Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose button
 
 Once drinks have been sent on a check, **Another Round** appears beside its name: it orders the drinks of the latest Send again (same choices and quantities) as new lines, ready for Send. Drinks are what the bar prints, or items in a drinks family; sold-out ones are skipped and named. Command `anotherRound`; the order list's built-in "round" button.
 
+## Running low
+
+When an ingredient is down to its *Low at* (Manager → Inventory), every dish that uses it shows **N left** on its button (and in the self-filling menu): how many can still be made from what's on hand. It counts down as orders are sent; at zero the dish sells out by itself, and comes back when stock is received (as before). `PosSession::stockLeft`, the zone's `itemId` role.
+
 ## Fixing time punches
 
 Manager → Schedule → **Time Punches…** lists the last eight days of punches, newest first. A manager changes the times, breaks (one per line, `12:30-13:00`) or job, adds a punch someone missed, or removes one made by mistake (tick *Remove this punch*). Every change needs a reason; overlapping punches, times in the future and shifts over 24 hours are refused. Changes are kept (`PosSettings::punchChanges`, the last 500): the Labor report marks changed punches with * and lists each change, who made it and why. End of Day lists whoever is still clocked in, flags anyone on for over 12 hours ("forgot to clock out?"), and **Clock Out Now** closes their punch (also logged).

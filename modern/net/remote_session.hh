@@ -78,6 +78,7 @@ public:
     qint64 selectedPayment() const override { return v(u"selectedPayment").toLongLong(); }
     QVariantList openChecks() const override { return v(u"openChecks").toList(); }
     QStringList popularItems() const override { return v(u"popularItems").toStringList(); }
+    QVariantMap stockLeft() const override { return v(u"stockLeft").toMap(); }
     QString checkFilter() const override { return v(u"checkFilter").toString(); }
     QVariantList kitchenTickets() const override { return v(u"kitchenTickets").toList(); }
     QVariantMap drawerInfo() const override { return v(u"drawer").toMap(); }

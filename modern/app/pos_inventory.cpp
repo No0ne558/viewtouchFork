@@ -93,6 +93,31 @@ void PosService::takeStock(const std::vector<OrderLine> &lines, int sign)
     if (!nowLow.isEmpty())
         emit notice(tr("Running low: %1").arg(nowLow.join(u", "_s)));
     refreshSoldOut();
+    emit s_->dayChanged();   // "5 left" on the buttons
+}
+
+QVariantMap PosService::stockLeft() const
+{
+    QVariantMap out;
+    for (const MenuItem &m : s_->menu) {
+        if (m.recipe.empty() || !m.available)
+            continue;
+        bool low = false;
+        double left = -1;
+        for (const RecipeLine &r : m.recipe) {
+            const Ingredient *g = s_->ingredient(r.ingredientId);
+            if (!g || r.quantity <= 0)
+                continue;
+            low = low || g->low();
+            const double n = std::floor((g->onHand + 1e-9) / r.quantity);
+            left = left < 0 ? n : std::min(left, n);
+        }
+        if (low && left > 0) {
+            out.insert(qs(m.id), int(left));
+            out.insert(qs(m.name).toLower(), int(left));
+        }
+    }
+    return out;
 }
 
 void PosService::refreshSoldOut()

@@ -105,6 +105,30 @@ Item {
                     border.color: Qt.darker(color, 1.4)
                     border.width: 2
                     opacity: cell.modelData.available ? 1 : 0.55
+                    // Running low: "5 left".
+                    readonly property int itemsLeft: w.pos ? (w.pos.stockLeft[cell.modelData.id] ?? -1) : -1
+                    Rectangle {
+                        visible: parent.itemsLeft > 0 && cell.modelData.available
+                        z: 2
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.margins: 6
+                        width: leftLabel.implicitWidth + 12
+                        height: leftLabel.implicitHeight + 4
+                        radius: height / 2
+                        color: "#e0161a20"
+                        border.color: "#f5b940"
+                        border.width: 2
+                        Text {
+                            id: leftLabel
+                            anchors.centerIn: parent
+                            text: qsTr("%1 left").arg(parent.parent.itemsLeft)
+                            color: "#f5b940"
+                            font.family: w.face
+                            font.pixelSize: 14
+                            font.bold: true
+                        }
+                    }
                     Image {
                         id: photo
                         visible: w.photos && status === Image.Ready
