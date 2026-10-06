@@ -380,10 +380,35 @@
       ]
     },
     {
-      "id": "kitchen-display",
+      "id": "checklists",
       "kind": "button",
       "rect": {
         "x": 484,
+        "y": 526,
+        "w": 300,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Checklists",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "checklists"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
+      "id": "kitchen-display",
+      "kind": "button",
+      "rect": {
+        "x": 808,
         "y": 526,
         "w": 300,
         "h": 120
@@ -403,7 +428,7 @@
       "id": "bar-display",
       "kind": "button",
       "rect": {
-        "x": 808,
+        "x": 1132,
         "y": 526,
         "w": 300,
         "h": 120
@@ -423,7 +448,7 @@
       "id": "expo-display",
       "kind": "button",
       "rect": {
-        "x": 1132,
+        "x": 1456,
         "y": 526,
         "w": 300,
         "h": 120
@@ -443,8 +468,8 @@
       "id": "edit-pages",
       "kind": "button",
       "rect": {
-        "x": 1456,
-        "y": 526,
+        "x": 160,
+        "y": 660,
         "w": 300,
         "h": 120
       },
@@ -467,7 +492,7 @@
       "id": "setup-guide",
       "kind": "button",
       "rect": {
-        "x": 160,
+        "x": 484,
         "y": 660,
         "w": 300,
         "h": 120
@@ -491,7 +516,7 @@
       "id": "customers",
       "kind": "button",
       "rect": {
-        "x": 484,
+        "x": 808,
         "y": 660,
         "w": 300,
         "h": 120
@@ -511,7 +536,7 @@
       "id": "gift-cards",
       "kind": "button",
       "rect": {
-        "x": 808,
+        "x": 1132,
         "y": 660,
         "w": 300,
         "h": 120
@@ -531,7 +556,7 @@
       "id": "sold-out",
       "kind": "button",
       "rect": {
-        "x": 1132,
+        "x": 1456,
         "y": 660,
         "w": 300,
         "h": 120
@@ -551,8 +576,8 @@
       "id": "close-app",
       "kind": "button",
       "rect": {
-        "x": 1456,
-        "y": 660,
+        "x": 160,
+        "y": 794,
         "w": 300,
         "h": 120
       },
@@ -575,7 +600,7 @@
       "id": "factory-reset",
       "kind": "button",
       "rect": {
-        "x": 160,
+        "x": 484,
         "y": 794,
         "w": 300,
         "h": 120

@@ -43,7 +43,7 @@ QVariantMap toVariant(const Report &r)
 const QStringList kReportIds = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s, u"tips"_s,
                                 u"labor"_s, u"drawer"_s, u"expenses"_s, u"purchases"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s,
                                 u"exceptions"_s, u"deposit"_s, u"customers"_s,
-                                u"royalty"_s, u"accounting"_s};
+                                u"royalty"_s, u"accounting"_s, u"checklists"_s};
 
 } // namespace
 
@@ -849,6 +849,12 @@ QVariantMap PosService::dayInfo() const
     }
     return {
         {u"clockedIn"_s, clockedIn},
+        {u"closingLeft"_s, [&] {
+             int left = 0;
+             for (const QVariant &v : checklists().value(u"closing"_s).toList())
+                 left += v.toMap().value(u"done"_s).toBool() ? 0 : 1;
+             return left;
+         }()},
         {u"id"_s, qint64(s_->day.id)}, {u"opened"_s, dayLabel(s_->day)},
         {u"openChecks"_s, int(s_->open.size())}, {u"closedChecks"_s, int(s_->closedToday.size())},
         {u"netSales"_s, format(net)}, {u"drawerOpen"_s, anyOpen},
@@ -966,6 +972,8 @@ Report PosService::buildReport(const QString &id) const
     const ReportContext ctx = reportContext(tr("Today, since %1").arg(clockText(s_->day.openedAt)));
     if (id == u"items")
         return itemSales(s_->closedToday, s_->menu, ctx);
+    if (id == u"checklists")
+        return checklistReport(ctx);
     if (id == u"servers")
         return serverSales(s_->closedToday, ctx);
     if (id == u"labor") {

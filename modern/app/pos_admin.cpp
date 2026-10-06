@@ -385,6 +385,10 @@ QVariantList PosService::adminFields(const QString &panel)
                       u"min"_s, 0), u"max"_s, 500),
             field(u"extraCharge"_s, tr("Extra: amount added"), u"money"_s,
                   tr("And/or a fixed amount for Extra, e.g. 0.75. Charged even on choices that are free.")),
+            field(u"openingChecklist"_s, tr("Opening checklist"), u"text"_s,
+                  tr("One task per line. Staff tick them off on the Checklists page.")),
+            field(u"closingChecklist"_s, tr("Closing checklist"), u"text"_s,
+                  tr("One task per line. End of Day shows what's left.")),
             field(u"kitchenStations"_s, tr("Kitchen stations"), u"text"_s,
                   tr("One per line (Grill, Fryer, Cold Line). Each kitchen screen picks one with its Station "
                      "button; menu items say where they're made.")),
@@ -539,6 +543,8 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"terminalsHaveDrawer"_s, s_->settings.terminalsHaveDrawer},
              {u"checkoutNeedsClosedChecks"_s, s_->settings.checkoutNeedsClosedChecks},
              {u"backupCopyDir"_s, qs(s_->settings.backupCopyDir)},
+             {u"openingChecklist"_s, [&] { QStringList l; for (const std::string &t : s_->settings.openingChecklist) l << qs(t); return l.join(u'\n'); }()},
+             {u"closingChecklist"_s, [&] { QStringList l; for (const std::string &t : s_->settings.closingChecklist) l << qs(t); return l.join(u'\n'); }()},
              {u"kitchenStations"_s, [&] {
                   QStringList lines;
                   for (const Station &x : s_->settings.stations)
@@ -947,6 +953,15 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.textWebhook = ss(record.value(u"textWebhook"_s).toString().trimmed());
         if (record.contains(u"backupCopyDir"_s))
             s_->settings.backupCopyDir = ss(record.value(u"backupCopyDir"_s).toString().trimmed());
+        for (const auto &[key, list] : {std::pair{u"openingChecklist"_s, &s_->settings.openingChecklist},
+                                        std::pair{u"closingChecklist"_s, &s_->settings.closingChecklist}}) {
+            if (!record.contains(key))
+                continue;
+            list->clear();
+            for (const QString &line : record.value(key).toString().split(u'\n', Qt::SkipEmptyParts))
+                if (!line.trimmed().isEmpty() && list->size() < 40)
+                    list->push_back(ss(line.trimmed().left(120)));
+        }
         if (record.contains(u"kitchenStations"_s)) {
             // Names in; ids stay the same for names already there.
             std::vector<Station> stations;

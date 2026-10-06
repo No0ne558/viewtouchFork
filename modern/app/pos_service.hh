@@ -507,6 +507,9 @@ public:
     QStringList popularItems() const override;
     QVariantMap stockLeft() const override;
     QVariantMap dashboard() const override;
+    QVariantMap checklists() const override;
+    bool tickChecklist(const QString &list, int index);
+    core::Report checklistReport(const core::ReportContext &ctx) const;
     QVariantList closedChecks() const override;
     QVariantList staff() const override;
     QVariantList checkHistory() const override;

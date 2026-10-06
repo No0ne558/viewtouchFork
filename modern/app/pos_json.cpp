@@ -732,6 +732,15 @@ QJsonObject toJson(const PosSettings &s)
              return QJsonObject{{u"enabled"_s, s.loyaltyEnabled}, {u"pointsPerDollar"_s, s.pointsPerDollar},
                                 {u"rewards"_s, rewards}};
          }()},
+        {u"openingChecklist"_s, [&] { QJsonArray a; for (const std::string &t : s.openingChecklist) a.append(qs(t)); return a; }()},
+        {u"closingChecklist"_s, [&] { QJsonArray a; for (const std::string &t : s.closingChecklist) a.append(qs(t)); return a; }()},
+        {u"checklistDayId"_s, qint64(s.checklistDayId)},
+        {u"checklistTicks"_s, [&] {
+             QJsonArray a;
+             for (const PosSettings::ChecklistTick &t : s.checklistTicks)
+                 a.append(QJsonObject{{u"list"_s, qs(t.list)}, {u"task"_s, qs(t.task)}, {u"by"_s, qs(t.by)}, {u"at"_s, qint64(t.at)}});
+             return a;
+         }()},
         {u"staffRequests"_s, [&] {
              QJsonArray a;
              for (const PosSettings::StaffRequest &r : s.staffRequests)
@@ -890,6 +899,16 @@ PosSettings settingsFromJson(const QJsonObject &o)
         const QJsonObject r = v.toObject();
         if (r.value(u"points").toInt() > 0)
             s.rewards.push_back({r.value(u"points").toInt(), Money::fromCents(centsFromDecimal(r.value(u"value").toDouble()))});
+    }
+    for (const QJsonValue &v : o.value(u"openingChecklist").toArray())
+        s.openingChecklist.push_back(ss(v.toString()));
+    for (const QJsonValue &v : o.value(u"closingChecklist").toArray())
+        s.closingChecklist.push_back(ss(v.toString()));
+    s.checklistDayId = i64(o.value(u"checklistDayId"));
+    for (const QJsonValue &v : o.value(u"checklistTicks").toArray()) {
+        const QJsonObject x = v.toObject();
+        s.checklistTicks.push_back({ss(x.value(u"list").toString()), ss(x.value(u"task").toString()),
+                                    ss(x.value(u"by").toString()), i64(x.value(u"at"))});
     }
     for (const QJsonValue &v : o.value(u"staffRequests").toArray()) {
         const QJsonObject x = v.toObject();

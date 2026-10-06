@@ -165,4 +165,77 @@ QVariantMap PosService::dashboard() const
             {u"requestsWaiting"_s, requestsWaiting()}, {u"at"_s, clock(t)}};
 }
 
+// --- opening and closing checklists ------------------------------------------------
+
+QVariantMap PosService::checklists() const
+{
+    const PosSettings &st = s_->settings;
+    const bool today = st.checklistDayId == s_->day.id;
+    QVariantMap out;
+    for (const auto &[name, tasks] : {std::pair{u"opening"_s, &st.openingChecklist}, std::pair{u"closing"_s, &st.closingChecklist}}) {
+        QVariantList list;
+        int done = 0;
+        for (const std::string &task : *tasks) {
+            const PosSettings::ChecklistTick *tick = nullptr;
+            if (today)
+                for (const PosSettings::ChecklistTick &t : st.checklistTicks)
+                    if (qs(t.list) == name && t.task == task)
+                        tick = &t;
+            done += tick ? 1 : 0;
+            list.append(QVariantMap{{u"task"_s, qs(task)}, {u"done"_s, tick != nullptr},
+                                    {u"by"_s, tick ? qs(tick->by) : QString()}, {u"at"_s, tick ? clock(tick->at) : QString()}});
+        }
+        out.insert(name, list);
+        out.insert(name + u"Done"_s, done);
+    }
+    return out;
+}
+
+bool PosService::tickChecklist(const QString &list, int index)
+{
+    if (!user())
+        return fail(tr("Log in first."));
+    PosSettings &st = s_->settings;
+    const std::vector<std::string> &tasks = list == u"opening" ? st.openingChecklist : st.closingChecklist;
+    if ((list != u"opening" && list != u"closing") || index < 0 || index >= int(tasks.size()))
+        return fail(tr("There is no such task."));
+    if (st.checklistDayId != s_->day.id) {   // a new business day: a clean list
+        st.checklistTicks.clear();
+        st.checklistDayId = s_->day.id;
+    }
+    const std::string &task = tasks[index];
+    const auto it = std::ranges::find_if(st.checklistTicks, [&](const auto &t) { return qs(t.list) == list && t.task == task; });
+    if (it != st.checklistTicks.end())
+        st.checklistTicks.erase(it);   // touched again: not done after all
+    else
+        st.checklistTicks.push_back({ss(list), task, user()->name, now()});
+    s_->saveSettings();
+    emit s_->dayChanged();
+    return true;
+}
+
+Report PosService::checklistReport(const ReportContext &ctx) const
+{
+    Report r;
+    r.id = "checklists";
+    r.title = "Checklists";
+    r.subtitle = ctx.period;
+    r.columns = {"Task", "Done by", "At"};
+    const QVariantMap lists = checklists();
+    for (const auto &[name, title] : {std::pair{u"opening"_s, "Opening"}, std::pair{u"closing"_s, "Closing"}}) {
+        const QVariantList tasks = lists.value(name).toList();
+        if (tasks.isEmpty())
+            continue;
+        r.section(title);
+        for (const QVariant &v : tasks) {
+            const QVariantMap t = v.toMap();
+            r.line({ss(t.value(u"task"_s).toString()), t.value(u"done"_s).toBool() ? ss(t.value(u"by"_s).toString()) : "NOT DONE",
+                    ss(t.value(u"at"_s).toString())});
+        }
+    }
+    if (r.rows.empty())
+        r.note("No checklists (Manager -> Settings: Opening / Closing checklist).");
+    return r;
+}
+
 } // namespace vt::app

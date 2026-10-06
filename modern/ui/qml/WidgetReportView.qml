@@ -24,6 +24,7 @@ Item {
         { id: "kitchen", label: qsTr("Kitchen") },
         { id: "foodcost", label: qsTr("Food Cost") },
         { id: "turns", label: qsTr("Turns") },
+        { id: "checklists", label: qsTr("Checklists") },
     ]
     property string reportId: zone && zone.props && zone.props.report ? zone.props.report : "sales"
     property int dayIndex: 0

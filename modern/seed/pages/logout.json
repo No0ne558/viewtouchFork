@@ -208,6 +208,31 @@
           "fill": "#2b62b0"
         }
       }
+    },
+    {
+      "id": "checklists",
+      "kind": "button",
+      "rect": {
+        "x": 150,
+        "y": 740,
+        "w": 390,
+        "h": 140
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Checklists\u2026",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "checklists"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
     }
   ]
 }

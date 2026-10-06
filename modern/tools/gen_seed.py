@@ -243,6 +243,11 @@ write("pos/settings.json", {
     "vendors": VENDORS,
     "storeName": "ViewTouch Café",
     "currencySymbol": "$",
+    # Ticked off on the Checklists page; End of Day shows what's left of closing.
+    "openingChecklist": ["Count the starting cash", "Turn on the grill and fryers", "Check the walk-in temperature",
+                         "Stock the bar and the line", "Unlock the front door"],
+    "closingChecklist": ["Clean the grill and fryers", "Wipe down the tables", "Take out the trash",
+                         "Count the drawers", "Lock the back door"],
     "autoLogoutMinutes": 3,
     "tableLongMinutes": 90,
     # Points for what regulars spend, and what the points buy.
@@ -360,7 +365,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock", "dashboard"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock", "dashboard", "checklist"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -740,6 +745,8 @@ page("logout", "Log Out", "logout", [
     # A manager switches this screen to practice (training) and back.
     zone("practice", 1380, 900, 390, 120, "Practice Mode", actions=[command("toggleTraining")], style=fill(AMBER)),
     zone("message", 150, 900, 390, 120, "Send a Message…", actions=[jump(page="message")], style=fill(BLUE)),
+    # Opening / closing tasks, for whoever does them.
+    zone("checklists", 150, 740, 390, 140, "Checklists…", actions=[jump(page="checklists")], style=fill(TEAL)),
 ], role="logout")
 
 admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"), ("Taxes", "taxes"),
@@ -752,6 +759,7 @@ mgr = [label("title", 160, 24, 1600, 100, "Manager")]
 # Today at a glance first.
 slots = [zone("dashboard", 0, 0, 0, 0, "Dashboard", actions=[jump(page="dashboard")], style=fill(BLUE))]
 slots += [zone(f"admin-{panel}", 0, 0, 0, 0, text, actions=[command("openAdmin", panel=panel)]) for text, panel in admin]
+slots.append(zone("checklists", 0, 0, 0, 0, "Checklists", actions=[jump(page="checklists")], style=fill(TEAL)))
 slots += [
     zone("kitchen-display", 0, 0, 0, 0, "Kitchen Display", actions=[jump(page="kitchen")]),
     zone("bar-display", 0, 0, 0, 0, "Bar Display", actions=[jump(page="bar-display")]),
@@ -826,6 +834,14 @@ page("network", "Network", "manager", [
     zone("network", 16, 112, 1888, 816, kind="network"),
     zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
 ], permission="manager")
+
+# Opening and closing tasks, ticked off by whoever does them.
+page("checklists", "Checklists", "custom", [
+    label("title", 16, 16, 1888, 80, "Checklists"),
+    zone("opening", 16, 112, 932, 816, kind="checklist", props={"list": "opening"}),
+    zone("closing", 972, 112, 932, 816, kind="checklist", props={"list": "closing"}),
+    zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
+], permission="order")
 
 # Today so far, at a glance.
 page("dashboard", "Dashboard", "manager", [

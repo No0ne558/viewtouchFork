@@ -25,6 +25,20 @@
   ],
   "storeName": "ViewTouch Caf\u00e9",
   "currencySymbol": "$",
+  "openingChecklist": [
+    "Count the starting cash",
+    "Turn on the grill and fryers",
+    "Check the walk-in temperature",
+    "Stock the bar and the line",
+    "Unlock the front door"
+  ],
+  "closingChecklist": [
+    "Clean the grill and fryers",
+    "Wipe down the tables",
+    "Take out the trash",
+    "Count the drawers",
+    "Lock the back door"
+  ],
   "autoLogoutMinutes": 3,
   "tableLongMinutes": 90,
   "loyalty": {

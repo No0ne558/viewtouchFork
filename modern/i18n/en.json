@@ -38,5 +38,9 @@
  "%n request(s) waiting: Schedule → Requests": {
   "one": "%n request waiting: Schedule → Requests",
   "other": "%n requests waiting: Schedule → Requests"
+ },
+ "%n closing task(s) not done yet": {
+  "one": "%n closing task not done yet",
+  "other": "%n closing tasks not done yet"
  }
 }

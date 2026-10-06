@@ -98,6 +98,28 @@ Item {
             font.family: w.face
             font.pixelSize: w.unit * 0.7
         }
+        // The closing checklist: what's left (not a blocker).
+        RowLayout {
+            visible: (w.day.closingLeft ?? 0) > 0
+            Layout.fillWidth: true
+            spacing: w.unit * 0.5
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("%n closing task(s) not done yet", "", w.day.closingLeft ?? 0)
+                color: "#f5b940"
+                font.family: w.face
+                font.pixelSize: w.unit * 0.9
+                wrapMode: Text.WordWrap
+            }
+            WidgetKey {
+                objectName: "eodChecklist"
+                Layout.preferredWidth: w.unit * 7
+                Layout.preferredHeight: Math.max(w.unit * 1.8, w.zone ? w.zone.touch(46) : 0)
+                text: qsTr("Checklists…")
+                fontScale: 0.32
+                onClicked: w.zone.controller.jumpTo("checklists")
+            }
+        }
         Text {
             visible: w.day.ready ?? false
             text: "✓  " + qsTr("Everything is settled and counted.")

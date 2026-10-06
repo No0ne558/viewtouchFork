@@ -1009,6 +1009,47 @@ TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labo
     CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
 }
 
+TEST_CASE("UI: opening and closing checklists, ticked by whoever does them", "[flow][ui][checklists]")
+{
+    Screen s;
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.c.jumpTo(u"checklists"_s));
+    QTest::qWait(60);
+    s.tapItem(find(u"task-opening-0"_s));
+    QTest::qWait(40);
+    QVariantList opening = s.pos.checklists()[u"opening"_s].toList();
+    REQUIRE(opening.size() == 5);
+    CHECK(opening[0].toMap()[u"done"_s].toBool());
+    CHECK(opening[0].toMap()[u"by"_s] == u"Sam"_s);
+    s.tapItem(find(u"task-opening-0"_s));                      // touched again: undone
+    QTest::qWait(40);
+    CHECK_FALSE(s.pos.checklists()[u"opening"_s].toList()[0].toMap()[u"done"_s].toBool());
+    s.tapItem(find(u"task-opening-0"_s));
+    s.tapItem(find(u"task-closing-0"_s));
+    s.tapItem(find(u"task-closing-1"_s));
+    QTest::qWait(40);
+    CHECK(s.pos.checklists()[u"closingDone"_s].toInt() == 2);
+    s.shot("74-checklists");
+
+    // End of Day shows what's left; the report lists who did what.
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    CHECK(s.pos.dayInfo()[u"closingLeft"_s].toInt() == 3);
+    REQUIRE(s.c.jumpTo(u"end-of-day"_s));
+    QTest::qWait(60);
+    CHECK(find(u"eodChecklist"_s));
+    const core::Report r = s.pos.buildReport(u"checklists"_s);
+    int notDone = 0, bySam = 0;
+    for (const core::ReportRow &row : r.rows)
+        if (row.cells.size() == 3) {
+            notDone += row.cells[1] == "NOT DONE";
+            bySam += row.cells[1] == "Sam";
+        }
+    CHECK(notDone == 7);
+    CHECK(bySam == 3);
+}
+
 TEST_CASE("UI: time off and shift swaps from the Time Clock, decided by a manager", "[flow][ui][requests]")
 {
     Screen s;

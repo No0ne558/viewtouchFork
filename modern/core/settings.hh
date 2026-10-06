@@ -284,6 +284,17 @@ struct PosSettings {
         bool operator==(const StaffRequest &) const = default;
     };
     std::vector<StaffRequest> staffRequests;
+    // Opening and closing checklists (Store settings), and what's been done
+    // on them this business day (checklistDayId): who ticked what, when.
+    std::vector<std::string> openingChecklist;
+    std::vector<std::string> closingChecklist;
+    struct ChecklistTick {
+        std::string list, task, by;
+        std::int64_t at = 0;
+        bool operator==(const ChecklistTick &) const = default;
+    };
+    std::int64_t checklistDayId = 0;
+    std::vector<ChecklistTick> checklistTicks;
     // Kitchen stations, each with its own screen (Manager -> Menu: where an item is made).
     std::vector<Station> stations;
     // Tip choices offered to the guest (percent of the check before gratuity).

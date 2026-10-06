@@ -80,6 +80,7 @@ public:
     QStringList popularItems() const override { return v(u"popularItems").toStringList(); }
     QVariantMap stockLeft() const override { return v(u"stockLeft").toMap(); }
     QVariantMap dashboard() const override { return v(u"dashboard").toMap(); }
+    QVariantMap checklists() const override { return v(u"checklists").toMap(); }
     QString checkFilter() const override { return v(u"checkFilter").toString(); }
     QVariantList kitchenTickets() const override { return v(u"kitchenTickets").toList(); }
     QVariantMap drawerInfo() const override { return v(u"drawer").toMap(); }
