@@ -727,6 +727,30 @@ QString LayoutEditor::importPage(const QJsonObject &json, QString *why)
     }) ? id : QString();
 }
 
+bool LayoutEditor::arrangePage(const QString &pageId, const QJsonArray &zones, const QJsonObject &background,
+                               const QString &description)
+{
+    const Page *current = layout_.page(pageId);
+    if (!current)
+        return false;
+    // Already arranged so: nothing to do (and nothing to undo).
+    QList<layout::Zone> wanted;
+    for (const QJsonValue &v : zones)
+        wanted.append(layout::Zone::fromJson(v.toObject()));
+    if (wanted == current->zones && background == current->background)
+        return true;
+    return apply(description, [&](Layout &l) {
+        Page *p = l.page(pageId);
+        if (!p)
+            return false;
+        p->zones.clear();
+        for (const QJsonValue &v : zones)
+            p->zones.append(layout::Zone::fromJson(v.toObject()));
+        p->background = background;
+        return true;
+    });
+}
+
 bool LayoutEditor::replaceLayout(const Layout &layout, const QString &description)
 {
     return apply(description, [&](Layout &l) {

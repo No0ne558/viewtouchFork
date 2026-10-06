@@ -1,0 +1,1876 @@
+{
+  "schemaVersion": 1,
+  "page": "tables",
+  "role": "tables",
+  "variants": [
+    {
+      "id": "classic",
+      "name": "Classic",
+      "description": "The floor plan, the buttons down the right side.",
+      "zones": [
+        {
+          "id": "table-t1",
+          "kind": "table",
+          "rect": {
+            "x": 96,
+            "y": 96,
+            "w": 200,
+            "h": 200
+          },
+          "shape": "circle",
+          "behavior": "none",
+          "label": "T1",
+          "props": {
+            "seats": 2
+          }
+        },
+        {
+          "id": "table-t2",
+          "kind": "table",
+          "rect": {
+            "x": 376,
+            "y": 96,
+            "w": 200,
+            "h": 200
+          },
+          "shape": "circle",
+          "behavior": "none",
+          "label": "T2",
+          "props": {
+            "seats": 2
+          }
+        },
+        {
+          "id": "table-t3",
+          "kind": "table",
+          "rect": {
+            "x": 656,
+            "y": 96,
+            "w": 320,
+            "h": 200
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T3",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t4",
+          "kind": "table",
+          "rect": {
+            "x": 1056,
+            "y": 96,
+            "w": 320,
+            "h": 200
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T4",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t5",
+          "kind": "table",
+          "rect": {
+            "x": 96,
+            "y": 416,
+            "w": 480,
+            "h": 220
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T5",
+          "props": {
+            "seats": 6
+          }
+        },
+        {
+          "id": "table-t6",
+          "kind": "table",
+          "rect": {
+            "x": 656,
+            "y": 416,
+            "w": 240,
+            "h": 240
+          },
+          "shape": "octagon",
+          "behavior": "none",
+          "label": "T6",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t7",
+          "kind": "table",
+          "rect": {
+            "x": 976,
+            "y": 416,
+            "w": 240,
+            "h": 240
+          },
+          "shape": "octagon",
+          "behavior": "none",
+          "label": "T7",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-bar-1",
+          "kind": "table",
+          "rect": {
+            "x": 96,
+            "y": 776,
+            "w": 240,
+            "h": 160
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 1",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "table-bar-2",
+          "kind": "table",
+          "rect": {
+            "x": 376,
+            "y": 776,
+            "w": 240,
+            "h": 160
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 2",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "table-bar-3",
+          "kind": "table",
+          "rect": {
+            "x": 656,
+            "y": 776,
+            "w": 240,
+            "h": 160
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 3",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "quick",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 16,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Quick Order",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startQuick"
+            },
+            {
+              "type": "jump",
+              "mode": "index"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f8a4c"
+            }
+          }
+        },
+        {
+          "id": "takeout",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 182,
+            "w": 208,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Takeout",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startTakeout"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "customer"
+            }
+          ]
+        },
+        {
+          "id": "delivery",
+          "kind": "button",
+          "rect": {
+            "x": 1696,
+            "y": 182,
+            "w": 208,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Delivery",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startDelivery"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "customer"
+            }
+          ]
+        },
+        {
+          "id": "checks",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 348,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Open Checks",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "checkList"
+            }
+          ]
+        },
+        {
+          "id": "host",
+          "kind": "button",
+          "rect": {
+            "x": 1056,
+            "y": 914,
+            "w": 400,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Waitlist",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "host"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f6f73"
+            }
+          }
+        },
+        {
+          "id": "tabs",
+          "kind": "button",
+          "rect": {
+            "x": 1056,
+            "y": 748,
+            "w": 400,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Bar Tabs",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "tabs"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
+            }
+          }
+        },
+        {
+          "id": "status",
+          "kind": "logoutPanel",
+          "rect": {
+            "x": 1472,
+            "y": 514,
+            "w": 432,
+            "h": 218
+          },
+          "shape": "rect",
+          "behavior": "none"
+        },
+        {
+          "id": "manager",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 748,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Manager",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "manager"
+            }
+          ]
+        },
+        {
+          "id": "logout",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 914,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Log Out",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "logout"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#b83232"
+            }
+          }
+        }
+      ],
+      "background": {
+        "texture": "woodfloor",
+        "fill": "#3b2a1a"
+      }
+    },
+    {
+      "id": "buttons-left",
+      "name": "Buttons left",
+      "description": "The buttons down the left side, the floor to their right.",
+      "zones": [
+        {
+          "id": "table-t1",
+          "kind": "table",
+          "rect": {
+            "x": 536,
+            "y": 96,
+            "w": 200,
+            "h": 200
+          },
+          "shape": "circle",
+          "behavior": "none",
+          "label": "T1",
+          "props": {
+            "seats": 2
+          }
+        },
+        {
+          "id": "table-t2",
+          "kind": "table",
+          "rect": {
+            "x": 816,
+            "y": 96,
+            "w": 200,
+            "h": 200
+          },
+          "shape": "circle",
+          "behavior": "none",
+          "label": "T2",
+          "props": {
+            "seats": 2
+          }
+        },
+        {
+          "id": "table-t3",
+          "kind": "table",
+          "rect": {
+            "x": 1096,
+            "y": 96,
+            "w": 320,
+            "h": 200
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T3",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t4",
+          "kind": "table",
+          "rect": {
+            "x": 1496,
+            "y": 96,
+            "w": 320,
+            "h": 200
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T4",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t5",
+          "kind": "table",
+          "rect": {
+            "x": 536,
+            "y": 416,
+            "w": 480,
+            "h": 220
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T5",
+          "props": {
+            "seats": 6
+          }
+        },
+        {
+          "id": "table-t6",
+          "kind": "table",
+          "rect": {
+            "x": 1096,
+            "y": 416,
+            "w": 240,
+            "h": 240
+          },
+          "shape": "octagon",
+          "behavior": "none",
+          "label": "T6",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t7",
+          "kind": "table",
+          "rect": {
+            "x": 1416,
+            "y": 416,
+            "w": 240,
+            "h": 240
+          },
+          "shape": "octagon",
+          "behavior": "none",
+          "label": "T7",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-bar-1",
+          "kind": "table",
+          "rect": {
+            "x": 536,
+            "y": 776,
+            "w": 240,
+            "h": 160
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 1",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "table-bar-2",
+          "kind": "table",
+          "rect": {
+            "x": 816,
+            "y": 776,
+            "w": 240,
+            "h": 160
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 2",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "table-bar-3",
+          "kind": "table",
+          "rect": {
+            "x": 1096,
+            "y": 776,
+            "w": 240,
+            "h": 160
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 3",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "quick",
+          "kind": "button",
+          "rect": {
+            "x": 16,
+            "y": 16,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Quick Order",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startQuick"
+            },
+            {
+              "type": "jump",
+              "mode": "index"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f8a4c"
+            }
+          }
+        },
+        {
+          "id": "takeout",
+          "kind": "button",
+          "rect": {
+            "x": 16,
+            "y": 182,
+            "w": 208,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Takeout",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startTakeout"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "customer"
+            }
+          ]
+        },
+        {
+          "id": "delivery",
+          "kind": "button",
+          "rect": {
+            "x": 240,
+            "y": 182,
+            "w": 208,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Delivery",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startDelivery"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "customer"
+            }
+          ]
+        },
+        {
+          "id": "checks",
+          "kind": "button",
+          "rect": {
+            "x": 16,
+            "y": 348,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Open Checks",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "checkList"
+            }
+          ]
+        },
+        {
+          "id": "host",
+          "kind": "button",
+          "rect": {
+            "x": 1456,
+            "y": 914,
+            "w": 448,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Waitlist",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "host"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f6f73"
+            }
+          }
+        },
+        {
+          "id": "tabs",
+          "kind": "button",
+          "rect": {
+            "x": 1456,
+            "y": 748,
+            "w": 448,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Bar Tabs",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "tabs"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
+            }
+          }
+        },
+        {
+          "id": "status",
+          "kind": "logoutPanel",
+          "rect": {
+            "x": 16,
+            "y": 514,
+            "w": 432,
+            "h": 218
+          },
+          "shape": "rect",
+          "behavior": "none"
+        },
+        {
+          "id": "manager",
+          "kind": "button",
+          "rect": {
+            "x": 16,
+            "y": 748,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Manager",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "manager"
+            }
+          ]
+        },
+        {
+          "id": "logout",
+          "kind": "button",
+          "rect": {
+            "x": 16,
+            "y": 914,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Log Out",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "logout"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#b83232"
+            }
+          }
+        }
+      ],
+      "background": {
+        "texture": "woodfloor",
+        "fill": "#3b2a1a"
+      }
+    },
+    {
+      "id": "buttons-bottom",
+      "name": "Buttons below",
+      "description": "The floor on top, big buttons across the bottom.",
+      "zones": [
+        {
+          "id": "table-t1",
+          "kind": "table",
+          "rect": {
+            "x": 40,
+            "y": 24,
+            "w": 150,
+            "h": 150
+          },
+          "shape": "circle",
+          "behavior": "none",
+          "label": "T1",
+          "props": {
+            "seats": 2
+          }
+        },
+        {
+          "id": "table-t2",
+          "kind": "table",
+          "rect": {
+            "x": 250,
+            "y": 24,
+            "w": 150,
+            "h": 150
+          },
+          "shape": "circle",
+          "behavior": "none",
+          "label": "T2",
+          "props": {
+            "seats": 2
+          }
+        },
+        {
+          "id": "table-t3",
+          "kind": "table",
+          "rect": {
+            "x": 460,
+            "y": 24,
+            "w": 240,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T3",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t4",
+          "kind": "table",
+          "rect": {
+            "x": 760,
+            "y": 24,
+            "w": 240,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T4",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t5",
+          "kind": "table",
+          "rect": {
+            "x": 40,
+            "y": 264,
+            "w": 360,
+            "h": 165
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T5",
+          "props": {
+            "seats": 6
+          }
+        },
+        {
+          "id": "table-t6",
+          "kind": "table",
+          "rect": {
+            "x": 460,
+            "y": 264,
+            "w": 180,
+            "h": 180
+          },
+          "shape": "octagon",
+          "behavior": "none",
+          "label": "T6",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t7",
+          "kind": "table",
+          "rect": {
+            "x": 700,
+            "y": 264,
+            "w": 180,
+            "h": 180
+          },
+          "shape": "octagon",
+          "behavior": "none",
+          "label": "T7",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-bar-1",
+          "kind": "table",
+          "rect": {
+            "x": 40,
+            "y": 534,
+            "w": 180,
+            "h": 120
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 1",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "table-bar-2",
+          "kind": "table",
+          "rect": {
+            "x": 250,
+            "y": 534,
+            "w": 180,
+            "h": 120
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 2",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "table-bar-3",
+          "kind": "table",
+          "rect": {
+            "x": 460,
+            "y": 534,
+            "w": 180,
+            "h": 120
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 3",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "quick",
+          "kind": "button",
+          "rect": {
+            "x": 16,
+            "y": 716,
+            "w": 299,
+            "h": 348
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Quick Order",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startQuick"
+            },
+            {
+              "type": "jump",
+              "mode": "index"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f8a4c"
+            }
+          }
+        },
+        {
+          "id": "takeout",
+          "kind": "button",
+          "rect": {
+            "x": 331,
+            "y": 716,
+            "w": 299,
+            "h": 348
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Takeout",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startTakeout"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "customer"
+            }
+          ]
+        },
+        {
+          "id": "delivery",
+          "kind": "button",
+          "rect": {
+            "x": 646,
+            "y": 716,
+            "w": 299,
+            "h": 348
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Delivery",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startDelivery"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "customer"
+            }
+          ]
+        },
+        {
+          "id": "checks",
+          "kind": "button",
+          "rect": {
+            "x": 1200,
+            "y": 332,
+            "w": 704,
+            "h": 170
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Open Checks",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "checkList"
+            }
+          ]
+        },
+        {
+          "id": "host",
+          "kind": "button",
+          "rect": {
+            "x": 1276,
+            "y": 716,
+            "w": 299,
+            "h": 348
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Waitlist",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "host"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f6f73"
+            }
+          }
+        },
+        {
+          "id": "tabs",
+          "kind": "button",
+          "rect": {
+            "x": 961,
+            "y": 716,
+            "w": 299,
+            "h": 348
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Bar Tabs",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "tabs"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
+            }
+          }
+        },
+        {
+          "id": "status",
+          "kind": "logoutPanel",
+          "rect": {
+            "x": 1200,
+            "y": 16,
+            "w": 704,
+            "h": 300
+          },
+          "shape": "rect",
+          "behavior": "none"
+        },
+        {
+          "id": "manager",
+          "kind": "button",
+          "rect": {
+            "x": 1200,
+            "y": 518,
+            "w": 704,
+            "h": 170
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Manager",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "manager"
+            }
+          ]
+        },
+        {
+          "id": "logout",
+          "kind": "button",
+          "rect": {
+            "x": 1591,
+            "y": 716,
+            "w": 299,
+            "h": 348
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Log Out",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "logout"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#b83232"
+            }
+          }
+        }
+      ],
+      "background": {
+        "texture": "woodfloor",
+        "fill": "#3b2a1a"
+      }
+    },
+    {
+      "id": "counter",
+      "name": "Counter first",
+      "description": "Quick Order, Takeout and Delivery big; a smaller floor.",
+      "zones": [
+        {
+          "id": "table-t1",
+          "kind": "table",
+          "rect": {
+            "x": 24,
+            "y": 24,
+            "w": 144,
+            "h": 144
+          },
+          "shape": "circle",
+          "behavior": "none",
+          "label": "T1",
+          "props": {
+            "seats": 2
+          }
+        },
+        {
+          "id": "table-t2",
+          "kind": "table",
+          "rect": {
+            "x": 225,
+            "y": 24,
+            "w": 144,
+            "h": 144
+          },
+          "shape": "circle",
+          "behavior": "none",
+          "label": "T2",
+          "props": {
+            "seats": 2
+          }
+        },
+        {
+          "id": "table-t3",
+          "kind": "table",
+          "rect": {
+            "x": 427,
+            "y": 24,
+            "w": 230,
+            "h": 144
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T3",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t4",
+          "kind": "table",
+          "rect": {
+            "x": 715,
+            "y": 24,
+            "w": 230,
+            "h": 144
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T4",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t5",
+          "kind": "table",
+          "rect": {
+            "x": 24,
+            "y": 254,
+            "w": 345,
+            "h": 158
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T5",
+          "props": {
+            "seats": 6
+          }
+        },
+        {
+          "id": "table-t6",
+          "kind": "table",
+          "rect": {
+            "x": 427,
+            "y": 254,
+            "w": 172,
+            "h": 172
+          },
+          "shape": "octagon",
+          "behavior": "none",
+          "label": "T6",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t7",
+          "kind": "table",
+          "rect": {
+            "x": 657,
+            "y": 254,
+            "w": 172,
+            "h": 172
+          },
+          "shape": "octagon",
+          "behavior": "none",
+          "label": "T7",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-bar-1",
+          "kind": "table",
+          "rect": {
+            "x": 24,
+            "y": 513,
+            "w": 172,
+            "h": 115
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 1",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "table-bar-2",
+          "kind": "table",
+          "rect": {
+            "x": 225,
+            "y": 513,
+            "w": 172,
+            "h": 115
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 2",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "table-bar-3",
+          "kind": "table",
+          "rect": {
+            "x": 427,
+            "y": 513,
+            "w": 172,
+            "h": 115
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 3",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "quick",
+          "kind": "button",
+          "rect": {
+            "x": 1100,
+            "y": 16,
+            "w": 804,
+            "h": 300
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Quick Order",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startQuick"
+            },
+            {
+              "type": "jump",
+              "mode": "index"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f8a4c"
+            }
+          }
+        },
+        {
+          "id": "takeout",
+          "kind": "button",
+          "rect": {
+            "x": 1100,
+            "y": 332,
+            "w": 396,
+            "h": 220
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Takeout",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startTakeout"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "customer"
+            }
+          ]
+        },
+        {
+          "id": "delivery",
+          "kind": "button",
+          "rect": {
+            "x": 1508,
+            "y": 332,
+            "w": 396,
+            "h": 220
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Delivery",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startDelivery"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "customer"
+            }
+          ]
+        },
+        {
+          "id": "checks",
+          "kind": "button",
+          "rect": {
+            "x": 1100,
+            "y": 568,
+            "w": 396,
+            "h": 160
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Open Checks",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "checkList"
+            }
+          ]
+        },
+        {
+          "id": "host",
+          "kind": "button",
+          "rect": {
+            "x": 640,
+            "y": 910,
+            "w": 444,
+            "h": 154
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Waitlist",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "host"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f6f73"
+            }
+          }
+        },
+        {
+          "id": "tabs",
+          "kind": "button",
+          "rect": {
+            "x": 1508,
+            "y": 568,
+            "w": 396,
+            "h": 160
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Bar Tabs",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "tabs"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
+            }
+          }
+        },
+        {
+          "id": "status",
+          "kind": "logoutPanel",
+          "rect": {
+            "x": 1100,
+            "y": 744,
+            "w": 804,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "none"
+        },
+        {
+          "id": "manager",
+          "kind": "button",
+          "rect": {
+            "x": 1100,
+            "y": 910,
+            "w": 396,
+            "h": 154
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Manager",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "manager"
+            }
+          ]
+        },
+        {
+          "id": "logout",
+          "kind": "button",
+          "rect": {
+            "x": 1508,
+            "y": 910,
+            "w": 396,
+            "h": 154
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Log Out",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "logout"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#b83232"
+            }
+          }
+        }
+      ],
+      "background": {
+        "texture": "woodfloor",
+        "fill": "#3b2a1a"
+      }
+    },
+    {
+      "id": "plain",
+      "name": "Plain floor",
+      "description": "The classic arrangement on a plain dark floor (no wood).",
+      "zones": [
+        {
+          "id": "table-t1",
+          "kind": "table",
+          "rect": {
+            "x": 96,
+            "y": 96,
+            "w": 200,
+            "h": 200
+          },
+          "shape": "circle",
+          "behavior": "none",
+          "label": "T1",
+          "props": {
+            "seats": 2
+          }
+        },
+        {
+          "id": "table-t2",
+          "kind": "table",
+          "rect": {
+            "x": 376,
+            "y": 96,
+            "w": 200,
+            "h": 200
+          },
+          "shape": "circle",
+          "behavior": "none",
+          "label": "T2",
+          "props": {
+            "seats": 2
+          }
+        },
+        {
+          "id": "table-t3",
+          "kind": "table",
+          "rect": {
+            "x": 656,
+            "y": 96,
+            "w": 320,
+            "h": 200
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T3",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t4",
+          "kind": "table",
+          "rect": {
+            "x": 1056,
+            "y": 96,
+            "w": 320,
+            "h": 200
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T4",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t5",
+          "kind": "table",
+          "rect": {
+            "x": 96,
+            "y": 416,
+            "w": 480,
+            "h": 220
+          },
+          "shape": "rect",
+          "behavior": "none",
+          "label": "T5",
+          "props": {
+            "seats": 6
+          }
+        },
+        {
+          "id": "table-t6",
+          "kind": "table",
+          "rect": {
+            "x": 656,
+            "y": 416,
+            "w": 240,
+            "h": 240
+          },
+          "shape": "octagon",
+          "behavior": "none",
+          "label": "T6",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-t7",
+          "kind": "table",
+          "rect": {
+            "x": 976,
+            "y": 416,
+            "w": 240,
+            "h": 240
+          },
+          "shape": "octagon",
+          "behavior": "none",
+          "label": "T7",
+          "props": {
+            "seats": 4
+          }
+        },
+        {
+          "id": "table-bar-1",
+          "kind": "table",
+          "rect": {
+            "x": 96,
+            "y": 776,
+            "w": 240,
+            "h": 160
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 1",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "table-bar-2",
+          "kind": "table",
+          "rect": {
+            "x": 376,
+            "y": 776,
+            "w": 240,
+            "h": 160
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 2",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "table-bar-3",
+          "kind": "table",
+          "rect": {
+            "x": 656,
+            "y": 776,
+            "w": 240,
+            "h": 160
+          },
+          "shape": "rounded",
+          "behavior": "none",
+          "label": "Bar 3",
+          "props": {
+            "seats": 1
+          }
+        },
+        {
+          "id": "quick",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 16,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Quick Order",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startQuick"
+            },
+            {
+              "type": "jump",
+              "mode": "index"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f8a4c"
+            }
+          }
+        },
+        {
+          "id": "takeout",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 182,
+            "w": 208,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Takeout",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startTakeout"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "customer"
+            }
+          ]
+        },
+        {
+          "id": "delivery",
+          "kind": "button",
+          "rect": {
+            "x": 1696,
+            "y": 182,
+            "w": 208,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Delivery",
+          "actions": [
+            {
+              "type": "command",
+              "name": "startDelivery"
+            },
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "customer"
+            }
+          ]
+        },
+        {
+          "id": "checks",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 348,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Open Checks",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "checkList"
+            }
+          ]
+        },
+        {
+          "id": "host",
+          "kind": "button",
+          "rect": {
+            "x": 1056,
+            "y": 914,
+            "w": 400,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Waitlist",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "host"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f6f73"
+            }
+          }
+        },
+        {
+          "id": "tabs",
+          "kind": "button",
+          "rect": {
+            "x": 1056,
+            "y": 748,
+            "w": 400,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Bar Tabs",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "tabs"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#a86a12"
+            }
+          }
+        },
+        {
+          "id": "status",
+          "kind": "logoutPanel",
+          "rect": {
+            "x": 1472,
+            "y": 514,
+            "w": 432,
+            "h": 218
+          },
+          "shape": "rect",
+          "behavior": "none"
+        },
+        {
+          "id": "manager",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 748,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Manager",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "manager"
+            }
+          ]
+        },
+        {
+          "id": "logout",
+          "kind": "button",
+          "rect": {
+            "x": 1472,
+            "y": 914,
+            "w": 432,
+            "h": 150
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Log Out",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "role": "logout"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#b83232"
+            }
+          }
+        }
+      ],
+      "background": {
+        "fill": "#1d2128"
+      }
+    }
+  ]
+}

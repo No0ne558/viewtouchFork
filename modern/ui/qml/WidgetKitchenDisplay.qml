@@ -11,7 +11,9 @@ Item {
     property ZoneItem zone
     readonly property PosService pos: zone ? zone.pos : null
     readonly property string pageStation: zone && zone.props && zone.props.station ? zone.props.station : ""
-    readonly property string station: !expo && pos && pos.kitchenStation ? pos.kitchenStation : pageStation
+    // Panels side by side keep the station they were set up with (props.lockStation).
+    readonly property bool locked: zone && zone.props && zone.props.lockStation === true
+    readonly property string station: !expo && !locked && pos && pos.kitchenStation ? pos.kitchenStation : pageStation
     readonly property var stations: pos ? pos.kitchenStations.filter(s => !s.printer) : []
     function stationName(id) {
         if (id === "") return qsTr("All stations")
@@ -27,6 +29,8 @@ Item {
     }
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     property real now: Date.now()
+    // Header buttons and title fit a narrow screen (two or three stations side by side).
+    readonly property real keyWidth: Math.max(96, Math.min(240, width * 0.12))
 
     // Tickets with only this station's lines.
     // props.mode "expo": the expediter - every station, what each has made,
@@ -61,7 +65,7 @@ Item {
         function onWidgetCommand(name) {
             if (name === "kitchenAllDay")
                 w.showAllDay = !w.showAllDay
-            else if (name === "kitchenStation" && !w.expo && w.stations.length > 0)
+            else if (name === "kitchenStation" && !w.expo && !w.locked && w.stations.length > 0)
                 w.nextStation()
         }
     }
@@ -118,14 +122,15 @@ Item {
                       + "  ·  " + (w.tickets.length === 1 ? qsTr("1 order") : qsTr("%1 orders").arg(w.tickets.length))
                 color: "white"
                 font.family: w.face
-                font.pixelSize: 40
+                font.pixelSize: Math.max(20, Math.min(40, w.width / 32))
                 font.bold: true
+                elide: Text.ElideRight
             }
             WidgetKey {
                 objectName: "kdsStation"
-                visible: !w.expo && w.stations.length > 0 && w.zone.keyShown("station")
+                visible: !w.expo && !w.locked && w.stations.length > 0 && w.zone.keyShown("station")
                 Layout.column: header.col("station")
-                Layout.preferredWidth: 240
+                Layout.preferredWidth: w.keyWidth
                 Layout.fillHeight: true
                 text: w.zone.keyText("station", qsTr("Station…"))
                 fontScale: 0.4
@@ -134,7 +139,7 @@ Item {
             WidgetKey {
                 visible: w.zone.keyShown("message")
                 Layout.column: header.col("message")
-                Layout.preferredWidth: 240
+                Layout.preferredWidth: w.keyWidth
                 Layout.fillHeight: true
                 text: w.zone.keyText("message", qsTr("Message…"))
                 fontScale: 0.4
@@ -144,7 +149,7 @@ Item {
                 objectName: "kdsAllDay"
                 visible: w.zone.keyShown("allDay")
                 Layout.column: header.col("allDay")
-                Layout.preferredWidth: 240
+                Layout.preferredWidth: w.keyWidth
                 Layout.fillHeight: true
                 text: w.showAllDay ? qsTr("Hide All Day") : w.zone.keyText("allDay", qsTr("All Day"))
                 fontScale: 0.4
@@ -154,7 +159,7 @@ Item {
                 objectName: "kdsRecall"
                 visible: w.zone.keyShown("recall")
                 Layout.column: header.col("recall")
-                Layout.preferredWidth: 240
+                Layout.preferredWidth: w.keyWidth
                 Layout.fillHeight: true
                 text: w.zone.keyText("recall", qsTr("Recall"))
                 fontScale: 0.4

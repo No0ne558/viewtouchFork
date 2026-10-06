@@ -112,6 +112,8 @@ QJsonArray widgetSettings(const QString &kind)
         out.append(hint(field(u"props.station"_s, u"Station"_s, u"string"_s, g),
                         u"A printer (kitchen, bar) or a kitchen station id (grill, fryer). Empty: everything. "
                         u"The screen's Station button can pick another."_s));
+        out.append(hint(field(u"props.lockStation"_s, u"Keep this station"_s, u"bool"_s, g),
+                        u"For panels side by side: the screen's Station button doesn't change this one."_s));
     } else if (kind == u"menuGrid") {
         out.append(hint(field(u"props.family"_s, u"Family"_s, u"string"_s, g),
                         u"The menu family it shows (burgers, drinks...). Empty: every family, with a button for each."_s));

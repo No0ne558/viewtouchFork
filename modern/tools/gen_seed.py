@@ -6,6 +6,7 @@ OUT = sys.argv[1]
 SCHEMA = 1
 os.makedirs(os.path.join(OUT, "pages"), exist_ok=True)
 os.makedirs(os.path.join(OUT, "pos"), exist_ok=True)
+os.makedirs(os.path.join(OUT, "layouts"), exist_ok=True)
 
 def write(path, obj, versioned=True):
     if versioned and isinstance(obj, dict):
@@ -45,10 +46,13 @@ def zone(id, x, y, w, h, label="", kind="button", actions=(), **kw):
 def label(id, x, y, w, h, text, **kw):
     return zone(id, x, y, w, h, text, kind="label", **kw)
 
+PAGES = {}
+
 def page(id, name, kind, zones, **kw):
     p = {"id": id, "name": name, "kind": kind, "canvas": {"w": 1920, "h": 1080}, "grid": 8}
     p.update(kw)
     p["zones"] = zones
+    PAGES[id] = p
     write(f"pages/{id}.json", p)
 
 # ---------------------------------------------------------------- POS data
@@ -983,3 +987,161 @@ phone_page("check-list", "Open Checks", "custom", [
 ])
 
 print("seed written to", OUT)
+
+# ---------------------------------------------------------------- ready-made layouts
+# Five arrangements of the main screens (edit mode -> Layouts…): the same
+# buttons (same ids and actions), moved and resized, or restyled. Applying one
+# replaces the page's zones; Undo takes it back.
+import copy
+
+def arrangement(page_id, vid, name, description, rects=None, styles=None, props=None, add=(), background=None):
+    zones = copy.deepcopy(PAGES[page_id]["zones"])
+    for z in zones:
+        if rects and z["id"] in rects:
+            z["rect"] = rect(*rects[z["id"]])
+        if styles and z["id"] in styles:
+            z["style"] = styles[z["id"]]
+        if props and z["id"] in props:
+            z["props"] = props[z["id"]]
+    zones += [copy.deepcopy(z) for z in add]
+    # Each with its background, so going back to Classic brings the page's own back.
+    return {"id": vid, "name": name, "description": description, "zones": zones,
+            "background": background if background is not None else PAGES[page_id].get("background", {})}
+
+def layouts(page_id, variants):
+    p = PAGES[page_id]
+    # Kitchen panels side by side keep their own station (the screen's
+    # Station button would change them all).
+    for v in variants:
+        panels = [z for z in v["zones"] if z["kind"] == "kitchenDisplay"]
+        if len(panels) > 1:
+            for z in panels:
+                if "station" in z.get("props", {}):
+                    z["props"]["lockStation"] = True
+    write(f"layouts/{page_id}.json", {"page": page_id, "role": p.get("role", ""), "variants": variants})
+
+# Login
+layouts("login", [
+    arrangement("login", "classic", "Classic", "The keypad in the middle, the logo to its left."),
+    arrangement("login", "logo-left", "Logo first", "A big logo on the left half, the keypad on the right.", {
+        "title": (80, 40, 800, 110), "logo": (80, 170, 800, 680), "hint": (80, 880, 800, 160),
+        "clock": (1080, 40, 680, 80), "login-pad": (1080, 140, 680, 640),
+        "start": (1080, 800, 680, 120), "clock-in": (1080, 936, 330, 110), "clock-out": (1430, 936, 330, 110)}),
+    arrangement("login", "keypad-left", "Keypad left", "The keypad on the left, the logo and clock on the right.", {
+        "login-pad": (160, 140, 680, 640), "start": (160, 800, 680, 120),
+        "clock-in": (160, 936, 330, 110), "clock-out": (510, 936, 330, 110),
+        "title": (1000, 40, 840, 110), "logo": (1000, 170, 840, 580), "clock": (1000, 770, 840, 90),
+        "hint": (1000, 880, 840, 160)}),
+    arrangement("login", "big-keypad", "Big keypad", "Big keys and buttons, for gloves or a screen farther away.", {
+        "logo": (40, 20, 340, 150), "title": (400, 20, 1120, 100), "clock": (660, 120, 600, 60),
+        "login-pad": (460, 190, 1000, 690), "clock-in": (160, 900, 480, 150), "start": (680, 900, 560, 150),
+        "clock-out": (1280, 900, 480, 150), "hint": (1500, 190, 400, 220)}),
+    arrangement("login", "compact", "Compact", "A small keypad in the center, lots of space around it.", {
+        "logo": (810, 10, 300, 110), "title": (560, 120, 800, 90), "clock": (660, 220, 600, 70),
+        "login-pad": (760, 310, 400, 430), "start": (760, 760, 400, 110),
+        "clock-in": (760, 890, 195, 90), "clock-out": (965, 890, 195, 90), "hint": (1400, 320, 480, 200)}),
+])
+
+# Tables
+def tables_moved(dx=0, dy=0, scale=1.0, x0=96, y0=96):
+    out = {}
+    for t in TABLES:
+        tid = "table-" + t["label"].lower().replace(" ", "-")
+        x, y = 16 + t["x"], 16 + t["y"]
+        out[tid] = (int(x0 + (x - 96) * scale + dx), int(y0 + (y - 96) * scale + dy),
+                    int(t["w"] * scale), int(t["h"] * scale))
+    return out
+
+layouts("tables", [
+    arrangement("tables", "classic", "Classic", "The floor plan, the buttons down the right side."),
+    arrangement("tables", "buttons-left", "Buttons left", "The buttons down the left side, the floor to their right.", {
+        **tables_moved(dx=440),
+        "quick": (16, 16, 432, 150), "takeout": (16, 182, 208, 150), "delivery": (240, 182, 208, 150),
+        "checks": (16, 348, 432, 150), "status": (16, 514, 432, 218), "manager": (16, 748, 432, 150),
+        "logout": (16, 914, 432, 150), "tabs": (1456, 748, 448, 150), "host": (1456, 914, 448, 150)}),
+    arrangement("tables", "buttons-bottom", "Buttons below", "The floor on top, big buttons across the bottom.", {
+        **tables_moved(scale=0.75, x0=40, y0=24),
+        "status": (1200, 16, 704, 300), "checks": (1200, 332, 704, 170), "manager": (1200, 518, 704, 170),
+        **{zid: (16 + i * 315, 716, 299, 348) for i, zid in
+           enumerate(["quick", "takeout", "delivery", "tabs", "host", "logout"])}}),
+    arrangement("tables", "counter", "Counter first", "Quick Order, Takeout and Delivery big; a smaller floor.", {
+        **tables_moved(scale=0.72, x0=24, y0=24),
+        "quick": (1100, 16, 804, 300), "takeout": (1100, 332, 396, 220), "delivery": (1508, 332, 396, 220),
+        "checks": (1100, 568, 396, 160), "tabs": (1508, 568, 396, 160), "status": (1100, 744, 804, 150),
+        "host": (640, 910, 444, 154), "manager": (1100, 910, 396, 154), "logout": (1508, 910, 396, 154)}),
+    arrangement("tables", "plain", "Plain floor", "The classic arrangement on a plain dark floor (no wood).",
+                background={"fill": "#1d2128"}),
+])
+
+# The order screen (the frame around every menu page). The menu area stays
+# where every menu page puts its buttons: x 592-1904, y 104-964.
+flow_ids = [f[0] for f in flow]
+tab_ids = ["tab-breakfast", "tab-lunch", "tab-dinner", "tab-categories", "tab-note", "tab-check"]
+layouts("order-template", [
+    arrangement("order-template", "classic", "Classic", "The check on the left, the buttons along the bottom."),
+    arrangement("order-template", "buttons-under-check", "Buttons under the check",
+                "A shorter check with its buttons in a grid below it.", {
+        "order-list": (16, 16, 560, 620),
+        **{zid: (16 + (i % 3) * 188, 652 + (i // 3) * 140, 180, 130) for i, zid in enumerate(flow_ids)}}),
+    arrangement("order-template", "big-send-pay", "Big Send and Pay", "Send and Pay much bigger; the rest smaller.", {
+        **{zid: (16 + i * 168, 980, 160, 84) for i, zid in enumerate(flow_ids[:6])},
+        "flow-void": (1024, 980, 200, 84), "flow-send": (1232, 980, 330, 84), "flow-pay": (1570, 980, 334, 84)}),
+    arrangement("order-template", "tabs-below", "Menus below", "The buttons on top, the menu tabs along the bottom.", {
+        **{zid: (592 + i * 146, 16, 138, 72) for i, zid in enumerate(flow_ids)},
+        **{zid: (16 + i * 316, 980, 308, 84) for i, zid in enumerate(tab_ids)}}),
+    arrangement("order-template", "colorful", "Colorful", "The classic arrangement, every button in its own color.",
+                styles={**{zid: fill(c) for zid, c in zip(flow_ids, [BLUE, AMBER, AMBER, AMBER, AMBER, AMBER,
+                                                                     RED, GREEN, BLUE])},
+                        **{zid: {"normal": {"fill": TEAL, "fontSize": 26}} for zid in tab_ids}}),
+])
+
+# Pay (Settle)
+tender_ids = [f"tender-{tid}" for _, tid, _ in tenders]
+layouts("settle", [
+    arrangement("settle", "classic", "Classic", "The check on the left, the keypad in the middle, payment types right."),
+    arrangement("settle", "keypad-left", "Keypad left", "The keypad and its buttons on the left, the check in the middle.", {
+        "pad": (16, 16, 520, 620), "receipt": (16, 652, 520, 120), "close": (16, 788, 520, 120),
+        "remove-payment": (16, 924, 520, 120), "payment": (552, 16, 900, 1048)}),
+    arrangement("settle", "payment-types-top", "Payment types on top", "The payment types across the top.", {
+        **{tid: (16 + i * 270, 16, 262, 130) for i, tid in enumerate(tender_ids)},
+        "payment": (16, 162, 900, 902), "pad": (932, 162, 520, 560), "receipt": (932, 738, 520, 100),
+        "close": (932, 850, 520, 100), "remove-payment": (932, 962, 520, 100),
+        "split": (1468, 162, 212, 120), "drawer": (1692, 162, 212, 120), "ask-tip": (1468, 298, 436, 120),
+        "done": (1468, 944, 436, 120)}),
+    arrangement("settle", "cash-and-card", "Cash and card first", "Cash and Credit Card big, the rest smaller.", {
+        "tender-cash": (1468, 16, 436, 200), "tender-credit": (1468, 232, 436, 200),
+        "tender-gift": (1468, 448, 212, 90), "tender-house": (1692, 448, 212, 90),
+        "tender-discount": (1468, 546, 212, 90), "tender-comp": (1692, 546, 212, 90),
+        "tender-staff-meal": (1468, 644, 436, 80), "split": (1468, 736, 212, 90), "drawer": (1692, 736, 212, 90),
+        "ask-tip": (1468, 838, 436, 94)}),
+    arrangement("settle", "wide-buttons", "Wide buttons", "A narrower check, wider keypad and payment buttons.", {
+        "payment": (16, 16, 700, 1048), "pad": (732, 16, 600, 620), "receipt": (732, 652, 600, 120),
+        "close": (732, 788, 600, 120), "remove-payment": (732, 924, 600, 120),
+        **{tid: (1348, 16 + i * step, 556, step - 10) for i, tid in enumerate(tender_ids)},
+        "split": (1348, 640, 272, 100), "drawer": (1632, 640, 272, 100), "ask-tip": (1348, 756, 556, 100),
+        "done": (1348, 944, 556, 120)}),
+])
+
+# The kitchen screen
+ticket = PAGES["kitchen"]["zones"][0]
+def kitchen_zone(zid, x, w, props):
+    z = copy.deepcopy(ticket)
+    z["id"], z["rect"], z["props"] = zid, rect(x, 0, w, 1080), props
+    return z
+layouts("kitchen", [
+    arrangement("kitchen", "classic", "Whole kitchen", "Every kitchen order on one screen."),
+    arrangement("kitchen", "grill-fryer", "Grill | Fryer", "Two stations side by side.",
+                rects={"tickets": (0, 0, 956, 1080)}, props={"tickets": {"station": "grill", "lockStation": True}},
+                add=[kitchen_zone("tickets-2", 964, 956, {"station": "fryer", "lockStation": True})]),
+    arrangement("kitchen", "three-stations", "Grill | Fryer | Cold", "Three stations side by side.",
+                rects={"tickets": (0, 0, 636, 1080)}, props={"tickets": {"station": "grill"}},
+                add=[kitchen_zone("tickets-2", 642, 636, {"station": "fryer"}),
+                     kitchen_zone("tickets-3", 1284, 636, {"station": "cold"})]),
+    arrangement("kitchen", "kitchen-bar", "Kitchen | Bar", "The kitchen's orders and the bar's, side by side.",
+                rects={"tickets": (0, 0, 1276, 1080)},
+                add=[kitchen_zone("tickets-2", 1284, 636, {"station": "bar"})]),
+    arrangement("kitchen", "kitchen-expo", "Kitchen | Expo", "The kitchen's orders, and the expediter beside them.",
+                rects={"tickets": (0, 0, 1276, 1080)},
+                add=[kitchen_zone("tickets-2", 1284, 636, {"mode": "expo"})]),
+])
+

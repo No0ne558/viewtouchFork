@@ -446,6 +446,12 @@ Manager widgets:
 | endOfDay | End of day |
 | splitCheck | Split a check |
 
+## Ready-made layouts, and page files
+
+Edit mode → **Layouts…** shows five arrangements of the page being edited, with a preview of each: the login page, the tables, the order screen (from any menu page: the frame around it), Pay and the kitchen screen. They're the same buttons (same ids and actions) moved and resized, so nothing stops working; one touch applies one, Undo takes it back, Save keeps it. The kitchen's side-by-side layouts (Grill | Fryer, Grill | Fryer | Cold, Kitchen | Bar, Kitchen | Expo) keep each panel's station (`props.lockStation`). They're generated in `tools/gen_seed.py` into `seed/layouts/<page>.json`.
+
+The same window shares designs between stores: **Use a Page File for This Page…** (someone's exported page replaces this one's zones and background, keeping its name and role), **Add a Page from a File…**, **Export This Page…**, and for the whole restaurant **Export Every Page…** and **Replace Every Page from a File…** (after a confirmation). Page files are `.vtpage.json`, whole layouts `.vtlayout.json`.
+
 ## The setup guide
 
 The first time a manager logs in to a new store, the **setup guide** opens (Manager → **Setup Guide…** brings it back): the store's name and receipt lines, the logo (and printing it on receipts), a look (two made from the logo), food and alcohol tax, first menu items (they show on the *Everything* page at once), and the team: add yourself as a manager with your own PIN, then **Turn Off the Sample Staff**, whose PINs are public. The sample manager running the guide is turned off at *Finish* and logged out. *Finish Later* closes it until a manager logs in again. The demo's staff are marked `sample` in `employees.json`; `settings.setupDone` records that it's finished.

@@ -723,6 +723,106 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: ready-made layouts for each screen, and page files", "[flow][ui][layouts]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    const auto rectOf = [&](const QString &page, const QString &zone) {
+        const vt::layout::Page *p = s.c.editor() ? s.c.editor()->editor().layout().page(page)
+                                                 : s.c.activeLayout().page(page);
+        return p && p->zone(zone) ? p->zone(zone)->rect : QRect();
+    };
+    QTemporaryDir dir;
+
+    // Every main screen has five.
+    for (const QString &page : {u"login"_s, u"tables"_s, u"settle"_s, u"kitchen"_s, u"index-lunch"_s}) {
+        REQUIRE(s.c.jumpTo(page));
+        s.c.enterEditMode();
+        CHECK(s.c.editor()->arrangements().size() == 5);
+        REQUIRE(s.c.leaveEditMode(false));
+    }
+
+    // The gallery on the Tables page: Buttons left.
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    const QRect quick = rectOf(u"tables"_s, u"quick"_s);
+    CHECK(Screen::findBy(s.window->contentItem(), "objectName", u"layoutsButton"_s));   // Layouts… in the toolbar
+    // The earlier edit sessions' toolbars are gone first (deleted later).
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QTest::qWait(50);
+    QObject *gallery = s.window->findChild<QObject *>(u"layoutGallery"_s);
+    REQUIRE(gallery);
+    QMetaObject::invokeMethod(gallery, "open");                                       // what it does
+    QTest::qWait(250);
+    CHECK(gallery->property("visible").toBool());
+    auto *galleryItem = gallery->property("contentItem").value<QQuickItem *>();
+    REQUIRE(galleryItem);
+    QQuickItem *left = Screen::findBy(galleryItem, "objectName", u"layout-buttons-left"_s);
+    REQUIRE(left);
+    s.shot("47-layout-gallery");
+    s.tapItem(left);
+    QTest::qWait(80);
+    CHECK(rectOf(u"tables"_s, u"quick"_s).x() == 16);
+    e->undo();
+    CHECK(rectOf(u"tables"_s, u"quick"_s) == quick);
+    REQUIRE(e->useArrangement(u"buttons-left"_s));
+
+    // A menu page: the order screen around it (its template).
+    REQUIRE(e->exportPage(QUrl::fromLocalFile(dir.filePath(u"tables.vtpage.json"_s))));
+    REQUIRE(s.c.leaveEditMode(true));
+    QTest::qWait(80);
+    s.shot("48-tables-buttons-left");
+    REQUIRE(s.c.jumpTo(u"index-lunch"_s));
+    s.c.enterEditMode();
+    e = s.c.editor();
+    REQUIRE(e->useArrangement(u"big-send-pay"_s));
+    CHECK(rectOf(u"order-template"_s, u"flow-pay"_s).width() == 334);
+    REQUIRE(s.c.leaveEditMode(true));
+    QTest::qWait(80);
+    s.shot("49-order-big-send-pay");
+
+    // Another store's page used for this one, then the whole restaurant from a file.
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    e = s.c.editor();
+    REQUIRE(e->useArrangement(u"classic"_s));
+    CHECK(rectOf(u"tables"_s, u"quick"_s) == quick);
+    REQUIRE(e->importPageHere(QUrl::fromLocalFile(dir.filePath(u"tables.vtpage.json"_s))));
+    CHECK(rectOf(u"tables"_s, u"quick"_s).x() == 16);              // the file's arrangement
+    CHECK(e->editor().layout().page(u"tables"_s)->role == u"tables"_s);   // still the Tables page
+    REQUIRE(e->exportLayout(QUrl::fromLocalFile(dir.filePath(u"store.vtlayout.json"_s))));
+    REQUIRE(e->useArrangement(u"counter"_s));
+    REQUIRE(e->importLayout(QUrl::fromLocalFile(dir.filePath(u"store.vtlayout.json"_s))));
+    CHECK(rectOf(u"tables"_s, u"quick"_s).x() == 16);
+    REQUIRE(s.c.leaveEditMode(false));
+
+    // Every layout of every screen, for a look (only when taking screenshots).
+    if (qEnvironmentVariableIsEmpty("VTM_SHOTS"))
+        return;
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    s.pos.addItem(u"caesar"_s);
+    s.pos.finishChoosing();
+    REQUIRE(s.pos.sendOrder());
+    for (const QString &page : {u"login"_s, u"tables"_s, u"index-lunch"_s, u"settle"_s, u"kitchen"_s}) {
+        REQUIRE(s.c.jumpTo(page));
+        s.c.enterEditMode();
+        QStringList ids;
+        for (const QVariant &v : s.c.editor()->arrangements())
+            ids << v.toMap()[u"id"_s].toString();
+        REQUIRE(s.c.leaveEditMode(false));
+        for (const QString &id : ids) {
+            REQUIRE(s.c.jumpTo(page));
+            s.c.enterEditMode();
+            REQUIRE(s.c.editor()->useArrangement(id));
+            REQUIRE(s.c.leaveEditMode(true));
+            REQUIRE(s.c.jumpTo(page));
+            QTest::qWait(120);
+            s.shot(qPrintable(u"50-%1-%2"_s.arg(page, id)));
+        }
+    }
+}
+
 TEST_CASE("UI: the setup guide opens for the first manager and walks through the store", "[flow][ui][setup]")
 {
     Screen s;

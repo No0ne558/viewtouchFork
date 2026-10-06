@@ -118,6 +118,14 @@ public:
     Q_INVOKABLE bool importPage(const QUrl &file);
     Q_INVOKABLE bool exportLayout(const QUrl &file);
     Q_INVOKABLE bool importLayout(const QUrl &file);
+    // Ready-made layouts for the page being edited (by its role, else its id):
+    // [{id, name, description, zones, background}].
+    Q_INVOKABLE QVariantList arrangements() const;
+    Q_INVOKABLE bool useArrangement(const QString &id);
+    // The page those layouts are for: this one, or its template.
+    QString arrangementPage() const;
+    // A page file (Export this page) used for the page being edited.
+    Q_INVOKABLE bool importPageHere(const QUrl &file);
 
     Q_INVOKABLE void setNotice(const QString &text);
 

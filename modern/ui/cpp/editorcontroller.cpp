@@ -525,6 +525,88 @@ bool EditorController::importPage(const QUrl &file)
     return true;
 }
 
+namespace {
+// The ready-made layouts shipped with the app for this page (qrc:/seed/layouts).
+QJsonObject arrangementsFor(const vt::layout::Page *page)
+{
+    if (!page)
+        return {};
+    const QDir dir(u":/seed/layouts"_s);
+    for (const QString &name : dir.entryList({u"*.json"_s}, QDir::Files)) {
+        QFile f(dir.filePath(name));
+        if (!f.open(QIODevice::ReadOnly))
+            continue;
+        const QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+        const QString role = o.value(u"role").toString();
+        if ((!role.isEmpty() && role == page->role) || (role.isEmpty() && o.value(u"page").toString() == page->id))
+            return o;
+    }
+    return {};
+}
+} // namespace
+
+QString EditorController::arrangementPage() const
+{
+    // This page's own, else its template's (a menu page: the order screen around it).
+    const vt::layout::Layout &l = editor_.layout();
+    for (const vt::layout::Page *p = l.page(pageId_); p; p = l.page(p->templateId)) {
+        if (!arrangementsFor(p).isEmpty())
+            return p->id;
+        if (p->templateId.isEmpty() || p->templateId == p->id)
+            break;
+    }
+    return {};
+}
+
+QVariantList EditorController::arrangements() const
+{
+    QVariantList out;
+    const vt::layout::Page *target = editor_.layout().page(arrangementPage());
+    for (const QJsonValue &v : arrangementsFor(target).value(u"variants").toArray()) {
+        QVariantMap m = v.toObject().toVariantMap();
+        m.insert(u"pageName"_s, target->name);
+        out.append(m);
+    }
+    return out;
+}
+
+bool EditorController::useArrangement(const QString &id)
+{
+    const QString target = arrangementPage();
+    for (const QJsonValue &v : arrangementsFor(editor_.layout().page(target)).value(u"variants").toArray()) {
+        const QJsonObject a = v.toObject();
+        if (a.value(u"id").toString() != id)
+            continue;
+        if (!editor_.arrangePage(target, a.value(u"zones").toArray(), a.value(u"background").toObject(),
+                                 tr("Layout: %1").arg(a.value(u"name").toString())))
+            return fail(tr("Could not use that layout."));
+        setNotice(tr("Layout: %1 (Undo takes it back; Save keeps it)").arg(a.value(u"name").toString()));
+        return true;
+    }
+    return fail(tr("There is no such layout for this page."));
+}
+
+bool EditorController::importPageHere(const QUrl &file)
+{
+    QString why;
+    const auto json = readJsonFile(file, &why);
+    if (!json)
+        return fail(why);
+    QStringList errors;
+    if (!Layout::checkSchema(*json, u"page"_s, &errors))
+        return fail(errors.join(u'\n'));
+    const vt::layout::Page imported = vt::layout::Page::fromJson(*json);
+    if (imported.zones.isEmpty())
+        return fail(tr("The file does not contain a page."));
+    QJsonArray zones;
+    for (const vt::layout::Zone &z : imported.zones)
+        zones.append(z.toJson());
+    if (!editor_.arrangePage(pageId_, zones, imported.background, tr("Use page file")))
+        return fail(tr("Could not use that page."));
+    setNotice(tr("This page now looks like %1 (Undo takes it back; Save keeps it)").arg(file.fileName()));
+    return true;
+}
+
 bool EditorController::exportLayout(const QUrl &file)
 {
     QString why;

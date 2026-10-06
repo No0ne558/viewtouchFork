@@ -108,12 +108,19 @@ Rectangle {
             }
         }
         Tool {
+            objectName: "layoutsButton"
+            text: qsTr("Layouts…")
+            tip: qsTr("Ready-made layouts for this page, and page files")
+            onClicked: gallery.open()
+        }
+        Tool {
             text: qsTr("File ▾")
             onClicked: fileMenu.popup()
             Menu {
                 id: fileMenu
                 MenuItem { text: qsTr("Export this page…"); onTriggered: fileDialog.run("exportPage") }
                 MenuItem { text: qsTr("Import a page…"); onTriggered: fileDialog.run("importPage") }
+                MenuItem { text: qsTr("Use a page file for this page…"); onTriggered: fileDialog.run("importPageHere") }
                 MenuSeparator {}
                 MenuItem { text: qsTr("Export all pages…"); onTriggered: fileDialog.run("exportLayout") }
                 MenuItem { text: qsTr("Replace all pages from file…"); onTriggered: fileDialog.run("importLayout") }
@@ -148,6 +155,12 @@ Rectangle {
         color: EditorStyle.border
     }
 
+    LayoutGallery {
+        id: gallery
+        objectName: "layoutGallery"
+        editor: bar.editor
+    }
+
     FileDialog {
         id: fileDialog
         property string action
@@ -155,7 +168,7 @@ Rectangle {
             action = what
             const saving = what.startsWith("export")
             fileMode = saving ? FileDialog.SaveFile : FileDialog.OpenFile
-            const page = what.endsWith("Page")
+            const page = what.endsWith("Page") || what === "importPageHere"
             nameFilters = page ? [qsTr("ViewTouch page (*.vtpage.json)"), qsTr("JSON (*.json)")]
                                : [qsTr("ViewTouch layout (*.vtlayout.json)"), qsTr("JSON (*.json)")]
             defaultSuffix = page ? "vtpage.json" : "vtlayout.json"

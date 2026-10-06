@@ -89,6 +89,10 @@ public:
     QJsonObject exportPage(const QString &pageId) const;
     // Adds the page; a clashing id gets a suffix. Returns the id used.
     QString importPage(const QJsonObject &json, QString *why = nullptr);
+    // A page's zones and background replaced (a ready-made layout, or a page
+    // file used for this page); its id, name and role stay. One undo step.
+    bool arrangePage(const QString &pageId, const QJsonArray &zones, const QJsonObject &background,
+                     const QString &description);
     bool replaceLayout(const layout::Layout &layout, const QString &description);
 
     static QString slugify(const QString &text);
