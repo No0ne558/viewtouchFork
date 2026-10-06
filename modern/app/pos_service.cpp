@@ -512,6 +512,8 @@ void PosService::entryKey(const QString &key)
     } else {
         return;
     }
+    if (!weighing_.isEmpty())
+        emit checkChanged();   // the Weigh page shows what the weight comes to
     emit entryChanged();
 }
 
@@ -694,6 +696,37 @@ void PosService::releaseCheck()
     emit s_->checksChanged();
 }
 
+QVariantMap PosService::weighingInfo() const
+{
+    const MenuItem *item = weighing_.isEmpty() ? nullptr : findItem(weighing_);
+    if (!item)
+        return {{u"active"_s, false}};
+    // What it comes to for the weight typed so far (hundredths: 125 = 1.25).
+    OrderLine probe;
+    probe.unitPrice = item->price;
+    probe.weight = entry_.toLongLong() * 10;
+    return {{u"active"_s, true}, {u"item"_s, qs(item->name)}, {u"unit"_s, qs(item->weightUnit)},
+            {u"price"_s, format(item->price)}, {u"comesTo"_s, probe.weight > 0 ? format(probe.total()) : QString()}};
+}
+
+bool PosService::addWeighed()
+{
+    if (weighing_.isEmpty())
+        return fail(tr("Nothing is being weighed."));
+    if (entry_.isEmpty() || entry_.toLongLong() <= 0)
+        return fail(tr("Type the weight: 125 is 1.25."));
+    return addItem(weighing_);
+}
+
+bool PosService::cancelWeighing()
+{
+    weighing_.clear();
+    entry_.clear();
+    emit entryChanged();
+    emit checkChanged();
+    return true;
+}
+
 bool PosService::addItem(const QString &idOrName)
 {
     if (!require(perm::Order, tr("Ordering")))
@@ -720,10 +753,25 @@ bool PosService::addItem(const QString &idOrName)
         if (!target || !c.addModifier(target->id, modifier, q))
             return fail(tr("Order an item before adding %1.").arg(qs(item->name)));
         selectedLine_ = target->id;
+    } else if (item->byWeight && entry_.isEmpty()) {
+        // Sold by weight: the Weigh page asks how much (then addWeighed).
+        weighing_ = qs(item->id);
+        emit checkChanged();
+        return true;
     } else {
         MenuItem priced = *item;   // the price for this meal period (dinner, happy hour...) and order type
         priced.price = extra(item->priceFor(currentMealPeriod(), c.type == CheckType::Takeout, c.type == CheckType::Delivery));
         OrderLine &line = c.addItem(priced, q);
+        if (item->byWeight) {   // the weight typed: hundredths (125 = 1.25 lb)
+            line.weight = entry_.toLongLong() * 10;
+            entry_.clear();
+            weighing_.clear();
+            emit entryChanged();
+            if (line.weight <= 0) {
+                c.removeLine(line.id);
+                return fail(tr("Type the weight first."));
+            }
+        }
         line.seat = seat_;
         line.course = course_;
         selectedLine_ = line.id;
@@ -1701,6 +1749,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"sendOrder"_s, [](PosService &p, const QVariantList &) { return QVariant(p.sendOrder()); }},
         {u"setKitchenStation"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.setKitchenStation(a.value(0).toString())); }},
+        {u"addWeighed"_s, [](PosService &p, const QVariantList &) { return QVariant(p.addWeighed()); }},
+        {u"cancelWeighing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cancelWeighing()); }},
         {u"setDueAt"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setDueAt(a.value(0).toLongLong())); }},
         {u"addComment"_s, [](PosService &p, const QVariantList &) { return QVariant(p.addComment()); }},
         {u"tender"_s, [](PosService &p, const QVariantList &a) {

@@ -30,7 +30,7 @@ namespace {
 // not what the store keeps off the kiosk, and never alcohol (ID check).
 bool onKiosk(const MenuItem &m)
 {
-    return !m.isModifier && !m.kioskHide && m.taxClass != TaxClass::Alcohol;
+    return !m.isModifier && !m.kioskHide && !m.byWeight && m.taxClass != TaxClass::Alcohol;   // no scale there
 }
 
 } // namespace

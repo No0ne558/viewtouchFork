@@ -110,6 +110,10 @@ for bid, price in (("classic-burger", 12.50), ("bacon-burger", 14.50), ("house-w
     item(bid)["periodPrices"] = {"dinner": price}
 for n in TEMPS: menu(n, 0.00, "temperature", modifier=True)
 for n, p in SIDES: menu(n, p, "sides", modifier=True)
+# Sold by weight: the price is per pound; ordering it asks for the weight.
+menu("Smoked Brisket", 22.00, "plates")
+item("smoked-brisket")["byWeight"] = True
+item("smoked-brisket")["weightUnit"] = "lb"
 # A combo: the burger, a side and a drink for one price (the choices are
 # the menu's own items, so they use up their stock).
 menu("Burger Combo", 16.95, "combos")
@@ -425,6 +429,8 @@ def item_page(id, name, items, color, shape="rounded", cols=4, cell=(316, 180), 
 item_page("items-burgers", "Burgers", [(n, None) for n, _ in BURGERS[:6]], AMBER,
           extra=[zone("combo", 924, 596, 300, 180, "Burger Combo", actions=[add("Burger Combo")],
                       shape="rounded", style=fill(GREEN)),
+                 zone("brisket", 924, 792, 300, 136, "Smoked Brisket\n$22.00 / lb", actions=[add("Smoked Brisket")],
+                      shape="rounded", style=fill(PURPLE)),
                  zone("burger-photo", 592, 596, 316, 260, "Burger of the Day", kind="image",
                       imagePath="qrc:/images/burger.png", actions=[add("Burger of the Day")]),
                  zone("note", 1240, 596, 664, 120,
@@ -520,6 +526,16 @@ page("order-later", "Order for Later", "custom", [
     zone("back", 16, 944, 432, 120, "‹ Back", actions=[jump(mode="back")]),
     zone("done", 1472, 944, 432, 120, "Done", actions=[jump(mode="back")], style=fill(GREEN)),
 ], permission="order")
+
+# How much something sold by weight weighs (Smoked Brisket).
+page("weigh", "Weigh", "modifier", [
+    label("title", 592, 104, 1312, 72, "How much does it weigh?"),
+    zone("weight", 592, 192, 640, 700, kind="numPad", props={"mode": "weight"}),
+    zone("add", 1264, 192, 640, 200, "Add", actions=[command("addWeighed")], style=fill(GREEN)),
+    zone("cancel", 1264, 408, 640, 140, "Cancel", actions=[command("cancelWeighing")], style=fill(RED)),
+    label("hint", 1264, 564, 640, 200, "Type the weight from the scale: 125 is 1.25 lb.",
+          style={"normal": {"fontSize": 30, "bold": False}}),
+], templateId="order-template", role="weigh")
 
 # Choices for the item just ordered (its modifier groups). Inside the order
 # screen, like item pages, so phones frame it too.

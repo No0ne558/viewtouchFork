@@ -723,6 +723,10 @@ void LayoutController::runAction(const Action &a, Done done)
             if (!sequence.isEmpty() && nav_.startSequence(sequence)) {
                 refresh();
                 emit pageChanged();
+            } else if (pos_ && pos_->weighingInfo().value(u"active"_s).toBool()) {
+                // Sold by weight: how much, on the Weigh page.
+                if (const QString page = rolePage(u"weigh"_s); !page.isEmpty())
+                    navigate(Navigator::Mode::Push, page);
             } else if (pos_ && pos_->choosingInfo().value(u"active"_s).toBool()) {
                 // Its modifier groups: choose on the modifiers page.
                 if (const QString page = rolePage(u"modifiers"_s); !page.isEmpty())
@@ -834,6 +838,12 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
         finishChoosing();
         return done(true);
     }
+    if (pos_ && (name == u"addWeighed" || name == u"cancelWeighing"))
+        return call(name, {}, [this, done, name](const QVariant &ok) {
+            if (ok.toBool() || name == u"cancelWeighing")
+                goBack();
+            done(ok.toBool());
+        });
     if (pos_ && name == u"cancelChoosing")
         return call(u"cancelChoosing"_s, {}, [this, done](const QVariant &ok) {
             goBack();

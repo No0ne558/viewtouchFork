@@ -192,6 +192,30 @@
       }
     },
     {
+      "id": "brisket",
+      "kind": "button",
+      "rect": {
+        "x": 924,
+        "y": 792,
+        "w": 300,
+        "h": 136
+      },
+      "shape": "rounded",
+      "behavior": "blink",
+      "label": "Smoked Brisket\n$22.00 / lb",
+      "actions": [
+        {
+          "type": "addItem",
+          "item": "smoked-brisket"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#6b46c1"
+        }
+      }
+    },
+    {
       "id": "burger-photo",
       "kind": "image",
       "rect": {

@@ -197,6 +197,10 @@ On the takeout or delivery customer page (or Check… on any order), **Ready Lat
 - It can't be closed until the kitchen has it.
 - An order for another day is paid on that day, and it doesn't hold up tonight's end of day.
 
+## Sold by weight
+
+Manager → Menu → *Sold by weight* (and the *Weight unit*: lb, oz or kg) makes the price per pound. Touching the item opens the **Weigh** page: type the weight from the scale (125 = 1.25 lb) and it shows what it comes to; *Add* puts "Smoked Brisket 1.37 lb" on the check at $22.00 × 1.37 = $30.14 (rounded to the cent). Typing the weight before touching the item adds it at once. Recipes are per unit, so stock goes down by the weight. Not shown on the self-order kiosk (no scale there). The demo has *Smoked Brisket* at $22.00/lb on the Burgers page.
+
 ## Combos
 
 A combo is a menu item whose choices are other menu items. In Manager → Modifier Groups, turn on **Options are menu items** and list items by name ("Soda", "Fries + 0.00", "Draft Beer + 3.00"). Then give the combo item those groups. Its side and drink use up their own stock, can't be chosen while sold out, and are counted on the Items report under *Chosen with other items*. Only parts made where the combo is made go on its ticket: a drink whose menu item goes to the bar (or nowhere) is left off the kitchen ticket and screen. The demo's **Burger Combo** ($16.95) asks for the temperature, a side and a drink.

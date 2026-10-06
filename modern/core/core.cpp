@@ -209,11 +209,24 @@ TenderKind tenderKindFromString(const std::string &s)
 
 // --- check ---------------------------------------------------------------------------
 
+std::string OrderLine::weightText() const
+{
+    if (weight <= 0)
+        return {};
+    // Two decimals unless the scale gave three: "1.25 lb", "0.125 kg".
+    std::string digits = std::to_string(weight / 1000) + "." + std::to_string(1000 + weight % 1000).substr(1);
+    if (digits.back() == '0')
+        digits.pop_back();
+    return " " + digits + " " + (weightUnit.empty() ? std::string("lb") : weightUnit);
+}
+
 Money OrderLine::total() const
 {
     if (voided)
         return Money();
     Money each = qualifiedPrice(unitPrice, qualifier);
+    if (weight > 0)   // per pound (or kg...): rounded half up to the cent
+        each = Money::fromCents((each.cents() * weight + (each.cents() >= 0 ? 500 : -500)) / 1000);
     for (const Modifier &m : modifiers)
         each += m.price();
     return each * quantity;
@@ -256,6 +269,8 @@ OrderLine &Check::addItem(const MenuItem &item, Qualifier q)
     l.kitchenHide = item.kitchenHide;
     l.noDiscount = item.noDiscount;
     l.noStaffDiscount = item.noStaffDiscount;
+    if (item.byWeight)
+        l.weightUnit = item.weightUnit;
     lines.push_back(l);
     return lines.back();
 }

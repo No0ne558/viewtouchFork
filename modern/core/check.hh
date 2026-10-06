@@ -58,19 +58,29 @@ struct OrderLine {
     bool kitchenHide = false;    // nothing for the kitchen (water, merchandise)
     bool noDiscount = false;      // from the menu item: discounts leave it out
     bool noStaffDiscount = false; // ...and staff meals
+    // Sold by weight: the weight in thousandths of weightUnit (1250 = 1.25 lb);
+    // unitPrice is per unit. 0 = not by weight.
+    std::int64_t weight = 0;
+    std::string weightUnit;
     bool served = false;         // the expediter sent it out (after it was made)
     std::int64_t servedAt = 0;
 
     bool isComment() const { return itemId.empty(); }
     std::string printerOf() const { return printer.empty() ? std::string("kitchen") : printer; }
-    std::string kitchenText() const { return qualifierPrefix(qualifier) + (kitchenName.empty() ? name : kitchenName); }
+    std::string kitchenText() const
+    {
+        return qualifierPrefix(qualifier) + (kitchenName.empty() ? name : kitchenName) + weightText();
+    }
     // Something the kitchen sees (not a gift card or a hidden item).
     bool forKitchen() const { return !kitchenHide && !itemId.starts_with("giftcard:"); }
     // Selling or reloading gift card <number>: no kitchen, no tax.
     bool isGiftCard() const { return itemId.starts_with("giftcard:"); }
     std::string giftCardNumber() const { return isGiftCard() ? itemId.substr(9) : std::string(); }
-    std::string displayName() const { return qualifierPrefix(qualifier) + name; }
-    // (item + modifiers) x quantity; zero once voided.
+    std::string displayName() const { return qualifierPrefix(qualifier) + name + weightText(); }
+    // " 1.25 lb" for an item sold by weight, else empty.
+    std::string weightText() const;
+    // (item + modifiers) x quantity; zero once voided. By weight: the
+    // price per unit times the weight, rounded to the cent.
     Money total() const;
     bool operator==(const OrderLine &) const = default;
 };

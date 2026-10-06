@@ -54,6 +54,10 @@ struct MenuItem {
     Money deliveryPrice;
     bool noDiscount = false;        // no discounts or comps
     bool noStaffDiscount = false;   // no staff meal discount (alcohol, say)
+    // Priced by weight (the original's "Priced By Weight"): `price` is per
+    // weightUnit, and ordering it asks for the weight.
+    bool byWeight = false;
+    std::string weightUnit = "lb";
 
     Money priceDuring(const std::string &mealPeriod) const
     {

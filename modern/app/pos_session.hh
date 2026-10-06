@@ -104,6 +104,7 @@ class PosSession : public QObject {
     // Modifiers being chosen for the item just ordered: {active, item, groups:
     // [{id, name, rule, chosen, done, options: [{index, name, price, chosen}]}]}.
     Q_PROPERTY(QVariantMap choosing READ choosingInfo NOTIFY checkChanged)
+    Q_PROPERTY(QVariantMap weighing READ weighingInfo NOTIFY checkChanged)
     // Sold-out (86'd) items: their ids and lower-case names.
     Q_PROPERTY(QStringList soldOut READ soldOut NOTIFY adminChanged)
     // The menu for the 86 list [{id, name, family, price, modifier, available}].
@@ -169,6 +170,7 @@ public:
     virtual QVariantList staff() const = 0;
     virtual QVariantList checkHistory() const = 0;
     virtual QVariantMap choosingInfo() const = 0;
+    virtual QVariantMap weighingInfo() const = 0;
     virtual QString onBreakSince() const = 0;
     virtual QVariantList customerResults() const = 0;
     virtual QVariantMap customerInfo() const = 0;

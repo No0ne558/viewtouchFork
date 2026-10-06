@@ -56,7 +56,8 @@ std::map<std::string, double> PosService::stockUse(const OrderLine &l) const
         for (const RecipeLine &r : m->recipe)
             use[r.ingredientId] += r.quantity * times;
     };
-    const double qty = std::max(1, l.quantity);
+    // By weight: the recipe is per unit (a pound of brisket), times the weight.
+    const double qty = std::max(1, l.quantity) * (l.weight > 0 ? l.weight / 1000.0 : 1.0);
     add(findItem(qs(l.itemId)), qty * (l.qualifier == Qualifier::No ? 0 : 1));
     for (const Modifier &m : l.modifiers) {
         if (!m.itemId.empty())

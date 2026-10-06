@@ -122,7 +122,8 @@ QJsonArray widgetSettings(const QString &kind)
                         options({{"", "Opens it"}, {"move", "Moves this check there"}})));
     } else if (kind == u"numPad") {
         out.append(with(field(u"props.mode"_s, u"Enters"_s, u"enum"_s, g), u"options"_s,
-                        options({{"number", "A number"}, {"amount", "Money (with a 00 key)"}})));
+                        options({{"number", "A number"}, {"amount", "Money (with a 00 key)"},
+                                 {"weight", "A weight (125 = 1.25 lb)"}})));
     } else if (kind == u"keyboard") {
         out.append(hint(field(u"props.placeholder"_s, u"Hint text"_s, u"string"_s, g), u"Shown while nothing is typed"_s));
     } else if (kind == u"reportView") {
@@ -217,7 +218,7 @@ QStringList pageKinds()
 QStringList pageRoles()
 {
     return {u"login"_s, u"tables"_s, u"guestCount"_s, u"checkList"_s, u"settle"_s, u"logout"_s,
-            u"manager"_s, u"bar"_s, u"kitchen"_s};
+            u"manager"_s, u"bar"_s, u"kitchen"_s, u"weigh"_s};
 }
 
 QJsonArray zoneFields(const QString &kind)
@@ -426,7 +427,8 @@ QJsonArray actionTypes()
         {"expoRecall", "Expediter: bring back the last order sent out"},
         {"seatNext", "Next seat"}, {"seatPrev", "Previous seat"}, {"courseNext", "Next course"},
         {"fireCourse", "Fire the next course"}, {"cancelChoosing", "Cancel the item being chosen"},
-        {"finishChoosing", "Done choosing"}, {"guestsMore", "One more guest"}, {"guestsFewer", "One fewer guest"},
+        {"finishChoosing", "Done choosing"}, {"addWeighed", "Add the item being weighed"},
+        {"cancelWeighing", "Cancel weighing"}, {"guestsMore", "One more guest"}, {"guestsFewer", "One fewer guest"},
                             {"startDelivery", "Start delivery"}}))}),
     };
 }

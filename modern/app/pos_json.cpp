@@ -65,6 +65,10 @@ QJsonObject toJson(const Check &c)
             lo.insert(u"printer"_s, qs(l.printer));
         if (!l.station.empty())
             lo.insert(u"station"_s, qs(l.station));
+        if (l.weight > 0) {
+            lo.insert(u"weight"_s, qint64(l.weight));
+            lo.insert(u"weightUnit"_s, qs(l.weightUnit));
+        }
         if (l.made) {
             lo.insert(u"made"_s, true);
             lo.insert(u"madeAt"_s, qint64(l.madeAt));
@@ -144,6 +148,8 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
         l.qualifier = qualifierFromString(ss(lo.value(u"qualifier").toString()));
         l.printer = ss(lo.value(u"printer").toString());
         l.station = ss(lo.value(u"station").toString());
+        l.weight = i64(lo.value(u"weight"));
+        l.weightUnit = ss(lo.value(u"weightUnit").toString());
         l.sent = lo.value(u"sent").toBool();
         l.voided = lo.value(u"voided").toBool();
         l.sentAt = i64(lo.value(u"sentAt"));
@@ -220,6 +226,10 @@ QJsonObject toJson(const MenuItem &m)
     if (m.isModifier) o.insert(u"modifier"_s, true);
     if (!m.printer.empty()) o.insert(u"printer"_s, qs(m.printer));
     if (!m.station.empty()) o.insert(u"station"_s, qs(m.station));
+    if (m.byWeight) {
+        o.insert(u"byWeight"_s, true);
+        o.insert(u"weightUnit"_s, qs(m.weightUnit));
+    }
     if (!m.available) o.insert(u"available"_s, false);
     if (!m.modifierGroups.empty()) {
         QJsonArray groups;
@@ -277,6 +287,8 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     m.isModifier = o.value(u"modifier").toBool();
     m.printer = ss(o.value(u"printer").toString());
     m.station = ss(o.value(u"station").toString());
+    m.byWeight = o.value(u"byWeight").toBool();
+    m.weightUnit = ss(o.value(u"weightUnit").toString(u"lb"_s));
     m.available = o.value(u"available").toBool(true);
     for (const QJsonValue &g : o.value(u"modifierGroups").toArray())
         m.modifierGroups.push_back(ss(g.toString()));

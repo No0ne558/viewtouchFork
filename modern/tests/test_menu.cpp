@@ -424,3 +424,47 @@ TEST_CASE("Extra costs what the store says", "[menu][prices][extra]")
     CHECK(pos.lines().last().toMap()[u"price"_s] == u"$12.25"_s);
     CHECK(app::settingsFromJson(app::toJson(pos.shared()->settings)).extraCharge.cents() == 75);
 }
+
+TEST_CASE("Sold by weight: the price per pound times the weight, on the check, ticket and stock", "[menu][weight]")
+{
+    app::PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+
+    // Touching it asks for the weight first: nothing is added yet.
+    REQUIRE(pos.addItem(u"smoked-brisket"_s));
+    CHECK(pos.weighingInfo()[u"active"_s].toBool());
+    CHECK(pos.weighingInfo()[u"unit"_s] == u"lb"_s);
+    CHECK(pos.lines().isEmpty());
+    CHECK_FALSE(pos.addWeighed());                       // no weight typed
+    for (const char ch : {'1', '3', '7'})
+        pos.entryKey(QString(QChar(ch)));                 // 1.37 lb
+    REQUIRE(pos.addWeighed());
+    CHECK_FALSE(pos.weighingInfo()[u"active"_s].toBool());
+    REQUIRE(pos.lines().size() == 1);
+    const core::OrderLine &l = pos.shared()->open.begin()->second.lines.front();
+    CHECK(l.weight == 1370);
+    CHECK(l.displayName() == "Smoked Brisket 1.37 lb");
+    CHECK(l.total() == Money::fromCents(3014));          // 22.00 x 1.37 = 30.14
+    CHECK(pos.entry().isEmpty());
+
+    // Typed before touching it: added at once. Cancel leaves nothing behind.
+    for (const char ch : {'5', '0'})
+        pos.entryKey(QString(QChar(ch)));
+    REQUIRE(pos.addItem(u"smoked-brisket"_s));
+    CHECK(pos.lines().size() == 2);
+    CHECK(pos.shared()->open.begin()->second.lines.back().total() == Money::fromCents(1100));   // 0.5 lb
+    REQUIRE(pos.addItem(u"smoked-brisket"_s));
+    REQUIRE(pos.cancelWeighing());
+    CHECK(pos.lines().size() == 2);
+
+    // Saved with the check; never on the kiosk.
+    const auto back = app::checkFromJson(app::toJson(pos.shared()->open.begin()->second));
+    CHECK(back->lines.front().weight == 1370);
+    CHECK(back->lines.front().weightUnit == "lb");
+    CHECK(app::menuItemFromJson(app::toJson(*pos.findItem(u"smoked-brisket"_s))).byWeight);
+    bool onKiosk = false;
+    for (const QVariant &v : pos.kioskMenu()[u"items"_s].toList())
+        onKiosk = onKiosk || v.toMap()[u"id"_s] == u"smoked-brisket"_s;
+    CHECK_FALSE(onKiosk);
+}

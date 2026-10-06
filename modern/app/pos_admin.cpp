@@ -141,6 +141,10 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"deliveryPrice"_s, tr("Delivery price"), u"money"_s, tr("0 = the takeout price (or the regular one).")),
             field(u"noDiscount"_s, tr("No discounts"), u"bool"_s, tr("Discounts and comps leave it out.")),
             field(u"noStaffDiscount"_s, tr("No staff discount"), u"bool"_s, tr("Staff pay full price for it (alcohol, say).")),
+            field(u"byWeight"_s, tr("Sold by weight"), u"bool"_s,
+                  tr("The price is per pound (or the unit below); ordering it asks for the weight.")),
+            with(field(u"weightUnit"_s, tr("Weight unit"), u"enum"_s), u"options"_s,
+                 options({{"lb", "Pound (lb)"}, {"oz", "Ounce (oz)"}, {"kg", "Kilogram (kg)"}})),
             field(u"kioskHide"_s, tr("Not on the self-order kiosk"), u"bool"_s,
                   tr("Guests can't order it on their own. Alcohol never shows there.")),
             field(u"description"_s, tr("Description (self-order kiosk)"), u"text"_s,
@@ -601,7 +605,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
 {
     if (panel == u"menu")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"price"_s, 0.0}, {u"family"_s, QString()},
-                {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"station"_s, QString()}, {u"modifier"_s, false}, {u"available"_s, true},
+                {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"station"_s, QString()}, {u"byWeight"_s, false}, {u"weightUnit"_s, u"lb"_s}, {u"modifier"_s, false}, {u"available"_s, true},
                 {u"modifierGroups"_s, QString()}, {u"periodPrices"_s, QString()}, {u"recipe"_s, QString()},
                 {u"kitchenName"_s, QString()}, {u"kitchenColor"_s, QString()}, {u"kitchenHide"_s, false},
                 {u"kioskHide"_s, false}, {u"description"_s, QString()}, {u"image"_s, QString()},

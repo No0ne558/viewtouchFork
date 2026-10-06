@@ -454,6 +454,10 @@ public:
     QVariantList staff() const override;
     QVariantList checkHistory() const override;
     QVariantMap choosingInfo() const override;
+    // Items sold by weight: the one waiting for its weight (the Weigh page).
+    QVariantMap weighingInfo() const override;
+    bool addWeighed();
+    bool cancelWeighing();
     QString onBreakSince() const override;
     QStringList soldOut() const override;
     QVariantList menuItems() const override;
@@ -712,6 +716,7 @@ private:
     int course_ = 1;    // course for new items
     bool lineTouched_ = false;   // the selected line was touched (not just added)
     std::int64_t choosingLine_ = 0;   // the line whose modifiers are being chosen
+    QString weighing_;                // an item sold by weight, waiting for its weight
     qint64 selectedLine_ = 0;
     qint64 selectedPayment_ = 0;
     core::Qualifier qualifier_ = core::Qualifier::None;

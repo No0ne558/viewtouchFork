@@ -610,6 +610,16 @@
     "kitchenHide": true
   },
   {
+    "id": "smoked-brisket",
+    "name": "Smoked Brisket",
+    "price": 22.0,
+    "family": "plates",
+    "taxClass": "food",
+    "printer": "kitchen",
+    "byWeight": true,
+    "weightUnit": "lb"
+  },
+  {
     "id": "burger-combo",
     "name": "Burger Combo",
     "price": 16.95,

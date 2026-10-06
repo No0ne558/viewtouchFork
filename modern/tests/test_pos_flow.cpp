@@ -718,6 +718,27 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: brisket by the pound: the Weigh page asks how much", "[flow][ui][weight]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    s.c.activate(u"brisket"_s);
+    QTest::qWait(60);
+    CHECK(s.c.pageId() == u"weigh"_s);
+    for (const QString &k : {u"4"_s, u"5"_s, u"8"_s})   // keys only the keypad has (Course has 1 2 3)
+        s.tapKey(k);
+    QTest::qWait(40);
+    CHECK(Screen::findBy(s.window->contentItem(), "text", u"4.58 lb  ·  $100.76"_s));
+    s.shot("36-weigh");
+    s.c.activate(u"add"_s);
+    QTest::qWait(60);
+    CHECK(s.c.pageId() == u"items-burgers"_s);
+    REQUIRE(s.pos.lines().size() == 1);
+    CHECK(s.pos.lines()[0].toMap()[u"name"_s].toString().contains(u"4.58 lb"_s));
+}
+
 TEST_CASE("UI: the theme's status colors: a table with my check", "[flow][ui][statuscolors]")
 {
     Screen s;
