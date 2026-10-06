@@ -108,6 +108,9 @@ QVariantList PosService::adminFields(const QString &panel)
             printers.append(QVariantMap{{u"value"_s, qs(p.id)}, {u"text"_s, qs(p.name)}});
         return {
             field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
+            with(with(field(u"prepMinutes"_s, tr("Kitchen time (minutes)"), u"int"_s,
+                            tr("How long it should take. 0: what it usually takes (learned from the kitchen screen).")),
+                      u"min"_s, 0), u"max"_s, 240),
             field(u"number"_s, tr("Number"), u"string"_s,
                   tr("To ring it in by number: type it on Find, or on a keyboard then Enter. Digits, each item its own.")),
             field(u"price"_s, tr("Price"), u"money"_s),

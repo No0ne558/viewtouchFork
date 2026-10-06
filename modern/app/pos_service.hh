@@ -291,6 +291,8 @@ public:
     QVariantMap timeClock() const override;
     bool timeClockStart(const QString &pin);
     bool timeClockAct(const QString &action);   // "in", "out", "break"
+    // How long an item should take the kitchen (minutes): set, else learned; 0: unknown.
+    int prepMinutesFor(const std::string &itemId) const;
     // Time off and shift swaps (pos_requests.cpp).
     bool timeClockRequestOff(const QString &date, const QString &reason);
     bool timeClockGiveAway(qint64 shiftId);

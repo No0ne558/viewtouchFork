@@ -227,6 +227,7 @@ QJsonObject toJson(const MenuItem &m)
     };
     if (!m.family.empty()) o.insert(u"family"_s, qs(m.family));
     if (!m.number.empty()) o.insert(u"number"_s, qs(m.number));
+    if (m.prepMinutes > 0) o.insert(u"prepMinutes"_s, m.prepMinutes);
     if (m.isModifier) o.insert(u"modifier"_s, true);
     if (!m.printer.empty()) o.insert(u"printer"_s, qs(m.printer));
     if (!m.station.empty()) o.insert(u"station"_s, qs(m.station));
@@ -296,6 +297,7 @@ MenuItem menuItemFromJson(const QJsonObject &o)
         m.name = m.id;
     m.family = ss(o.value(u"family").toString());
     m.number = ss(o.value(u"number").toVariant().toString().trimmed());
+    m.prepMinutes = std::clamp(o.value(u"prepMinutes").toVariant().toInt(), 0, 240);
     m.price = Money::fromCents(centsFromDecimal(o.value(u"price").toDouble()));
     m.taxClass = taxClassFromString(ss(o.value(u"taxClass").toString(u"food"_s)));
     m.isModifier = o.value(u"modifier").toBool();
@@ -735,6 +737,12 @@ QJsonObject toJson(const PosSettings &s)
         {u"openingChecklist"_s, [&] { QJsonArray a; for (const std::string &t : s.openingChecklist) a.append(qs(t)); return a; }()},
         {u"closingChecklist"_s, [&] { QJsonArray a; for (const std::string &t : s.closingChecklist) a.append(qs(t)); return a; }()},
         {u"checklistDayId"_s, qint64(s.checklistDayId)},
+        {u"prepSeconds"_s, [&] {
+             QJsonObject o;
+             for (const auto &[id, sec] : s.prepSeconds)
+                 o.insert(qs(id), sec);
+             return o;
+         }()},
         {u"checklistTicks"_s, [&] {
              QJsonArray a;
              for (const PosSettings::ChecklistTick &t : s.checklistTicks)
@@ -905,6 +913,9 @@ PosSettings settingsFromJson(const QJsonObject &o)
     for (const QJsonValue &v : o.value(u"closingChecklist").toArray())
         s.closingChecklist.push_back(ss(v.toString()));
     s.checklistDayId = i64(o.value(u"checklistDayId"));
+    const QJsonObject prep = o.value(u"prepSeconds").toObject();
+    for (auto it = prep.begin(); it != prep.end(); ++it)
+        s.prepSeconds[ss(it.key())] = it.value().toInt();
     for (const QJsonValue &v : o.value(u"checklistTicks").toArray()) {
         const QJsonObject x = v.toObject();
         s.checklistTicks.push_back({ss(x.value(u"list").toString()), ss(x.value(u"task").toString()),

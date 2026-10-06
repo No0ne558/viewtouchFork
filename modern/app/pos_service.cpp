@@ -1770,6 +1770,14 @@ QVariantList PosService::kitchenTickets() const
                                              {u"seat"_s, l->seat}, {u"course"_s, l->course}});
             }
         }
+        // Late past its slowest item's time (set, or learned) plus two minutes;
+        // without any, the store's.
+        int target = 0;
+        for (const OrderLine &l : t.check->lines)
+            if (l.sent && !l.voided && l.sentAt == t.sentAt && !l.isComment())
+                target = std::max(target, prepMinutesFor(l.itemId));
+        const int late = target > 0 ? target + 2 : s_->settings.kitchenLateMinutes;
+        const int warn = target > 0 ? std::max(1, target * 3 / 4) : s_->settings.kitchenWarnMinutes;
         out.append(QVariantMap{
             {u"checkId"_s, qint64(t.check->id)}, {u"sentAt"_s, qint64(t.sentAt)},
             {u"label"_s, qs(t.check->label)}, {u"server"_s, qs(t.check->serverName)},
@@ -1777,7 +1785,7 @@ QVariantList PosService::kitchenTickets() const
             {u"note"_s, qs(t.check->customer.note)}, {u"lines"_s, lines},
             {u"rush"_s, t.check->rush}, {u"vip"_s, t.check->vip},
             {u"due"_s, t.check->dueAt ? dueText(t.check->dueAt) : QString()},
-            {u"warnMinutes"_s, s_->settings.kitchenWarnMinutes}, {u"lateMinutes"_s, s_->settings.kitchenLateMinutes},
+            {u"warnMinutes"_s, warn}, {u"lateMinutes"_s, late}, {u"targetMinutes"_s, target},
         });
     }
     return out;
@@ -1832,6 +1840,14 @@ bool PosService::partAt(const OrderLine &l, const Modifier &m, const std::string
     return isPart(l, m) && (station.empty() || m.station == station || l.printerOf() == station);
 }
 
+int PosService::prepMinutesFor(const std::string &itemId) const
+{
+    if (const MenuItem *m = findItem(qs(itemId)); m && m->prepMinutes > 0)
+        return m->prepMinutes;
+    const auto it = s_->settings.prepSeconds.find(itemId);
+    return it == s_->settings.prepSeconds.end() ? 0 : std::max(1, int((it->second + 59) / 60));
+}
+
 bool PosService::bumpTicket(qint64 checkId, qint64 sentAt, const QString &station)
 {
     Check *c = findAnyCheck(s_, checkId);
@@ -1839,6 +1855,7 @@ bool PosService::bumpTicket(qint64 checkId, qint64 sentAt, const QString &statio
         return fail(tr("That ticket is gone."));
     const std::string where = ss(station);
     int n = 0;
+    bool learned = false;
     for (OrderLine &l : c->lines) {
         if (!l.sent || l.voided || l.sentAt != sentAt)
             continue;
@@ -1846,6 +1863,13 @@ bool PosService::bumpTicket(qint64 checkId, qint64 sentAt, const QString &statio
             l.made = true;
             l.madeAt = now();
             ++n;
+            // Learn what it usually takes (ignoring the odd forgotten ticket).
+            const std::int64_t took = (l.madeAt - l.sentAt) / 1000;
+            if (!l.isComment() && took > 0 && took < 90 * 60 && !c->training) {
+                int &avg = s_->settings.prepSeconds[l.itemId];
+                avg = avg == 0 ? int(took) : int(std::lround(0.8 * avg + 0.2 * double(took)));
+                learned = true;
+            }
         }
         for (Modifier &m : l.modifiers) {
             if (!m.made && partAt(l, m, where)) {
@@ -1857,6 +1881,8 @@ bool PosService::bumpTicket(qint64 checkId, qint64 sentAt, const QString &statio
     }
     if (n == 0)
         return fail(tr("That ticket was already bumped."));
+    if (learned)
+        s_->saveSettings();
     s_->bumped.push_back({checkId, sentAt, where});
     if (s_->sink)
         s_->sink->saveCheck(*c);

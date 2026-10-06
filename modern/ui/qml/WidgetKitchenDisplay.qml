@@ -202,9 +202,13 @@ Item {
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 10; color: parent.color }
                         Column {
                             anchors.left: parent.left
+                            anchors.right: timeText.left
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: 14
+                            anchors.rightMargin: 8
                             Text {
+                                width: parent.width
+                                elide: Text.ElideRight
                                 text: card.modelData.label
                                 color: "white"
                                 font.family: w.face
@@ -212,21 +216,42 @@ Item {
                                 font.bold: true
                             }
                             Text {
+                                width: parent.width
+                                elide: Text.ElideRight
                                 text: card.modelData.customer || card.modelData.server
                                 color: "white"
                                 font.family: w.face
                                 font.pixelSize: 18
                             }
                         }
-                        Text {
+                        // Its time, against what it should take; LATE past that.
+                        Column {
+                            id: timeText
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.rightMargin: 14
-                            text: w.expo && card.modelData.ready ? qsTr("READY") : w.elapsed(card.modelData.sentAt)
+                            readonly property bool late: !w.expo && !(card.modelData.ready ?? false)
+                                                         && (w.now - card.modelData.sentAt) / 60000 >= (card.modelData.lateMinutes ?? 15)
+                            Text {
+                                anchors.right: parent.right
+                                visible: timeText.late
+                                text: qsTr("LATE")
+                                color: "white"
+                                font.family: w.face
+                                font.pixelSize: 16
+                                font.bold: true
+                            }
+                        Text {
+                            anchors.right: parent.right
+                            text: w.expo && card.modelData.ready ? qsTr("READY")
+                                : w.elapsed(card.modelData.sentAt)
+                                  + ((card.modelData.targetMinutes ?? 0) > 0 && !timeText.late
+                                     ? " / " + qsTr("%1m").arg(card.modelData.targetMinutes) : "")
                             color: "white"
                             font.family: w.face
-                            font.pixelSize: 30
+                            font.pixelSize: timeText.late ? 24 : 26
                             font.bold: true
+                        }
                         }
                     }
 

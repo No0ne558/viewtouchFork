@@ -141,6 +141,7 @@
  "%1: the kitchen sees it": "%1: la cocina lo ve",
  "%1: up to %2.": "%1: hasta %2.",
  "%1; %2 on hold for a later course": "%1; %2 en espera para un tiempo posterior",
+ "%1m": "%1m",
  "%n closing task(s) not done yet": {
   "one": "%n tarea de cierre sin hacer",
   "other": "%n tareas de cierre sin hacer"
@@ -761,6 +762,7 @@
  "House account": "Cuenta de la casa",
  "House accounts": "Cuentas de la casa",
  "How buttons refer to it. Fixed once saved.": "Cómo lo nombran los botones. No cambia después de guardar.",
+ "How long it should take. 0: what it usually takes (learned from the kitchen screen).": "Cuánto debe tardar. 0: lo que suele tardar (aprendido de la pantalla de cocina).",
  "How many guests?": "¿Cuántas personas?",
  "How much does it weigh?": "¿Cuánto pesa?",
  "How much off? (50 = half price)": "¿Cuánto descuento? (50 = mitad de precio)",
@@ -803,10 +805,12 @@
  "Kitchen screens": "Pantallas de cocina",
  "Kitchen stations": "Estaciones de cocina",
  "Kitchen ticket goes to": "El ticket de cocina va a",
+ "Kitchen time (minutes)": "Tiempo de cocina (minutos)",
  "Kitchen | Bar": "Cocina | Barra",
  "Kitchen | Expo": "Cocina | Expo",
  "Kitchen: ticket is late (red) after (minutes)": "Cocina: el ticket va tarde (rojo) después de (minutos)",
  "Kitchen: ticket turns yellow after (minutes)": "Cocina: el ticket se pone amarillo después de (minutos)",
+ "LATE": "TARDE",
  "Labor": "Mano de obra",
  "Language": "Idioma",
  "Last Month": "Mes pasado",

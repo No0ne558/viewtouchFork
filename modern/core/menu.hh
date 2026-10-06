@@ -50,6 +50,9 @@ struct MenuItem {
     std::string image;
     // Its number for ringing it in by number (a PLU: "104"); empty: none.
     std::string number;
+    // How long it should take the kitchen (minutes); 0: what it usually
+    // takes (learned, PosSettings::prepSeconds).
+    int prepMinutes = 0;
     bool kioskHide = false;
     // Prices by order type (0: the regular price), and who may not discount it.
     Money takeoutPrice;

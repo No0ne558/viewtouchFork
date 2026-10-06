@@ -476,6 +476,10 @@ Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose button
 
 Once drinks have been sent on a check, **Another Round** appears beside its name: it orders the drinks of the latest Send again (same choices and quantities) as new lines, ready for Send. Drinks are what the bar prints, or items in a drinks family; sold-out ones are skipped and named. Command `anotherRound`; the order list's built-in "round" button.
 
+## Kitchen times
+
+Each bump on a kitchen screen teaches the item's usual time (sent to made; a running average in `PosSettings::prepSeconds`, ignoring tickets over 90 minutes and practice). Manager → Menu → **Kitchen time (minutes)** sets one instead. A ticket's target is its slowest item's: it shows "7:32 / 12m", turns amber at three quarters of it and red **LATE** two minutes past it. Tickets with no times known keep the store's warn / late minutes.
+
 ## Opening and closing checklists
 
 Manager → Settings has an **Opening checklist** and a **Closing checklist** (one task per line). The **Checklists** page (Manager page, and the Log Out page for staff) shows both; touching a task ticks it with who and when (again to undo). Ticks belong to the business day. End of Day says how many closing tasks are left (not a blocker), and the **Checklists** report (saved with each day) lists every task, who did it and when, or NOT DONE.

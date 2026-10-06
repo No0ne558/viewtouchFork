@@ -244,6 +244,9 @@ struct PosSettings {
     std::vector<Promotion> promotions;
     int waitMinutesPerParty = 10;
     // Kitchen display: a ticket turns yellow after warn minutes, red after late.
+    // What each item usually takes, sent to made (seconds, item id -> a
+    // running average): kitchen tickets are late past their slowest item's.
+    std::map<std::string, int> prepSeconds;
     int kitchenWarnMinutes = 8;
     int kitchenLateMinutes = 15;
     // Orders for later go to the kitchen this long before they're due.

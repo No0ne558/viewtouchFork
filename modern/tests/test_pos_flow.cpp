@@ -1009,6 +1009,55 @@ TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labo
     CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
 }
 
+TEST_CASE("UI: kitchen tickets are late past what their items usually take", "[flow][ui][preptimes]")
+{
+    Screen s;
+    s.pos.shared()->settings.prepSeconds["cobb"] = 600;          // usually 10 minutes
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    s.pos.addItem(u"cobb"_s);
+    s.pos.finishChoosing();
+    REQUIRE(s.pos.sendOrder());
+    QVariantMap ticket = s.pos.kitchenTickets().value(0).toMap();
+    CHECK(ticket[u"targetMinutes"_s].toInt() == 10);
+    CHECK(ticket[u"lateMinutes"_s].toInt() == 12);
+    CHECK(ticket[u"warnMinutes"_s].toInt() == 7);
+
+    // Twenty minutes ago: LATE on the kitchen screen.
+    for (auto &[id, c] : s.pos.shared()->open)
+        for (core::OrderLine &l : c.lines)
+            l.sentAt -= 20 * 60'000;
+    REQUIRE(s.c.jumpTo(u"kitchen"_s));
+    QTest::qWait(1100);
+    bool late = false;
+    std::function<void(QQuickItem *)> walk = [&](QQuickItem *it) {
+        if (it->isVisible() && it->property("text").toString().startsWith(u"LATE"_s))
+            late = true;
+        for (QQuickItem *c : it->childItems())
+            walk(c);
+    };
+    walk(s.window->contentItem());
+    CHECK(late);
+    s.shot("75-kitchen-late");
+
+    // Bumped: what it took (20 minutes) moves the usual time up.
+    ticket = s.pos.kitchenTickets().value(0).toMap();
+    REQUIRE(s.pos.bumpTicket(ticket[u"checkId"_s].toLongLong(), ticket[u"sentAt"_s].toLongLong(), {}));
+    CHECK(s.pos.shared()->settings.prepSeconds["cobb"] == 720);   // 0.8 x 600 + 0.2 x 1200
+
+    // A manager's own target wins.
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    const QVariantList menu = s.pos.adminRecords(u"menu"_s);
+    for (int i = 0; i < menu.size(); ++i)
+        if (menu[i].toMap()[u"id"_s] == u"cobb"_s) {
+            QVariantMap r = menu[i].toMap();
+            r[u"prepMinutes"_s] = 5;
+            REQUIRE(s.pos.adminSave(u"menu"_s, i, r));
+        }
+    CHECK(s.pos.prepMinutesFor("cobb") == 5);
+}
+
 TEST_CASE("UI: opening and closing checklists, ticked by whoever does them", "[flow][ui][checklists]")
 {
     Screen s;
