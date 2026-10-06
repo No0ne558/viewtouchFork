@@ -211,6 +211,33 @@ int PosService::ticketsLeft(const MenuItem &item) const
     return item.ticketCapacity > 0 ? std::max(0, item.ticketCapacity - ticketsSold(item)) : -1;
 }
 
+QStringList PosService::popularItems() const
+{
+    // Today's checks, closed and open (not practice): how many of each item.
+    std::map<std::string, int> sold;
+    const auto count = [&](const Check &c) {
+        if (c.training || c.status == CheckStatus::Discarded || c.status == CheckStatus::Merged)
+            return;
+        for (const OrderLine &l : c.lines)
+            if (!l.isComment() && !l.voided && !l.isGiftCard())
+                sold[l.itemId] += std::max(1, l.quantity);
+    };
+    for (const Check &c : s_->closedToday)
+        count(c);
+    for (const auto &[id, c] : s_->open)
+        count(c);
+    std::vector<std::pair<int, std::string>> ranked;
+    for (const auto &[id, n] : sold)
+        if (const MenuItem *m = findItem(qs(id)); m && !m->isModifier)
+            ranked.emplace_back(n, id);
+    std::ranges::stable_sort(ranked, [](const auto &a, const auto &b) { return a.first > b.first; });
+    QStringList out;
+    for (const auto &[n, id] : ranked)
+        if (out.size() < 24)
+            out << qs(id);
+    return out;
+}
+
 QStringList PosService::soldOut() const
 {
     QStringList out;

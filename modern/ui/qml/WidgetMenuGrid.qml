@@ -5,7 +5,8 @@ import QtQuick.Layouts
 // every family, with a chip for each across the top). New items, prices and
 // sold-out items show up with no page editing. props.family: one family, or
 // empty for all; props.columns; props.photos: show item photos;
-// props.search: the items whose name has what's typed (the Find page).
+// props.search: the items whose name has what's typed (the Find page);
+// props.popular: today's best sellers, most sold first (the Popular page).
 Item {
     id: w
     property ZoneItem zone
@@ -14,6 +15,7 @@ Item {
     readonly property int columns: zone && zone.props && zone.props.columns > 0 ? zone.props.columns : 4
     readonly property bool photos: zone && zone.props && zone.props.photos === true
     readonly property bool search: zone && zone.props && zone.props.search === true
+    readonly property bool popular: zone && zone.props && zone.props.popular === true
     readonly property string typed: pos && search ? pos.textEntry.trim().toLowerCase() : ""
     readonly property string face: zone.st.font ?? "DejaVu Sans"
 
@@ -31,6 +33,8 @@ Item {
                                     : families.includes(chosen) ? chosen : (families[0] ?? "")
     // Searching: every family, best matches first (the name starts with it, then a word does).
     readonly property var shown: {
+        if (popular)
+            return (pos ? pos.popularItems : []).map(id => items.find(i => i.id === id)).filter(i => i !== undefined)
         if (!search)
             return items.filter(i => i.family === family)
         if (typed === "")
@@ -55,7 +59,7 @@ Item {
         // Families across the top (only when showing them all).
         Flow {
             Layout.fillWidth: true
-            visible: !w.search && w.fixedFamily === "" && w.families.length > 1
+            visible: !w.search && !w.popular && w.fixedFamily === "" && w.families.length > 1
             spacing: w.gap * 0.6
             Repeater {
                 model: w.families
@@ -160,6 +164,7 @@ Item {
             visible: w.shown.length === 0
             Layout.alignment: Qt.AlignHCenter
             text: !w.pos || !w.pos.loggedIn ? ""
+                : w.popular ? qsTr("Today's best sellers show up here as orders come in.")
                 : w.search ? (w.typed === "" ? qsTr("Type part of a name: \"cob\" finds Cobb.")
                                               : qsTr("Nothing on the menu has \"%1\".").arg(w.typed))
                 : qsTr("Nothing on the menu here yet (Manager -> Menu).")

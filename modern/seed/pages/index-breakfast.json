@@ -98,6 +98,31 @@
           "fill": "#6b46c1"
         }
       }
+    },
+    {
+      "id": "cat-menu-popular",
+      "kind": "button",
+      "rect": {
+        "x": 592,
+        "y": 452,
+        "w": 424,
+        "h": 240
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Popular",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "replace",
+          "page": "menu-popular"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#b83232"
+        }
+      }
     }
   ]
 }

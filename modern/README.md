@@ -464,6 +464,10 @@ Edit mode → **Theme** tab → **Looks**: ViewTouch Dark, Daylight, High Contra
 
 Manager → Printers → a printer → **Test Print** (and **Test Print + Open Drawer** when a drawer is wired to it) sends a test page with the current saved settings: the store logo (ESC/POS), normal, bold, big and right-aligned text, a receipt-style item and total, a ruler of digits that should exactly fill one line (so *Characters per line* is right), accented letters, then the cut. "Receipt took the test page" appears when the printer accepted it; otherwise the usual "did not print" message says why.
 
+## Popular today
+
+Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose buttons are today's best sellers, most sold first (closed and open checks, not practice), up to 24. It fills in as the day goes; no editing. It's a menuGrid panel with *Today's best sellers* on (`PosSession::popularItems`).
+
 ## Another Round
 
 Once drinks have been sent on a check, **Another Round** appears beside its name: it orders the drinks of the latest Send again (same choices and quantities) as new lines, ready for Send. Drinks are what the bar prints, or items in a drinks family; sold-out ones are skipped and named. Command `anotherRound`; the order list's built-in "round" button.

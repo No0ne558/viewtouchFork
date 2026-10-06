@@ -492,6 +492,7 @@ public:
     qint64 selectedLine() const override { return selectedLine_; }
     qint64 selectedPayment() const override { return selectedPayment_; }
     QVariantList openChecks() const override;
+    QStringList popularItems() const override;
     QVariantList closedChecks() const override;
     QVariantList staff() const override;
     QVariantList checkHistory() const override;

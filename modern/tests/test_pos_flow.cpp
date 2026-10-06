@@ -821,6 +821,36 @@ TEST_CASE("UI: each person's text size, left hand and start screen; a start scre
     CHECK(s.pos.userPrefs().isEmpty());
 }
 
+TEST_CASE("UI: the Popular page fills itself with today's best sellers", "[flow][ui][popular]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    CHECK(s.pos.popularItems().isEmpty());
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    s.pos.addItem(u"water"_s);
+    s.pos.addItem(u"cobb"_s);
+    s.pos.finishChoosing();
+    REQUIRE(s.pos.setLineQuantity(0, 3));      // 3 Cobbs: first
+    s.pos.addItem(u"water"_s);                // 2 waters
+    const QStringList top = s.pos.popularItems();
+    REQUIRE(top.size() == 2);
+    CHECK(top[0] == u"cobb"_s);
+    CHECK(top[1] == u"water"_s);
+
+    REQUIRE(s.c.jumpTo(u"index-lunch"_s));
+    s.c.activate(u"cat-menu-popular"_s);
+    QTest::qWait(80);
+    REQUIRE(s.c.pageId() == u"menu-popular"_s);
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    QQuickItem *cobb = find(u"menuItem-cobb"_s);
+    QQuickItem *water = find(u"menuItem-water"_s);
+    REQUIRE(cobb);
+    REQUIRE(water);
+    CHECK(cobb->mapToScene({0, 0}).x() < water->mapToScene({0, 0}).x());   // most sold first
+    CHECK_FALSE(find(u"menuItem-caesar"_s));
+    s.shot("62-popular");
+}
+
 TEST_CASE("UI: Another Round orders the drinks sent last again", "[flow][ui][round]")
 {
     Screen s;

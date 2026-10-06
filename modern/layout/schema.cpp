@@ -119,6 +119,8 @@ QJsonArray widgetSettings(const QString &kind)
                         u"The menu family it shows (burgers, drinks...). Empty: every family, with a button for each."_s));
         out.append(intField(u"props.columns"_s, u"Columns"_s, g, 1, 10));
         out.append(hint(field(u"props.photos"_s, u"Show photos"_s, u"bool"_s, g), u"The items' photos (Manager -> Menu)"_s));
+        out.append(hint(field(u"props.popular"_s, u"Today's best sellers"_s, u"bool"_s, g),
+                        u"The items sold most today, most first (the Popular page)"_s));
         out.append(hint(field(u"props.search"_s, u"Find by name"_s, u"bool"_s, g),
                         u"Shows the items whose name has what's typed on a keyboard panel (the Find page)"_s));
     } else if (kind == u"checkList") {

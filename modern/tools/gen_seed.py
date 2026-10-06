@@ -426,13 +426,19 @@ def index_page(id, name, period, cats):
 
 index_page("index-breakfast", "Breakfast", "breakfast",
            [("Plates", "items-breakfast", AMBER), ("Drinks", "items-drinks", TEAL),
-            ("Everything", "menu-all", PURPLE)])
+            ("Everything", "menu-all", PURPLE), ("Popular", "menu-popular", RED)])
 index_page("index-lunch", "Lunch", "lunch",
            [("Burgers", "items-burgers", AMBER), ("Salads", "items-salads", GREEN),
-            ("Drinks", "items-drinks", TEAL), ("Everything", "menu-all", PURPLE)])
+            ("Drinks", "items-drinks", TEAL), ("Everything", "menu-all", PURPLE), ("Popular", "menu-popular", RED)])
 index_page("index-dinner", "Dinner", "dinner",
            [("Burgers", "items-burgers", AMBER), ("Salads", "items-salads", GREEN),
-            ("Drinks", "items-drinks", TEAL), ("Everything", "menu-all", PURPLE)])
+            ("Drinks", "items-drinks", TEAL), ("Everything", "menu-all", PURPLE), ("Popular", "menu-popular", RED)])
+
+# Today's best sellers, most first: they fill in as the day goes.
+page("menu-popular", "Popular", "items", [
+    label("title", 592, 104, 1312, 72, "Popular today"),
+    zone("popular", 592, 192, 1312, 772, kind="menuGrid", props={"popular": True, "columns": 4}),
+], templateId="order-template")
 
 # Find: type part of a name, touch the item.
 page("find-item", "Find an Item", "items", [

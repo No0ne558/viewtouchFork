@@ -53,6 +53,8 @@ class PosSession : public QObject {
     Q_PROPERTY(qint64 selectedLine READ selectedLine WRITE selectLine NOTIFY checkChanged)
     Q_PROPERTY(qint64 selectedPayment READ selectedPayment WRITE selectPayment NOTIFY checkChanged)
     Q_PROPERTY(QVariantList openChecks READ openChecks NOTIFY openChecksChanged)
+    // Today's best sellers so far (item ids, most sold first): the Popular page.
+    Q_PROPERTY(QStringList popularItems READ popularItems NOTIFY openChecksChanged)
     // Checks closed today, newest first (managers, to reopen one).
     Q_PROPERTY(QVariantList closedChecks READ closedChecks NOTIFY dayChanged)
     // Active employees [{id, name, role, clockedIn, me}], to transfer checks to.
@@ -181,6 +183,7 @@ public:
     virtual qint64 selectedLine() const = 0;
     virtual qint64 selectedPayment() const = 0;
     virtual QVariantList openChecks() const = 0;
+    virtual QStringList popularItems() const = 0;
     virtual QVariantList tableChecks() const = 0;
     virtual QString undoText() const = 0;
     virtual QVariantList closedChecks() const = 0;
