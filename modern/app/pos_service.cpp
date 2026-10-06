@@ -1939,6 +1939,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"releaseCheck"_s, [](PosService &p, const QVariantList &) { p.releaseCheck(); return QVariant(true); }},
         {u"newTableCheck"_s, [](PosService &p, const QVariantList &) { return QVariant(p.newTableCheck()); }},
         {u"splitBySeat"_s, [](PosService &p, const QVariantList &) { return QVariant(p.splitBySeat()); }},
+        {u"testPrinter"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.testPrinter(a.value(0).toString(), a.value(1).toBool())); }},
         {u"printTableChecks"_s, [](PosService &p, const QVariantList &) { return QVariant(p.printTableChecks()); }},
         {u"combineTableChecks"_s, [](PosService &p, const QVariantList &) { return QVariant(p.combineTableChecks()); }},
         {u"addItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addItem(a.value(0).toString())); }},

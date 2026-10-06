@@ -259,6 +259,20 @@ Item {
                         enabled: w.dirty
                         onClicked: w.choose(w.index)
                     }
+                    // Printers: a test page (saved settings), and its drawer.
+                    Button {
+                        objectName: "testPrint"
+                        visible: w.panel === "printers" && w.index >= 0
+                        enabled: !w.dirty
+                        text: w.dirty ? qsTr("Save, then Test Print") : qsTr("Test Print")
+                        onClicked: w.pos.testPrinter(w.draft.id, false)
+                    }
+                    Button {
+                        visible: w.panel === "printers" && w.index >= 0 && w.draft.drawerKick === true
+                        enabled: !w.dirty
+                        text: qsTr("Test Print + Open Drawer")
+                        onClicked: w.pos.testPrinter(w.draft.id, true)
+                    }
                     Item { Layout.fillWidth: true }
                     Button {
                         visible: !w.single && w.index >= 0

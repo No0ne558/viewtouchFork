@@ -854,7 +854,9 @@ int runStore(const Args &cli, const Options &o)
         emit shared->networkChanged();
     });
     QObject::connect(&spooler, &vt::print::PrintSpooler::jobPrinted, &pos,
-                     [printerStatus, shared](const QString &printer, const QString &) {
+                     [&pos, printerStatus, shared](const QString &printer, const QString &what) {
+        if (what == u"Test page")   // Manager -> Printers: it reached the printer
+            say(pos, QCoreApplication::translate("main", "%1 took the test page").arg(printer));
         const bool was = printerStatus->value(printer).value(u"status"_s) == u"ok"_s;
         printerStatus->insert(printer, {{u"status"_s, u"ok"_s}, {u"at"_s, QDateTime::currentMSecsSinceEpoch()}});
         if (!was)

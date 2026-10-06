@@ -66,6 +66,9 @@ public:
     virtual void printReport(const core::PosSettings &settings, const core::Report &report,
                              const std::string &printerId) = 0;
     virtual void openDrawer(const core::PosSettings &settings, const std::string &printerId) = 0;
+    // A test page on printer `printerId` (its logo, text sizes, a cut), and
+    // the drawer wired to it opened when `kickDrawer`. False: no such printer.
+    virtual bool printTestPage(const core::PosSettings &, const std::string &, bool) { return false; }
 };
 
 // A closed business day and its final reports (report id -> report JSON).
@@ -413,6 +416,8 @@ public:
     // receipt; all of them back into this one.
     bool splitBySeat();
     bool printTableChecks();
+    // Manager -> Printers: a test page (and the drawer wired to it, opened).
+    bool testPrinter(const QString &printerId, bool kickDrawer);
     bool combineTableChecks();
     QString checkFilter() const override { return checkFilter_; }
     void setCheckFilter(const QString &label) override;

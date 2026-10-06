@@ -299,6 +299,7 @@ public:
     Q_INVOKABLE void repeatLine(qint64 lineId = 0) { invoke(QStringLiteral("repeatLine"), {lineId}); }
     Q_INVOKABLE void splitBySeat() { invoke(QStringLiteral("splitBySeat"), {}); }
     Q_INVOKABLE void printTableChecks() { invoke(QStringLiteral("printTableChecks"), {}); }
+    Q_INVOKABLE void testPrinter(const QString &printerId, bool kickDrawer = false) { invoke(QStringLiteral("testPrinter"), {printerId, kickDrawer}); }
     Q_INVOKABLE void combineTableChecks() { invoke(QStringLiteral("combineTableChecks"), {}); }
     Q_INVOKABLE void newTableCheck() { invoke(QStringLiteral("newTableCheck"), {}); }
     // Another open check made current, staying on this page (the table's checks).

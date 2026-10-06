@@ -242,6 +242,24 @@ bool PosService::splitBySeat()
     return true;
 }
 
+bool PosService::testPrinter(const QString &printerId, bool kickDrawer)
+{
+    if (!require(perm::Manager, tr("Testing printers")))
+        return false;
+    if (!s_->printer)
+        return fail(tr("No printer is set up."));
+    const auto it = std::ranges::find_if(s_->settings.printers, [&](const PrinterConfig &p) { return qs(p.id) == printerId; });
+    if (it == s_->settings.printers.end())
+        return fail(tr("Save the printer first."));
+    if (it->type == "none")
+        return fail(tr("%1 is off (Connection: Off).").arg(qs(it->name)));
+    if (!s_->printer->printTestPage(s_->settings, it->id, kickDrawer))
+        return fail(tr("Save the printer first."));
+    emit notice(kickDrawer && it->drawerKick ? tr("Test page sent to %1, and its drawer opened").arg(qs(it->name))
+                                             : tr("Test page sent to %1").arg(qs(it->name)));
+    return true;
+}
+
 bool PosService::printTableChecks()
 {
     const QVariantList checks = tableChecks();

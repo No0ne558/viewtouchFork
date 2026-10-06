@@ -30,6 +30,7 @@ public:
     void printReport(const core::PosSettings &settings, const core::Report &report,
                      const std::string &printerId) override;
     void openDrawer(const core::PosSettings &settings, const std::string &printerId) override;
+    bool printTestPage(const core::PosSettings &settings, const std::string &printerId, bool kickDrawer) override;
 
     // For tests: the clock used on tickets.
     void setClock(std::function<std::int64_t()> now) { now_ = std::move(now); }

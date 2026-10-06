@@ -134,4 +134,43 @@ void TicketPrinter::openDrawer(const PosSettings &settings, const std::string &p
     }
 }
 
+bool TicketPrinter::printTestPage(const PosSettings &settings, const std::string &printerId, bool kickDrawer)
+{
+    const auto it = std::ranges::find_if(settings.printers, [&](const PrinterConfig &p) { return p.id == printerId; });
+    if (it == settings.printers.end())
+        return false;
+    const PrinterConfig &p = *it;
+    const TicketContext ctx = context(settings);
+    const int width = std::max(16, p.width);
+    Document d;
+    if (p.effectiveFormat() == "escpos")
+        d.image(logoFor(settings, width));   // nothing when no logo is set
+    d.text(settings.storeName, Document::Align::Center, true, true);
+    d.text("Printer test: " + p.name,
+           Document::Align::Center, true);
+    d.text(QDateTime::fromMSecsSinceEpoch(now_ ? now_() : QDateTime::currentMSecsSinceEpoch())
+               .toString(u"yyyy-MM-dd hh:mm"_s).toStdString(), Document::Align::Center);
+    d.rule();
+    d.text(std::string("Normal text"));
+    d.text(std::string("Bold text"), Document::Align::Left, true);
+    d.text(std::string("Big text"), Document::Align::Left, true, true);
+    d.text(std::string("Right"), Document::Align::Right);
+    d.columns("2 x Bacon Burger", ctx.money(Money::fromCents(2650)));
+    d.columns("    Medium Rare", "");
+    d.columns(std::string("Total"), ctx.money(Money::fromCents(2869)), true);
+    d.rule();
+    // Every column: the paper width setting is right when this row exactly fills a line.
+    std::string ruler;
+    for (int i = 1; i <= width; ++i)
+        ruler += char('0' + i % 10);
+    d.text(ruler);
+    d.text(std::to_string(width) + " characters per line: the row above should fill exactly one line.");
+    d.text("Café, niño, señor");   // accents: printed as plain letters on thermal printers
+    d.blank();
+    d.cut = p.cutter;
+    d.kickDrawer = kickDrawer && p.drawerKick;
+    send(settings, p, d, u"Test page"_s);
+    return true;
+}
+
 } // namespace vt::print

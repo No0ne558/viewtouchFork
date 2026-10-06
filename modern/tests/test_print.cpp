@@ -305,3 +305,36 @@ TEST_CASE("Logo: printed at the top of receipts on ESC/POS printers, as GS v 0",
     REQUIRE(out.open(QIODevice::ReadOnly));
     CHECK(out.readAll().indexOf(QByteArray("\x1dv0", 3)) < 0);
 }
+
+TEST_CASE("A printer's test page: logo, text, the width ruler, a cut, the drawer", "[print][testpage]")
+{
+    QTemporaryDir dir;
+    auto seed = test::seedPosData();
+    seed.settings.displayLogo = "store:logo.png";
+    for (core::PrinterConfig &p : seed.settings.printers)
+        if (p.id == "receipt") {
+            p.format = "escpos";
+            p.drawerKick = true;
+            p.cutter = true;
+        }
+    QImage img(64, 32, QImage::Format_RGB32);
+    img.fill(Qt::black);
+    QByteArray png;
+    QBuffer buf(&png);
+    buf.open(QIODevice::WriteOnly);
+    img.save(&buf, "PNG");
+    PrintSpooler spooler;
+    TicketPrinter printer(spooler, dir.path());
+    printer.setImageSource([&](const QString &ref) { return ref == u"store:logo.png"_s ? png : QByteArray(); });
+    CHECK_FALSE(printer.printTestPage(seed.settings, "no-such-printer", false));
+    REQUIRE(printer.printTestPage(seed.settings, "receipt", true));
+    REQUIRE(spooler.waitIdle(5000));
+    QFile out(dir.filePath(u"receipt.txt"_s));
+    REQUIRE(out.open(QIODevice::ReadOnly));
+    const QByteArray printed = out.readAll();
+    CHECK(printed.contains("Printer test"));
+    CHECK(printed.contains("characters per line"));
+    CHECK(printed.indexOf(QByteArray("\x1dv0\0", 4)) >= 0);       // the logo
+    CHECK(printed.contains(QByteArray("\x1bp\0", 3)));             // drawer kick
+    CHECK(printed.contains(QByteArray("\x1dV\x42", 3)));           // cut
+}
