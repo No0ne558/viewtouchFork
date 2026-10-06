@@ -102,9 +102,12 @@ QJsonObject toJson(const Check &c)
         });
     }
     QJsonArray events;
-    for (const CheckEvent &e : c.events)
-        events.append(QJsonObject{{u"at"_s, qint64(e.at)}, {u"who"_s, qs(e.who)}, {u"what"_s, qs(e.what)},
-                                  {u"kind"_s, qs(e.kind)}});
+    for (const CheckEvent &e : c.events) {
+        QJsonObject eo{{u"at"_s, qint64(e.at)}, {u"who"_s, qs(e.who)}, {u"what"_s, qs(e.what)}, {u"kind"_s, qs(e.kind)}};
+        if (e.amount.cents() != 0)
+            eo.insert(u"amount"_s, qint64(e.amount.cents()));
+        events.append(eo);
+    }
     return {
         {u"schemaVersion"_s, PosSchemaVersion},
         {u"id"_s, qint64(c.id)}, {u"type"_s, qs(toString(c.type))}, {u"status"_s, qs(toString(c.status))},
@@ -209,7 +212,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     for (const QJsonValue &v : o.value(u"events").toArray()) {
         const QJsonObject e = v.toObject();
         c.events.push_back({i64(e.value(u"at")), ss(e.value(u"who").toString()), ss(e.value(u"what").toString()),
-                            ss(e.value(u"kind").toString())});
+                            ss(e.value(u"kind").toString()), Money::fromCents(i64(e.value(u"amount")))});
     }
     return c;
 }

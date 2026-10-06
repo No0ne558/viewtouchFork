@@ -546,6 +546,170 @@ Report expensesReport(const std::vector<DrawerSession> &drawers, const ReportCon
     return r;
 }
 
+Report exceptionsReport(const std::vector<const Check *> &checks, const std::vector<DrawerSession> &drawers,
+                        const ReportContext &ctx)
+{
+    Report r;
+    r.id = "exceptions";
+    r.title = "Exceptions";
+    r.subtitle = ctx.period;
+    r.columns = {"Employee", "Times", "Amount"};
+
+    struct Tally { std::int64_t times = 0; Money amount; };
+    struct Kind { const char *title; std::vector<std::string> kinds; bool money; };
+    const Kind kinds[] = {
+        {"Voids (items already sent)", {"void"}, true},
+        {"Discounts and comps", {"discount"}, true},
+        {"Payments and discounts taken back", {"unpay", "undiscount"}, true},
+        {"Reopened checks", {"reopen"}, true},
+        {"Moved, transferred or merged", {"move", "transfer", "merge"}, false},
+    };
+    struct Big { Money amount; std::string what; const Check *check; std::string who; };
+    std::vector<Big> biggest;
+    bool any = false;
+    for (const Kind &k : kinds) {
+        std::map<std::string, Tally> byWho;
+        for (const Check *c : checks) {
+            for (const CheckEvent &e : c->events) {
+                if (std::ranges::find(k.kinds, e.kind) == k.kinds.end())
+                    continue;
+                Tally &t = byWho[e.who.empty() ? std::string("(nobody logged in)") : e.who];
+                ++t.times;
+                t.amount += e.amount;
+                if (k.money && e.amount.cents() != 0)
+                    biggest.push_back({e.amount, e.what, c, e.who});
+            }
+        }
+        if (byWho.empty())
+            continue;
+        any = true;
+        r.section(k.title);
+        std::vector<std::pair<std::string, Tally>> rows(byWho.begin(), byWho.end());
+        std::ranges::stable_sort(rows, [](const auto &a, const auto &b) {
+            return a.second.amount.cents() != b.second.amount.cents() ? a.second.amount.cents() > b.second.amount.cents()
+                                                                      : a.second.times > b.second.times;
+        });
+        Tally all;
+        for (const auto &[who, t] : rows) {
+            r.line({who, count(t.times), k.money ? ctx.money(t.amount) : ""});
+            all.times += t.times;
+            all.amount += t.amount;
+        }
+        r.total({"All", count(all.times), k.money ? ctx.money(all.amount) : ""});
+    }
+
+    std::map<std::string, std::int64_t> noSales;
+    for (const DrawerSession &d : drawers)
+        for (const CashMovement &m : d.movements)
+            if (m.kind == CashMovement::Kind::NoSale)
+                ++noSales[m.by.empty() ? std::string("(nobody logged in)") : m.by];
+    if (!noSales.empty()) {
+        any = true;
+        r.section("Drawer opened with no sale");
+        std::int64_t all = 0;
+        for (const auto &[who, n] : noSales) {
+            r.line({who, count(n), ""});
+            all += n;
+        }
+        r.total({"All", count(all), ""});
+    }
+
+    if (!any) {
+        r.note("No voids, discounts, payments taken back, reopened or moved checks, or drawers opened with no sale.");
+        return r;
+    }
+    if (!biggest.empty()) {
+        std::ranges::stable_sort(biggest, [](const Big &a, const Big &b) { return a.amount.cents() > b.amount.cents(); });
+        r.section("The biggest ones");
+        for (std::size_t i = 0; i < biggest.size() && i < 10; ++i) {
+            const Big &b = biggest[i];
+            r.line({b.what + " · " + b.check->label + " #" + std::to_string(b.check->id), b.who, ctx.money(b.amount)});
+        }
+    }
+    return r;
+}
+
+Report depositReport(const std::vector<DrawerSession> &drawers, const std::vector<Check> &closed,
+                     const std::vector<const Check *> &open, const ReportContext &ctx)
+{
+    const TaxRates &rates = ctx.settings.tax;
+    Report r;
+    r.id = "deposit";
+    r.title = "Deposit and Balance";
+    r.subtitle = ctx.period;
+    r.columns = {"", "Amount"};
+
+    // Cash: each drawer (or server bank), counted or still expected.
+    r.section("Cash to take to the bank");
+    Money deposit, overShort;
+    bool uncounted = false;
+    for (const DrawerSession &d : drawers) {
+        Money cash;
+        for (const Check &c : closed)
+            if (c.drawerSession == d.id)
+                cash += cashIntoDrawer(c, rates);
+        const Money inDrawer = d.open() ? d.startingCash + cash + d.movementsTotal() : d.counted;
+        if (d.open())
+            uncounted = true;
+        else
+            overShort += d.overShort();
+        r.line({d.name + (d.open() ? " (not counted yet: expected)" : " (counted)"), ctx.money(inDrawer)});
+        r.line({"  keep as starting cash", ctx.money(-d.startingCash)});
+        deposit += inDrawer - d.startingCash;
+    }
+    if (drawers.empty())
+        r.line({"No drawer was opened", ctx.money(Money())});
+    r.total({"Cash deposit", ctx.money(deposit)});
+    if (uncounted)
+        r.note("Some drawers aren't counted yet: their cash is what should be there.");
+
+    // What was sold, and how it was paid.
+    Money due, cashNet, cards, cardTips, giftCards, house, other;
+    for (const Check &c : closed) {
+        const Totals t = c.totals(rates);
+        due += t.total + t.rounding;
+        cashNet += t.cashNet();
+        cardTips += t.tips;
+        for (const Payment &p : c.payments) {
+            switch (p.kind) {
+            case TenderKind::Card: cards += p.amount; break;
+            case TenderKind::GiftCard: giftCards += p.amount; break;
+            case TenderKind::HouseAccount: house += p.amount; break;
+            case TenderKind::Cash:
+            case TenderKind::Discount: break;
+            }
+        }
+    }
+    r.section("Cards to settle");
+    r.line({"Card payments", ctx.money(cards)});
+    r.line({"Card tips", ctx.money(cardTips)});
+    r.total({"Card batch", ctx.money(cards + cardTips)});
+
+    r.section("Book balance");
+    r.line({"Sold (with tax)", ctx.money(due)});
+    r.line({"Cash", ctx.money(cashNet)});
+    r.line({"Cards", ctx.money(cards)});
+    if (giftCards.cents() != 0)
+        r.line({"Gift cards (already paid for)", ctx.money(giftCards)});
+    if (house.cents() != 0)
+        r.line({"House accounts (to collect)", ctx.money(house)});
+    const Money collected = cashNet + cards + giftCards + house;
+    r.total({"Collected", ctx.money(collected)});
+    const Money diff = collected - due;
+    r.total({diff.cents() == 0 ? "Balanced" : diff.cents() > 0 ? "Collected more than sold" : "Collected less than sold",
+             ctx.money(diff)});
+    if (!drawers.empty() && !uncounted)
+        r.line({overShort.cents() < 0 ? "Drawers short" : overShort.cents() > 0 ? "Drawers over" : "Drawers balanced",
+                ctx.money(overShort)});
+    if (!open.empty()) {
+        Money owed;
+        for (const Check *c : open)
+            owed += c->totals(rates).balance;
+        r.line({"Still open: " + count(std::int64_t(open.size())) + " checks", ctx.money(owed)});
+    }
+    return r;
+}
+
 Report drawerReport(const std::vector<DrawerSession> &drawers, const std::vector<Check> &closed,
                     const ReportContext &ctx)
 {
@@ -572,12 +736,19 @@ Report drawerReport(const std::vector<DrawerSession> &drawers, const std::vector
         r.line({"Opened by " + d.openedBy, ctx.clock(d.openedAt)});
         r.line({"Starting cash", ctx.money(d.startingCash)});
         r.line({"Cash sales (" + count(checks) + " checks)", ctx.money(cash)});
+        std::int64_t noSales = 0;
         for (const CashMovement &m : d.movements) {
+            if (m.kind == CashMovement::Kind::NoSale) {
+                ++noSales;
+                continue;
+            }
             const std::string what = m.kind == CashMovement::Kind::PaidIn ? "Paid in"
                                      : m.kind == CashMovement::Kind::TipPayout ? "Tips paid out"
                                                                                : "Paid out";
             r.line({what + (m.reason.empty() ? "" : ": " + m.reason), ctx.money(m.effect())});
         }
+        if (noSales > 0)
+            r.line({"Opened with no sale (" + count(noSales) + ")", ""});
         const Money expected = d.open() ? d.startingCash + cash + d.movementsTotal() : d.expected;
         r.total({"Expected in drawer", ctx.money(expected)});
         if (!d.open()) {

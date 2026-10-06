@@ -21,7 +21,9 @@ struct BusinessDay {
 
 // Cash in or out of a drawer that is not a sale.
 struct CashMovement {
-    enum class Kind { Payout, PaidIn, TipPayout };
+    // NoSale: the drawer opened with nothing sold (amount 0), kept for the
+    // exceptions report.
+    enum class Kind { Payout, PaidIn, TipPayout, NoSale };
     std::int64_t id = 0;
     Kind kind = Kind::Payout;
     Money amount;              // always positive; kind gives the direction
@@ -32,7 +34,7 @@ struct CashMovement {
     std::string category;      // Payout: what it was for (Produce, Ice, Repairs...)
 
     // Effect on the cash in the drawer.
-    Money effect() const { return kind == Kind::PaidIn ? amount : -amount; }
+    Money effect() const { return kind == Kind::PaidIn ? amount : kind == Kind::NoSale ? Money() : -amount; }
     bool operator==(const CashMovement &) const = default;
 };
 

@@ -691,7 +691,7 @@ private:
     QString dueText(std::int64_t at) const;                 // "6:30 PM", "tomorrow 6:30 PM"
     bool waitingForLater(const core::Check &c) const;       // not the kitchen's yet
     bool forAnotherDay(const core::Check &c) const;
-    void noteEvent(core::Check &c, const QString &what, const char *kind);
+    void noteEvent(core::Check &c, const QString &what, const char *kind, Money amount = {});
     bool mayManage(const core::Check &c, const QString &action);
     core::ReportContext reportContext(const QString &period) const;
     QString dayLabel(const core::BusinessDay &day) const;

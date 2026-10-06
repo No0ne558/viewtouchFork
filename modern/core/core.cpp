@@ -110,6 +110,7 @@ std::string toString(CashMovement::Kind k)
     case CashMovement::Kind::Payout: return "payout";
     case CashMovement::Kind::PaidIn: return "paidIn";
     case CashMovement::Kind::TipPayout: return "tipPayout";
+    case CashMovement::Kind::NoSale: return "noSale";
     }
     return "payout";
 }
@@ -118,6 +119,7 @@ CashMovement::Kind cashMovementKindFromString(const std::string &s)
 {
     if (s == "paidIn") return CashMovement::Kind::PaidIn;
     if (s == "tipPayout") return CashMovement::Kind::TipPayout;
+    if (s == "noSale") return CashMovement::Kind::NoSale;
     return CashMovement::Kind::Payout;
 }
 

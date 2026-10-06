@@ -1507,7 +1507,7 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     QTest::qWait(80);
     snap("m47-report-month-vs-last-year");
     s.tapKey(u"Day"_s);
-    for (const char *r : {"Labor", "Kitchen", "Food Cost", "Tips", "Gift Cards", "Expenses", "Purchases"}) {
+    for (const char *r : {"Labor", "Kitchen", "Food Cost", "Tips", "Gift Cards", "Expenses", "Purchases", "Exceptions", "Deposit"}) {
         s.tapKey(QString::fromLatin1(r));
         QTest::qWait(80);
         snap(QString(u"m48-report-%1"_s).arg(QString::fromLatin1(r).toLower().replace(u' ', u'-')).toLatin1().constData());

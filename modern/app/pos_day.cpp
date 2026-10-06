@@ -41,7 +41,8 @@ QVariantMap toVariant(const Report &r)
 }
 
 const QStringList kReportIds = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s, u"tips"_s,
-                                u"labor"_s, u"drawer"_s, u"expenses"_s, u"purchases"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s};
+                                u"labor"_s, u"drawer"_s, u"expenses"_s, u"purchases"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s,
+                                u"exceptions"_s, u"deposit"_s};
 
 } // namespace
 
@@ -99,6 +100,18 @@ bool PosService::noSale()
     if (!s_->printer)
         return fail(tr("No printer is set up."));
     s_->printer->openDrawer(s_->settings, receiptPrinter());
+    // Kept with the drawer: who opened it with nothing sold (exceptions report).
+    if (DrawerSession *d = myDrawer()) {
+        CashMovement m;
+        m.id = d->nextMovementId++;
+        m.kind = CashMovement::Kind::NoSale;
+        m.by = user() ? user()->name : std::string();
+        m.at = now();
+        d->movements.push_back(m);
+        if (s_->sink)
+            s_->sink->saveDrawer(*d);
+        emit s_->drawerChanged();
+    }
     emit notice(tr("Drawer opened (no sale)"));
     return true;
 }
@@ -810,14 +823,21 @@ Report PosService::buildReport(const QString &id) const
     }
     if (id == u"accounts")
         return accountsReport(s_->giftCards, s_->customers, s_->day.openedAt, ctx);
-    if (id == u"audit") {
+    if (id == u"audit" || id == u"exceptions") {
         std::vector<const Check *> checks;
         for (const Check &c : s_->closedToday)
             checks.push_back(&c);
         for (const auto &[id, c] : s_->open)
             if (!c.training)
                 checks.push_back(&c);
-        return auditReport(checks, ctx);
+        return id == u"audit" ? auditReport(checks, ctx) : exceptionsReport(checks, s_->drawers, ctx);
+    }
+    if (id == u"deposit") {
+        std::vector<const Check *> open;
+        for (const auto &[cid, c] : s_->open)
+            if (!c.training)
+                open.push_back(&c);
+        return depositReport(s_->drawers, s_->closedToday, open, ctx);
     }
     return salesSummary(s_->closedToday, ctx);
 }
@@ -826,7 +846,7 @@ Report PosService::buildReport(const QString &id) const
 
 namespace {
 const QStringList kRangeReports = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s,
-                                   u"kitchen"_s, u"audit"_s, u"foodcost"_s, u"turns"_s};
+                                   u"kitchen"_s, u"audit"_s, u"foodcost"_s, u"turns"_s, u"exceptions"_s};
 } // namespace
 
 Report PosService::rangeCapableReport(const QString &id, const std::vector<Check> &closed, const ReportContext &ctx) const
@@ -846,6 +866,8 @@ Report PosService::rangeCapableReport(const QString &id, const std::vector<Check
         return kitchenReport(ptrs, s_->settings.kitchenLateMinutes, ctx);
     if (id == u"audit")
         return auditReport(ptrs, ctx);
+    if (id == u"exceptions")   // no-sales are kept with today's drawers only
+        return exceptionsReport(ptrs, {}, ctx);
     if (id == u"foodcost")
         return foodCostReport(closed, ctx);
     if (id == u"turns")

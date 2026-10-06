@@ -838,10 +838,11 @@ bool PosService::voidItem()
     } else {
         if (!require(perm::Void, tr("Voiding sent items")))
             return false;
+        const Money was = l->total();
         c->voidLine(l->id);
         if (!c->training)
             takeStock({*l}, -1);   // not made: back on the shelf
-        noteEvent(*c, tr("Voided %1 (%2)").arg(name, format(l->unitPrice * l->quantity)), "void");
+        noteEvent(*c, tr("Voided %1 (%2)").arg(name, format(was)), "void", was);
         if (s_->printer && !c->training)
             s_->printer->printKitchen(s_->settings, *c, {*l}, true);
         emit notice(tr("Voided %1").arg(name));
@@ -1032,11 +1033,11 @@ bool PosService::tender(const QString &tenderId, std::optional<std::int64_t> amo
     // A tip the guest chose on the customer display goes on their card.
     if (t->kind == TenderKind::Card && tipChoice_.chosen && tipChoice_.checkId == c->id)
         paid.tip = tipFor(*c);
-    if (t->kind == TenderKind::Discount)   // for the audit trail
-        noteEvent(*c, tr("Discount: %1").arg(qs(t->name)), "discount");
     entry_.clear();
     emit entryChanged();
     const Totals after = c->totals(s_->settings.tax);
+    if (t->kind == TenderKind::Discount)   // for the audit trail and the exceptions report
+        noteEvent(*c, tr("Discount: %1").arg(qs(t->name)), "discount", after.discounts - before.discounts);
     if (after.change.cents() > 0)
         emit notice(tr("Change due: %1").arg(format(after.change)));
     else
@@ -1055,8 +1056,15 @@ bool PosService::removePayment()
     // The selected payment, else the most recent one.
     const auto chosen = std::ranges::find_if(c->payments, [&](const Payment &p) { return p.id == selectedPayment_; });
     const Payment removed = chosen != c->payments.end() ? *chosen : c->payments.back();
+    const Money discountsBefore = c->totals(s_->settings.tax).discounts;
     c->removePayment(removed.id);
     returnPayment(*c, removed);
+    if (removed.kind != TenderKind::Discount)
+        noteEvent(*c, tr("Payment taken back: %1 %2").arg(qs(removed.tenderName), format(removed.amount)), "unpay",
+                  removed.amount);
+    else
+        noteEvent(*c, tr("Discount taken off: %1").arg(qs(removed.tenderName)), "undiscount",
+                  discountsBefore - c->totals(s_->settings.tax).discounts);
     selectedPayment_ = 0;
     emit notice(tr("Payment removed"));
     changed(*c);

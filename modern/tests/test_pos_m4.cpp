@@ -399,3 +399,87 @@ TEST_CASE("Admin: tax change re-totals open checks; settings are saved", "[m4][a
     REQUIRE(pos.adminSave(u"printers"_s, -1, printer));
     CHECK(pos.settings().printer("patio"));
 }
+
+namespace {
+// The row starting with `first` in the section titled `section`.
+std::vector<std::string> rowIn(const core::Report &r, const std::string &section, const std::string &first)
+{
+    std::string current;
+    for (const core::ReportRow &x : r.rows) {
+        if (x.kind == core::ReportRow::Kind::Section)
+            current = x.cells.empty() ? std::string() : x.cells.front();
+        else if (current == section && !x.cells.empty() && x.cells.front() == first)
+            return x.cells;
+    }
+    return {};
+}
+} // namespace
+
+TEST_CASE("Exceptions report: voids, comps, payments taken back, reopened, no sales, by employee",
+          "[m4][reports][exceptions]")
+{
+    Pos p;
+    p.login("1234");                                   // Morgan, a manager
+    p.openDrawer("10000");
+    REQUIRE(p.pos.noSale());
+    REQUIRE(p.pos.noSale());
+
+    REQUIRE(p.pos.startCheck(core::CheckType::Quick));
+    p.pos.addItem(u"cobb"_s);                          // 12.50
+    p.pos.addItem(u"caesar"_s);                        // 9.75
+    p.pos.finishChoosing();
+    REQUIRE(p.pos.sendOrder());
+    REQUIRE(p.pos.voidItem());                         // the Caesar, sent: a void worth 9.75
+    REQUIRE(p.pos.tender(u"comp"_s));                  // the Cobb comped: 12.50
+    REQUIRE(p.pos.removePayment());                    // ...then not
+    p.entry("2000");
+    REQUIRE(p.pos.tender(u"cash"_s));
+    REQUIRE(p.pos.closeCheck());
+
+    const core::Report r = p.pos.buildReport(u"exceptions"_s);
+
+    const std::string morgan = "Morgan (Manager)";
+    CHECK(rowIn(r, "Voids (items already sent)", morgan) == std::vector<std::string>{morgan, "1", "$9.75"});
+    CHECK(rowIn(r, "Discounts and comps", morgan) == std::vector<std::string>{morgan, "1", "$12.50"});
+    CHECK(rowIn(r, "Payments and discounts taken back", morgan) == std::vector<std::string>{morgan, "1", "$12.50"});
+    CHECK(rowIn(r, "Drawer opened with no sale", morgan) == std::vector<std::string>{morgan, "2", ""});
+    // The drawer report counts the no sales too, without a dollar line.
+    CHECK(!rowIn(p.pos.buildReport(u"drawer"_s), p.pos.shared()->drawers.front().name, "Opened with no sale (2)").empty());
+    // Events keep their amounts.
+    const core::Check &c = p.pos.shared()->closedToday.back();
+    CHECK(app::checkFromJson(app::toJson(c))->events == c.events);
+}
+
+TEST_CASE("Deposit report: cash to the bank, card batch, and the books balance", "[m4][reports][deposit]")
+{
+    Pos p;
+    p.login("1234");
+    p.openDrawer("10000");                             // $100 starting cash
+    REQUIRE(p.pos.startCheck(core::CheckType::Quick));
+    p.pos.addItem(u"cobb"_s);
+    p.entry("5000");
+    REQUIRE(p.pos.tender(u"cash"_s));                  // $50 cash, change back
+    REQUIRE(p.pos.closeCheck());
+    const Money cashSale = p.pos.shared()->closedToday.back().totals(p.pos.shared()->settings.tax).cashNet();
+
+    REQUIRE(p.pos.startCheck(core::CheckType::Quick));
+    p.pos.addItem(u"caesar"_s);
+    p.pos.finishChoosing();
+    REQUIRE(p.pos.tender(u"credit"_s));
+    REQUIRE(p.pos.closeCheck());
+
+    core::Report r = p.pos.buildReport(u"deposit"_s);
+    const std::string drawer = p.pos.shared()->drawers.front().name;
+    CHECK(rowIn(r, "Cash to take to the bank", "  keep as starting cash")[1] == "-$100.00");
+    CHECK(rowIn(r, "Cash to take to the bank", "Cash deposit")[1] == p.pos.format(cashSale).toStdString());
+    CHECK(rowIn(r, "Book balance", "Balanced").size() == 2);
+
+    // Counted $1 short: the deposit is what's there.
+    p.entry(QString::number(10000 + cashSale.cents() - 100).toLatin1().constData());
+    REQUIRE(p.pos.countDrawer());
+    r = p.pos.buildReport(u"deposit"_s);
+    CHECK(rowIn(r, "Cash to take to the bank", "Cash deposit")[1]
+          == p.pos.format(cashSale - Money::fromCents(100)).toStdString());
+    CHECK(rowIn(r, "Book balance", "Drawers short")[1] == "-$1.00");
+    CHECK(!rowIn(r, "Cards to settle", "Card batch").empty());
+}

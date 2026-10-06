@@ -94,6 +94,16 @@ Report hourlySales(const std::vector<Check> &closed, const ReportContext &ctx);
 Report categorySales(const std::vector<Check> &closed, const std::vector<MenuItem> &menu, const ReportContext &ctx);
 // Every void, discount, reopen, transfer, move and merge, with who and when.
 Report auditReport(const std::vector<const Check *> &checks, const ReportContext &ctx);
+// The original's exception reports, by employee: voids, discounts and comps,
+// payments taken back, reopened checks, moved / transferred / merged checks,
+// and drawers opened with no sale (from `drawers`; none over a date range).
+Report exceptionsReport(const std::vector<const Check *> &checks, const std::vector<DrawerSession> &drawers,
+                        const ReportContext &ctx);
+// The original's Deposit / Book Balance: the cash to take to the bank (each
+// drawer counted, less the starting cash kept for tomorrow), card payments
+// to settle, and whether what was collected matches what was sold.
+Report depositReport(const std::vector<DrawerSession> &drawers, const std::vector<Check> &closed,
+                     const std::vector<const Check *> &open, const ReportContext &ctx);
 // Gift cards sold and spent since `since`, what is still on cards (owed by
 // the store), and house account charges, payments and balances.
 Report accountsReport(const std::vector<GiftCard> &cards, const std::vector<CustomerRecord> &customers,

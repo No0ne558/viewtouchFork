@@ -137,7 +137,8 @@ struct CheckEvent {
     std::int64_t at = 0;
     std::string who;
     std::string what;
-    std::string kind;   // void | discount | reopen | transfer | move | merge
+    std::string kind;   // void | discount | reopen | transfer | move | merge | unpay | undiscount
+    Money amount;       // what it was worth: the item voided, the discount, the payment taken back
 
     bool operator==(const CheckEvent &) const = default;
 };
@@ -200,9 +201,10 @@ struct Check {
     // the kitchen by itself shortly before (PosSettings::laterLeadMinutes).
     std::int64_t dueAt = 0;
 
-    void note(std::int64_t at, const std::string &who, const std::string &what, const std::string &kind = {})
+    void note(std::int64_t at, const std::string &who, const std::string &what, const std::string &kind = {},
+              Money amount = {})
     {
-        events.push_back({at, who, what, kind});
+        events.push_back({at, who, what, kind, amount});
     }
 
     OrderLine *line(std::int64_t lineId);

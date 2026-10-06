@@ -20,9 +20,9 @@ QString timeOf(std::int64_t ms)
 }
 } // namespace
 
-void PosService::noteEvent(Check &c, const QString &what, const char *kind)
+void PosService::noteEvent(Check &c, const QString &what, const char *kind, Money amount)
 {
-    c.note(now(), user() ? user()->name : std::string(), ss(what), kind);
+    c.note(now(), user() ? user()->name : std::string(), ss(what), kind, amount);
 }
 
 // Servers manage their own checks; managers anyone's.
@@ -124,7 +124,7 @@ bool PosService::reopenCheck(qint64 checkId)
     c.closedAt = 0;
     c.businessDay = 0;
     c.drawerSession = 0;
-    noteEvent(c, tr("Reopened"), "reopen");
+    noteEvent(c, tr("Reopened"), "reopen", c.totals(s_->settings.tax).total);
     const std::int64_t id = c.id;
     s_->open[id] = std::move(c);
     if (s_->sink)

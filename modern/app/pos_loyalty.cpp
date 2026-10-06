@@ -177,7 +177,7 @@ bool PosService::redeemReward(int index)
     c->payments.push_back(pay);
     r->points -= reward.points;
     saveCustomerRecord(*r);
-    noteEvent(*c, tr("Reward %1 (%2 points)").arg(format(off)).arg(reward.points), "discount");
+    noteEvent(*c, tr("Reward %1 (%2 points)").arg(format(off)).arg(reward.points), "discount", off);
     emit notice(tr("%1 off for %2 points; %3 left").arg(format(off)).arg(reward.points).arg(r->points));
     changed(*c);
     return true;

@@ -197,6 +197,11 @@ On the takeout or delivery customer page (or Check… on any order), **Ready Lat
 - It can't be closed until the kitchen has it.
 - An order for another day is paid on that day, and it doesn't hold up tonight's end of day.
 
+## Exceptions and deposit reports
+
+- **Exceptions** (Reports → Exceptions, over any dates): by employee, voids of sent items, discounts and comps, payments and discounts taken back, reopened checks, moved / transferred / merged checks, and (today) drawers opened with no sale; then the ten biggest. Each check event now carries its amount.
+- **Deposit** (today): each drawer or server bank, counted (or expected if not yet), less its starting cash, is the cash to deposit; the card batch (payments + tips); and the book balance, sold with tax against collected (cash, cards, gift cards, house accounts), with the drawers' over/short and what's still open.
+
 ## Sold by weight
 
 Manager → Menu → *Sold by weight* (and the *Weight unit*: lb, oz or kg) makes the price per pound. Touching the item opens the **Weigh** page: type the weight from the scale (125 = 1.25 lb) and it shows what it comes to; *Add* puts "Smoked Brisket 1.37 lb" on the check at $22.00 × 1.37 = $30.14 (rounded to the cent). Typing the weight before touching the item adds it at once. Recipes are per unit, so stock goes down by the weight. Not shown on the self-order kiosk (no scale there). The demo has *Smoked Brisket* at $22.00/lb on the Burgers page.
