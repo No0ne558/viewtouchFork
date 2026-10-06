@@ -63,32 +63,81 @@ Item {
             elide: Text.ElideRight
         }
         // The table's checks: touch one to switch to it here; + opens another.
-        Flow {
+        // One line however many there are: what doesn't fit is a page away
+        // (‹ ›), and the open check is always on the page shown.
+        Item {
             id: tableChecks
             readonly property var checks: w.pos ? w.pos.tableChecks : []
             visible: w.pos && w.pos.hasCheck && checks.length > 0 && w.zone.keyShown("tableChecks")
             Layout.fillWidth: true
-            spacing: w.unit * 0.25
+            Layout.preferredHeight: key
+            Layout.fillHeight: false
             readonly property real key: w.unit * 1.8
-            // Three or more: just the numbers, so a party of six fits on one line.
+            readonly property real gap: w.unit * 0.25
+            // Three or more: just the numbers.
             readonly property bool compact: checks.length >= 3
-            Repeater {
-                model: tableChecks.checks
-                delegate: WidgetKey {
-                    required property var modelData
-                    objectName: "tableCheck-" + modelData.number
-                    width: tableChecks.key * (tableChecks.compact ? 1.25 : 2.6); height: tableChecks.key
-                    fontScale: tableChecks.compact ? 0.6 : 0.48
-                    text: tableChecks.compact ? String(modelData.number)
-                                              : w.zone.keyText("tableChecks", qsTr("Check")) + " " + modelData.number
-                    accent: modelData.current
-                    enabled: modelData.current || modelData.busyOn === ""
-                    onClicked: if (!modelData.current) w.pos.switchCheck(modelData.id)
+            readonly property real slot: key * (compact ? 1.25 : 2.6)
+            readonly property real arrow: key * 0.9
+            // How many fit beside +, with and without the arrows.
+            readonly property int fitAll: Math.max(1, Math.floor((width - slot - gap + gap) / (slot + gap)))
+            readonly property bool paged: checks.length > fitAll
+            readonly property int perPage: paged ? Math.max(1, Math.floor((width - slot - 2 * (arrow + gap)) / (slot + gap))) : checks.length
+            readonly property int current: Math.max(0, checks.findIndex(c => c.current))
+            property int first: 0
+            // The open check stays on the page shown.
+            function follow() {
+                if (current < first || current >= first + perPage)
+                    first = Math.max(0, Math.min(current - perPage + 1, checks.length - perPage))
+                first = Math.max(0, Math.min(first, checks.length - perPage))
+            }
+            onCurrentChanged: follow()
+            onPerPageChanged: follow()
+            onChecksChanged: follow()
+
+            Row {
+                spacing: tableChecks.gap
+                height: tableChecks.key
+                WidgetKey {
+                    objectName: "tableCheck-prev"
+                    visible: tableChecks.paged
+                    enabled: tableChecks.first > 0
+                    opacity: enabled ? 1 : 0.35
+                    width: tableChecks.arrow; height: tableChecks.key
+                    fontScale: 0.6
+                    text: "‹"
+                    onClicked: tableChecks.first = Math.max(0, tableChecks.first - tableChecks.perPage)
+                }
+                Repeater {
+                    model: tableChecks.checks.slice(tableChecks.first, tableChecks.first + tableChecks.perPage)
+                    delegate: WidgetKey {
+                        required property var modelData
+                        objectName: "tableCheck-" + modelData.number
+                        width: tableChecks.slot; height: tableChecks.key
+                        fontScale: tableChecks.compact ? 0.6 : 0.48
+                        text: tableChecks.compact ? String(modelData.number)
+                                                  : w.zone.keyText("tableChecks", qsTr("Check")) + " " + modelData.number
+                        accent: modelData.current
+                        enabled: modelData.current || modelData.busyOn === ""
+                        onClicked: if (!modelData.current) w.pos.switchCheck(modelData.id)
+                    }
+                }
+                WidgetKey {
+                    objectName: "tableCheck-next"
+                    visible: tableChecks.paged
+                    enabled: tableChecks.first + tableChecks.perPage < tableChecks.checks.length
+                    opacity: enabled ? 1 : 0.35
+                    width: tableChecks.arrow; height: tableChecks.key
+                    fontScale: 0.6
+                    text: "›"
+                    onClicked: tableChecks.first = Math.min(tableChecks.checks.length - tableChecks.perPage,
+                                                            tableChecks.first + tableChecks.perPage)
                 }
             }
+            // Always in the same place, at the right end.
             WidgetKey {
                 objectName: "tableCheck-new"
-                width: tableChecks.key * (tableChecks.compact ? 1.25 : 2.6); height: tableChecks.key
+                anchors.right: parent.right
+                width: tableChecks.slot; height: tableChecks.key
                 fontScale: tableChecks.compact ? 0.6 : 0.48
                 text: tableChecks.compact ? "+" : qsTr("+ Check")
                 onClicked: w.pos.newTableCheck()

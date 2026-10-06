@@ -856,6 +856,26 @@ TEST_CASE("UI: separate checks at one table, switched on the order screen", "[fl
     REQUIRE(s.pos.tableChecks().size() == 6);
     s.shot("55-table-checks");
 
+    // Twenty: still one line; the open one shown, the others a page away.
+    for (int i = 0; i < 14; ++i) {
+        s.tapItem(find(u"tableCheck-new"_s));
+        QTest::qWait(30);
+    }
+    REQUIRE(s.pos.tableChecks().size() == 20);
+    QTest::qWait(60);
+    CHECK(find(u"tableCheck-20"_s));            // the new one, open
+    CHECK_FALSE(find(u"tableCheck-1"_s));       // a page back
+    QQuickItem *prev = find(u"tableCheck-prev"_s);
+    REQUIRE(prev);
+    const QQuickItem *plus20 = find(u"tableCheck-new"_s);
+    CHECK(plus20->height() == find(u"tableCheck-20"_s)->height());
+    s.shot("56-twenty-checks");
+    for (int i = 0; i < 5 && !find(u"tableCheck-1"_s); ++i) {
+        s.tapItem(prev);
+        QTest::qWait(40);
+    }
+    REQUIRE(find(u"tableCheck-1"_s));
+
     // Back to check 1: its own line.
     QQuickItem *one = find(u"tableCheck-1"_s);
     REQUIRE(one);

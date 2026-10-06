@@ -462,7 +462,7 @@ Edit mode → **Theme** tab → **Looks**: ViewTouch Dark, Daylight, High Contra
 
 ## Separate checks at one table
 
-On a table's order screen the check panel has a row of the table's checks: **Check 1 · Check 2 · + Check** (just **1 2 3 4 5 6 +** from three on). **+** opens another check at the same table, right there; touching a number switches to that check without leaving the page. Each check is its own (its own items, Send, Pay); the header says which one is open ("T5 · Check 3"), and touching the table on the floor plan asks which check. `PosSession::tableChecks`, `newTableCheck` (also a button command), `switchCheck`; the row is the order list's built-in "tableChecks" button, so the editor can hide or rename it.
+On a table's order screen the check panel has a row of the table's checks: **Check 1 · Check 2 · + Check** (just **1 2 3 4 5 6 +** from three on). It stays one line however many there are: what doesn't fit is behind **‹ ›**, the open check is always on the part shown, and **+** stays at the right end. **+** opens another check at the same table, right there; touching a number switches to that check without leaving the page. Each check is its own (its own items, Send, Pay); the header says which one is open ("T5 · Check 3"), and touching the table on the floor plan asks which check. `PosSession::tableChecks`, `newTableCheck` (also a button command), `switchCheck`; the row is the order list's built-in "tableChecks" button, so the editor can hide or rename it.
 
 ## Each person's own screen, and a start screen per job
 
