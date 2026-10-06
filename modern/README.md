@@ -200,6 +200,7 @@ On the takeout or delivery customer page (or Check… on any order), **Ready Lat
 ## Exceptions and deposit reports
 
 - **Exceptions** (Reports → Exceptions, over any dates): by employee, voids of sent items, discounts and comps, payments and discounts taken back, reopened checks, moved / transferred / merged checks, and (today) drawers opened with no sale; then the ten biggest. Each check event now carries its amount.
+- **Customers** (over any dates): each customer's visits, spending, average check, last visit and the item they order most, best customers first. Saved customers by their record; a name on a takeout or delivery counts too.
 - **Deposit** (today): each drawer or server bank, counted (or expected if not yet), less its starting cash, is the cash to deposit; the card batch (payments + tips); and the book balance, sold with tax against collected (cash, cards, gift cards, house accounts), with the drawers' over/short and what's still open.
 
 ## Sold by weight

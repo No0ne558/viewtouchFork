@@ -47,6 +47,7 @@ struct ReportContext {
     std::function<int(std::int64_t)> hourOf;          // epoch ms -> local hour 0-23
     std::function<int(std::int64_t)> dayOf;           // epoch ms -> local day (any number per date)
     std::int64_t weekStart = 0;                       // start of the current pay week
+    std::function<std::string(std::int64_t)> date;    // epoch ms -> "Oct 5" (empty: the clock)
 
     std::string money(Money m) const;
 };
@@ -115,6 +116,9 @@ Report tipsReport(const std::map<std::string, TipShare> &shares, const ReportCon
 // Dine-in table turns: how long checks were open (seated to paid), by
 // party size and by table, with the average check and per guest.
 Report tableTurns(const std::vector<Check> &closed, const ReportContext &ctx);
+// The original's Customer Detail: each customer's visits, spending, average,
+// last visit and most-ordered item over the period (best customers first).
+Report customersReport(const std::vector<Check> &closed, const ReportContext &ctx);
 // `now` with two more columns: the same row's last value in `before`, and
 // the change in percent (rows matched by kind and first cell).
 Report compareReports(const Report &now, const Report &before, const std::string &beforeLabel);

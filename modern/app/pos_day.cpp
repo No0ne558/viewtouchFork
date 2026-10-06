@@ -42,7 +42,7 @@ QVariantMap toVariant(const Report &r)
 
 const QStringList kReportIds = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s, u"tips"_s,
                                 u"labor"_s, u"drawer"_s, u"expenses"_s, u"purchases"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s,
-                                u"exceptions"_s, u"deposit"_s};
+                                u"exceptions"_s, u"deposit"_s, u"customers"_s};
 
 } // namespace
 
@@ -68,7 +68,10 @@ ReportContext PosService::reportContext(const QString &period) const
     return ReportContext{s_->settings, ss(period), [](std::int64_t ms) { return ss(clockText(ms)); }, now(),
                          [](std::int64_t ms) { return QDateTime::fromMSecsSinceEpoch(ms).time().hour(); },
                          [](std::int64_t ms) { return int(QDateTime::fromMSecsSinceEpoch(ms).date().toJulianDay()); },
-                         weekStart};
+                         weekStart,
+                         [](std::int64_t ms) {
+                             return ss(QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).date(), u"MMM d"_s));
+                         }};
 }
 
 // --- receipts ------------------------------------------------------------------------
@@ -812,6 +815,8 @@ Report PosService::buildReport(const QString &id) const
         return foodCostReport(s_->closedToday, ctx);
     if (id == u"turns")
         return tableTurns(s_->closedToday, ctx);
+    if (id == u"customers")
+        return customersReport(s_->closedToday, ctx);
     if (id == u"kitchen") {
         std::vector<const Check *> checks;
         for (const Check &c : s_->closedToday)
@@ -846,7 +851,7 @@ Report PosService::buildReport(const QString &id) const
 
 namespace {
 const QStringList kRangeReports = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s,
-                                   u"kitchen"_s, u"audit"_s, u"foodcost"_s, u"turns"_s, u"exceptions"_s};
+                                   u"kitchen"_s, u"audit"_s, u"foodcost"_s, u"turns"_s, u"exceptions"_s, u"customers"_s};
 } // namespace
 
 Report PosService::rangeCapableReport(const QString &id, const std::vector<Check> &closed, const ReportContext &ctx) const
@@ -872,6 +877,8 @@ Report PosService::rangeCapableReport(const QString &id, const std::vector<Check
         return foodCostReport(closed, ctx);
     if (id == u"turns")
         return tableTurns(closed, ctx);
+    if (id == u"customers")
+        return customersReport(closed, ctx);
     return salesSummary(closed, ctx);
 }
 

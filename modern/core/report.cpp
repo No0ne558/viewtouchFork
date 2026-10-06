@@ -1144,4 +1144,62 @@ Report tableTurns(const std::vector<Check> &closed, const ReportContext &ctx)
     return r;
 }
 
+Report customersReport(const std::vector<Check> &closed, const ReportContext &ctx)
+{
+    Report r;
+    r.id = "customers";
+    r.title = "Customers";
+    r.subtitle = ctx.period;
+    r.columns = {"Customer", "Visits", "Spent", "Average", "Last visit", "Orders most"};
+    struct Tally {
+        std::string name;
+        std::int64_t visits = 0, last = 0;
+        Money spent;
+        std::map<std::string, std::int64_t> items;
+    };
+    std::map<std::string, Tally> byCustomer;   // their id, else name + phone
+    for (const Check &c : closed) {
+        if (c.training || (c.customerId.empty() && c.customer.name.empty() && c.customer.phone.empty()))
+            continue;
+        const std::string key = !c.customerId.empty() ? c.customerId : c.customer.name + "|" + c.customer.phone;
+        Tally &t = byCustomer[key];
+        if (t.name.empty())
+            t.name = !c.customer.name.empty() ? c.customer.name : c.customer.phone;
+        ++t.visits;
+        t.spent += c.totals(ctx.settings.tax).total;
+        t.last = std::max(t.last, c.closedAt);
+        for (const OrderLine &l : c.lines)
+            if (!l.voided && !l.isComment())
+                t.items[l.name] += l.quantity;
+    }
+    if (byCustomer.empty()) {
+        r.note("No checks with a customer on them (takeout, delivery, or Check... -> Customer).");
+        return r;
+    }
+    std::vector<const Tally *> rows;
+    for (const auto &[key, t] : byCustomer)
+        rows.push_back(&t);
+    std::ranges::stable_sort(rows, [](const Tally *a, const Tally *b) { return a->spent.cents() > b->spent.cents(); });
+    r.section("Best customers first");
+    std::int64_t visits = 0;
+    Money spent;
+    for (const Tally *t : rows) {
+        std::string favorite;
+        std::int64_t most = 0;
+        for (const auto &[item, n] : t->items)
+            if (n > most) {
+                most = n;
+                favorite = item;
+            }
+        r.line({t->name, count(t->visits), ctx.money(t->spent),
+                ctx.money(t->spent.scaled(1, std::max<std::int64_t>(1, t->visits))),
+                ctx.date ? ctx.date(t->last) : ctx.clock(t->last), favorite});
+        visits += t->visits;
+        spent += t->spent;
+    }
+    r.total({count(std::int64_t(rows.size())) + " customers", count(visits), ctx.money(spent),
+             ctx.money(spent.scaled(1, std::max<std::int64_t>(1, visits))), "", ""});
+    return r;
+}
+
 } // namespace vt::core

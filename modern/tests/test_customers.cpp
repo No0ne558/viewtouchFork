@@ -303,3 +303,37 @@ TEST_CASE("Older stores: the gift tender becomes a gift card tender, House Accou
     const core::PosSettings again = app::settingsFromJson(app::toJson(s));
     CHECK_FALSE(again.tender("house"));
 }
+
+TEST_CASE("Customer detail report: visits, spending, last visit and favorite, best first", "[customers][reports]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.saveCustomer({{u"name"_s, u"Dana Lee"_s}, {u"phone"_s, u"555-0101"_s}}));
+    const QString dana = QString::fromStdString(pos.shared()->customers.front().id);
+    for (int visit = 0; visit < 2; ++visit) {
+        REQUIRE(pos.startCheck(core::CheckType::Takeout));
+        REQUIRE(pos.useCustomer(dana));
+        pos.addItem(u"cobb"_s);
+        REQUIRE(pos.tender(u"credit"_s));
+        REQUIRE(pos.closeCheck());
+    }
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.setCustomer({{u"name"_s, u"Walk-in Sam"_s}});
+    pos.addItem(u"soda"_s);
+    pos.chooseOption(u"drink-size"_s, 0);
+    pos.finishChoosing();
+    REQUIRE(pos.tender(u"credit"_s));
+    REQUIRE(pos.closeCheck());
+
+    const core::Report r = pos.buildReport(u"customers"_s);
+    std::vector<std::vector<std::string>> lines;
+    for (const core::ReportRow &x : r.rows)
+        if (x.kind == core::ReportRow::Kind::Line)
+            lines.push_back(x.cells);
+    REQUIRE(lines.size() == 2);
+    CHECK(lines[0][0] == "Dana Lee");                 // spent the most: first
+    CHECK(lines[0][1] == "2");
+    CHECK(lines[0][5] == "Cobb");
+    CHECK(lines[1][0] == "Walk-in Sam");
+    CHECK(lines[1][1] == "1");
+}
