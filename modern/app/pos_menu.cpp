@@ -230,7 +230,9 @@ QVariantList PosService::menuItems() const
     for (const MenuItem &m : s_->menu) {
         out.append(QVariantMap{{u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"family"_s, qs(m.family)},
                                {u"price"_s, format(m.priceDuring(period))}, {u"modifier"_s, m.isModifier},
-                               {u"available"_s, m.available}});
+                               {u"available"_s, m.available && ticketsLeft(m) != 0}, {u"image"_s, qs(m.image)},
+                               {u"color"_s, qs(m.kitchenColor)}, {u"byWeight"_s, m.byWeight},
+                               {u"unit"_s, qs(m.weightUnit)}});
     }
     return out;
 }

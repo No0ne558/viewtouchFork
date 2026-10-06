@@ -132,6 +132,11 @@ public:
     Q_INVOKABLE void finishChoosing();
 
     Q_INVOKABLE void activate(const QString &zoneId);
+    // Order a menu item as an Add Item button would (menuGrid panels).
+    Q_INVOKABLE void orderItem(const QString &itemId);
+    // Small choices a panel keeps while pages are rebuilt (a menuGrid's family...).
+    Q_INVOKABLE QVariant widgetState(const QString &key) const { return widgetState_.value(key); }
+    Q_INVOKABLE void setWidgetState(const QString &key, const QVariant &value) { widgetState_.insert(key, value); }
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goHome();
     Q_INVOKABLE bool jumpTo(const QString &pageId);
@@ -220,6 +225,7 @@ private:
     QTimer idleTimer_;
     QTimer sleepTimer_;
     QVariantMap statusColors_;
+    QVariantMap widgetState_;
     bool asleep_ = false;
     int sleepOverrideMs_ = 0;
     void restartSleep();

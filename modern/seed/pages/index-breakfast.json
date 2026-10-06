@@ -73,6 +73,31 @@
           "fill": "#1f6f73"
         }
       }
+    },
+    {
+      "id": "cat-menu-all",
+      "kind": "button",
+      "rect": {
+        "x": 1480,
+        "y": 192,
+        "w": 424,
+        "h": 240
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Everything",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "replace",
+          "page": "menu-all"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#6b46c1"
+        }
+      }
     }
   ]
 }

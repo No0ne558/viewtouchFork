@@ -692,6 +692,16 @@ void LayoutController::ensureCurrentPageExists()
 
 // --- actions ---------------------------------------------------------------------
 
+void LayoutController::orderItem(const QString &itemId)
+{
+    if (editing() || busy())
+        return;
+    // As a button that adds it would: then its choices, or its weight.
+    Action a;
+    a.data = QJsonObject{{u"type"_s, u"addItem"_s}, {u"item"_s, itemId}};
+    runAction(a, [](bool) {});
+}
+
 void LayoutController::runAction(const Action &a, Done done)
 {
     const QString type = a.type();

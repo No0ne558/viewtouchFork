@@ -352,7 +352,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -418,13 +418,19 @@ def index_page(id, name, period, cats):
     page(id, name, "index", zs, templateId="order-template", mealPeriod=period)
 
 index_page("index-breakfast", "Breakfast", "breakfast",
-           [("Plates", "items-breakfast", AMBER), ("Drinks", "items-drinks", TEAL)])
+           [("Plates", "items-breakfast", AMBER), ("Drinks", "items-drinks", TEAL),
+            ("Everything", "menu-all", PURPLE)])
 index_page("index-lunch", "Lunch", "lunch",
            [("Burgers", "items-burgers", AMBER), ("Salads", "items-salads", GREEN),
-            ("Drinks", "items-drinks", TEAL)])
+            ("Drinks", "items-drinks", TEAL), ("Everything", "menu-all", PURPLE)])
 index_page("index-dinner", "Dinner", "dinner",
            [("Burgers", "items-burgers", AMBER), ("Salads", "items-salads", GREEN),
-            ("Drinks", "items-drinks", TEAL)])
+            ("Drinks", "items-drinks", TEAL), ("Everything", "menu-all", PURPLE)])
+
+# The whole menu, laid out by itself: new items appear with no editing.
+page("menu-all", "Everything", "items", [
+    zone("menu", 592, 104, 1312, 860, kind="menuGrid", props={"columns": 4}),
+], templateId="order-template")
 
 # ---------------------------------------------------------------- item pages
 def add(name, seq=None):

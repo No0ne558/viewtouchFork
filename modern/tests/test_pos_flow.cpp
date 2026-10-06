@@ -722,6 +722,50 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: the menu laid out by itself: families, items, new items with no editing", "[flow][ui][menugrid]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"index-lunch"_s));
+    s.c.activate(u"cat-menu-all"_s);
+    QTest::qWait(80);
+    CHECK(s.c.pageId() == u"menu-all"_s);
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    REQUIRE(find(u"menuFamily-salads"_s));
+    s.tapItem(find(u"menuFamily-salads"_s));
+    QTest::qWait(60);
+    REQUIRE(find(u"menuItem-cobb"_s));
+    s.tapItem(find(u"menuItem-cobb"_s));
+    QTest::qWait(60);
+    CHECK(s.pos.lines().size() == 1);
+    CHECK(s.c.pageId() == u"modifiers"_s);             // its choices, as its own button would
+    s.c.finishChoosing();                               // Done: back to the menu
+    QTest::qWait(60);
+    CHECK(s.c.pageId() == u"menu-all"_s);
+
+    // A new salad from Manager -> Menu: its button is there, no page editing.
+    QVariantMap item = s.pos.adminNewRecord(u"menu"_s);
+    item[u"name"_s] = u"Soup of the Day"_s;
+    item[u"price"_s] = 6.5;
+    item[u"family"_s] = u"salads"_s;
+    REQUIRE(s.pos.adminSave(u"menu"_s, -1, item));
+    QTest::qWait(80);
+    QQuickItem *soup = find(u"menuItem-soup-of-the-day"_s);
+    REQUIRE(soup);
+    s.shot("42-menu-grid");
+    s.tapItem(soup);
+    QTest::qWait(60);
+    CHECK(s.pos.lines().size() == 2);
+
+    // A burger asks how it's cooked, as its own button would.
+    s.tapItem(find(u"menuFamily-burgers"_s));
+    QTest::qWait(60);
+    s.tapItem(find(u"menuItem-classic-burger"_s));
+    QTest::qWait(80);
+    CHECK(s.c.pageId() == u"modifiers"_s);
+}
+
 TEST_CASE("UI: the store's pictures: a logo on the login page and screen saver, on buttons and backgrounds",
           "[flow][ui][pictures]")
 {

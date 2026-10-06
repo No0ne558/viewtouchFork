@@ -446,6 +446,10 @@ Manager widgets:
 | endOfDay | End of day |
 | splitCheck | Split a check |
 
+## The menu laid out by itself
+
+A **menuGrid** panel (+ Panel → menuGrid) shows the menu as buttons by itself: one family (its *Family* setting) or every family with a button for each across the top. New items, price changes and sold-out items show up with no page editing; items with choices or a weight ask for them as their own buttons would. Settings: *Columns*, *Show photos*. The demo's menu pages have an **Everything** button that opens one.
+
 ## Pictures and the store logo
 
 The store keeps its own pictures (a logo, photos for buttons, backgrounds) in its database, so backups, the standby server and every paired screen have them. Anywhere a picture can go (a button, an image zone, a page or theme background, a menu item's kiosk photo, the store logo) there's a **Picture** field: pick one of the store's pictures or *The store logo*, see a preview, or touch **Add Picture…** to bring one in from the computer in front of you (PNG, JPEG, WebP, GIF, BMP or SVG, up to 8 MB; "Our Logo.PNG" becomes `store:our-logo.png`).

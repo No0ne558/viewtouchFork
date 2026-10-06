@@ -112,6 +112,11 @@ QJsonArray widgetSettings(const QString &kind)
         out.append(hint(field(u"props.station"_s, u"Station"_s, u"string"_s, g),
                         u"A printer (kitchen, bar) or a kitchen station id (grill, fryer). Empty: everything. "
                         u"The screen's Station button can pick another."_s));
+    } else if (kind == u"menuGrid") {
+        out.append(hint(field(u"props.family"_s, u"Family"_s, u"string"_s, g),
+                        u"The menu family it shows (burgers, drinks...). Empty: every family, with a button for each."_s));
+        out.append(intField(u"props.columns"_s, u"Columns"_s, g, 1, 10));
+        out.append(hint(field(u"props.photos"_s, u"Show photos"_s, u"bool"_s, g), u"The items' photos (Manager -> Menu)"_s));
     } else if (kind == u"checkList") {
         out.append(with(field(u"props.mode"_s, u"Lists"_s, u"enum"_s, g), u"options"_s,
                         options({{"", "Open checks (touch to open)"}, {"tabs", "Bar tabs"},
@@ -195,7 +200,7 @@ QStringList widgetKinds()
             u"soldOutList"_s, u"orderList"_s, u"loginPad"_s, u"guestCount"_s, u"checkList"_s,
             u"paymentPanel"_s, u"numPad"_s, u"keyboard"_s, u"splitCheck"_s, u"drawerPanel"_s,
             u"reportView"_s, u"endOfDay"_s, u"logoutPanel"_s, u"clock"_s, u"statusBar"_s,
-            u"adminPanel"_s, u"kitchenDisplay"_s, u"customerInfo"_s, u"customerLookup"_s, u"giftCard"_s, u"waitlist"_s, u"schedule"_s, u"factoryReset"_s, u"messageComposer"_s, u"network"_s, u"receiveDelivery"_s, u"checkSearch"_s, u"orderLater"_s};
+            u"adminPanel"_s, u"kitchenDisplay"_s, u"customerInfo"_s, u"customerLookup"_s, u"giftCard"_s, u"waitlist"_s, u"schedule"_s, u"factoryReset"_s, u"messageComposer"_s, u"network"_s, u"receiveDelivery"_s, u"checkSearch"_s, u"orderLater"_s, u"menuGrid"_s};
 }
 
 QStringList allKinds()
