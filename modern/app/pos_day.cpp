@@ -844,7 +844,7 @@ QVariantMap PosService::dayInfo() const
         clockedIn.append(QVariantMap{
             {u"id"_s, qint64(p.id)}, {u"name"_s, e ? qs(e->name) : qs(p.employeeId)},
             {u"since"_s, today ? clockText(p.clockIn) : QLocale().toString(day, u"ddd"_s) + u' ' + clockText(p.clockIn)},
-            {u"long"_s, now() - p.clockIn > 12LL * 3'600'000}, {u"onBreak"_s, p.onBreak()},
+            {u"overTwelve"_s, now() - p.clockIn > 12LL * 3'600'000}, {u"onBreak"_s, p.onBreak()},
         });
     }
     return {

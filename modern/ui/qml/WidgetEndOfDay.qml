@@ -73,8 +73,8 @@ Item {
                     Layout.fillWidth: true
                     text: modelData.name + "  ·  " + qsTr("since %1").arg(modelData.since)
                           + (modelData.onBreak ? "  ·  " + qsTr("on break") : "")
-                          + (modelData.long ? "  ·  " + qsTr("forgot to clock out?") : "")
-                    color: modelData.long ? "#ff9a9e" : w.ink
+                          + (modelData.overTwelve ? "  ·  " + qsTr("forgot to clock out?") : "")
+                    color: modelData.overTwelve ? "#ff9a9e" : w.ink
                     font.family: w.face
                     font.pixelSize: w.unit * 0.85
                     elide: Text.ElideRight
@@ -90,7 +90,7 @@ Item {
             }
         }
         Text {
-            visible: (w.day.clockedIn ?? []).some(p => p.long)
+            visible: (w.day.clockedIn ?? []).some(p => p.overTwelve)
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             text: qsTr("Forgot hours ago? Clock them out, then fix the time in Schedule → Time Punches.")

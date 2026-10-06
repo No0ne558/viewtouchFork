@@ -165,7 +165,7 @@ Item {
                                + (modelData.overtime === "over" ? "  ·  " + qsTr("overtime")
                                   : modelData.overtime === "soon" ? "  ·  " + qsTr("OT in %1 h").arg(modelData.overtimeLeft) : "")
                         value: modelData.onBreak ? qsTr("on break") : qsTr("since %1").arg(modelData.since)
-                        tint: modelData.long || modelData.overtime === "over" ? w.bad
+                        tint: modelData.overTwelve || modelData.overtime === "over" ? w.bad
                             : modelData.onBreak || modelData.overtime === "soon" ? w.warn : w.ink
                     }
                 }

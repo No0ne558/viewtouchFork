@@ -22,7 +22,7 @@ Item {
     Timer { interval: 30000; running: w.status.open ?? false; repeat: true; onTriggered: w.now = Date.now() }
     readonly property int seatedMinutes: (w.status.open ?? false) && w.status.since
                                          ? Math.max(0, Math.floor((w.now - w.status.since) / 60000)) : 0
-    readonly property bool long: (w.status.open ?? false) && seatedMinutes >= (w.status.longAfter ?? 90)
+    readonly property bool seatedLong: (w.status.open ?? false) && seatedMinutes >= (w.status.longAfter ?? 90)
     function minutesText(m) { return m < 60 ? m + "m" : Math.floor(m / 60) + "h " + (m % 60) + "m" }
 
     ZoneShape {
@@ -30,7 +30,7 @@ Item {
         shape: w.zone.shape
         // Seated past the store's mark: a red frame.
         st: Object.assign({}, w.zone.st, { fill: tap.pressed ? Qt.lighter(w.tint, 1.3) : w.tint },
-                          w.long ? { frame: "border", borderColor: w.zone.statusColor("tableLong", "#ff4d4d"), frameWidth: 6 } : {})
+                          w.seatedLong ? { frame: "border", borderColor: w.zone.statusColor("tableLong", "#ff4d4d"), frameWidth: 6 } : {})
     }
 
     Column {

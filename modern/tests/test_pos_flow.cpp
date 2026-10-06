@@ -1605,8 +1605,8 @@ TEST_CASE("UI: End of Day lists who's still clocked in, and clocks them out", "[
     REQUIRE(in.size() == 2);
     bool samLong = false, caseyLong = true;
     for (const QVariant &v : in) {
-        if (v.toMap()[u"name"_s] == u"Sam"_s) samLong = v.toMap()[u"long"_s].toBool();
-        if (v.toMap()[u"name"_s] == u"Casey"_s) caseyLong = v.toMap()[u"long"_s].toBool();
+        if (v.toMap()[u"name"_s] == u"Sam"_s) samLong = v.toMap()[u"overTwelve"_s].toBool();
+        if (v.toMap()[u"name"_s] == u"Casey"_s) caseyLong = v.toMap()[u"overTwelve"_s].toBool();
     }
     CHECK(samLong);
     CHECK_FALSE(caseyLong);
