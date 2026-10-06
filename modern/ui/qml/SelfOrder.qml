@@ -817,7 +817,7 @@ Rectangle {
             visible: k.ordering && (k.choosing.active ?? false)
             anchors.fill: parent
             color: "#d0101318"
-            TapHandler {}   // touches stop here
+            MouseArea { anchors.fill: parent }   // touches stop here
             Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom

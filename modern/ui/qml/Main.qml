@@ -127,7 +127,9 @@ ApplicationWindow {
                 controller: root.controller
                 editor: root.editing ? root.editor : null
                 focus: true
-                enabled: !root.controller.asleep   // the touch that wakes it does nothing here
+                // Asleep: the touch that wakes it does nothing here. A PIN pad or
+                // chooser on top: the buttons under it can't be touched.
+                enabled: !root.controller.asleep && !approvalPad.visible && !jobChooser.visible
 
                 Keys.onPressed: event => {
                     if (root.editing)
@@ -389,6 +391,7 @@ ApplicationWindow {
     }
 
     JobChooser {
+        id: jobChooser
         anchors.fill: parent
         z: 59
         pos: root.controller.pos as PosService

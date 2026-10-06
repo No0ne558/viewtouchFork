@@ -11,7 +11,7 @@ Rectangle {
     color: "#cc0f1318"
 
     // Touches stop here, not on the page behind.
-    TapHandler {}
+    MouseArea { anchors.fill: parent; hoverEnabled: true }
 
     Rectangle {
         anchors.centerIn: parent

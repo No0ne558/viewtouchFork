@@ -18,8 +18,9 @@ Rectangle {
     onVisibleChanged: pin = ""
     color: "#cc0f1318"
 
-    // Touches stop here, not on the page behind.
-    TapHandler {}
+    // Touches stop here, not on the page behind (a TapHandler alone lets
+    // them through to the buttons underneath).
+    MouseArea { anchors.fill: parent; hoverEnabled: true }
 
     Rectangle {
         anchors.centerIn: parent

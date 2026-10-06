@@ -821,6 +821,58 @@ TEST_CASE("UI: each person's text size, left hand and start screen; a start scre
     CHECK(s.pos.userPrefs().isEmpty());
 }
 
+TEST_CASE("UI: after Send a server can't void or change items without a manager's PIN", "[flow][ui][approval]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));                       // Sam, a server
+    REQUIRE(s.pos.selectTable(u"T2"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    s.pos.addItem(u"water"_s);
+    s.pos.addItem(u"cobb"_s);
+    s.pos.finishChoosing();
+    REQUIRE(s.pos.sendOrder());
+    QTest::qWait(60);
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    const qint64 cobb = s.pos.lines().value(1).toMap()[u"id"_s].toLongLong();
+    s.pos.selectLine(cobb);
+    QTest::qWait(40);
+
+    // Sent: no − / + and no choices to change; more is a new line (Again).
+    CHECK_FALSE(find(u"lineMore"_s));
+    CHECK_FALSE(find(u"lineLess"_s));
+    CHECK_FALSE(s.pos.setLineQuantity(cobb, 2));
+    CHECK_FALSE(s.pos.lines().value(1).toMap()[u"choices"_s].toBool());
+
+    // Void asks for a manager: a server's own PIN doesn't do it.
+    s.c.activate(u"flow-void"_s);
+    QTest::qWait(80);
+    REQUIRE(find(u"approvalKey-OK"_s));
+    s.shot("64-manager-approval");
+    const auto type = [&](const QString &pin) {
+        for (const QChar ch : pin) {
+            QQuickItem *k = find(u"approvalKey-"_s + ch);
+            s.tapItem(k);
+            QTest::qWait(30);
+        }
+        s.tapItem(find(u"approvalKey-OK"_s));
+        QTest::qWait(60);
+    };
+    QTest::mouseClick(s.window, Qt::LeftButton, {}, QPoint(1450, 240));   // Mushroom Swiss, behind the dimmed pad
+    QTest::qWait(60);
+    type(u"1111"_s);
+    CHECK_FALSE(s.pos.lines().value(1).toMap()[u"voided"_s].toBool());
+    CHECK(s.pos.lines().size() == 2);                          // the pad's keys don't reach the menu behind it
+    REQUIRE(find(u"approvalKey-OK"_s));                         // still waiting
+    type(u"1234"_s);                                            // Morgan, a manager
+    CHECK(s.pos.lines().value(1).toMap()[u"voided"_s].toBool());
+    CHECK_FALSE(find(u"approvalKey-OK"_s));
+    bool noted = false;
+    for (const QVariant &e : s.pos.checkHistory())
+        noted = noted || e.toMap().value(u"what"_s).toString().contains(u"approved by Morgan"_s);
+    CHECK(noted);                                               // who approved it is on the check's history
+}
+
 TEST_CASE("UI: holding a button explains it instead of pressing it", "[flow][ui][explain]")
 {
     Screen s;
