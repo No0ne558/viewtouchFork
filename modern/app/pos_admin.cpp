@@ -454,7 +454,8 @@ QVariantList PosService::adminFields(const QString &panel)
             with(field(u"screen"_s, tr("Screen layout"), u"enum"_s,
                        tr("Phone pages: big buttons in portrait, for phones and small handhelds.")),
                  u"options"_s, options({{"", "Automatic (phone pages on phones)"}, {"standard", "Standard pages"},
-                                        {"phone", "Phone pages"}, {"selfOrder", "Self-order kiosk (guests order on their own)"}})),
+                                        {"phone", "Phone pages"}, {"selfOrder", "Self-order kiosk (guests order on their own)"},
+                                        {"timeClock", "Time Clock (clock in / out and schedules only)"}})),
         };
     }
     return {};
@@ -774,7 +775,7 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         t.receiptPrinter = ss(record.value(u"receiptPrinter"_s).toString());
         t.drawer = ss(drawer);
         const QString screen = record.value(u"screen"_s).toString();
-        if (!QStringList{QString(), u"standard"_s, u"phone"_s, u"selfOrder"_s}.contains(screen))
+        if (!QStringList{QString(), u"standard"_s, u"phone"_s, u"selfOrder"_s, u"timeClock"_s}.contains(screen))
             return fail(tr("Choose the terminal's screen layout."));
         t.screen = ss(screen);
         if (index >= 0 && index < int(list.size()))

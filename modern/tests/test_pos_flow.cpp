@@ -926,6 +926,83 @@ TEST_CASE("UI: discounts are a manager's: $ Off and % Off of the amount typed", 
     CHECK_FALSE(s.pos.customDiscount(true));                    // over 100%
 }
 
+TEST_CASE("UI: the Time Clock: clock in and out, breaks and the schedule, by PIN alone", "[flow][ui][timeclock]")
+{
+    Screen s;
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    const auto pin = [&](const QString &digits) {
+        for (const QChar ch : digits) {
+            s.tapItem(find(u"clockKey-"_s + ch));
+            QTest::qWait(20);
+        }
+        s.tapItem(find(u"clockKey-OK"_s));
+        QTest::qWait(60);
+    };
+    // Sam works today and the day after tomorrow.
+    const QDateTime today(QDate::currentDate(), QTime(0, 0));
+    for (const int day : {0, 2}) {
+        core::Shift shift;
+        shift.id = 100 + day;
+        shift.employeeId = "sam";
+        shift.start = today.addDays(day).addSecs(6 * 3600).toMSecsSinceEpoch();
+        shift.end = today.addDays(day).addSecs(23 * 3600 + 59 * 60).toMSecsSinceEpoch();
+        shift.note = day == 2 ? "patio" : "";
+        s.pos.shared()->shifts.push_back(shift);
+    }
+
+    // From the login page.
+    s.c.activate(u"time-clock"_s);
+    QTest::qWait(60);
+    REQUIRE(s.c.pageId() == u"time-clock"_s);
+    pin(u"9999"_s);
+    CHECK(s.pos.timeClock().isEmpty());                         // not a PIN
+    pin(u"1111"_s);
+    QVariantMap info = s.pos.timeClock();
+    REQUIRE(info[u"name"_s] == u"Sam"_s);
+    CHECK_FALSE(s.pos.loggedIn());                              // never logged in to the register
+    CHECK(info[u"status"_s] == u"out"_s);
+    const QVariantList shifts = info[u"shifts"_s].toList();
+    REQUIRE(shifts.size() == 2);
+    CHECK(shifts[0].toMap()[u"day"_s] == u"Today"_s);
+    CHECK(shifts[0].toMap()[u"now"_s].toBool());
+    CHECK(shifts[1].toMap()[u"note"_s] == u"patio"_s);
+    REQUIRE(find(u"clockIn"_s));
+
+    s.tapItem(find(u"clockIn"_s));
+    QTest::qWait(60);
+    CHECK(s.pos.timeClock()[u"status"_s] == u"in"_s);
+    s.shot("66-time-clock");
+    s.tapItem(find(u"clockBreak"_s));
+    QTest::qWait(40);
+    CHECK(s.pos.timeClock()[u"status"_s] == u"break"_s);
+    s.tapItem(find(u"clockBreak"_s));
+    QTest::qWait(40);
+    CHECK(s.pos.timeClock()[u"status"_s] == u"in"_s);
+    s.tapItem(find(u"clockOut"_s));
+    QTest::qWait(40);
+    CHECK(s.pos.timeClock()[u"status"_s] == u"out"_s);
+    CHECK(s.pos.timeClock()[u"punches"_s].toList().size() == 1);
+    s.tapItem(find(u"clockDone"_s));
+    QTest::qWait(40);
+    CHECK(s.pos.timeClock().isEmpty());
+    REQUIRE(find(u"clockKey-OK"_s));
+    CHECK_FALSE(s.pos.loggedIn());
+
+    // A terminal set to Time Clock rests there: after a logout too.
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    QVariantMap t = s.pos.adminNewRecord(u"terminals"_s);
+    t[u"name"_s] = s.pos.terminalName();
+    t[u"screen"_s] = u"timeClock"_s;
+    REQUIRE(s.pos.adminSave(u"terminals"_s, -1, t));
+    s.pos.logout();
+    QTest::qWait(60);
+    CHECK(s.c.pageId() == u"time-clock"_s);
+    // "Log In to the Register…" is still there for a manager.
+    s.c.activate(u"register"_s);
+    QTest::qWait(60);
+    CHECK(s.c.pageId() == u"login"_s);
+}
+
 TEST_CASE("UI: holding a button explains it instead of pressing it", "[flow][ui][explain]")
 {
     Screen s;

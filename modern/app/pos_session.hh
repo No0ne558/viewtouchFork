@@ -98,6 +98,9 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantMap kioskMenu READ kioskMenu NOTIFY adminChanged)
     // Clocking in with more than one job: {who, jobs: [{role, name}]}, else empty.
     Q_PROPERTY(QVariantMap clockInJobs READ clockInJobs NOTIFY sessionChanged)
+    // The Time Clock screen: who typed their PIN (not logged in), their status,
+    // today's hours and their shifts; empty until someone does.
+    Q_PROPERTY(QVariantMap timeClock READ timeClock NOTIFY sessionChanged)
     // Receiving deliveries (managers): {vendors: [{id, name}], ingredients:
     // [{id, name, unit, onHand, cost, vendor}], recent: [{when, vendor,
     // invoice, items, total, by}]}.
@@ -227,6 +230,7 @@ public:
     virtual QVariantMap selfOrderInfo() const = 0;
     virtual QVariantMap kioskMenu() const = 0;
     virtual QVariantMap clockInJobs() const = 0;
+    virtual QVariantMap timeClock() const = 0;
     virtual QVariantMap receiving() const = 0;
     virtual QVariantMap checkSearch() const = 0;
     virtual QVariantMap networkInfo() const = 0;
@@ -309,6 +313,10 @@ public:
     Q_INVOKABLE void combineTableChecks() { invoke(QStringLiteral("combineTableChecks"), {}); }
     Q_INVOKABLE void anotherRound() { invoke(QStringLiteral("anotherRound"), {}); }
     Q_INVOKABLE void customDiscount(bool percent) { invoke(QStringLiteral("customDiscount"), {percent}); }
+    // Time Clock: a PIN shows that person; then "in", "out" or "break"; Done forgets them.
+    Q_INVOKABLE void timeClockStart(const QString &pin) { invoke(QStringLiteral("timeClockStart"), {pin}); }
+    Q_INVOKABLE void timeClockAct(const QString &action) { invoke(QStringLiteral("timeClockAct"), {action}); }
+    Q_INVOKABLE void timeClockDone() { invoke(QStringLiteral("timeClockDone"), {}); }
     Q_INVOKABLE void undoLast() { invoke(QStringLiteral("undoLast"), {}); }
     Q_INVOKABLE void newTableCheck() { invoke(QStringLiteral("newTableCheck"), {}); }
     // Another open check made current, staying on this page (the table's checks).

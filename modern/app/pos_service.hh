@@ -287,6 +287,10 @@ public:
     QVariantMap receiving() const override;
     void cancelClockIn();
     QVariantMap clockInJobs() const override;
+    QVariantMap timeClock() const override;
+    bool timeClockStart(const QString &pin);
+    bool timeClockAct(const QString &action);   // "in", "out", "break"
+    void timeClockDone();
     bool clockOut();
 
     // --- keypads -------------------------------------------------------------
@@ -745,6 +749,9 @@ private:
     // Start a shift: the job and its pay recorded on the punch.
     bool punchIn(const core::Employee &e, const core::Job &job, const QString &by = {});
     std::string jobChoice_;   // waiting for this person to pick a job
+    std::string clockWho_;    // the Time Clock screen: whose PIN was typed (not logged in)
+    bool clockOutFor(const core::Employee &e);
+    bool toggleBreakFor(const core::Employee &e);
     QString expenseCategory_;
     std::int64_t now() const { return s_->now(); }
     bool lockCheck(std::int64_t checkId);   // false: open on another terminal

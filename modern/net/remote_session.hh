@@ -123,6 +123,7 @@ public:
     QString storeLanguage() const override { return v(u"storeLanguage").toString(); }
     QVariantMap selfOrderInfo() const override { return v(u"selfOrder").toMap(); }
     QVariantMap clockInJobs() const override { return v(u"clockInJobs").toMap(); }
+    QVariantMap timeClock() const override { return v(u"timeClock").toMap(); }
     QVariantMap receiving() const override { return v(u"receiving").toMap(); }
     QVariantMap checkSearch() const override { return v(u"checkSearch").toMap(); }
     // Where pictures from the server are kept on this device (tests set it).

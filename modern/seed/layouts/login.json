@@ -144,6 +144,31 @@
           "shape": "rect",
           "behavior": "none",
           "label": "Demo PINs: 1234 manager, 1111 server, 2222 cashier, 5555 server in Spanish. Remove this note in the editor."
+        },
+        {
+          "id": "time-clock",
+          "kind": "button",
+          "rect": {
+            "x": 1300,
+            "y": 480,
+            "w": 560,
+            "h": 110
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Time Clock & My Schedule",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "time-clock"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f6f73"
+            }
+          }
         }
       ],
       "background": {}
@@ -284,11 +309,36 @@
             "x": 80,
             "y": 880,
             "w": 800,
-            "h": 160
+            "h": 70
           },
           "shape": "rect",
           "behavior": "none",
           "label": "Demo PINs: 1234 manager, 1111 server, 2222 cashier, 5555 server in Spanish. Remove this note in the editor."
+        },
+        {
+          "id": "time-clock",
+          "kind": "button",
+          "rect": {
+            "x": 80,
+            "y": 960,
+            "w": 800,
+            "h": 90
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Time Clock & My Schedule",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "time-clock"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f6f73"
+            }
+          }
         }
       ],
       "background": {}
@@ -429,11 +479,36 @@
             "x": 1000,
             "y": 880,
             "w": 840,
-            "h": 160
+            "h": 70
           },
           "shape": "rect",
           "behavior": "none",
           "label": "Demo PINs: 1234 manager, 1111 server, 2222 cashier, 5555 server in Spanish. Remove this note in the editor."
+        },
+        {
+          "id": "time-clock",
+          "kind": "button",
+          "rect": {
+            "x": 1000,
+            "y": 960,
+            "w": 840,
+            "h": 90
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Time Clock & My Schedule",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "time-clock"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f6f73"
+            }
+          }
         }
       ],
       "background": {}
@@ -579,6 +654,31 @@
           "shape": "rect",
           "behavior": "none",
           "label": "Demo PINs: 1234 manager, 1111 server, 2222 cashier, 5555 server in Spanish. Remove this note in the editor."
+        },
+        {
+          "id": "time-clock",
+          "kind": "button",
+          "rect": {
+            "x": 1500,
+            "y": 430,
+            "w": 400,
+            "h": 120
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Time Clock & My Schedule",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "time-clock"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f6f73"
+            }
+          }
         }
       ],
       "background": {}
@@ -724,6 +824,31 @@
           "shape": "rect",
           "behavior": "none",
           "label": "Demo PINs: 1234 manager, 1111 server, 2222 cashier, 5555 server in Spanish. Remove this note in the editor."
+        },
+        {
+          "id": "time-clock",
+          "kind": "button",
+          "rect": {
+            "x": 1400,
+            "y": 540,
+            "w": 480,
+            "h": 100
+          },
+          "shape": "rect",
+          "behavior": "blink",
+          "label": "Time Clock & My Schedule",
+          "actions": [
+            {
+              "type": "jump",
+              "mode": "push",
+              "page": "time-clock"
+            }
+          ],
+          "style": {
+            "normal": {
+              "fill": "#1f6f73"
+            }
+          }
         }
       ],
       "background": {}

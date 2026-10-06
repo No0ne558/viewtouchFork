@@ -167,6 +167,10 @@ public:
     QString describeAction(const vt::layout::Action &action) const;
     // Pages to start on, for the admin forms: [{value: id, text: name}], empty first.
     Q_INVOKABLE QVariantList pageChoices() const;
+    // Where the screen rests with nobody logged in: the login page, or the
+    // Time Clock on a terminal set to it.
+    QString loginPage() const;
+    void restAtLoginPage();
     // Switch pages without remembering the current one (editor page list).
     Q_INVOKABLE bool showPage(const QString &pageId);
     Q_INVOKABLE bool triggerHotkey(const QString &key);

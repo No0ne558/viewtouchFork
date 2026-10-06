@@ -550,6 +550,12 @@ bool PosService::clockOut()
     emit entryChanged();
     if (!e)
         return fail(tr("Enter your PIN, then Clock Out."));
+    return clockOutFor(*e);
+}
+
+bool PosService::clockOutFor(const Employee &employee)
+{
+    const Employee *e = &employee;
     TimePunch *p = openPunch(e->id);
     if (!p)
         return fail(tr("%1 is not clocked in.").arg(qs(e->name)));
@@ -1451,9 +1457,14 @@ bool PosService::clockedIn() const
 
 bool PosService::toggleBreak()
 {
-    const Employee *e = user();
-    if (!e)
+    if (!user())
         return fail(tr("Log in first."));
+    return toggleBreakFor(*user());
+}
+
+bool PosService::toggleBreakFor(const Employee &employee)
+{
+    const Employee *e = &employee;
     TimePunch *p = openPunch(e->id);
     if (!p)
         return fail(tr("Clock in first."));
@@ -2090,6 +2101,9 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"lineLess"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.changeLineQuantity(a.value(0).toLongLong(), -1)); }},
         {u"anotherRound"_s, [](PosService &p, const QVariantList &) { return QVariant(p.anotherRound()); }},
         {u"customDiscount"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.customDiscount(a.value(0).toBool())); }},
+        {u"timeClockStart"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.timeClockStart(a.value(0).toString())); }},
+        {u"timeClockAct"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.timeClockAct(a.value(0).toString())); }},
+        {u"timeClockDone"_s, [](PosService &p, const QVariantList &) { p.timeClockDone(); return QVariant(true); }},
         {u"undoLast"_s, [](PosService &p, const QVariantList &) { return QVariant(p.undoLast()); }},
         {u"repeatLine"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.repeatLine(a.value(0).toLongLong())); }},
         {u"sendOrder"_s, [](PosService &p, const QVariantList &) { return QVariant(p.sendOrder()); }},

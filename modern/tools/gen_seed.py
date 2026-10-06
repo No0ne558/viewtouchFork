@@ -356,7 +356,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -508,7 +508,19 @@ page("login", "Login", "login", [
     zone("hint", 1300, 260, 560, 200,
          "Demo PINs: 1234 manager, 1111 server, 2222 cashier, 5555 server in Spanish. Remove this note in the editor.",
          kind="comment"),
+    # Clock in / out and see your schedule, without logging in.
+    zone("time-clock", 1300, 480, 560, 110, "Time Clock & My Schedule", actions=[jump(page="time-clock")],
+         style=fill(TEAL)),
 ], role="login")
+
+# The Time Clock: clock in / out, breaks and the schedule, by PIN alone. A
+# terminal set to "Time Clock" (Manager -> Terminals) shows only this.
+page("time-clock", "Time Clock", "custom", [
+    label("title", 16, 16, 1300, 100, "{store.name} · Time Clock", style={"normal": {"fontSize": 52}}),
+    zone("clock", 1332, 26, 572, 80, kind="clock"),
+    zone("time-clock", 16, 132, 1888, 812, kind="timeClock"),
+    zone("register", 16, 960, 520, 104, "Log In to the Register…", actions=[command("timeClockDone"), jump(role="login")]),
+], role="timeClock", permission="public")
 
 TABLES = [
     {"label": "T1", "x": 80, "y": 80, "w": 200, "h": 200, "shape": "circle", "seats": 2},
@@ -1047,22 +1059,24 @@ def layouts(page_id, variants):
 layouts("login", [
     arrangement("login", "classic", "Classic", "The keypad in the middle, the logo to its left."),
     arrangement("login", "logo-left", "Logo first", "A big logo on the left half, the keypad on the right.", {
-        "title": (80, 40, 800, 110), "logo": (80, 170, 800, 680), "hint": (80, 880, 800, 160),
+        "title": (80, 40, 800, 110), "logo": (80, 170, 800, 680),
         "clock": (1080, 40, 680, 80), "login-pad": (1080, 140, 680, 640),
-        "start": (1080, 800, 680, 120), "clock-in": (1080, 936, 330, 110), "clock-out": (1430, 936, 330, 110)}),
+        "start": (1080, 800, 680, 120), "clock-in": (1080, 936, 330, 110), "clock-out": (1430, 936, 330, 110),
+        "hint": (80, 880, 800, 70), "time-clock": (80, 960, 800, 90)}),
     arrangement("login", "keypad-left", "Keypad left", "The keypad on the left, the logo and clock on the right.", {
         "login-pad": (160, 140, 680, 640), "start": (160, 800, 680, 120),
         "clock-in": (160, 936, 330, 110), "clock-out": (510, 936, 330, 110),
         "title": (1000, 40, 840, 110), "logo": (1000, 170, 840, 580), "clock": (1000, 770, 840, 90),
-        "hint": (1000, 880, 840, 160)}),
+        "hint": (1000, 880, 840, 70), "time-clock": (1000, 960, 840, 90)}),
     arrangement("login", "big-keypad", "Big keypad", "Big keys and buttons, for gloves or a screen farther away.", {
         "logo": (40, 20, 340, 150), "title": (400, 20, 1120, 100), "clock": (660, 120, 600, 60),
         "login-pad": (460, 190, 1000, 690), "clock-in": (160, 900, 480, 150), "start": (680, 900, 560, 150),
-        "clock-out": (1280, 900, 480, 150), "hint": (1500, 190, 400, 220)}),
+        "clock-out": (1280, 900, 480, 150), "hint": (1500, 190, 400, 220), "time-clock": (1500, 430, 400, 120)}),
     arrangement("login", "compact", "Compact", "A small keypad in the center, lots of space around it.", {
         "logo": (810, 10, 300, 110), "title": (560, 120, 800, 90), "clock": (660, 220, 600, 70),
         "login-pad": (760, 310, 400, 430), "start": (760, 760, 400, 110),
-        "clock-in": (760, 890, 195, 90), "clock-out": (965, 890, 195, 90), "hint": (1400, 320, 480, 200)}),
+        "clock-in": (760, 890, 195, 90), "clock-out": (965, 890, 195, 90), "hint": (1400, 320, 480, 200),
+        "time-clock": (1400, 540, 480, 100)}),
 ])
 
 # Tables

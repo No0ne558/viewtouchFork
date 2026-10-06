@@ -6,6 +6,7 @@
 #include "app/pos_service.hh"
 
 #include <QDateTime>
+#include <QLocale>
 
 #include <algorithm>
 
@@ -62,6 +63,112 @@ QString PosService::nextShift() const
     const QDate today = QDateTime::fromMSecsSinceEpoch(now()).date();
     const QString when = day == today ? tr("today") : day == today.addDays(1) ? tr("tomorrow") : day.toString(u"ddd MMM d"_s);
     return tr("%1 %2 - %3").arg(when, hourText(next->start), hourText(next->end));
+}
+
+// --- the Time Clock screen: clock in / out and the schedule, without logging in ----
+
+bool PosService::timeClockStart(const QString &pin)
+{
+    const Employee *e = employeeByPin(pin);
+    if (!e || !e->active)
+        return fail(tr("That PIN is not recognized."));
+    clockWho_ = e->id;
+    emit sessionChanged();
+    return true;
+}
+
+void PosService::timeClockDone()
+{
+    if (clockWho_.empty())
+        return;
+    clockWho_.clear();
+    if (!jobChoice_.empty())
+        jobChoice_.clear();
+    emit sessionChanged();
+}
+
+bool PosService::timeClockAct(const QString &action)
+{
+    const Employee *e = s_->employee(clockWho_);
+    if (!e)
+        return fail(tr("Type your PIN first."));
+    bool ok = false;
+    if (action == u"in") {
+        if (openPunch(e->id))
+            return fail(tr("%1 is already clocked in.").arg(qs(e->name)));
+        if (const QString why = scheduleCheck(*e); !why.isEmpty())
+            return fail(why);
+        const std::vector<Job> jobs = e->jobs();
+        if (jobs.size() > 1) {   // which job today? (the job chooser)
+            jobChoice_ = e->id;
+            emit sessionChanged();
+            return true;
+        }
+        ok = punchIn(*e, jobs.front());
+    } else if (action == u"out") {
+        ok = clockOutFor(*e);
+    } else if (action == u"break") {
+        ok = toggleBreakFor(*e);
+    } else {
+        return fail(tr("Unknown operation '%1'").arg(action));
+    }
+    emit sessionChanged();
+    return ok;
+}
+
+QVariantMap PosService::timeClock() const
+{
+    const Employee *e = s_->employee(clockWho_);
+    if (!e)
+        return {};
+    const std::int64_t t = now();
+    QString status = u"out"_s, since, job, breakSince;
+    std::int64_t workedMs = 0;
+    QVariantList punches;
+    for (const TimePunch &p : s_->punches) {
+        if (p.employeeId != e->id)
+            continue;
+        if (QDateTime::fromMSecsSinceEpoch(p.clockIn).date() == QDateTime::fromMSecsSinceEpoch(t).date() || p.open()) {
+            workedMs += p.workedMs(t, s_->settings.paidBreaks);
+            punches.append(QVariantMap{{u"in"_s, hourText(p.clockIn)}, {u"out"_s, p.open() ? QString() : hourText(p.clockOut)},
+                                       {u"job"_s, roleName(qs(p.job))}});
+        }
+        if (p.open()) {
+            status = p.onBreak() ? u"break"_s : u"in"_s;
+            since = hourText(p.clockIn);
+            job = roleName(qs(p.job));
+            if (p.onBreak())
+                breakSince = hourText(p.breaks.back().start);
+        }
+    }
+    // Shifts from today through the next two weeks.
+    const QDate today = QDateTime::fromMSecsSinceEpoch(t).date();
+    std::vector<const Shift *> mine;
+    for (const Shift &s : s_->shifts)
+        if (s.employeeId == e->id && s.end > QDateTime(today.startOfDay()).toMSecsSinceEpoch()
+            && QDateTime::fromMSecsSinceEpoch(s.start).date() <= today.addDays(14))
+            mine.push_back(&s);
+    std::ranges::sort(mine, {}, &Shift::start);
+    QVariantList shifts;
+    double weekHours = 0;
+    for (const Shift *s : mine) {
+        const QDate day = QDateTime::fromMSecsSinceEpoch(s->start).date();
+        if (day < today.addDays(7))
+            weekHours += s->hours();
+        shifts.append(QVariantMap{
+            {u"day"_s, day == today ? tr("Today") : day == today.addDays(1) ? tr("Tomorrow")
+                                                                            : QLocale().toString(day, u"ddd MMM d"_s)},
+            {u"hours"_s, tr("%1 - %2").arg(hourText(s->start), hourText(s->end))},
+            {u"length"_s, QLocale().toString(s->hours(), 'f', 1)},
+            {u"note"_s, qs(s->note)},
+            {u"now"_s, s->start <= t && t < s->end},
+        });
+    }
+    return {{u"name"_s, qs(e->name)}, {u"status"_s, status}, {u"since"_s, since}, {u"job"_s, job},
+            {u"breakSince"_s, breakSince}, {u"todayHours"_s, QLocale().toString(double(workedMs) / 3'600'000.0, 'f', 2)},
+            {u"punches"_s, punches}, {u"shifts"_s, shifts},
+            {u"weekHours"_s, QLocale().toString(weekHours, 'f', 1)},
+            {u"choosingJob"_s, jobChoice_ == e->id}};
 }
 
 QString PosService::scheduleCheck(const Employee &e) const

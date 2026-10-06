@@ -476,6 +476,10 @@ Each menu (Breakfast, Lunch, Dinner) has a **Popular** card: a page whose button
 
 Once drinks have been sent on a check, **Another Round** appears beside its name: it orders the drinks of the latest Send again (same choices and quantities) as new lines, ready for Send. Drinks are what the bar prints, or items in a drinks family; sold-out ones are skipped and named. Command `anotherRound`; the order list's built-in "round" button.
 
+## Time Clock
+
+A screen just for clocking in and out and checking the schedule. **Time Clock & My Schedule** on the login page opens it; a terminal set to **Time Clock** in Manager → Terminals (a tablet by the back door, the Android app too) rests on it instead of the login page. Someone types their PIN (they don't log in to the register) and sees whether they're clocked in, today's hours, and their shifts for the next two weeks with this week's total; **Clock In** (asking which job when they have more than one), **Start / End Break**, **Clock Out**. It goes back to the keypad after 20 seconds, or **Done**. **Log In to the Register…** is there for managers. The `timeClock` panel (`PosSession::timeClock`, `timeClockStart`, `timeClockAct`, `timeClockDone`), page role `timeClock`.
+
 ## Discounts need a manager
 
 Servers, bartenders and cashiers no longer have the discount permission: 10% Off, Comp, Staff Meal and custom discounts ask for a manager's PIN (the approval pad), unless the person is allowed it in Employees. On the Pay screen **$ Off** and **% Off** discount what's typed on the keypad (cents, or a whole percent); commands `amountOff` / `percentOff` (`PosService::customDiscount`).

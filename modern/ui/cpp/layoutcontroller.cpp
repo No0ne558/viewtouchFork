@@ -210,7 +210,7 @@ void LayoutController::replaceLayout(Layout layout)
         setStatus(tr("Pages were changed on another terminal. Saving your edits will replace them."));
         return;
     }
-    nav_.setHome(homePageOf(layout_));
+    nav_.setHome(loginPage());
     ensureCurrentPageExists();
     refresh();
     emit pageChanged();
@@ -229,6 +229,7 @@ void LayoutController::setPos(PosSession *pos)
         connect(pos_, &PosSession::checkClosed, this, [this] { navigate(Navigator::Mode::Home); });
         connect(pos_, &PosSession::qualifierChanged, this, &LayoutController::refresh);
         connect(pos_, &PosSession::adminChanged, this, [this] {
+            restAtLoginPage();      // a terminal just set to (or from) Time Clock
             installStoreFonts();   // before pages and font lists look for them
             updateMealPeriod();
             updateFormFactor();
@@ -254,6 +255,7 @@ void LayoutController::setPos(PosSession *pos)
     refresh();
     installStoreFonts();
     restartSleep();
+    restAtLoginPage();   // a Time Clock terminal starts on its page
 }
 
 void LayoutController::call(const QString &method, const QVariantList &args,
@@ -272,6 +274,29 @@ void LayoutController::call(const QString &method, const QVariantList &args,
         if (then)
             then(result);
     });
+}
+
+void LayoutController::restAtLoginPage()
+{
+    // Logged out and resting on the login or Time Clock page: the one this terminal uses.
+    if (!pos_ || pos_->loggedIn() || editing())
+        return;
+    const QString want = loginPage();
+    const vt::layout::Page *here = currentPage();
+    if (!here || here->id == want || (here->role != u"login" && here->role != u"timeClock"))
+        return;
+    nav_.reset(want);
+    refresh();
+    emit pageChanged();
+}
+
+QString LayoutController::loginPage() const
+{
+    // A Time Clock terminal (Manager -> Terminals): its page is where it rests.
+    if (pos_ && pos_->screenMode() == u"timeClock")
+        if (const vt::layout::Page *p = activeLayout().pageByRole(u"timeClock"_s))
+            return p->id;
+    return homePageOf(activeLayout());
 }
 
 QVariantList LayoutController::pageChoices() const
@@ -300,7 +325,7 @@ void LayoutController::onLoggedInChanged(bool loggedIn)
         openSetup();
     // Logged in, "home" is their start page (theirs, or their job's), else the
     // floor (tables); logged out, it is the login page.
-    const QString login = homePageOf(layout_);
+    const QString login = loginPage();
     QString tables = rolePage(u"tables"_s);
     if (const QString start = pos_ ? pos_->userPrefs().value(u"startPage"_s).toString() : QString();
         loggedIn && !start.isEmpty() && activeLayout().page(start))
@@ -700,7 +725,7 @@ bool LayoutController::leaveEditMode(bool save)
     connect(old, &QObject::destroyed, this, &LayoutController::editorChanged);
     old->deleteLater();
 
-    nav_.setHome(homePageOf(layout_));
+    nav_.setHome(loginPage());
     ensureCurrentPageExists();
     refresh();
     emit pageChanged();
@@ -709,7 +734,7 @@ bool LayoutController::leaveEditMode(bool save)
 
 void LayoutController::onDraftChanged()
 {
-    nav_.setHome(homePageOf(activeLayout()));
+    nav_.setHome(loginPage());
     ensureCurrentPageExists();
     refresh();
     emit pageChanged();
@@ -972,7 +997,7 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
         {u"combineTableChecks"_s, {u"combineTableChecks"_s, {}}}, {u"sendOrder"_s, {u"sendOrder"_s, {}}},
         {u"voidItem"_s, {u"voidItem"_s, {}}}, {u"lineMore"_s, {u"lineMore"_s, {0}}},
         {u"lineLess"_s, {u"lineLess"_s, {0}}}, {u"repeatLine"_s, {u"repeatLine"_s, {0}}},
-        {u"undoLast"_s, {u"undoLast"_s, {}}}, {u"anotherRound"_s, {u"anotherRound"_s, {}}},
+        {u"undoLast"_s, {u"undoLast"_s, {}}}, {u"anotherRound"_s, {u"anotherRound"_s, {}}}, {u"timeClockDone"_s, {u"timeClockDone"_s, {}}},
         {u"amountOff"_s, {u"customDiscount"_s, {false}}}, {u"percentOff"_s, {u"customDiscount"_s, {true}}}, {u"addComment"_s, {u"addComment"_s, {}}},
         {u"removePayment"_s, {u"removePayment"_s, {}}}, {u"closeCheck"_s, {u"closeCheck"_s, {}}},
         {u"printReceipt"_s, {u"printReceipt"_s, {}}}, {u"noSale"_s, {u"noSale"_s, {}}},

@@ -210,7 +210,7 @@ QStringList widgetKinds()
             u"soldOutList"_s, u"orderList"_s, u"loginPad"_s, u"guestCount"_s, u"checkList"_s,
             u"paymentPanel"_s, u"numPad"_s, u"keyboard"_s, u"splitCheck"_s, u"drawerPanel"_s,
             u"reportView"_s, u"endOfDay"_s, u"logoutPanel"_s, u"clock"_s, u"statusBar"_s,
-            u"adminPanel"_s, u"kitchenDisplay"_s, u"customerInfo"_s, u"customerLookup"_s, u"giftCard"_s, u"waitlist"_s, u"schedule"_s, u"factoryReset"_s, u"messageComposer"_s, u"network"_s, u"receiveDelivery"_s, u"checkSearch"_s, u"orderLater"_s, u"menuGrid"_s};
+            u"adminPanel"_s, u"kitchenDisplay"_s, u"customerInfo"_s, u"customerLookup"_s, u"giftCard"_s, u"waitlist"_s, u"schedule"_s, u"factoryReset"_s, u"messageComposer"_s, u"network"_s, u"receiveDelivery"_s, u"checkSearch"_s, u"orderLater"_s, u"menuGrid"_s, u"timeClock"_s};
 }
 
 QStringList allKinds()
@@ -233,7 +233,7 @@ QStringList pageKinds()
 QStringList pageRoles()
 {
     return {u"login"_s, u"tables"_s, u"guestCount"_s, u"checkList"_s, u"settle"_s, u"logout"_s,
-            u"manager"_s, u"bar"_s, u"kitchen"_s, u"weigh"_s};
+            u"manager"_s, u"bar"_s, u"kitchen"_s, u"weigh"_s, u"timeClock"_s};
 }
 
 QJsonArray zoneFields(const QString &kind)
