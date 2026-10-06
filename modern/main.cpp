@@ -825,10 +825,14 @@ int runStore(const Args &cli, const Options &o)
     QObject::connect(shared, &vt::app::PosShared::adminChanged, shared, [shared] {
         vt::i18n::setGuestLanguage(QString::fromStdString(shared->settings.language));
     });
-    if (havePosStore)   // reports over a range read the closed checks back
+    if (havePosStore) {   // reports over a range read the closed checks back
         shared->history = [dbPath](std::int64_t from, std::int64_t to) {
             return vt::storage::closedChecksBetween(dbPath, from, to);
         };
+        shared->punchHistory = [dbPath](std::int64_t from, std::int64_t to) {
+            return vt::storage::punchesBetween(dbPath, from, to);
+        };
+    }
 
     // Printing: a worker thread delivers tickets; "file" printers write under
     // <app data>/printouts so tickets are visible without hardware.

@@ -139,6 +139,9 @@ public:
     // Closed checks in [from, to) from the database (set up by main; may run
     // on a worker thread). Unset: reports over a range use today's only.
     std::function<std::vector<core::Check>(std::int64_t from, std::int64_t to)> history;
+    // Older time punches from the store (Time Punches reaches a month back).
+    std::function<std::vector<core::TimePunch>(std::int64_t from, std::int64_t to)> punchHistory;
+    std::vector<core::TimePunch> olderPunches;   // loaded from it for editing
     std::vector<core::Shift> shifts;   // from two weeks back on
     std::int64_t lastShiftId = 0;
     std::vector<core::Delivery> deliveries;

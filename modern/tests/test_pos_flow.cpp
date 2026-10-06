@@ -1555,6 +1555,42 @@ TEST_CASE("UI: dishes running low show how many are left", "[flow][ui][stock]")
     s.shot("69-stock-left");
 }
 
+TEST_CASE("Time Punches reaches a month back; the dashboard refreshes", "[flow][punches][older]")
+{
+    Screen s;
+    const std::int64_t now = QDateTime::currentMSecsSinceEpoch();
+    const std::int64_t day = 24 * 3'600'000;
+    // In the store (not loaded at start): Sam, 20 days ago, and 40 days ago.
+    std::vector<core::TimePunch> stored{
+        {951, "sam", now - 20 * day, now - 20 * day + 8 * 3'600'000, {}, "server", vt::Money::fromCents(1200)},
+        {952, "sam", now - 40 * day, now - 40 * day + 8 * 3'600'000, {}, "server", vt::Money::fromCents(1200)}};
+    s.pos.shared()->punchHistory = [stored](std::int64_t from, std::int64_t to) {
+        std::vector<core::TimePunch> out;
+        for (const core::TimePunch &p : stored)
+            if (p.clockIn >= from && p.clockIn < to)
+                out.push_back(p);
+        return out;
+    };
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    QVariantList records = s.pos.adminRecords(u"punches"_s);
+    int i = -1;
+    for (int r = 0; r < records.size(); ++r) {
+        CHECK(records[r].toMap()[u"id"_s].toLongLong() != 952);   // over a month: not listed
+        if (records[r].toMap()[u"id"_s].toLongLong() == 951)
+            i = r;
+    }
+    REQUIRE(i >= 0);
+    QVariantMap r = records[i].toMap();
+    r[u"clockOut"_s] = QDateTime::fromMSecsSinceEpoch(now - 20 * day + 9 * 3'600'000).toString(u"yyyy-MM-dd HH:mm"_s);
+    r[u"reason"_s] = u"stayed late"_s;
+    REQUIRE(s.pos.adminSave(u"punches"_s, i, r));
+    CHECK(s.pos.shared()->settings.punchChanges.back().why == "stayed late");
+
+    QSignalSpy dayChanged(&s.pos, &app::PosSession::dayChanged);
+    s.pos.refreshDay();
+    CHECK(dayChanged.count() >= 1);
+}
+
 TEST_CASE("UI: End of Day lists who's still clocked in, and clocks them out", "[flow][ui][punches][endofday]")
 {
     Screen s;

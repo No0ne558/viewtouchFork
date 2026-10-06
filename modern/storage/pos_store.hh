@@ -76,6 +76,8 @@ private:
 
 // Checks closed in [from, to) (epoch ms), read with a connection of its
 // own: safe on a worker thread while the POS runs. For reports over a range.
+// Time punches clocked in between from and to (Manager -> Time Punches, older ones).
+std::vector<core::TimePunch> punchesBetween(const QString &dbPath, std::int64_t from, std::int64_t to);
 std::vector<core::Check> closedChecksBetween(const QString &dbPath, std::int64_t from, std::int64_t to,
                                              QString *error = nullptr);
 

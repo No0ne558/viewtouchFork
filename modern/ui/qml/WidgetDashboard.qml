@@ -20,6 +20,14 @@ Item {
     readonly property color warn: "#f5b940"
     readonly property color bad: "#ff8a8f"
 
+    // Labor keeps adding up while nothing else happens: once a minute.
+    Timer {
+        interval: 60000
+        repeat: true
+        running: w.visible && w.pos !== null
+        onTriggered: w.pos.refreshDay()
+    }
+
     component Card: Rectangle {
         default property alias content: inner.data
         property string title

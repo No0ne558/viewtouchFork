@@ -1,4 +1,4 @@
-// PosService: Manager -> Time Punches. The last week's punches, newest first:
+// PosService: Manager -> Time Punches. The last month's punches, newest first:
 // a manager fixes a time, a break or the job, adds a punch someone missed, or
 // removes one made by mistake. Every change needs a reason and is kept
 // (PosSettings::punchChanges), for the Labor report.
@@ -62,10 +62,21 @@ QString breaksText(const TimePunch &p)
 std::vector<TimePunch *> PosService::punchList()
 {
     std::vector<TimePunch *> out;
+    std::set<std::int64_t> ids;
     for (TimePunch &p : s_->punches)
-        out.push_back(&p);
+        if (ids.insert(p.id).second)
+            out.push_back(&p);
     for (TimePunch &p : s_->earlierPunches)
-        out.push_back(&p);
+        if (ids.insert(p.id).second)
+            out.push_back(&p);
+    // Older ones (a month back), read from the store when this list is first wanted.
+    if (s_->punchHistory && s_->olderPunches.empty()) {
+        const std::int64_t t = now();
+        s_->olderPunches = s_->punchHistory(t - 31LL * 24 * 3'600'000, t + 3'600'000);
+    }
+    for (TimePunch &p : s_->olderPunches)
+        if (ids.insert(p.id).second && p.clockIn >= now() - 31LL * 24 * 3'600'000)
+            out.push_back(&p);
     std::ranges::sort(out, [](const TimePunch *a, const TimePunch *b) { return a->clockIn > b->clockIn; });
     return out;
 }
@@ -261,6 +272,7 @@ bool PosService::deletePunchRecord(int index, const QString &why)
     logPunchChange(p, tr("removed %1 - %2").arg(stamp(p.clockIn), p.clockOut ? stamp(p.clockOut) : tr("(open)")), why);
     std::erase_if(s_->punches, [&](const TimePunch &x) { return x.id == p.id; });
     std::erase_if(s_->earlierPunches, [&](const TimePunch &x) { return x.id == p.id; });
+    std::erase_if(s_->olderPunches, [&](const TimePunch &x) { return x.id == p.id; });
     if (s_->sink)
         s_->sink->deletePunch(p.id);
     emit sessionChanged();

@@ -593,4 +593,36 @@ std::vector<Check> closedChecksBetween(const QString &dbPath, std::int64_t from,
     return out;
 }
 
+std::vector<TimePunch> punchesBetween(const QString &dbPath, std::int64_t from, std::int64_t to)
+{
+    static QAtomicInt counter;
+    const QString name = u"vt-punches-%1"_s.arg(counter.fetchAndAddRelaxed(1));
+    std::vector<TimePunch> out;
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(u"QSQLITE"_s, name);
+        db.setDatabaseName(dbPath);
+        db.setConnectOptions(u"QSQLITE_BUSY_TIMEOUT=5000"_s);
+        if (db.open()) {
+            QSqlQuery q(db);
+            q.prepare(u"SELECT id, employee_id, clock_in, clock_out, breaks, job, rate FROM time_punches "
+                      "WHERE clock_in >= ? AND clock_in < ? ORDER BY clock_in"_s);
+            q.addBindValue(qint64(from));
+            q.addBindValue(qint64(to));
+            if (q.exec())
+                while (q.next()) {
+                    TimePunch p{q.value(0).toLongLong(), q.value(1).toString().toStdString(), q.value(2).toLongLong(),
+                                q.value(3).toLongLong(), {}};
+                    for (const QJsonValue &b : QJsonDocument::fromJson(q.value(4).toByteArray()).array())
+                        p.breaks.push_back({b.toObject().value(u"start").toInteger(), b.toObject().value(u"end").toInteger()});
+                    p.job = q.value(5).toString().toStdString();
+                    p.rate = Money::fromCents(q.value(6).toLongLong());
+                    out.push_back(std::move(p));
+                }
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(name);
+    return out;
+}
+
 } // namespace vt::storage

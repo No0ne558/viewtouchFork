@@ -514,7 +514,7 @@ Each menu item can have a **Number** (Manager → Menu; the demo's burgers are 1
 
 ## Dashboard
 
-Manager → **Dashboard** (first on the Manager page): today so far. Net sales against the same weekday last week by this time (read from the store, cached five minutes), checks, guests and the average check, labor cost as a share of sales (amber over 28%, red over 35%), open checks and what's still due on them, the kitchen's average sent-to-made time and what's waiting, who's on the clock, the five best sellers, and ingredients running low with what's sold out. Managers only (`PosSession::dashboard`, the `dashboard` panel); it updates as checks close and orders go out.
+Manager → **Dashboard** (first on the Manager page): today so far. Net sales against the same weekday last week by this time (read from the store, cached five minutes), checks, guests and the average check, labor cost as a share of sales (amber over 28%, red over 35%), open checks and what's still due on them, the kitchen's average sent-to-made time and what's waiting, who's on the clock, the five best sellers, and ingredients running low with what's sold out. Managers only (`PosSession::dashboard`, the `dashboard` panel); it updates as checks close and orders go out, and once a minute while it's on screen.
 
 ## Running low
 
@@ -522,7 +522,7 @@ When an ingredient is down to its *Low at* (Manager → Inventory), every dish t
 
 ## Fixing time punches
 
-Manager → Schedule → **Time Punches…** lists the last eight days of punches, newest first. A manager changes the times, breaks (one per line, `12:30-13:00`) or job, adds a punch someone missed, or removes one made by mistake (tick *Remove this punch*). Every change needs a reason; overlapping punches, times in the future and shifts over 24 hours are refused. Changes are kept (`PosSettings::punchChanges`, the last 500): the Labor report marks changed punches with * and lists each change, who made it and why. End of Day lists whoever is still clocked in, flags anyone on for over 12 hours ("forgot to clock out?"), and **Clock Out Now** closes their punch (also logged).
+Manager → Schedule → **Time Punches…** lists the last month's punches, newest first (the week in memory, older ones read from the store when the list is opened). A manager changes the times, breaks (one per line, `12:30-13:00`) or job, adds a punch someone missed, or removes one made by mistake (tick *Remove this punch*). Every change needs a reason; overlapping punches, times in the future and shifts over 24 hours are refused. Changes are kept (`PosSettings::punchChanges`, the last 500): the Labor report marks changed punches with * and lists each change, who made it and why. End of Day lists whoever is still clocked in, flags anyone on for over 12 hours ("forgot to clock out?"), and **Clock Out Now** closes their punch (also logged).
 
 ## Time Clock
 

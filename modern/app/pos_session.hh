@@ -337,6 +337,8 @@ public:
     Q_INVOKABLE void tickChecklist(const QString &list, int index) { invoke(QStringLiteral("tickChecklist"), {list, index}); }
     Q_INVOKABLE void moveMenuItem(const QString &id, int by) { invoke(QStringLiteral("moveMenuItem"), {id, by}); }
     Q_INVOKABLE void setMenuItemColor(const QString &id, const QString &color) { invoke(QStringLiteral("setMenuItemColor"), {id, color}); }
+    // The day's figures again (the dashboard, once a minute: labor keeps adding up).
+    Q_INVOKABLE void refreshDay() { invoke(QStringLiteral("refreshDay"), {}); }
     Q_INVOKABLE void timeClockDone() { invoke(QStringLiteral("timeClockDone"), {}); }
     Q_INVOKABLE void undoLast() { invoke(QStringLiteral("undoLast"), {}); }
     Q_INVOKABLE void newTableCheck() { invoke(QStringLiteral("newTableCheck"), {}); }
