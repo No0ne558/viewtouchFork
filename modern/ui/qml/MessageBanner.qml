@@ -14,7 +14,8 @@ Rectangle {
         if (!pos)
             return []
         const me = pos.userName
-        return pos.messages.filter(m => !seen[m.id]
+        // A posted message comes back for each person who logs in, until it expires.
+        return pos.messages.filter(m => !seen[m.posted ? m.id + "|" + me : m.id]
             && (m.to === "all" || (m.to === "kitchen" && kitchenScreen) || (m.to === "floor" && !kitchenScreen)
                 || (me !== "" && m.to === me)))
     }
@@ -34,7 +35,9 @@ Rectangle {
         Column {
             Layout.fillWidth: true
             Text {
-                text: banner.shown ? qsTr("From %1 · %2").arg(banner.shown.from).arg(banner.shown.time) : ""
+                text: !banner.shown ? ""
+                    : banner.shown.posted ? qsTr("From %1 · until %2").arg(banner.shown.from).arg(banner.shown.until)
+                    : qsTr("From %1 · %2").arg(banner.shown.from).arg(banner.shown.time)
                 color: "#d8e4ff"
                 font.pixelSize: 14
             }
@@ -63,7 +66,7 @@ Rectangle {
             fontScale: 0.4
             onClicked: {
                 const s = Object.assign({}, banner.seen)
-                s[banner.shown.id] = true
+                s[banner.shown.posted ? banner.shown.id + "|" + banner.pos.userName : banner.shown.id] = true
                 banner.seen = s
             }
         }

@@ -308,6 +308,12 @@ public:
     {
         invoke(QStringLiteral("sendMessage"), {to, text});
     }
+    // Posted until `until` (ms since 1970): shown to everyone it's for until then.
+    Q_INVOKABLE void postMessage(const QString &to, const QString &text, double until)
+    {
+        invoke(QStringLiteral("sendMessage"), {to, text, qint64(until)});
+    }
+    Q_INVOKABLE void removeMessage(const QString &id) { invoke(QStringLiteral("removeMessage"), {id}); }
     Q_INVOKABLE void cancelApproval() { invoke(QStringLiteral("cancelApproval")); }
     Q_INVOKABLE void setTraining(bool on) { invoke(QStringLiteral("setTraining"), {on}); }
     Q_INVOKABLE void redeemReward(int index) { invoke(QStringLiteral("redeemReward"), {index}); }

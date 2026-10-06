@@ -9,6 +9,15 @@ Item {
     property ZoneItem zone
     readonly property PosService pos: zone ? zone.pos : null
     property string to: "all"
+    // How long it shows: 0 = once (the last hour); else until that day's end.
+    property int keepDays: 0
+    function until() {
+        if (keepDays === 0) return 0
+        const d = new Date()
+        d.setDate(d.getDate() + keepDays - 1)
+        d.setHours(23, 59, 0, 0)
+        return d.getTime()
+    }
     readonly property var presets: [qsTr("Need a runner"), qsTr("Order up"), qsTr("86: "), qsTr("Manager please"),
                                     qsTr("Help at the host stand"), qsTr("Table needs bussing"), qsTr("Allergy: please check")]
 
@@ -72,6 +81,25 @@ Item {
                     placeholderText: qsTr("Type a message…")
                     onAccepted: send.clicked()
                 }
+                Label { text: qsTr("Show it"); font.bold: true; font.pixelSize: 17; Layout.topMargin: 8 }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: [{ days: 0, name: qsTr("Once") }, { days: 1, name: qsTr("Until tonight") },
+                                { days: 2, name: qsTr("Until tomorrow night") }, { days: 7, name: qsTr("For a week") }]
+                        delegate: Button {
+                            required property var modelData
+                            objectName: "keep-" + modelData.days
+                            text: modelData.name
+                            checkable: true
+                            checked: w.keepDays === modelData.days
+                            implicitHeight: 48
+                            font.pixelSize: 16
+                            onClicked: w.keepDays = modelData.days
+                        }
+                    }
+                }
                 Button {
                     id: send
                     Layout.fillWidth: true
@@ -80,7 +108,14 @@ Item {
                     font.pixelSize: 19
                     text: qsTr("Send")
                     enabled: message.text.trim().length > 0
-                    onClicked: { w.pos.sendMessage(w.to, message.text); message.text = "" }
+                    onClicked: {
+                        if (w.keepDays > 0)
+                            w.pos.postMessage(w.to, message.text, w.until())
+                        else
+                            w.pos.sendMessage(w.to, message.text)
+                        message.text = ""
+                        w.keepDays = 0
+                    }
                 }
             }
 
@@ -89,7 +124,7 @@ Item {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Label { text: qsTr("The last hour"); font.bold: true; font.pixelSize: 17 }
+                Label { text: qsTr("Posted, and the last hour"); font.bold: true; font.pixelSize: 17 }
                 ListView {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -101,11 +136,22 @@ Item {
                         required property var modelData
                         width: ListView.view.width - listBar.room
                         Label {
-                            text: modelData.time + "  ·  " + modelData.from + " → "
-                                  + ({ all: qsTr("everyone"), kitchen: qsTr("kitchen"), floor: qsTr("floor") })[modelData.to] ?? modelData.to
+                            text: (modelData.posted ? qsTr("until %1").arg(modelData.until) : modelData.time)
+                                  + "  ·  " + modelData.from + " → "
+                                  + (({ all: qsTr("everyone"), kitchen: qsTr("kitchen"), floor: qsTr("floor") })[modelData.to] ?? modelData.to)
                             opacity: 0.7
                         }
-                        Label { text: modelData.text; font.pixelSize: 17; wrapMode: Text.WordWrap; width: parent.width }
+                        RowLayout {
+                            width: parent.width
+                            Label { text: modelData.text; font.pixelSize: 17; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                            Button {
+                                visible: modelData.posted === true
+                                objectName: "takeDown-" + modelData.id
+                                text: qsTr("Take Down")
+                                implicitHeight: 40
+                                onClicked: w.pos.removeMessage(modelData.id)
+                            }
+                        }
                     }
                 }
             }

@@ -225,6 +225,8 @@ Store Settings → *Dim the screen after (minutes)* (10 to start; 0 = never). A 
 - **Table timers:** an open table shows how long it has been seated ("Sam · $42.10 · 38m"), with a red frame after *Mark tables seated longer than* (90 minutes to start). **Reports → Turns:** dine-in checks from seated to paid, by party size and by table, with the average check and per guest (also over a range of days).
 - **Messages:** Log Out → **Send a Message…**, or **Message…** on the kitchen screens: to everyone, the kitchen screens, the floor, or one person on the clock, picked from ready-made ones ("Need a runner", "86: …") or typed. It shows across the top of the screens it's for until someone there touches OK; the last hour's are listed on the message page.
 
+
+**Messages that stay up.** In the message composer, *Show it* picks *Once* (the usual: the last hour, OK'd per screen), *Until tonight*, *Until tomorrow night* or *For a week*. A posted message is kept (it survives a restart and reaches every screen), shows to each person who logs in until it expires, and is listed with *Take Down* for whoever posted it or a manager.
 ## Customer display
 
 A second monitor facing the guest:

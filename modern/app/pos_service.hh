@@ -480,7 +480,9 @@ public:
     // --- messages between screens -------------------------------------------------
     // to: "all", "kitchen" (kitchen, bar and expo screens), "floor" (every
     // other screen) or a person's name. Needs no login (kitchen screens).
-    bool sendMessage(const QString &to, const QString &text);
+    // until > 0: posted, shown to everyone it's for until then (epoch ms).
+    bool sendMessage(const QString &to, const QString &text, qint64 until = 0);
+    bool removeMessage(const QString &id);
     QVariantList messages() const override;
     QVariantMap networkInfo() const override;
     QString language() const override;

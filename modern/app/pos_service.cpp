@@ -249,12 +249,26 @@ bool PosService::cancelApproval()
     return true;
 }
 
-bool PosService::sendMessage(const QString &to, const QString &text)
+bool PosService::sendMessage(const QString &to, const QString &text, qint64 until)
 {
     const QString t = text.trimmed();
     if (t.isEmpty())
         return fail(tr("Type the message."));
     const QString target = to.trimmed().isEmpty() ? u"all"_s : to.trimmed();
+    if (until > 0) {   // posted: kept, and shown until then
+        if (until <= now())
+            return fail(tr("Pick a time that hasn't passed."));
+        auto &list = s_->settings.notices;
+        std::erase_if(list, [&](const PosSettings::Notice &n) { return n.until <= now(); });
+        std::int64_t id = 1;
+        for (const PosSettings::Notice &n : list)
+            id = std::max(id, n.id + 1);
+        list.push_back({id, now(), until, ss(user() ? qs(user()->name) : terminal_), ss(target), ss(t.left(200))});
+        s_->saveSettings();
+        emit notice(tr("Posted until %1").arg(dueText(until)));
+        emit s_->dayChanged();
+        return true;
+    }
     PosShared::Message m{++s_->lastMessageId, now(), ss(user() ? qs(user()->name) : terminal_), ss(target), ss(t.left(200))};
     s_->messages.push_back(m);
     if (s_->messages.size() > 50)
@@ -280,10 +294,33 @@ QVariantMap PosService::networkInfo() const
     return {{u"role"_s, u"single"_s}};
 }
 
+bool PosService::removeMessage(const QString &id)
+{
+    // A posted message: whoever posted it, or a manager, takes it down.
+    auto &list = s_->settings.notices;
+    const auto it = std::ranges::find_if(list, [&](const PosSettings::Notice &n) { return u"n%1"_s.arg(n.id) == id; });
+    if (it == list.end())
+        return fail(tr("That message is gone."));
+    if (!(user() && (user()->name == it->from || can(QString::fromLatin1(perm::Manager)))))
+        return fail(tr("Only whoever posted it, or a manager, can take it down."));
+    list.erase(it);
+    s_->saveSettings();
+    emit notice(tr("Message taken down"));
+    emit s_->dayChanged();
+    return true;
+}
+
 QVariantList PosService::messages() const
 {
-    // The last hour's, newest first.
+    // Posted messages until they expire, then the last hour's, newest first.
     QVariantList out;
+    for (auto it = s_->settings.notices.rbegin(); it != s_->settings.notices.rend(); ++it) {
+        if (it->until <= now())
+            continue;
+        out.append(QVariantMap{{u"id"_s, u"n%1"_s.arg(it->id)}, {u"from"_s, qs(it->from)}, {u"to"_s, qs(it->to)},
+                               {u"text"_s, qs(it->text)}, {u"time"_s, timeOfDay(it->at)}, {u"posted"_s, true},
+                               {u"until"_s, dueText(it->until)}});
+    }
     for (auto it = s_->messages.rbegin(); it != s_->messages.rend() && out.size() < 20; ++it) {
         if (now() - it->at > 60 * 60'000)
             break;
@@ -1786,7 +1823,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"askForTip"_s, [](PosService &p, const QVariantList &) { return QVariant(p.askForTip()); }},
         {u"approve"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.approve(a.value(0).toString())); }},
         {u"sendMessage"_s, [](PosService &p, const QVariantList &a) {
-             return QVariant(p.sendMessage(a.value(0).toString(), a.value(1).toString())); }},
+             return QVariant(p.sendMessage(a.value(0).toString(), a.value(1).toString(), a.value(2).toLongLong())); }},
+        {u"removeMessage"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.removeMessage(a.value(0).toString())); }},
         {u"cancelApproval"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cancelApproval()); }},
         {u"setTraining"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setTraining(a.value(0).toBool())); }},
         {u"toggleTraining"_s, [](PosService &p, const QVariantList &) { return QVariant(p.setTraining(!p.training())); }},

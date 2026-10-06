@@ -237,6 +237,16 @@ struct PosSettings {
     int kitchenLateMinutes = 15;
     // Orders for later go to the kitchen this long before they're due.
     int laterLeadMinutes = 20;
+    // Messages posted until a time (the original's Expire Messages): every
+    // screen shows them, to each person, until then.
+    struct Notice {
+        std::int64_t id = 0;
+        std::int64_t at = 0;
+        std::int64_t until = 0;
+        std::string from, to, text;
+        bool operator==(const Notice &) const = default;
+    };
+    std::vector<Notice> notices;
     // Kitchen stations, each with its own screen (Manager -> Menu: where an item is made).
     std::vector<Station> stations;
     // Tip choices offered to the guest (percent of the check before gratuity).

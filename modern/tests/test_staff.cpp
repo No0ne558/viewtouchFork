@@ -543,3 +543,35 @@ TEST_CASE("Labor cost: each shift at its pay, overtime at time and a half, again
     CHECK(rowIn(r, "Labor cost today", "Net sales")[4] == "$250.00");
     CHECK(rowIn(r, "Labor cost today", "Labor % of sales")[4] == "51.2%");
 }
+
+TEST_CASE("Posted messages: shown until they expire, kept, taken down by their author or a manager",
+          "[staff][messages][posted]")
+{
+    app::PosShared shared(test::seedPosData(), nullptr);
+    qint64 clock = todayAt(12);
+    shared.setClock([&] { return clock; });
+    PosService front(&shared, u"Front"_s);
+    PosService office(&shared, u"Office"_s);
+    REQUIRE(front.loginWithPin(u"1111"_s));                              // Sam
+    CHECK_FALSE(front.sendMessage(u"all"_s, u"Old news"_s, todayAt(11)));  // already past
+    REQUIRE(front.sendMessage(u"all"_s, u"86 salmon tonight"_s, todayAt(23, 59)));
+    QVariantList shown = office.messages();
+    REQUIRE(shown.size() == 1);
+    CHECK(shown[0].toMap()[u"posted"_s].toBool());
+    CHECK(shown[0].toMap()[u"id"_s].toString().startsWith(u'n'));
+
+    clock = todayAt(18);                                                 // still up hours later
+    CHECK(office.messages().size() == 1);
+    CHECK(app::settingsFromJson(app::toJson(shared.settings)).notices == shared.settings.notices);
+
+    REQUIRE(office.loginWithPin(u"3333"_s));                             // Riley, a busser: not theirs
+    CHECK_FALSE(office.removeMessage(shown[0].toMap()[u"id"_s].toString()));
+    office.logout();
+    REQUIRE(office.loginWithPin(u"1234"_s));                             // a manager can
+    REQUIRE(office.removeMessage(shown[0].toMap()[u"id"_s].toString()));
+    CHECK(office.messages().isEmpty());
+
+    REQUIRE(front.sendMessage(u"floor"_s, u"Patio closed"_s, todayAt(20)));
+    clock = todayAt(20, 1);                                              // gone once it expires
+    CHECK(front.messages().isEmpty());
+}

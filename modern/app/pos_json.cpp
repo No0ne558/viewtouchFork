@@ -698,6 +698,13 @@ QJsonObject toJson(const PosSettings &s)
              return QJsonObject{{u"enabled"_s, s.loyaltyEnabled}, {u"pointsPerDollar"_s, s.pointsPerDollar},
                                 {u"rewards"_s, rewards}};
          }()},
+        {u"notices"_s, [&] {
+             QJsonArray a;
+             for (const PosSettings::Notice &n : s.notices)
+                 a.append(QJsonObject{{u"id"_s, qint64(n.id)}, {u"at"_s, qint64(n.at)}, {u"until"_s, qint64(n.until)},
+                                      {u"from"_s, qs(n.from)}, {u"to"_s, qs(n.to)}, {u"text"_s, qs(n.text)}});
+             return a;
+         }()},
         {u"stations"_s, [&] {
              QJsonArray a;
              for (const Station &st : s.stations)
@@ -820,6 +827,11 @@ PosSettings settingsFromJson(const QJsonObject &o)
         const QJsonObject r = v.toObject();
         if (r.value(u"points").toInt() > 0)
             s.rewards.push_back({r.value(u"points").toInt(), Money::fromCents(centsFromDecimal(r.value(u"value").toDouble()))});
+    }
+    for (const QJsonValue &v : o.value(u"notices").toArray()) {
+        const QJsonObject x = v.toObject();
+        s.notices.push_back({i64(x.value(u"id")), i64(x.value(u"at")), i64(x.value(u"until")),
+                             ss(x.value(u"from").toString()), ss(x.value(u"to").toString()), ss(x.value(u"text").toString())});
     }
     for (const QJsonValue &v : o.value(u"stations").toArray()) {
         const QJsonObject x = v.toObject();

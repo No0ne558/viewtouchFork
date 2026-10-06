@@ -1712,6 +1712,20 @@ TEST_CASE("UI: idle screens log out; messages show where they're meant to", "[fl
     QTest::qWait(50);
     CHECK_FALSE(ok->isVisible());
 
+    // Posted until tonight: it comes back for the next person who logs in.
+    REQUIRE(kitchen.sendMessage(u"all"_s, u"Wine dinner Friday: sell tickets"_s,
+                                QDateTime(QDate::currentDate(), QTime(23, 59)).toMSecsSinceEpoch()));
+    QTest::qWait(50);
+    CHECK(ok->isVisible());
+    s.tapItem(ok);
+    CHECK_FALSE(ok->isVisible());
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"4444"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    QTest::qWait(50);
+    CHECK(ok->isVisible());
+    s.tapItem(ok);
+
     // Idle: logged out by itself (a short time for the test).
     s.c.setIdleTimeoutForTesting(150);
     QTest::qWait(400);
