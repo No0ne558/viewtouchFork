@@ -1,4 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
+#include <QImage>
+#include <QBuffer>
+#include "print/raster.hh"
 
 #include "pos_fixture.hh"
 #include "print/document.hh"
@@ -222,4 +225,83 @@ TEST_CASE("A dead printer never blocks the caller and is reported", "[print]")
     CHECK(failed.size() == 20);
     CHECK(failed.first()[0].toString() == u"Dead"_s);
     CHECK(readFile(dir.filePath(u"out.txt"_s)) == u"receipt\n"_s);
+}
+
+TEST_CASE("Logo: a picture becomes black-and-white dots, fitted to the paper", "[print][logo]")
+{
+    // Left half black, right half white, the bottom row transparent.
+    QImage img(100, 50, QImage::Format_ARGB32);
+    img.fill(Qt::white);
+    for (int y = 0; y < 50; ++y)
+        for (int x = 0; x < 50; ++x)
+            img.setPixel(x, y, qRgb(0, 0, 0));
+    for (int x = 0; x < 100; ++x)
+        img.setPixel(x, 49, qRgba(0, 0, 0, 0));
+    QByteArray png;
+    QBuffer buffer(&png);
+    buffer.open(QIODevice::WriteOnly);
+    img.save(&buffer, "PNG");
+
+    const auto r = print::rasterize(png, 400, 200);
+    REQUIRE(r);
+    CHECK(r->width == 200);                       // at most twice its size
+    CHECK(r->height == 100);
+    CHECK(r->bits.size() == std::size_t(r->rowBytes() * r->height));
+    CHECK(r->dot(10, 10));                        // black stays black
+    CHECK_FALSE(r->dot(190, 10));                 // white stays paper
+    CHECK_FALSE(r->dot(150, 99));                 // transparent is paper
+    const auto small = print::rasterize(png, 60, 200);
+    REQUIRE(small);
+    CHECK(small->width == 60);                    // fitted
+    CHECK(small->height == 30);
+    CHECK_FALSE(print::rasterize("not a picture", 100, 100));
+}
+
+TEST_CASE("Logo: printed at the top of receipts on ESC/POS printers, as GS v 0", "[print][logo]")
+{
+    QImage img(64, 32, QImage::Format_RGB32);
+    img.fill(Qt::black);
+    QByteArray png;
+    QBuffer buffer(&png);
+    buffer.open(QIODevice::WriteOnly);
+    img.save(&buffer, "PNG");
+
+    // Bytes on paper: GS v 0, then width in bytes and height in rows (little-endian).
+    print::Document d;
+    d.image(print::rasterize(png, 64, 32));
+    d.center("Cafe");
+    d.cut = false;
+    const std::string bytes = print::renderEscPos(d, 42);
+    const std::string head = std::string("\x1dv0\0", 4) + char(8) + char(0) + char(32) + char(0);
+    REQUIRE(bytes.find(head) != std::string::npos);
+    CHECK(bytes.find(std::string(8 * 32, '\xff')) != std::string::npos);   // all black
+    CHECK(print::renderText(d, 42).find("Cafe") != std::string::npos);      // plain text: no picture
+
+    QTemporaryDir dir;
+    auto seed = test::seedPosData();
+    seed.settings.displayLogo = "store:logo.png";
+    seed.settings.receiptLogo = true;
+    for (core::PrinterConfig &p : seed.settings.printers)
+        if (p.id == "receipt")
+            p.format = "escpos";
+    PrintSpooler spooler;
+    TicketPrinter printer(spooler, dir.path());
+    printer.setImageSource([&](const QString &ref) { return ref == u"store:logo.png"_s ? png : QByteArray(); });
+    const core::Check c = burgerCheck(seed.settings, seed.menu);
+    printer.printReceipt(seed.settings, c, "receipt");
+    REQUIRE(spooler.waitIdle(5000));
+    QFile out(dir.filePath(u"receipt.txt"_s));
+    REQUIRE(out.open(QIODevice::ReadOnly));
+    const QByteArray printed = out.readAll();
+    CHECK(printed.indexOf(QByteArray("\x1dv0\0", 4)) >= 0);
+    CHECK(printed.indexOf(QByteArray("\x1dv0\0", 4)) < printed.indexOf("TOTAL"));   // at the top
+
+    // Off: no picture.
+    seed.settings.receiptLogo = false;
+    out.close();
+    QFile::remove(dir.filePath(u"receipt.txt"_s));
+    printer.printReceipt(seed.settings, c, "receipt");
+    REQUIRE(spooler.waitIdle(5000));
+    REQUIRE(out.open(QIODevice::ReadOnly));
+    CHECK(out.readAll().indexOf(QByteArray("\x1dv0", 3)) < 0);
 }

@@ -446,6 +446,15 @@ Manager widgets:
 | endOfDay | End of day |
 | splitCheck | Split a check |
 
+## Pictures and the store logo
+
+The store keeps its own pictures (a logo, photos for buttons, backgrounds) in its database, so backups, the standby server and every paired screen have them. Anywhere a picture can go (a button, an image zone, a page or theme background, a menu item's kiosk photo, the store logo) there's a **Picture** field: pick one of the store's pictures or *The store logo*, see a preview, or touch **Add Picture…** to bring one in from the computer in front of you (PNG, JPEG, WebP, GIF, BMP or SVG, up to 8 MB; "Our Logo.PNG" becomes `store:our-logo.png`).
+
+- **Store Settings → Store logo** shows on the login page (its *logo* zone stays hidden until a logo is set; the title shows `{store.name}`), on the screen saver, the customer display and the kiosk.
+- **Print the logo on receipts** puts it at the top of every receipt on ESC/POS printers: scaled to three quarters of the paper (and about 2.5 cm tall at most), transparent parts white, gray dithered to dots, sent as `GS v 0` raster bands. Plain-text printers skip it.
+- **Image buttons:** *+ Image* in the editor, then its Picture and *When touched*. Any regular button can have a picture too.
+- **Backgrounds:** Page (or Theme) → Background → *Picture*, and *Picture fits*: fill the page, the whole picture, stretched, tiled or centered.
+
 ## Editing pages
 
 **Tables** are zones like buttons. On the Tables page press F1 (or Ctrl+E), then *+ Panel ▾ → table* to add one, or select a table and *Duplicate* (T7 becomes T8, Bar 3 becomes Bar 4). Drag and resize them, pick a shape (circle, octagon…) and colors, and set *Table name* and *Seats* in the inspector. Every table needs its own name: the name is what checks and kitchen tickets show. Floor plans saved before tables became zones (a single *tableMap* panel) turn into separate table zones when loaded, each in the same place.

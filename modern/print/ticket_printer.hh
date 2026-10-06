@@ -4,7 +4,11 @@
 #include "print/spooler.hh"
 #include "print/tickets.hh"
 
+#include <QByteArray>
 #include <QString>
+
+#include <map>
+#include <memory>
 
 namespace vt::print {
 
@@ -29,6 +33,10 @@ public:
 
     // For tests: the clock used on tickets.
     void setClock(std::function<std::int64_t()> now) { now_ = std::move(now); }
+    // The store's pictures (by ref, "store:logo.png" or a path), for the logo on receipts.
+    void setImageSource(std::function<QByteArray(const QString &ref)> source) { imageSource_ = std::move(source); }
+    // The logo as printed on a printer `widthChars` wide (null: none set, or not a picture).
+    std::shared_ptr<const Raster> logoFor(const core::PosSettings &settings, int widthChars);
 
 private:
     void send(const core::PosSettings &settings, const core::PrinterConfig &printer, const Document &doc,
@@ -38,6 +46,9 @@ private:
     PrintSpooler &spooler_;
     QString outputDir_;
     std::function<std::int64_t()> now_;
+    std::function<QByteArray(const QString &)> imageSource_;
+    // Dithered once per logo and paper width.
+    std::map<std::pair<QByteArray, int>, std::shared_ptr<const Raster>> logos_;
 };
 
 } // namespace vt::print

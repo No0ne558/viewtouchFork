@@ -44,6 +44,8 @@ Document receipt(const Check &check, const TicketContext &ctx)
 {
     const Totals t = check.totals(ctx.settings.tax);
     Document d;
+    if (ctx.logo)
+        d.image(ctx.logo);
     d.center(ctx.settings.storeName, true, true);
     for (const std::string &l : splitLines(ctx.settings.receiptHeader))
         d.center(l);

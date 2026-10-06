@@ -28,6 +28,17 @@ Document &Document::blank()
     return *this;
 }
 
+Document &Document::image(std::shared_ptr<const Raster> raster)
+{
+    if (raster && raster->width > 0 && raster->height > 0) {
+        Line l;
+        l.kind = Kind::Image;
+        l.raster = std::move(raster);
+        lines.push_back(std::move(l));
+    }
+    return *this;
+}
+
 namespace {
 
 bool isContinuation(unsigned char c) { return (c & 0xC0) == 0x80; }
@@ -76,6 +87,8 @@ std::vector<std::string> layoutLine(const Document::Line &l, std::size_t width)
 {
     std::vector<std::string> rows;
     switch (l.kind) {
+    case Document::Kind::Image:   // not text
+        break;
     case Document::Kind::Blank:
         rows.emplace_back();
         break;
@@ -156,6 +169,8 @@ std::string renderText(const Document &doc, int width)
 {
     std::string out;
     for (const Document::Line &l : doc.lines) {
+        if (l.kind == Document::Kind::Image)   // pictures are for thermal printers
+            continue;
         // Double-width text takes two columns per character.
         const std::size_t w = std::size_t(std::max(8, l.big ? width / 2 : width));
         for (const std::string &row : layoutLine(l, w))
@@ -173,6 +188,26 @@ std::string renderEscPos(const Document &doc, int width)
     const std::string ESC = "\x1b", GS = "\x1d";
     std::string out = ESC + "@";                     // initialize
     for (const Document::Line &l : doc.lines) {
+        if (l.kind == Document::Kind::Image) {
+            // GS v 0: a raster picture, centered; in bands so small printer
+            // buffers keep up.
+            const Raster &r = *l.raster;
+            const int bytes = r.rowBytes();
+            out += ESC + "a" + std::string(1, '\x01');
+            constexpr int kBand = 128;
+            for (int y = 0; y < r.height; y += kBand) {
+                const int rows = std::min(kBand, r.height - y);
+                out += GS + "v0" + std::string(1, '\0');
+                out += char(bytes & 0xff);
+                out += char((bytes >> 8) & 0xff);
+                out += char(rows & 0xff);
+                out += char((rows >> 8) & 0xff);
+                out.append(reinterpret_cast<const char *>(r.bits.data()) + std::size_t(y) * std::size_t(bytes),
+                           std::size_t(rows) * std::size_t(bytes));
+            }
+            out += ESC + "a" + std::string(1, '\0');
+            continue;
+        }
         const std::size_t w = std::size_t(std::max(8, l.big ? width / 2 : width));
         out += GS + "!" + (l.big ? std::string("\x11") : std::string(1, '\0'));   // character size
         out += ESC + "E" + (l.bold ? std::string("\x01") : std::string(1, '\0')); // emphasis

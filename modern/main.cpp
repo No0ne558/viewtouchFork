@@ -834,6 +834,15 @@ int runStore(const Args &cli, const Options &o)
     // <app data>/printouts so tickets are visible without hardware.
     vt::print::PrintSpooler spooler;
     vt::print::TicketPrinter ticketPrinter(spooler, QDir(dataDirOf(cli, o)).filePath(u"printouts"_s));
+    // The logo on receipts: one of the store's pictures, or a file here.
+    ticketPrinter.setImageSource([shared](const QString &ref) -> QByteArray {
+        if (ref.startsWith(u"store:")) {
+            const auto it = shared->images.find(ref.mid(6).toStdString());
+            return it == shared->images.end() ? QByteArray() : it->second;
+        }
+        QFile f(ref.startsWith(u"file:") ? QUrl(ref).toLocalFile() : ref);
+        return f.size() <= 8 * 1024 * 1024 && f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+    });
     pos.setPrinter(&ticketPrinter);
     // How each printer did last, for Manager -> Network.
     auto printerStatus = std::make_shared<QHash<QString, QVariantMap>>();

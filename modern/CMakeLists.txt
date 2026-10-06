@@ -73,8 +73,9 @@ if(Qt6_FOUND)
         print/tickets.hh print/tickets.cpp
         print/spooler.hh print/spooler.cpp
         print/ticket_printer.hh print/ticket_printer.cpp
+        print/raster.hh print/raster.cpp
     )
-    target_link_libraries(vtm_print PUBLIC vtm_pos Qt6::Network)
+    target_link_libraries(vtm_print PUBLIC vtm_pos Qt6::Network Qt6::Gui)
 
     # SQLite persistence: layout, POS data, and the background writer
     add_library(vtm_storage STATIC

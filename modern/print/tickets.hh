@@ -16,6 +16,7 @@ struct TicketContext {
     std::function<std::string(std::int64_t)> dateTime;   // epoch ms -> "Sep 29, 2026 10:31 AM"
     std::function<std::string(std::int64_t)> time;       // epoch ms -> "10:31 AM"
     std::int64_t now = 0;
+    std::shared_ptr<const Raster> logo;   // receipts: the store logo at the top (null: none)
 
     std::string money(Money m) const;
 };

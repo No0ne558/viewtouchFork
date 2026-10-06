@@ -1,9 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "layoutcontroller.hh"
+#include "print/raster.hh"
 #include "editorcontroller.hh"
 #include <QColor>
 #include <QImage>
+#include <QPainter>
 #include <QTemporaryDir>
 #include "app/i18n.hh"
 #include "language.hh"
@@ -735,7 +737,41 @@ TEST_CASE("UI: the store's pictures: a logo on the login page and screen saver, 
     };
     REQUIRE(s.pos.loginWithPin(u"1234"_s));
     // Add Picture… on this computer: the store keeps it, under a plain name.
-    const QString ref = s.pos.addImageFile(QUrl::fromLocalFile(picture(u"Cafe Logo.png"_s, QColor(u"#c0392b"_s), 300, 150)).toString());
+    // A logo: a red badge with the café's name, on a transparent background.
+    const QString logoFile = dir.filePath(u"Cafe Logo.png"_s);
+    {
+        QImage img(360, 360, QImage::Format_ARGB32);
+        img.fill(Qt::transparent);
+        QPainter p(&img);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setBrush(QColor(u"#c0392b"_s));
+        p.setPen(QPen(Qt::white, 10));
+        p.drawEllipse(QRectF(10, 10, 340, 340));
+        p.setPen(Qt::white);
+        QFont f(u"DejaVu Sans"_s, 34, QFont::Bold);
+        p.setFont(f);
+        p.drawText(QRectF(10, 90, 340, 90), Qt::AlignCenter, u"ViewTouch"_s);
+        f.setPointSize(56);
+        p.setFont(f);
+        p.drawText(QRectF(10, 180, 340, 110), Qt::AlignCenter, u"Café"_s);
+        p.end();
+        REQUIRE(img.save(logoFile));
+    }
+    // What the receipt printer makes of it (Print the logo on receipts).
+    if (const QByteArray dir = qgetenv("VTM_SHOTS"); !dir.isEmpty()) {
+        QFile lf(logoFile);
+        REQUIRE(lf.open(QIODevice::ReadOnly));
+        const auto dots = print::rasterize(lf.readAll(), 576 * 3 / 4, 200);
+        REQUIRE(dots);
+        QImage paper(dots->width + 80, dots->height + 40, QImage::Format_RGB32);
+        paper.fill(Qt::white);
+        for (int y = 0; y < dots->height; ++y)
+            for (int x = 0; x < dots->width; ++x)
+                if (dots->dot(x, y))
+                    paper.setPixel(x + 40, y + 20, qRgb(0, 0, 0));
+        paper.save(QString::fromLocal8Bit(dir) + u"/41-receipt-logo-dots.png"_s);
+    }
+    const QString ref = s.pos.addImageFile(QUrl::fromLocalFile(logoFile).toString());
     CHECK(ref == u"store:cafe-logo.png"_s);
     QTest::qWait(30);
     REQUIRE(s.pos.storeImages().size() == 1);

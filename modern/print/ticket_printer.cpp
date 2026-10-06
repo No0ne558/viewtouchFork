@@ -1,7 +1,9 @@
 #include "print/ticket_printer.hh"
 
 #include "app/i18n.hh"
+#include "print/raster.hh"
 
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
 #include <QLocale>
@@ -80,11 +82,33 @@ const PrinterConfig *receiptPrinter(const PosSettings &settings, const std::stri
 }
 } // namespace
 
+std::shared_ptr<const Raster> TicketPrinter::logoFor(const PosSettings &settings, int widthChars)
+{
+    if (!imageSource_ || settings.displayLogo.empty())
+        return nullptr;
+    const QByteArray picture = imageSource_(QString::fromStdString(settings.displayLogo));
+    if (picture.isEmpty())
+        return nullptr;
+    const auto key = std::pair{QCryptographicHash::hash(picture, QCryptographicHash::Sha1), widthChars};
+    if (const auto it = logos_.find(key); it != logos_.end())
+        return it->second;
+    // 12 dots a character (80 mm paper: 48 chars, 576 dots); the logo takes
+    // three quarters of it at most, and about 2.5 cm of paper.
+    const int paper = std::clamp(widthChars * 12, 192, 576);
+    auto raster = rasterize(picture, paper * 3 / 4, 200);
+    logos_[key] = raster;
+    return raster;
+}
+
 void TicketPrinter::printReceipt(const PosSettings &settings, const Check &check, const std::string &printerId)
 {
     const i18n::Scope language(QString::fromStdString(settings.language));   // the guest's: the store's
-    if (const PrinterConfig *p = receiptPrinter(settings, printerId))
-        send(settings, *p, receipt(check, context(settings)), u"Receipt #%1"_s.arg(check.id));
+    if (const PrinterConfig *p = receiptPrinter(settings, printerId)) {
+        TicketContext ctx = context(settings);
+        if (settings.receiptLogo && p->effectiveFormat() == "escpos")
+            ctx.logo = logoFor(settings, p->width);
+        send(settings, *p, receipt(check, ctx), u"Receipt #%1"_s.arg(check.id));
+    }
 }
 
 void TicketPrinter::printReport(const PosSettings &settings, const Report &report, const std::string &printerId)
