@@ -446,6 +446,10 @@ Manager widgets:
 | endOfDay | End of day |
 | splitCheck | Split a check |
 
+## The setup guide
+
+The first time a manager logs in to a new store, the **setup guide** opens (Manager → **Setup Guide…** brings it back): the store's name and receipt lines, the logo (and printing it on receipts), a look (two made from the logo), food and alcohol tax, first menu items (they show on the *Everything* page at once), and the team: add yourself as a manager with your own PIN, then **Turn Off the Sample Staff**, whose PINs are public. The sample manager running the guide is turned off at *Finish* and logged out. *Finish Later* closes it until a manager logs in again. The demo's staff are marked `sample` in `employees.json`; `settings.setupDone` records that it's finished.
+
 ## Ready-made looks
 
 Edit mode → **Theme** tab → **Looks**: ViewTouch Dark, Daylight, High Contrast, Warm Café, Ocean, Forest and Berry, plus two made from the store logo's own colors (dark and light) once a logo is set. One touch recolors the theme (background, buttons, panels, text, the pressed/chosen color, the panels' own buttons); fonts, sizes and each page's own colors stay. It's one Undo step; Save keeps it. Text on any button turns dark or white by itself when its color wouldn't read on the button's fill (WCAG AA contrast).

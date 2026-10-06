@@ -101,6 +101,7 @@ inline CashMode cashModeFromString(const std::string &s)
 // Store-wide POS settings, edited on the manager's admin screens.
 struct PosSettings {
     std::string storeName = "ViewTouch";
+    bool setupDone = false;   // the setup guide was finished (it opens for managers until then)
     std::string currencySymbol = "$";
     TaxRates tax;
     std::vector<Tender> tenders;

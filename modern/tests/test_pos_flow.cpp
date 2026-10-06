@@ -723,6 +723,84 @@ TEST_CASE("UI: a guest orders on the self-order kiosk", "[flow][ui][kiosk]")
     CHECK_FALSE(kiosk->isVisible());
 }
 
+TEST_CASE("UI: the setup guide opens for the first manager and walks through the store", "[flow][ui][setup]")
+{
+    Screen s;
+    s.pos.shared()->settings.setupDone = false;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));                      // a server: no guide
+    QTest::qWait(60);
+    CHECK_FALSE(s.c.setupOpen());
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    QTest::qWait(120);
+    REQUIRE(s.c.setupOpen());
+    const auto find = [&](const char *name) {
+        return Screen::findBy(s.window->contentItem(), "objectName", QString::fromLatin1(name));
+    };
+    QQuickItem *guide = find("setupGuide");
+    REQUIRE(guide);
+    s.shot("46-setup-welcome");
+    const auto next = [&] {
+        s.tapItem(find("setupNext"));
+        QTest::qWait(80);
+    };
+    next();                                                      // your store
+    guide->setProperty("storeName", u"Taco Loco"_s);
+    guide->setProperty("receiptLines", u"123 Main St · 555-0100"_s);
+    s.shot("46-setup-store");
+    next();                                                      // logo
+    CHECK(s.pos.shared()->settings.storeName == "Taco Loco");
+    QTemporaryDir dir;
+    QImage logo(240, 240, QImage::Format_ARGB32);
+    logo.fill(Qt::transparent);
+    {
+        QPainter p(&logo);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setBrush(QColor(u"#e4572e"_s));
+        p.setPen(Qt::NoPen);
+        p.drawEllipse(QRectF(10, 10, 220, 220));
+        p.setPen(Qt::white);
+        p.setFont(QFont(u"DejaVu Sans"_s, 40, QFont::Bold));
+        p.drawText(QRectF(10, 10, 220, 220), Qt::AlignCenter, u"TL"_s);
+    }
+    REQUIRE(logo.save(dir.filePath(u"taco.png"_s)));
+    guide->setProperty("logoRef", s.pos.addImageFile(dir.filePath(u"taco.png"_s)));
+    guide->setProperty("receiptLogo", true);
+    QTest::qWait(80);
+    s.shot("46-setup-logo");
+    next();                                                      // look
+    CHECK(s.pos.shared()->settings.displayLogo == "store:taco.png");
+    QTest::qWait(80);
+    QQuickItem *fromLogo = find("setupLook-logo-dark");
+    REQUIRE(fromLogo);
+    s.tapItem(fromLogo);
+    QTest::qWait(80);
+    CHECK(s.c.activeLayout().theme.name == u"From the logo (dark)"_s);
+    s.shot("46-setup-look");
+    next();                                                      // taxes
+    guide->setProperty("foodTax", u"8.25"_s);
+    next();                                                      // menu
+    CHECK(s.pos.shared()->settings.tax.foodPpm == 82500);
+    s.pos.setupAddItem(u"Fish Tacos"_s, 12.5, u"tacos"_s);
+    QTest::qWait(60);
+    s.shot("46-setup-menu");
+    next();                                                      // staff
+    s.pos.setupAddEmployee(u"Ana Ruiz"_s, u"manager"_s, u"8642"_s);
+    QTest::qWait(80);
+    REQUIRE(find("setupRetire"));
+    s.shot("46-setup-staff");
+    s.tapItem(find("setupRetire"));
+    QTest::qWait(80);
+    CHECK(s.pos.setupInfo()[u"samples"_s].toInt() == 0);
+    next();                                                      // done
+    s.shot("46-setup-done");
+    next();                                                      // Finish
+    CHECK_FALSE(s.c.setupOpen());
+    CHECK(s.pos.shared()->settings.setupDone);
+    CHECK_FALSE(s.pos.loggedIn());                               // Morgan (a sample) is off now
+    CHECK(s.pos.loginWithPin(u"8642"_s));                        // Ana, the owner
+}
+
 TEST_CASE("UI: ready-made looks recolor every screen; one comes from the logo", "[flow][ui][looks]")
 {
     Screen s;

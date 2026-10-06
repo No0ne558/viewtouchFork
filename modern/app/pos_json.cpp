@@ -369,7 +369,7 @@ QJsonObject toJson(const Employee &e)
 {
     return {
         {u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
-        {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active}, {u"training"_s, e.training},
+        {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active}, {u"training"_s, e.training}, {u"sample"_s, e.sample},
         {u"cashMode"_s, qs(e.cashMode)}, {u"checkout"_s, qs(e.checkout)}, {u"language"_s, qs(e.language)},
         {u"payRate"_s, e.payRate.cents() / 100.0}, {u"otherJobs"_s, [&] {
              QJsonArray jobs;
@@ -389,6 +389,7 @@ Employee employeeFromJson(const QJsonObject &o)
     e.role = ss(o.value(u"role").toString(u"server"_s));
     e.active = o.value(u"active").toBool(true);
     e.training = o.value(u"training").toBool(false);
+    e.sample = o.value(u"sample").toBool(false);
     e.cashMode = ss(o.value(u"cashMode").toString());
     e.checkout = ss(o.value(u"checkout").toString());
     e.language = ss(o.value(u"language").toString());
@@ -661,7 +662,7 @@ QJsonObject toJson(const PosSettings &s)
         mealPeriods.append(QJsonObject{{u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"start"_s, clockText(m.start)}});
     return {
         {u"schemaVersion"_s, PosSchemaVersion},
-        {u"storeName"_s, qs(s.storeName)},
+        {u"storeName"_s, qs(s.storeName)}, {u"setupDone"_s, s.setupDone},
         {u"currencySymbol"_s, qs(s.currencySymbol)},
         {u"tax"_s, QJsonObject{
              {u"food"_s, percentFromPpm(s.tax.foodPpm)}, {u"alcohol"_s, percentFromPpm(s.tax.alcoholPpm)},
@@ -771,6 +772,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
 {
     PosSettings s;
     s.storeName = ss(o.value(u"storeName").toString(qs(s.storeName)));
+    s.setupDone = o.value(u"setupDone").toBool(false);
     s.currencySymbol = ss(o.value(u"currencySymbol").toString(qs(s.currencySymbol)));
     const QJsonObject tax = o.value(u"tax").toObject();
     s.tax.foodPpm = ppmFromPercent(tax.value(u"food").toDouble());

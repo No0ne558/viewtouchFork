@@ -1,7 +1,26 @@
 {
- "%n guest(s)": {"one": "%n guest", "other": "%n guests"},
- "%n item(s)": {"one": "%n item", "other": "%n items"},
- "It took over from another main server %n time(s).": {"one": "It took over from another main server once.", "other": "It took over from another main server %n times."},
- "Received %n item(s) from %1: %2": {"one": "Received %n item from %1: %2", "other": "Received %n items from %1: %2"},
- "Received %n item(s): %1": {"one": "Received %n item: %1", "other": "Received %n items: %1"}
+ "%n guest(s)": {
+  "one": "%n guest",
+  "other": "%n guests"
+ },
+ "%n item(s)": {
+  "one": "%n item",
+  "other": "%n items"
+ },
+ "It took over from another main server %n time(s).": {
+  "one": "It took over from another main server once.",
+  "other": "It took over from another main server %n times."
+ },
+ "Received %n item(s) from %1: %2": {
+  "one": "Received %n item from %1: %2",
+  "other": "Received %n items from %1: %2"
+ },
+ "Received %n item(s): %1": {
+  "one": "Received %n item: %1",
+  "other": "Received %n items: %1"
+ },
+ "%n sample employee(s) turned off": {
+  "one": "%n sample employee turned off",
+  "other": "%n sample employees turned off"
+ }
 }

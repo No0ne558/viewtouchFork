@@ -380,6 +380,14 @@ ApplicationWindow {
         MouseArea { anchors.fill: parent; onReleased: root.controller.wake() }
     }
 
+    // A new store's setup guide (managers; Manager -> Setup Guide…).
+    Loader {
+        anchors.fill: parent
+        z: 70
+        active: root.controller.setupOpen
+        sourceComponent: SetupGuide { controller: root.controller }
+    }
+
     JobChooser {
         anchors.fill: parent
         z: 59

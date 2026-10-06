@@ -56,6 +56,8 @@ class LayoutController : public QObject {
     Q_PROPERTY(QVariantMap statusColors READ statusColors NOTIFY statusColorsChanged)
     // Font families this screen can use: its own and the store's (installed here).
     Q_PROPERTY(QStringList fontFamilies READ fontFamilies NOTIFY fontsChanged)
+    // The setup guide is showing (opens for managers until it's finished).
+    Q_PROPERTY(bool setupOpen READ setupOpen NOTIFY setupOpenChanged)
 
 public:
     // Persists a layout; false (with a message) when it could not.
@@ -112,6 +114,9 @@ public:
     QString mealPeriod() const { return nav_.mealPeriod(); }
     QVariantMap statusColors() const { return statusColors_; }
     QStringList fontFamilies() const;
+    bool setupOpen() const { return setupOpen_; }
+    Q_INVOKABLE void openSetup();
+    Q_INVOKABLE void closeSetup();
     // The store's fonts that came in, installed for this screen.
     void installStoreFonts();
     // A zone's "showWhen" rules hold now (login, check, check type, meal period, screen).
@@ -183,6 +188,7 @@ signals:
     void mealPeriodChanged();
     void statusColorsChanged();
     void fontsChanged();
+    void setupOpenChanged();
     // A command for the widgets on the page (kitchenStation, kitchenAllDay...).
     void widgetCommand(const QString &name, const QVariantMap &args);
     void editorChanged();
@@ -239,6 +245,7 @@ private:
     QTimer sleepTimer_;
     QVariantMap statusColors_;
     QVariantMap widgetState_;
+    bool setupOpen_ = false;
     QSet<QString> installedFonts_;   // by content hash
     bool asleep_ = false;
     int sleepOverrideMs_ = 0;

@@ -105,6 +105,9 @@ class PosSession : public QObject {
     // [{id, name, rule, chosen, done, options: [{index, name, price, chosen}]}]}.
     Q_PROPERTY(QVariantMap choosing READ choosingInfo NOTIFY checkChanged)
     Q_PROPERTY(QVariantMap weighing READ weighingInfo NOTIFY checkChanged)
+    // The setup guide: {done, storeName, receiptHeader, logo, receiptLogo, foodTax,
+    // alcoholTax, families, items, staff: [{name, role, sample}], samples} (managers).
+    Q_PROPERTY(QVariantMap setup READ setupInfo NOTIFY adminChanged)
     // Sold-out (86'd) items: their ids and lower-case names.
     Q_PROPERTY(QStringList soldOut READ soldOut NOTIFY adminChanged)
     // The menu for the 86 list [{id, name, family, price, modifier, available}].
@@ -177,6 +180,7 @@ public:
     virtual QVariantList checkHistory() const = 0;
     virtual QVariantMap choosingInfo() const = 0;
     virtual QVariantMap weighingInfo() const = 0;
+    virtual QVariantMap setupInfo() const = 0;
     virtual QString onBreakSince() const = 0;
     virtual QVariantList customerResults() const = 0;
     virtual QVariantMap customerInfo() const = 0;
@@ -295,6 +299,20 @@ public:
     // Orders for later: ready at this time (ms since 1970; 0 = as soon as possible).
     Q_INVOKABLE void setDueAt(double at) { invoke(QStringLiteral("setDueAt"), {qint64(at)}); }
     Q_INVOKABLE void setKitchenStation(const QString &id) { invoke(QStringLiteral("setKitchenStation"), {id}); }
+    // The setup guide's steps.
+    Q_INVOKABLE void setupStore(const QString &name, const QString &lines) { invoke(QStringLiteral("setupStore"), {name, lines}); }
+    Q_INVOKABLE void setupLogo(const QString &ref, bool onReceipts) { invoke(QStringLiteral("setupLogo"), {ref, onReceipts}); }
+    Q_INVOKABLE void setupTaxes(double food, double alcohol) { invoke(QStringLiteral("setupTaxes"), {food, alcohol}); }
+    Q_INVOKABLE void setupAddItem(const QString &name, double price, const QString &family)
+    {
+        invoke(QStringLiteral("setupAddItem"), {name, price, family});
+    }
+    Q_INVOKABLE void setupAddEmployee(const QString &name, const QString &role, const QString &pin)
+    {
+        invoke(QStringLiteral("setupAddEmployee"), {name, role, pin});
+    }
+    Q_INVOKABLE void setupRetireSamples() { invoke(QStringLiteral("setupRetireSamples")); }
+    Q_INVOKABLE void setupFinish(bool done) { invoke(QStringLiteral("setupFinish"), {done}); }
     Q_INVOKABLE void selectFoundCheck(qint64 id) { invoke(QStringLiteral("selectFoundCheck"), {id}); }
     Q_INVOKABLE void reprintCheck(qint64 id) { invoke(QStringLiteral("reprintCheck"), {id}); }
     Q_INVOKABLE void cancelClockIn() { invoke(QStringLiteral("cancelClockIn")); }

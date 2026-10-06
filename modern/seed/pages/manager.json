@@ -30,8 +30,8 @@
       "rect": {
         "x": 160,
         "y": 124,
-        "w": 384,
-        "h": 120
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -50,10 +50,10 @@
       "id": "admin-employees",
       "kind": "button",
       "rect": {
-        "x": 568,
+        "x": 484,
         "y": 124,
-        "w": 384,
-        "h": 120
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -72,10 +72,10 @@
       "id": "admin-settings",
       "kind": "button",
       "rect": {
-        "x": 976,
+        "x": 808,
         "y": 124,
-        "w": 384,
-        "h": 120
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -94,10 +94,10 @@
       "id": "admin-taxes",
       "kind": "button",
       "rect": {
-        "x": 1384,
+        "x": 1132,
         "y": 124,
-        "w": 384,
-        "h": 120
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -116,10 +116,10 @@
       "id": "admin-tenders",
       "kind": "button",
       "rect": {
-        "x": 160,
-        "y": 258,
-        "w": 384,
-        "h": 120
+        "x": 1456,
+        "y": 124,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -138,10 +138,10 @@
       "id": "admin-printers",
       "kind": "button",
       "rect": {
-        "x": 568,
-        "y": 258,
-        "w": 384,
-        "h": 120
+        "x": 160,
+        "y": 284,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -160,10 +160,10 @@
       "id": "admin-reports",
       "kind": "button",
       "rect": {
-        "x": 976,
-        "y": 258,
-        "w": 384,
-        "h": 120
+        "x": 484,
+        "y": 284,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -182,10 +182,10 @@
       "id": "admin-drawers",
       "kind": "button",
       "rect": {
-        "x": 1384,
-        "y": 258,
-        "w": 384,
-        "h": 120
+        "x": 808,
+        "y": 284,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -204,10 +204,10 @@
       "id": "admin-endOfDay",
       "kind": "button",
       "rect": {
-        "x": 160,
-        "y": 392,
-        "w": 384,
-        "h": 120
+        "x": 1132,
+        "y": 284,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -226,10 +226,10 @@
       "id": "admin-terminals",
       "kind": "button",
       "rect": {
-        "x": 568,
-        "y": 392,
-        "w": 384,
-        "h": 120
+        "x": 1456,
+        "y": 284,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -248,10 +248,10 @@
       "id": "admin-mealPeriods",
       "kind": "button",
       "rect": {
-        "x": 976,
-        "y": 392,
-        "w": 384,
-        "h": 120
+        "x": 160,
+        "y": 444,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -270,10 +270,10 @@
       "id": "admin-modifierGroups",
       "kind": "button",
       "rect": {
-        "x": 1384,
-        "y": 392,
-        "w": 384,
-        "h": 120
+        "x": 484,
+        "y": 444,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -292,10 +292,10 @@
       "id": "admin-inventory",
       "kind": "button",
       "rect": {
-        "x": 160,
-        "y": 526,
-        "w": 384,
-        "h": 120
+        "x": 808,
+        "y": 444,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -314,10 +314,10 @@
       "id": "admin-schedule",
       "kind": "button",
       "rect": {
-        "x": 568,
-        "y": 526,
-        "w": 384,
-        "h": 120
+        "x": 1132,
+        "y": 444,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -336,10 +336,10 @@
       "id": "admin-promotions",
       "kind": "button",
       "rect": {
-        "x": 976,
-        "y": 526,
-        "w": 384,
-        "h": 120
+        "x": 1456,
+        "y": 444,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -358,10 +358,10 @@
       "id": "kitchen-display",
       "kind": "button",
       "rect": {
-        "x": 1384,
-        "y": 526,
-        "w": 384,
-        "h": 120
+        "x": 160,
+        "y": 604,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -378,10 +378,10 @@
       "id": "bar-display",
       "kind": "button",
       "rect": {
-        "x": 160,
-        "y": 660,
-        "w": 384,
-        "h": 120
+        "x": 484,
+        "y": 604,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -398,10 +398,10 @@
       "id": "expo-display",
       "kind": "button",
       "rect": {
-        "x": 568,
-        "y": 660,
-        "w": 384,
-        "h": 120
+        "x": 808,
+        "y": 604,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -418,10 +418,10 @@
       "id": "edit-pages",
       "kind": "button",
       "rect": {
-        "x": 976,
-        "y": 660,
-        "w": 384,
-        "h": 120
+        "x": 1132,
+        "y": 604,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -439,13 +439,37 @@
       }
     },
     {
+      "id": "setup-guide",
+      "kind": "button",
+      "rect": {
+        "x": 1456,
+        "y": 604,
+        "w": 300,
+        "h": 140
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Setup Guide\u2026",
+      "actions": [
+        {
+          "type": "command",
+          "name": "setupGuide"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
       "id": "customers",
       "kind": "button",
       "rect": {
-        "x": 1384,
-        "y": 660,
-        "w": 384,
-        "h": 120
+        "x": 160,
+        "y": 764,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -462,10 +486,10 @@
       "id": "gift-cards",
       "kind": "button",
       "rect": {
-        "x": 160,
-        "y": 794,
-        "w": 384,
-        "h": 120
+        "x": 484,
+        "y": 764,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -482,10 +506,10 @@
       "id": "sold-out",
       "kind": "button",
       "rect": {
-        "x": 568,
-        "y": 794,
-        "w": 384,
-        "h": 120
+        "x": 808,
+        "y": 764,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",
@@ -502,10 +526,10 @@
       "id": "close-app",
       "kind": "button",
       "rect": {
-        "x": 976,
-        "y": 794,
-        "w": 384,
-        "h": 120
+        "x": 1132,
+        "y": 764,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "double",
@@ -526,10 +550,10 @@
       "id": "factory-reset",
       "kind": "button",
       "rect": {
-        "x": 1384,
-        "y": 794,
-        "w": 384,
-        "h": 120
+        "x": 1456,
+        "y": 764,
+        "w": 300,
+        "h": 140
       },
       "shape": "rect",
       "behavior": "blink",

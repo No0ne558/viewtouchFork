@@ -442,7 +442,7 @@ QJsonArray actionTypes()
         {"expoRecall", "Expediter: bring back the last order sent out"},
         {"seatNext", "Next seat"}, {"seatPrev", "Previous seat"}, {"courseNext", "Next course"},
         {"fireCourse", "Fire the next course"}, {"cancelChoosing", "Cancel the item being chosen"},
-        {"finishChoosing", "Done choosing"}, {"addWeighed", "Add the item being weighed"},
+        {"finishChoosing", "Done choosing"}, {"setupGuide", "Open the setup guide (managers)"}, {"addWeighed", "Add the item being weighed"},
         {"cancelWeighing", "Cancel weighing"}, {"guestsMore", "One more guest"}, {"guestsFewer", "One fewer guest"},
                             {"startDelivery", "Start delivery"}}))}),
     };

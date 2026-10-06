@@ -1823,6 +1823,18 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"addStoreImage"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.addStoreImage(a.value(0).toString(), a.value(1).toString())); }},
         {u"removeStoreImage"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.removeStoreImage(a.value(0).toString())); }},
+        {u"setupStore"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.setupStore(a.value(0).toString(), a.value(1).toString())); }},
+        {u"setupLogo"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.setupLogo(a.value(0).toString(), a.value(1).toBool())); }},
+        {u"setupTaxes"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.setupTaxes(a.value(0).toDouble(), a.value(1).toDouble())); }},
+        {u"setupAddItem"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.setupAddItem(a.value(0).toString(), a.value(1).toDouble(), a.value(2).toString())); }},
+        {u"setupAddEmployee"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.setupAddEmployee(a.value(0).toString(), a.value(1).toString(), a.value(2).toString())); }},
+        {u"setupRetireSamples"_s, [](PosService &p, const QVariantList &) { return QVariant(p.setupRetireSamples()); }},
+        {u"setupFinish"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setupFinish(a.value(0).toBool())); }},
         {u"setDueAt"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setDueAt(a.value(0).toLongLong())); }},
         {u"addComment"_s, [](PosService &p, const QVariantList &) { return QVariant(p.addComment()); }},
         {u"tender"_s, [](PosService &p, const QVariantList &a) {

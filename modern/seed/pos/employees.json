@@ -4,6 +4,7 @@
     "name": "Morgan (Manager)",
     "role": "manager",
     "pin": "1234",
+    "sample": true,
     "payRate": 24.0
   },
   {
@@ -11,6 +12,7 @@
     "name": "Sam",
     "role": "server",
     "pin": "1111",
+    "sample": true,
     "payRate": 7.25
   },
   {
@@ -18,6 +20,7 @@
     "name": "Riley",
     "role": "busser",
     "pin": "3333",
+    "sample": true,
     "payRate": 11.0
   },
   {
@@ -25,6 +28,7 @@
     "name": "Jo",
     "role": "bartender",
     "pin": "4444",
+    "sample": true,
     "payRate": 9.0,
     "otherJobs": [
       {
@@ -38,6 +42,7 @@
     "name": "Casey",
     "role": "cashier",
     "pin": "2222",
+    "sample": true,
     "payRate": 15.5
   },
   {
@@ -46,6 +51,7 @@
     "role": "server",
     "pin": "5555",
     "language": "es",
+    "sample": true,
     "payRate": 7.25
   }
 ]

@@ -213,13 +213,13 @@ write("pos/menu.json", MENU, versioned=False)
 
 write("pos/employees.json", [
     # Pay an hour before tips; Jo also works the floor as a server some nights.
-    {"id": "manager", "name": "Morgan (Manager)", "role": "manager", "pin": "1234", "payRate": 24.00},
-    {"id": "sam", "name": "Sam", "role": "server", "pin": "1111", "payRate": 7.25},
-    {"id": "riley", "name": "Riley", "role": "busser", "pin": "3333", "payRate": 11.00},
-    {"id": "jo", "name": "Jo", "role": "bartender", "pin": "4444", "payRate": 9.00,
+    {"id": "manager", "name": "Morgan (Manager)", "role": "manager", "pin": "1234", "sample": True, "payRate": 24.00},
+    {"id": "sam", "name": "Sam", "role": "server", "pin": "1111", "sample": True, "payRate": 7.25},
+    {"id": "riley", "name": "Riley", "role": "busser", "pin": "3333", "sample": True, "payRate": 11.00},
+    {"id": "jo", "name": "Jo", "role": "bartender", "pin": "4444", "sample": True, "payRate": 9.00,
      "otherJobs": [{"role": "server", "rate": 7.25}]},
-    {"id": "casey", "name": "Casey", "role": "cashier", "pin": "2222", "payRate": 15.50},
-    {"id": "rosa", "name": "Rosa", "role": "server", "pin": "5555", "language": "es", "payRate": 7.25},   # screens in Spanish
+    {"id": "casey", "name": "Casey", "role": "cashier", "pin": "2222", "sample": True, "payRate": 15.50},
+    {"id": "rosa", "name": "Rosa", "role": "server", "pin": "5555", "language": "es", "sample": True, "payRate": 7.25},   # screens in Spanish
 ], versioned=False)
 
 # Groups whose options are menu items (combos): each option is that item.
@@ -706,13 +706,14 @@ admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"),
          ("Modifier Groups", "modifierGroups"), ("Inventory", "inventory"), ("Schedule", "schedule"),
          ("Promotions", "promotions")]
 mgr = [label("title", 160, 24, 1600, 100, "Manager")]
-# Four across, five down: the Manager screens, then the rest.
+# The Manager screens, then the rest.
 slots = [zone(f"admin-{panel}", 0, 0, 0, 0, text, actions=[command("openAdmin", panel=panel)]) for text, panel in admin]
 slots += [
     zone("kitchen-display", 0, 0, 0, 0, "Kitchen Display", actions=[jump(page="kitchen")]),
     zone("bar-display", 0, 0, 0, 0, "Bar Display", actions=[jump(page="bar-display")]),
     zone("expo-display", 0, 0, 0, 0, "Expo Display", actions=[jump(page="expo")]),
     zone("edit-pages", 0, 0, 0, 0, "Edit Pages", actions=[command("editMode")], style=fill(BLUE)),
+    zone("setup-guide", 0, 0, 0, 0, "Setup Guide…", actions=[command("setupGuide")], style=fill(TEAL)),
     zone("customers", 0, 0, 0, 0, "Customers…", actions=[jump(page="customers")]),
     zone("gift-cards", 0, 0, 0, 0, "Gift Cards…", actions=[jump(page="gift-card")]),
     zone("sold-out", 0, 0, 0, 0, "Sold Out (86)…", actions=[jump(page="sold-out")]),
@@ -721,9 +722,10 @@ slots += [
          style=fill(RED)),
     zone("factory-reset", 0, 0, 0, 0, "Factory Reset…", actions=[jump(page="factory-reset")], style=fill(RED)),
 ]
+# Five across (the bottom row has its own four).
 for i, z in enumerate(slots):
-    col, row = i % 4, i // 4
-    z["rect"] = rect(160 + col * 408, 124 + row * 134, 384, 120)
+    col, row = i % 5, i // 5
+    z["rect"] = rect(160 + col * 324, 124 + row * 160, 300, 140)
     mgr.append(z)
 mgr.append(zone("back", 160, 940, 384, 120, "‹ Back", actions=[jump(mode="back")]))
 mgr.append(zone("network", 568, 940, 384, 120, "Network…", actions=[jump(page="network")]))

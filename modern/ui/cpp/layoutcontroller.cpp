@@ -282,6 +282,12 @@ QString LayoutController::rolePage(const QString &role) const
 void LayoutController::onLoggedInChanged(bool loggedIn)
 {
     restartIdle();
+    // A new store: the setup guide, for the first manager in, until it's finished.
+    if (!loggedIn)
+        closeSetup();
+    else if (pos_ && !editing() && pos_->can(QString::fromLatin1(vt::core::perm::Manager))
+             && !pos_->setupInfo().value(u"done"_s).toBool())
+        openSetup();
     // Logged in, "home" is the floor (tables); logged out, it is the login page.
     const QString login = homePageOf(layout_);
     const QString tables = rolePage(u"tables"_s);
@@ -701,6 +707,26 @@ void LayoutController::ensureCurrentPageExists()
 
 // --- actions ---------------------------------------------------------------------
 
+void LayoutController::openSetup()
+{
+    if (!pos_ || !pos_->can(QString::fromLatin1(vt::core::perm::Manager))) {
+        setStatus(tr("The setup guide is for managers."));
+        return;
+    }
+    if (!setupOpen_) {
+        setupOpen_ = true;
+        emit setupOpenChanged();
+    }
+}
+
+void LayoutController::closeSetup()
+{
+    if (setupOpen_) {
+        setupOpen_ = false;
+        emit setupOpenChanged();
+    }
+}
+
 QStringList LayoutController::fontFamilies() const
 {
     return QFontDatabase::families();
@@ -942,6 +968,10 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
     // Widgets' own buttons that change the screen, not the store: the widget does them.
     if (name == u"kitchenStation" || name == u"kitchenAllDay") {
         emit widgetCommand(name, args);
+        return done(true);
+    }
+    if (name == u"setupGuide") {
+        openSetup();
         return done(true);
     }
     if (name == u"finishChoosing") {

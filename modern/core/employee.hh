@@ -42,6 +42,7 @@ struct Employee {
     std::string pinSalt;
     std::string pinHash;
     bool active = true;
+    bool sample = false;   // one of the demo's staff (their PINs are public): the setup guide turns them off
     // Practice only: their checks never reach the kitchen, sales or stock.
     bool training = false;
     // Cash handling for this person: "serverBank" (own bank), "drawer" (the

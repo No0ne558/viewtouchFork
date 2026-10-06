@@ -471,6 +471,15 @@ public:
     QVariantMap choosingInfo() const override;
     // Items sold by weight: the one waiting for its weight (the Weigh page).
     QVariantMap weighingInfo() const override;
+    // The setup guide (managers): what's set so far, and each step.
+    QVariantMap setupInfo() const override;
+    bool setupStore(const QString &name, const QString &receiptLines);
+    bool setupLogo(const QString &ref, bool onReceipts);
+    bool setupTaxes(double foodPercent, double alcoholPercent);
+    bool setupAddItem(const QString &name, double price, const QString &family);
+    bool setupAddEmployee(const QString &name, const QString &role, const QString &pin);
+    bool setupRetireSamples();
+    bool setupFinish(bool done = true);
     bool addWeighed();
     bool cancelWeighing();
     QString onBreakSince() const override;
@@ -739,6 +748,7 @@ private:
     bool lineTouched_ = false;   // the selected line was touched (not just added)
     std::int64_t choosingLine_ = 0;   // the line whose modifiers are being chosen
     QString weighing_;                // an item sold by weight, waiting for its weight
+    bool retireMeAtFinish_ = false;   // setup guide: this sample manager goes off at Finish
     qint64 selectedLine_ = 0;
     qint64 selectedPayment_ = 0;
     core::Qualifier qualifier_ = core::Qualifier::None;

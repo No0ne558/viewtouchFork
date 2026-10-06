@@ -90,6 +90,7 @@ public:
     QVariantList checkHistory() const override { return v(u"checkHistory").toList(); }
     QVariantMap choosingInfo() const override { return v(u"choosing").toMap(); }
     QVariantMap weighingInfo() const override { return v(u"weighing").toMap(); }
+    QVariantMap setupInfo() const override { return v(u"setup").toMap(); }
     QString onBreakSince() const override { return v(u"onBreakSince").toString(); }
     QVariantList customerResults() const override { return v(u"customers").toList(); }
     QVariantMap customerInfo() const override { return v(u"customer").toMap(); }

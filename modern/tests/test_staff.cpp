@@ -575,3 +575,40 @@ TEST_CASE("Posted messages: shown until they expire, kept, taken down by their a
     clock = todayAt(20, 1);                                              // gone once it expires
     CHECK(front.messages().isEmpty());
 }
+
+TEST_CASE("Setup guide: name, receipt, taxes, items, your own manager, sample staff off", "[staff][setup]")
+{
+    auto data = test::seedPosData();
+    data.settings.setupDone = false;
+    PosService pos(std::move(data), nullptr);
+    REQUIRE(pos.loginWithPin(u"1111"_s));                           // a server: not theirs
+    CHECK_FALSE(pos.setupStore(u"Taco Loco"_s, {}));
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    CHECK_FALSE(pos.setupInfo()[u"done"_s].toBool());
+    CHECK(pos.setupInfo()[u"samples"_s].toInt() == 6);
+
+    REQUIRE(pos.setupStore(u"Taco Loco"_s, u"123 Main St\n555-0100"_s));
+    CHECK(pos.shared()->settings.storeName == "Taco Loco");
+    CHECK(pos.shared()->settings.receiptHeader == "123 Main St\n555-0100");
+    REQUIRE(pos.setupTaxes(8.25, 9.5));
+    CHECK(pos.shared()->settings.tax.foodPpm == 82500);
+    CHECK(pos.shared()->settings.tax.alcoholPpm == 95000);
+    REQUIRE(pos.setupAddItem(u"Fish Tacos"_s, 12.5, u"Tacos"_s));
+    CHECK(pos.findItem(u"fish-tacos"_s));
+    CHECK(pos.findItem(u"fish-tacos"_s)->family == "tacos");
+    CHECK(pos.setupInfo()[u"families"_s].toStringList().contains(u"tacos"_s));
+
+    // The sample staff's PINs are public: off, once there's a manager of our own.
+    CHECK_FALSE(pos.setupRetireSamples());
+    REQUIRE(pos.setupAddEmployee(u"Ana Ruiz"_s, u"manager"_s, u"8642"_s));
+    REQUIRE(pos.setupRetireSamples());
+    CHECK(pos.setupInfo()[u"samples"_s].toInt() == 0);
+    CHECK(pos.loggedIn());                                          // Morgan finishes the guide first
+    REQUIRE(pos.setupFinish());
+    CHECK(pos.shared()->settings.setupDone);
+    CHECK_FALSE(pos.loggedIn());                                    // then is off, and logged out
+    CHECK_FALSE(pos.loginWithPin(u"1234"_s));                        // Morgan, a sample, is off
+    REQUIRE(pos.loginWithPin(u"8642"_s));                            // Ana
+    CHECK(app::settingsFromJson(app::toJson(pos.shared()->settings)).setupDone);
+}
