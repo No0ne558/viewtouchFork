@@ -259,7 +259,7 @@ QVariantList PosService::menuItems() const
                                {u"price"_s, format(m.priceDuring(period))}, {u"modifier"_s, m.isModifier},
                                {u"available"_s, m.available && ticketsLeft(m) != 0}, {u"image"_s, qs(m.image)},
                                {u"color"_s, qs(m.kitchenColor)}, {u"byWeight"_s, m.byWeight},
-                               {u"unit"_s, qs(m.weightUnit)}});
+                               {u"unit"_s, qs(m.weightUnit)}, {u"number"_s, qs(m.number)}});
     }
     return out;
 }

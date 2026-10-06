@@ -6,6 +6,7 @@
     "family": "burgers",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "101",
     "modifierGroups": [
       "temperature",
       "side"
@@ -37,6 +38,7 @@
     "family": "burgers",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "102",
     "modifierGroups": [
       "temperature",
       "side"
@@ -69,6 +71,7 @@
     "family": "burgers",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "103",
     "modifierGroups": [
       "temperature",
       "side"
@@ -105,6 +108,7 @@
     "family": "burgers",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "104",
     "modifierGroups": [
       "temperature",
       "side"
@@ -138,6 +142,7 @@
     "family": "burgers",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "105",
     "modifierGroups": [
       "side"
     ],
@@ -165,6 +170,7 @@
     "family": "burgers",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "106",
     "modifierGroups": [
       "kids-side",
       "kids-drink"
@@ -190,6 +196,7 @@
     "family": "burgers",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "107",
     "modifierGroups": [
       "temperature",
       "side"
@@ -223,6 +230,7 @@
     "family": "salads",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "201",
     "modifierGroups": [
       "dressing",
       "salad-protein"
@@ -244,6 +252,7 @@
     "family": "salads",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "202",
     "modifierGroups": [
       "salad-protein"
     ],
@@ -264,6 +273,7 @@
     "family": "salads",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "203",
     "modifierGroups": [
       "salad-protein"
     ],
@@ -294,6 +304,7 @@
     "family": "salads",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "204",
     "modifierGroups": [
       "dressing",
       "salad-protein"
@@ -313,6 +324,7 @@
     "family": "drinks",
     "taxClass": "food",
     "printer": "bar",
+    "number": "301",
     "modifierGroups": [
       "coffee-extras"
     ],
@@ -330,6 +342,7 @@
     "family": "drinks",
     "taxClass": "food",
     "printer": "bar",
+    "number": "302",
     "modifierGroups": [
       "hot-or-iced"
     ]
@@ -341,6 +354,7 @@
     "family": "drinks",
     "taxClass": "food",
     "printer": "bar",
+    "number": "303",
     "modifierGroups": [
       "drink-size"
     ]
@@ -352,6 +366,7 @@
     "family": "drinks",
     "taxClass": "food",
     "printer": "bar",
+    "number": "304",
     "modifierGroups": [
       "drink-size"
     ]
@@ -363,6 +378,7 @@
     "family": "drinks",
     "taxClass": "food",
     "printer": "bar",
+    "number": "305",
     "kitchenHide": true
   },
   {
@@ -372,6 +388,7 @@
     "family": "drinks",
     "taxClass": "food",
     "printer": "bar",
+    "number": "306",
     "modifierGroups": [
       "drink-size"
     ]
@@ -383,6 +400,7 @@
     "family": "drinks",
     "taxClass": "alcohol",
     "printer": "bar",
+    "number": "307",
     "modifierGroups": [
       "draft"
     ],
@@ -395,6 +413,7 @@
     "family": "drinks",
     "taxClass": "alcohol",
     "printer": "bar",
+    "number": "308",
     "modifierGroups": [
       "wine",
       "wine-pour"
@@ -411,6 +430,7 @@
     "family": "breakfast",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "401",
     "modifierGroups": [
       "eggs",
       "toast",
@@ -435,6 +455,7 @@
     "family": "breakfast",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "402",
     "modifierGroups": [
       "syrup",
       "breakfast-add-ons"
@@ -454,6 +475,7 @@
     "family": "breakfast",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "403",
     "modifierGroups": [
       "syrup",
       "breakfast-add-ons"
@@ -477,6 +499,7 @@
     "family": "breakfast",
     "taxClass": "food",
     "printer": "kitchen",
+    "number": "404",
     "modifierGroups": [
       "omelette-fillings",
       "toast",

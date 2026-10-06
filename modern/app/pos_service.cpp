@@ -193,6 +193,11 @@ const MenuItem *PosService::findItem(const QString &idOrName) const
         if (QString::compare(qs(m.name), idOrName, Qt::CaseInsensitive) == 0)
             return &m;
     }
+    // Its number (a PLU), typed.
+    if (!key.empty())
+        for (const MenuItem &m : s_->menu)
+            if (m.number == key)
+                return &m;
     return nullptr;
 }
 

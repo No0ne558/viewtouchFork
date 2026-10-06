@@ -861,6 +861,37 @@ bool LayoutController::applyLook(const QString &id)
     return true;
 }
 
+bool LayoutController::numberKey(const QString &key)
+{
+    const auto *page = currentPage();
+    if (editing() || !pos_ || !pos_->loggedIn() || !page
+        || (page->kind != u"index" && page->kind != u"items" && page->kind != u"modifier"))
+        return false;
+    if (key.size() == 1 && key[0].isDigit()) {
+        if (typedNumber_.size() < 6)
+            typedNumber_ += key;
+    } else if (key == u"back" && !typedNumber_.isEmpty()) {
+        typedNumber_.chop(1);
+    } else if (key == u"escape" && !typedNumber_.isEmpty()) {
+        typedNumber_.clear();
+        setStatus(QString());
+        return true;
+    } else if (key == u"enter" && !typedNumber_.isEmpty()) {
+        const QString number = std::exchange(typedNumber_, QString());
+        for (const QVariant &v : pos_->menuItems())
+            if (v.toMap().value(u"number"_s).toString() == number) {
+                orderItem(v.toMap().value(u"id"_s).toString());
+                return true;
+            }
+        setStatus(tr("No item has number %1.").arg(number));
+        return true;
+    } else {
+        return false;
+    }
+    setStatus(typedNumber_.isEmpty() ? QString() : tr("#%1, then Enter").arg(typedNumber_));
+    return true;
+}
+
 void LayoutController::orderItem(const QString &itemId, bool clearTyped)
 {
     if (editing() || busy())

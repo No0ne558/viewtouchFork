@@ -1009,6 +1009,56 @@ TEST_CASE("UI: a manager fixes time punches, with a reason that goes on the Labo
     CHECK(s.pos.shared()->settings.punchChanges.size() == 3);
 }
 
+TEST_CASE("UI: ring items in by number (keyboard, or Find)", "[flow][ui][plu]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"index-lunch"_s));
+    QTest::qWait(40);
+    // 203 Enter: Cobb (salads start at 201).
+    for (const char *k : {"2", "0", "3"})
+        QTest::keyClick(s.window, *k);
+    CHECK(s.c.statusText().contains(u"#203"_s));
+    QTest::keyClick(s.window, Qt::Key_Return);
+    QTest::qWait(60);
+    REQUIRE(s.pos.lines().size() == 1);
+    CHECK(s.pos.lines()[0].toMap()[u"name"_s] == u"Cobb"_s);
+    s.c.finishChoosing();
+    REQUIRE(s.c.jumpTo(u"index-lunch"_s));
+    for (const char *k : {"9", "9", "9"})
+        QTest::keyClick(s.window, *k);
+    QTest::keyClick(s.window, Qt::Key_Return);
+    QTest::qWait(40);
+    CHECK(s.c.statusText().contains(u"No item has number 999"_s));
+    CHECK(s.pos.lines().size() == 1);
+
+    // Find: "30" lists the drinks by number.
+    s.c.activate(u"tab-find"_s);
+    QTest::qWait(60);
+    s.pos.textKey(u"3"_s);
+    s.pos.textKey(u"0"_s);
+    s.pos.textKey(u"5"_s);
+    QTest::qWait(60);
+    CHECK(Screen::findBy(s.window->contentItem(), "objectName", u"menuItem-water"_s));   // 305
+    CHECK_FALSE(Screen::findBy(s.window->contentItem(), "objectName", u"menuItem-coffee"_s));
+
+    // Numbers are each item's own.
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    const QVariantList menu = s.pos.adminRecords(u"menu"_s);
+    for (int i = 0; i < menu.size(); ++i)
+        if (menu[i].toMap()[u"id"_s] == u"caesar"_s) {
+            QVariantMap r = menu[i].toMap();
+            r[u"number"_s] = u"203"_s;
+            CHECK_FALSE(s.pos.adminSave(u"menu"_s, i, r));
+            r[u"number"_s] = u"12a"_s;
+            CHECK_FALSE(s.pos.adminSave(u"menu"_s, i, r));
+            r[u"number"_s] = u"250"_s;
+            CHECK(s.pos.adminSave(u"menu"_s, i, r));
+        }
+}
+
 TEST_CASE("UI: the manager's dashboard: today so far", "[flow][ui][dashboard]")
 {
     Screen s;

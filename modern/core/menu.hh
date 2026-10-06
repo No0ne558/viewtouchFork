@@ -48,6 +48,8 @@ struct MenuItem {
     // the computer showing the kiosk); or not shown there at all.
     std::string description;
     std::string image;
+    // Its number for ringing it in by number (a PLU: "104"); empty: none.
+    std::string number;
     bool kioskHide = false;
     // Prices by order type (0: the regular price), and who may not discount it.
     Money takeoutPrice;

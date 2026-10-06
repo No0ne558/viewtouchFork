@@ -174,6 +174,9 @@ public:
     // Switch pages without remembering the current one (editor page list).
     Q_INVOKABLE bool showPage(const QString &pageId);
     Q_INVOKABLE bool triggerHotkey(const QString &key);
+    // On the order screen, a keyboard's digits then Enter ring in the item
+    // with that number (Backspace, Escape). True: the key was used.
+    Q_INVOKABLE bool numberKey(const QString &key);
 
     // Widget entry points.
     Q_INVOKABLE void selectTable(const QString &label);
@@ -251,6 +254,7 @@ private:
     ZoneModel zones_;
     QString status_;
     QVariantMap explanation_;
+    QString typedNumber_;
     // While leaving edit mode the editor object outlives `editing_` briefly,
     // so QML panels unload before the editor they bind to goes away.
     QPointer<EditorController> editor_;

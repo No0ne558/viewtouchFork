@@ -134,11 +134,21 @@ ApplicationWindow {
                 Keys.onPressed: event => {
                     if (root.editing)
                         return
-                    if (event.key === Qt.Key_Escape) {
+                    if (event.key === Qt.Key_Escape && root.controller.numberKey("escape")) {
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Escape) {
                         root.controller.goBack()
                         event.accepted = true
                     } else if (event.key === Qt.Key_Home) {
                         root.controller.goHome()
+                        event.accepted = true
+                    } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                               && root.controller.numberKey("enter")) {
+                        event.accepted = true      // the item with the number typed
+                    } else if (event.key === Qt.Key_Backspace && root.controller.numberKey("back")) {
+                        event.accepted = true
+                    } else if (event.text.length === 1 && event.text >= "0" && event.text <= "9"
+                               && root.controller.numberKey(event.text)) {
                         event.accepted = true
                     } else if (event.text !== "" && root.controller.triggerHotkey(event.text)) {
                         event.accepted = true

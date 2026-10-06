@@ -108,6 +108,8 @@ QVariantList PosService::adminFields(const QString &panel)
             printers.append(QVariantMap{{u"value"_s, qs(p.id)}, {u"text"_s, qs(p.name)}});
         return {
             field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
+            field(u"number"_s, tr("Number"), u"string"_s,
+                  tr("To ring it in by number: type it on Find, or on a keyboard then Enter. Digits, each item its own.")),
             field(u"price"_s, tr("Price"), u"money"_s),
             field(u"family"_s, tr("Family"), u"string"_s, tr("Groups items on the sales report")),
             with(field(u"taxClass"_s, tr("Tax"), u"enum"_s), u"options"_s,
@@ -1055,6 +1057,14 @@ bool PosService::saveMenuRecord(int index, const QVariantMap &record)
         return fail(tr("The item needs a name."));
     if (number(record, u"price") < 0)
         return fail(tr("Prices cannot be negative."));
+    const QString plu = record.value(u"number"_s).toString().trimmed();
+    if (!plu.isEmpty()) {
+        if (plu.size() > 6 || !std::ranges::all_of(plu, [](QChar c) { return c.isDigit(); }))
+            return fail(tr("The number is digits only (up to 6), like 104."));
+        for (int i = 0; i < int(s_->menu.size()); ++i)
+            if (i != index && qs(s_->menu[i].number) == plu)
+                return fail(tr("%1 already has number %2.").arg(qs(s_->menu[i].name), plu));
+    }
     // The form's text fields, as menu data.
     QVariantMap data = record;
     QVariantList groups;

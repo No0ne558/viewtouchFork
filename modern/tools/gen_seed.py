@@ -81,6 +81,10 @@ for n, p in BURGERS: menu(n, p, "burgers")
 for n, p in SALADS: menu(n, p, "salads")
 for n, p, t in DRINKS: menu(n, p, "drinks", tax=t, printer="bar")
 for n, p in BREAKFAST: menu(n, p, "breakfast")
+# Numbers to ring items in by (101 the first burger, 201 the first salad...).
+for base, names in ((100, BURGERS), (200, SALADS), (300, DRINKS), (400, BREAKFAST)):
+    for i, entry in enumerate(names):
+        next(m for m in MENU if m["name"] == entry[0])["number"] = str(base + 1 + i)
 
 # Choices asked for when an item is ordered (the Choose page). Burgers keep
 # their Temperature -> Side pages: both ways work.

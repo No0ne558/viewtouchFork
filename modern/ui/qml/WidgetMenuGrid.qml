@@ -39,10 +39,13 @@ Item {
             return items.filter(i => i.family === family)
         if (typed === "")
             return []
+        const digits = /^[0-9]+$/.test(typed)
         const rank = i => {
+            if (digits && i.number && i.number.startsWith(typed))
+                return i.number === typed ? 0 : 1            // its number first
             const n = i.name.toLowerCase()
-            return n.startsWith(typed) ? 0 : n.split(/[^a-z0-9]+/).some(word => word.startsWith(typed)) ? 1
-                 : n.includes(typed) ? 2 : -1
+            return n.startsWith(typed) ? 2 : n.split(/[^a-z0-9]+/).some(word => word.startsWith(typed)) ? 3
+                 : n.includes(typed) ? 4 : -1
         }
         return items.map(i => ({ item: i, rank: rank(i) })).filter(x => x.rank >= 0)
                     .sort((a, b) => a.rank - b.rank || a.item.name.localeCompare(b.item.name)).map(x => x.item)
@@ -128,6 +131,18 @@ Item {
                             font.pixelSize: 14
                             font.bold: true
                         }
+                    }
+                    Text {
+                        visible: !!cell.modelData.number
+                        z: 2
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.margins: 8
+                        text: cell.modelData.number ?? ""
+                        color: "#8a94a6"
+                        font.family: w.face
+                        font.pixelSize: 14
+                        font.bold: true
                     }
                     Image {
                         id: photo
