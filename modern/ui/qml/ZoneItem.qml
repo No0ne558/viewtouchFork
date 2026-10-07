@@ -39,6 +39,8 @@ Item {
     // Form widgets lay out desktop-sized controls (25 px) and scale them by
     // this: big enough for a finger (46 screen px), unless the content would
     // then be narrower than `minWidth` (or shorter than `minHeight`) canvas units.
+    // Taller than wide (a phone held upright): widgets stack their parts.
+    readonly property bool narrow: width < height * 0.9
     function formZoom(minWidth, minHeight) {
         const touch = 46 / (25 * Math.max(0.1, screenScale))
         return Math.max(1, Math.min(touch, width / minWidth, minHeight ? height / minHeight : touch))

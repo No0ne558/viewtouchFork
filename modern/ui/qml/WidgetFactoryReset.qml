@@ -9,7 +9,7 @@ Item {
     property ZoneItem zone
     readonly property PosService pos: zone ? zone.pos : null
 
-    readonly property real zoom: Math.max(1, Math.min(1.6, width / 1100))
+    readonly property real zoom: zone ? zone.formZoom(zone.narrow ? 380 : 1100) : 1
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
@@ -22,6 +22,8 @@ Item {
             spacing: 14
 
             Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
                 text: qsTr("Start over as a fresh install")
                 font.pixelSize: 28
                 font.bold: true

@@ -18,22 +18,26 @@ Item {
             pos.lookupGiftCard(number.text)
     }
 
-    readonly property real zoom: Math.max(1, Math.min(1.6, width / 1100))
+    // Upright (a phone): the card's controls, then its history below.
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property real zoom: zone ? zone.formZoom(narrow ? 380 : 1100) : 1
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
         scale: w.zoom
         transformOrigin: Item.TopLeft
 
-        RowLayout {
+        GridLayout {
             anchors.fill: parent
             anchors.margins: 12
-            spacing: 18
+            columns: w.narrow ? 1 : 3   // the controls | a separator | the history
+            rowSpacing: 18
+            columnSpacing: 18
 
             ColumnLayout {
-                Layout.preferredWidth: parent.width * 0.5
-                Layout.fillWidth: false
-                Layout.fillHeight: true
+                Layout.preferredWidth: w.narrow ? parent.width : parent.width * 0.5
+                Layout.fillWidth: w.narrow
+                Layout.fillHeight: !w.narrow
                 spacing: 10
 
                 Label { text: qsTr("Card number"); opacity: 0.8 }
@@ -119,7 +123,7 @@ Item {
                 }
             }
 
-            ToolSeparator { Layout.fillHeight: true }
+            ToolSeparator { Layout.fillHeight: true; visible: !w.narrow }
 
             ColumnLayout {
                 Layout.fillWidth: true

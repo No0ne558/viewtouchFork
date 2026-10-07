@@ -46,7 +46,9 @@ Item {
         pos.receiveDelivery({ vendor: vendor, invoice: invoice.text, lines: lines })
     }
 
-    readonly property real zoom: zone ? zone.formZoom(900) : 1.4
+    // Upright (a phone): the delivery only (no "On hand", no recent deliveries).
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property real zoom: zone ? zone.formZoom(narrow ? 460 : 900) : 1.4
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
@@ -97,7 +99,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: false
                     Label { text: qsTr("Item"); opacity: 0.6; Layout.fillWidth: true }
-                    Label { text: qsTr("On hand"); opacity: 0.6; Layout.preferredWidth: 110 }
+                    Label { visible: !w.narrow; text: qsTr("On hand"); opacity: 0.6; Layout.preferredWidth: 110 }
                     Label { text: qsTr("Received"); opacity: 0.6; Layout.preferredWidth: 110 }
                     Label { text: qsTr("Cost each"); opacity: 0.6; Layout.preferredWidth: 110 }
                     Label { text: qsTr("Total"); opacity: 0.6; Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight }
@@ -124,6 +126,7 @@ Item {
                             elide: Text.ElideRight
                         }
                         Label {
+                            visible: !w.narrow
                             Layout.preferredWidth: 110
                             text: Number(row.modelData.onHand).toLocaleString(Qt.locale(), "f", 1).replace(/\.0$/, "") + " " + row.modelData.unit
                             opacity: 0.8
@@ -188,9 +191,10 @@ Item {
                 }
             }
 
-            ToolSeparator { Layout.fillHeight: true }
+            ToolSeparator { Layout.fillHeight: true; visible: !w.narrow }
 
             ColumnLayout {
+                visible: !w.narrow
                 Layout.preferredWidth: parent.width * 0.3
                 Layout.fillWidth: false
                 Layout.fillHeight: true

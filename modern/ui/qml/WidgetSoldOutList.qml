@@ -19,11 +19,14 @@ Item {
         anchors.fill: parent
         anchors.margins: 8
         clip: true
-        readonly property int columns: Math.max(1, Math.floor((width - gridBar.width - 4) / 300))
+        // Upright (a phone): two a row, bigger.
+        readonly property bool narrow: w.zone ? w.zone.narrow : false
+        readonly property real big: narrow ? 1.7 : 1
+        readonly property int columns: narrow ? 2 : Math.max(1, Math.floor((width - gridBar.width - 4) / 300))
         cellWidth: (width - gridBar.room) / columns
-        cellHeight: 120
+        cellHeight: 120 * big
         model: w.items
-        ScrollBar.vertical: TouchScrollBar { id: gridBar; needed: Math.ceil(grid.count / grid.columns) * (120) > grid.height }
+        ScrollBar.vertical: TouchScrollBar { id: gridBar; needed: Math.ceil(grid.count / grid.columns) * grid.cellHeight > grid.height }
         delegate: Item {
             id: cell
             required property var modelData
@@ -44,7 +47,7 @@ Item {
                     text: cell.modelData.name
                     color: "white"
                     font.family: w.face
-                    font.pixelSize: 24
+                    font.pixelSize: 24 * grid.big
                     font.bold: true
                     elide: Text.ElideRight
                 }
@@ -54,7 +57,7 @@ Item {
                           + (cell.modelData.family ? "  ·  " + cell.modelData.family : "")
                     color: cell.modelData.available ? "#8a94a6" : "#ffd0d0"
                     font.family: w.face
-                    font.pixelSize: 18
+                    font.pixelSize: 18 * grid.big
                     elide: Text.ElideRight
                 }
             }

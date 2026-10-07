@@ -14,7 +14,10 @@ Item {
     readonly property var kitchen: d.kitchen ?? ({})
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     readonly property color ink: zone.st.textColor ?? "white"
-    readonly property real unit: Math.max(12, Math.min(w.width / 60, w.height / 34))
+    // Upright (a phone): the numbers two a row, the lists one a row, scrolled.
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property real unit: narrow ? Math.max(12, Math.min(w.width / 22, 40))
+                                        : Math.max(12, Math.min(w.width / 60, w.height / 34))
     readonly property color muted: "#8a94a6"
     readonly property color good: "#5fd08a"
     readonly property color warn: "#f5b940"
@@ -85,16 +88,25 @@ Item {
         }
     }
 
-    ColumnLayout {
+    Flickable {
         anchors.fill: parent
+        contentHeight: col.height
+        interactive: w.narrow
+        clip: true
+    ColumnLayout {
+        id: col
+        width: parent.width
+        height: w.narrow ? implicitHeight : w.height
         spacing: w.unit * 0.6
 
         // The numbers
-        RowLayout {
+        GridLayout {
             Layout.fillWidth: true
             Layout.fillHeight: false
-            Layout.preferredHeight: w.height * 0.32
-            spacing: w.unit * 0.6
+            Layout.preferredHeight: w.narrow ? 3 * w.unit * 6.5 : w.height * 0.32
+            columns: w.narrow ? 2 : 5
+            rowSpacing: w.unit * 0.6
+            columnSpacing: w.unit * 0.6
             Card {
                 objectName: "dashSales"
                 title: qsTr("Net sales today")
@@ -151,10 +163,13 @@ Item {
         }
 
         // The lists
-        RowLayout {
+        GridLayout {
             Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: w.unit * 0.6
+            Layout.fillHeight: !w.narrow
+            Layout.preferredHeight: w.narrow ? 3 * w.unit * 10 : -1
+            columns: w.narrow ? 1 : 3
+            rowSpacing: w.unit * 0.6
+            columnSpacing: w.unit * 0.6
             Card {
                 title: qsTr("On the clock (%1)").arg((w.labor.onClock ?? []).length)
                 Repeater {
@@ -227,5 +242,6 @@ Item {
                 font.bold: true
             }
         }
+    }
     }
 }

@@ -24,11 +24,12 @@ Kind kindOf(const Zone &z)
     return schema::isWidgetKind(z.kind) ? Kind::Panel : Kind::Button;
 }
 
-// Panels keep their shape scaled to the width, within sensible bounds.
-int panelHeight(const Zone &z, const QRect &area)
+// Panels keep their shape scaled to the width, within sensible bounds
+// (times `squeeze` when several together would run past the bottom).
+int panelHeight(const Zone &z, const QRect &area, double squeeze = 1.0)
 {
     const double scaled = z.rect.width() > 0 ? double(z.rect.height()) * area.width() / z.rect.width() : 400.0;
-    return std::clamp(int(scaled), 240, std::max(240, area.height() * 2 / 3));
+    return std::max(240, int(std::clamp(int(scaled), 240, std::max(240, area.height() * 2 / 3)) * squeeze));
 }
 
 struct Plan {
@@ -37,7 +38,7 @@ struct Plan {
 };
 
 Plan layOut(const QList<const Zone *> &zones, const QList<int> &order, const QRect &area, int gap, int columns,
-            int rowHeight, int labelHeight)
+            int rowHeight, int labelHeight, double squeeze = 1.0)
 {
     Plan plan;
     plan.rects.resize(zones.size());
@@ -62,7 +63,7 @@ Plan layOut(const QList<const Zone *> &zones, const QList<int> &order, const QRe
             break;
         case Kind::Panel: {
             endRow();
-            const int h = panelHeight(z, area);
+            const int h = panelHeight(z, area, squeeze);
             plan.rects[i] = QRect(area.x(), y, area.width(), h);
             y += h + gap;
             break;
@@ -97,15 +98,47 @@ QList<QRect> reflowZones(const QList<const Zone *> &zones, const QRect &area, in
         return ra.x() < rb.x();
     });
 
+    // Room left over goes to the biggest panel (a list, a report, the
+    // kitchen's orders): everything below it moves down.
+    const auto growMain = [&](Plan &p) {
+        const int spare = area.height() - p.height;
+        int main = -1;
+        for (int i = 0; i < zones.size(); ++i)
+            if (kindOf(*zones[i]) == Kind::Panel && !p.rects[i].isEmpty()
+                && (main < 0 || zones[i]->rect.width() * zones[i]->rect.height()
+                                    > zones[main]->rect.width() * zones[main]->rect.height()))
+                main = i;
+        if (spare <= 0 || main < 0)
+            return;
+        const int below = p.rects[main].bottom();
+        p.rects[main].setHeight(p.rects[main].height() + spare);
+        for (int i = 0; i < zones.size(); ++i)
+            if (i != main && !p.rects[i].isEmpty() && p.rects[i].top() > below)
+                p.rects[i].translate(0, spare);
+        p.height = area.height();
+    };
+
     Plan best;
     for (int columns : {2, 3}) {
         for (int rowHeight : {220, 190, 160, 130, 110}) {
             Plan p = layOut(zones, order, area, gap, columns, rowHeight, rowHeight >= 160 ? 96 : 72);
-            if (p.height <= area.height())
+            if (p.height <= area.height()) {
+                growMain(p);
                 return p.rects;
+            }
             if (best.rects.isEmpty() || p.height < best.height)
                 best = std::move(p);
         }
+    }
+    // Still too tall: the panels give up height together, as far as they can.
+    for (double squeeze : {0.85, 0.7, 0.55, 0.4}) {
+        Plan p = layOut(zones, order, area, gap, 3, 110, 72, squeeze);
+        if (p.height <= area.height()) {
+            growMain(p);
+            return p.rects;
+        }
+        if (p.height < best.height)
+            best = std::move(p);
     }
     return best.rects;   // doesn't fit: the most compact one (runs past the bottom)
 }

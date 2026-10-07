@@ -21,22 +21,26 @@ Item {
     readonly property var presets: [qsTr("Need a runner"), qsTr("Order up"), qsTr("86: "), qsTr("Manager please"),
                                     qsTr("Help at the host stand"), qsTr("Table needs bussing"), qsTr("Allergy: please check")]
 
-    readonly property real zoom: Math.max(1, Math.min(1.6, width / 1100))
+    // Upright (a phone): the message, then the recent ones below.
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property real zoom: zone ? zone.formZoom(narrow ? 380 : 1100) : 1
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
         scale: w.zoom
         transformOrigin: Item.TopLeft
 
-        RowLayout {
+        GridLayout {
             anchors.fill: parent
             anchors.margins: 10
-            spacing: 14
+            columns: w.narrow ? 1 : 3   // the message | a separator | recent ones
+            rowSpacing: 14
+            columnSpacing: 14
 
             // Scrolls when many people are clocked in.
             TouchScrollColumn {
-                Layout.preferredWidth: parent.width * 0.58
-                Layout.fillWidth: false
+                Layout.preferredWidth: w.narrow ? parent.width : parent.width * 0.58
+                Layout.fillWidth: w.narrow
                 Layout.fillHeight: true
                 spacing: 8
                 Label { text: qsTr("To"); font.bold: true; font.pixelSize: 17 }
@@ -119,7 +123,7 @@ Item {
                 }
             }
 
-            ToolSeparator { Layout.fillHeight: true }
+            ToolSeparator { Layout.fillHeight: true; visible: !w.narrow }
 
             ColumnLayout {
                 Layout.fillWidth: true

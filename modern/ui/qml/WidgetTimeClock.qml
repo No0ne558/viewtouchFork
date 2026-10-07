@@ -18,7 +18,10 @@ Item {
     onSomeoneChanged: pickingOff = false
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     readonly property color ink: zone.st.textColor ?? "white"
-    readonly property real unit: Math.max(14, Math.min(w.width / 46, w.height / 26))
+    // Upright (a phone): the keypad alone; then the person above their schedule.
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property real unit: narrow ? Math.max(14, Math.min(w.width / 20, w.height / 34))
+                                        : Math.max(14, Math.min(w.width / 46, w.height / 26))
     property string pin: ""
 
     // Back to the keypad when nobody's touched it for a while.
@@ -31,14 +34,18 @@ Item {
     onInfoChanged: idle.restart()
     function touched() { idle.restart() }
 
-    RowLayout {
+    GridLayout {
         anchors.fill: parent
-        spacing: w.unit
+        columns: w.narrow ? 1 : 2
+        rowSpacing: w.unit
+        columnSpacing: w.unit
 
         // --- left: the keypad, or the person and their buttons ---
         Rectangle {
-            Layout.preferredWidth: parent.width * 0.42
-            Layout.fillHeight: true
+            Layout.preferredWidth: w.narrow ? parent.width : parent.width * 0.42
+            Layout.fillWidth: w.narrow
+            Layout.fillHeight: !w.narrow || !w.someone
+            Layout.preferredHeight: w.narrow && w.someone ? w.unit * 18 : -1
             radius: 12
             color: "#1d2128"
 
@@ -190,6 +197,7 @@ Item {
 
         // --- right: their schedule ---
         Rectangle {
+            visible: !w.narrow || w.someone
             Layout.fillWidth: true
             Layout.fillHeight: true
             radius: 12

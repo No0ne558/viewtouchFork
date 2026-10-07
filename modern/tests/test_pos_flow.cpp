@@ -3641,3 +3641,27 @@ TEST_CASE("Kiosk on a 1080x1920 portrait screen (Chipsee KIOSK-CM4-215)", "[flow
     REQUIRE(find(u"kioskNumber"_s));
     s.shot("p8-number");
 }
+
+// Every page on a phone held upright, as screenshots (VTM_SHOTS): run by hand
+// with [phoneaudit] to look them over.
+TEST_CASE("Phone audit: every page in portrait", "[.][phoneaudit]")
+{
+    Screen s(false, 412, 870, u"phone"_s);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    s.pos.addItem(u"cobb"_s);
+    s.c.finishChoosing();
+    s.pos.addItem(u"water"_s);
+    QStringList ids;
+    for (const layout::Page &p : s.c.layout().pages)
+        if (p.formFactor != u"phone" && p.kind != u"template" && p.kind != u"library")
+            ids << p.id;
+    ids.sort();
+    for (const QString &id : ids) {
+        if (!s.c.jumpTo(id))
+            continue;
+        QTest::qWait(60);
+        s.shot((u"phone-"_s + id).toUtf8().constData());
+    }
+    QTest::qWait(30);
+}

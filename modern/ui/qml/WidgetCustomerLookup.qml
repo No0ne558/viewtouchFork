@@ -46,7 +46,10 @@ Item {
 
     Timer { id: searchTimer; interval: 250; onTriggered: w.pos.findCustomers(search.text) }
 
-    readonly property real zoom: zone ? zone.formZoom(688) : 1
+    // Upright (a phone): the search, then the customer on their own, with ‹ Search.
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property bool showing: creating || (chosen.id ?? "") !== ""
+    readonly property real zoom: zone ? zone.formZoom(narrow ? 340 : 688) : 1
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
@@ -60,8 +63,9 @@ Item {
 
             // --- find ---
             ColumnLayout {
-                Layout.preferredWidth: parent.width * 0.4
-                Layout.fillWidth: false
+                visible: !w.narrow || !w.showing
+                Layout.preferredWidth: w.narrow ? parent.width : parent.width * 0.4
+                Layout.fillWidth: w.narrow
                 Layout.fillHeight: true
                 spacing: 8
                 TextField {
@@ -129,11 +133,12 @@ Item {
                 }
             }
 
-            ToolSeparator { Layout.fillHeight: true }
+            ToolSeparator { Layout.fillHeight: true; visible: !w.narrow }
 
             // --- the customer ---
             Flickable {
                 id: form
+                visible: !w.narrow || w.showing
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 contentHeight: details.implicitHeight
@@ -146,6 +151,11 @@ Item {
                     spacing: 8
                     visible: w.creating || (w.chosen.id ?? "") !== ""
 
+                    Button {
+                        visible: w.narrow
+                        text: qsTr("‹ Search")
+                        onClicked: { w.creating = false; w.pos.selectCustomer("") }
+                    }
                     Label {
                         text: w.creating ? qsTr("New customer") : (w.chosen.name || w.chosen.phone || "")
                         font.bold: true

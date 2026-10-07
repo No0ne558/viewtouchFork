@@ -238,3 +238,37 @@ TEST_CASE("Close ViewTouch: managers only", "[ui][close]")
     c.activate(u"close-app"_s);
     CHECK(closing.size() == 1);
 }
+
+TEST_CASE("Phones held upright: every page fits the portrait screen", "[phone][portrait]")
+{
+    const layout::Layout l = seedLayout();
+    PosService pos(test::seedPosData(), nullptr);
+    LayoutController c(l);
+    c.setMealPeriod(u"lunch"_s);
+    c.setPos(&pos);
+    REQUIRE(pos.loginWithPin(u"1234"_s));   // a manager reaches every page
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    c.setFormFactorOverride(u"phone"_s);
+    QStringList over, landscape;
+    for (const layout::Page &p : l.pages) {
+        if (p.formFactor == u"phone" || p.kind == u"template" || p.kind == u"library" || !c.jumpTo(p.id))
+            continue;
+        const QSize canvas = c.canvasSize();
+        if (canvas.width() > canvas.height())
+            landscape << p.id;   // shown sideways on a phone
+        ZoneModel *m = c.zones();
+        for (int r = 0; r < m->rowCount(); ++r) {
+            const QModelIndex i = m->index(r);
+            const QRect rect(m->data(i, ZoneModel::ZoneXRole).toInt(), m->data(i, ZoneModel::ZoneYRole).toInt(),
+                             m->data(i, ZoneModel::ZoneWRole).toInt(), m->data(i, ZoneModel::ZoneHRole).toInt());
+            if (!rect.isEmpty() && !QRect(QPoint(0, 0), canvas).contains(rect)) {
+                over << p.id + u':' + m->data(i, ZoneModel::ZoneIdRole).toString();
+                break;
+            }
+        }
+    }
+    INFO("sideways: " << landscape.join(u", "_s).toStdString());
+    INFO("past the edge: " << over.join(u", "_s).toStdString());
+    CHECK(landscape.isEmpty());
+    CHECK(over.isEmpty());
+}

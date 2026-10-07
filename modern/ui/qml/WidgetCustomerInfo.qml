@@ -40,7 +40,7 @@ Item {
     onSavedChanged: if (!dirty) reload()
 
     // Controls are laid out at a comfortable size, then scaled with the page.
-    readonly property real zoom: zone ? zone.formZoom(560) : 1.6
+    readonly property real zoom: zone ? zone.formZoom(zone.narrow ? 380 : 560) : 1.6
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom

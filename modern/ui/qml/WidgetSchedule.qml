@@ -29,7 +29,9 @@ Item {
         note = ""
     }
 
-    readonly property real zoom: zone ? zone.formZoom(680) : 1
+    // Upright (a phone): the week as rows, and adding a shift over three lines.
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property real zoom: zone ? zone.formZoom(narrow ? 380 : 680) : 1
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
@@ -61,10 +63,12 @@ Item {
             }
 
             // The week.
-            RowLayout {
+            GridLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                spacing: 6
+                columns: w.narrow ? 1 : 7
+                rowSpacing: 6
+                columnSpacing: 6
                 Repeater {
                     model: w.days
                     delegate: Rectangle {
@@ -147,12 +151,16 @@ Item {
             }
 
             // Add a shift to the day picked above.
-            RowLayout {
+            GridLayout {
                 visible: w.chosen === null
                 Layout.fillWidth: true
-                spacing: 8
+                columns: w.narrow ? 4 : 7
+                rowSpacing: 8
+                columnSpacing: 8
                 ComboBox {
                     id: staffBox
+                    Layout.columnSpan: w.narrow ? 2 : 1
+                    Layout.fillWidth: w.narrow
                     Layout.preferredWidth: 220
                     textRole: "name"
                     valueRole: "id"
@@ -161,7 +169,7 @@ Item {
                     Component.onCompleted: w.who = currentValue ?? ""
                     onModelChanged: if (w.who === "") w.who = currentValue ?? ""
                 }
-                Label { text: w.days[w.dayIndex] ? w.days[w.dayIndex].label : "" ; font.bold: true }
+                Label { Layout.columnSpan: w.narrow ? 2 : 1; text: w.days[w.dayIndex] ? w.days[w.dayIndex].label : "" ; font.bold: true }
                 TextField {
                     implicitWidth: 90
                     text: w.start
@@ -184,6 +192,8 @@ Item {
                     onTextEdited: w.note = text
                 }
                 Button {
+                    Layout.columnSpan: w.narrow ? 4 : 1
+                    Layout.fillWidth: w.narrow
                     text: qsTr("Add Shift")
                     highlighted: true
                     implicitHeight: 48

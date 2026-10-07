@@ -10,7 +10,10 @@ Item {
     readonly property PosService pos: zone ? zone.pos : null
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     readonly property color ink: zone.st.textColor ?? "white"
-    readonly property real unit: Math.max(14, Math.min(28, w.width * 0.022))
+    // Upright (a phone): the items, then the checks below, at a phone's size.
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property real unit: narrow ? Math.max(14, Math.min(44, w.width * 0.045))
+                                        : Math.max(14, Math.min(28, w.width * 0.022))
     readonly property var targets: {
         if (!pos) return []
         void pos.openChecks
@@ -18,10 +21,12 @@ Item {
         return pos.splitTargets()
     }
 
-    RowLayout {
+    GridLayout {
         anchors.fill: parent
         anchors.margins: w.unit * 0.6
-        spacing: w.unit
+        columns: w.narrow ? 1 : 2
+        rowSpacing: w.unit
+        columnSpacing: w.unit
 
         ColumnLayout {
             Layout.fillWidth: true

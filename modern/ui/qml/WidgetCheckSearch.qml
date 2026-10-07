@@ -13,7 +13,9 @@ Item {
     readonly property var found: info.results ?? []
     readonly property var check: info.selected ?? null
 
-    readonly property real zoom: zone ? zone.formZoom(900) : 1.4
+    // Upright (a phone): the results, then a check on its own, with ‹ Results.
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property real zoom: zone ? zone.formZoom(narrow ? 360 : 900) : 1.4
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
@@ -66,8 +68,9 @@ Item {
                 ListView {
                     id: list
                     objectName: "searchResults"
-                    Layout.preferredWidth: (w.width / w.zoom - 32) * 0.45   // not the row's width: that loops
-                    Layout.fillWidth: false
+                    visible: !w.narrow || !w.check
+                    Layout.preferredWidth: (w.width / w.zoom - 32) * (w.narrow ? 1 : 0.45)   // not the row's width: that loops
+                    Layout.fillWidth: w.narrow
                     Layout.fillHeight: true
                     clip: true
                     spacing: 4
@@ -106,6 +109,7 @@ Item {
                 }
 
                 Rectangle {
+                    visible: !w.narrow || !!w.check
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: 8
@@ -121,6 +125,11 @@ Item {
                         anchors.fill: parent
                         anchors.margins: 12
                         spacing: 4
+                        Button {
+                            visible: w.narrow
+                            text: qsTr("‹ Results")
+                            onClicked: w.pos.selectFoundCheck(0)
+                        }
                         Label { text: w.check ? "#" + w.check.id + "  " + w.check.label : ""; font.bold: true; font.pixelSize: 20 }
                         Label {
                             Layout.fillWidth: true

@@ -516,6 +516,22 @@ LayoutController::Shown LayoutController::shown() const
             }
             return s;
         }
+        // No phone version and no phone frame: the page's own zones laid out
+        // again on a phone held upright.
+        static const QSize phone(1080, 2280);
+        s.canvas = phone;
+        const QList<Layout::PlacedZone> all = l.effectiveZones(id);
+        QList<const vt::layout::Zone *> zones;
+        for (const Layout::PlacedZone &pz : all)
+            zones.append(pz.zone);
+        const QList<QRect> rects = vt::layout::reflowZones(zones, QRect(24, 24, phone.width() - 48, phone.height() - 48));
+        for (qsizetype k = 0; k < all.size(); ++k) {
+            if (rects[k].isEmpty())
+                continue;
+            s.zones.append(all[k]);
+            s.moved.insert(all[k].zone, rects[k]);
+        }
+        return s;
     }
     s.zones = l.effectiveZones(id);
     return s;

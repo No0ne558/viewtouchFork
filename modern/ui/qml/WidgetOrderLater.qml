@@ -45,7 +45,9 @@ Item {
         palette.buttonText: "white"
     }
 
-    readonly property real zoom: zone ? zone.formZoom(900, 560) : 1.4
+    // Upright (a phone): fewer days and hours a row, bigger.
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property real zoom: zone ? zone.formZoom(narrow ? 380 : 900, narrow ? 0 : 560) : 1.4
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
@@ -67,10 +69,12 @@ Item {
             }
 
             Label { text: qsTr("Day"); opacity: 0.7; font.pixelSize: 16 }
-            RowLayout {
+            GridLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
-                spacing: 6
+                columns: w.narrow ? 4 : 7
+                rowSpacing: 6
+                columnSpacing: 6
                 Repeater {
                     model: 7
                     Pick {
@@ -91,7 +95,7 @@ Item {
             GridLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
-                columns: 9
+                columns: w.narrow ? 6 : 9
                 rowSpacing: 6
                 columnSpacing: 6
                 Repeater {

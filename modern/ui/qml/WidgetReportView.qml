@@ -10,7 +10,12 @@ Item {
     readonly property PosService pos: zone ? zone.pos : null
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     readonly property color ink: zone.st.textColor ?? "white"
-    readonly property real unit: Math.max(12, Math.min(26, w.width * 0.022))
+    // Upright (a phone): bigger, and the choices in fewer columns.
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property real unit: narrow ? Math.max(12, Math.min(40, w.width * 0.038))
+                                        : Math.max(12, Math.min(26, w.width * 0.022))
+    readonly property int reportColumns: narrow ? 4 : Math.ceil(reportIds.length / 2)
+    readonly property real keyH: Math.max(w.unit * 2.2, w.zone ? w.zone.touch(46) : 0)
 
     readonly property var reportIds: [
         { id: "sales", label: qsTr("Sales") }, { id: "items", label: qsTr("Items") },
@@ -69,12 +74,14 @@ Item {
         anchors.margins: w.unit * 0.6
         spacing: w.unit * 0.5
 
-        // Two rows, so each name has room to be read.
+        // Two rows (on a phone, four columns), so each name has room to be read.
         GridLayout {
+            readonly property int keyRows: Math.ceil(w.reportIds.length / w.reportColumns)
             Layout.fillWidth: true
-            Layout.preferredHeight: 2 * Math.max(w.unit * 2.2, w.zone ? w.zone.touch(46) : 0) + w.unit * 0.3
+            Layout.preferredHeight: keyRows * w.keyH + (keyRows - 1) * w.unit * 0.3
+            Layout.minimumHeight: Layout.preferredHeight
             Layout.fillHeight: false   // nested layouts fill by default
-            columns: Math.ceil(w.reportIds.length / 2)
+            columns: w.reportColumns
             rowSpacing: w.unit * 0.3
             columnSpacing: w.unit * 0.3
             Repeater {
@@ -92,11 +99,15 @@ Item {
         }
 
         // Which days.
-        RowLayout {
+        GridLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.max(w.unit * 2.2, w.zone ? w.zone.touch(46) : 0)
+            readonly property int keyRows: w.narrow ? Math.ceil((w.periods.length + 1) / 4) : 1
+            Layout.preferredHeight: keyRows * w.keyH + (keyRows - 1) * w.unit * 0.3
+            Layout.minimumHeight: Layout.preferredHeight
             Layout.fillHeight: false
-            spacing: w.unit * 0.3
+            columns: w.narrow ? 4 : 99
+            rowSpacing: w.unit * 0.3
+            columnSpacing: w.unit * 0.3
             Repeater {
                 model: w.periods
                 delegate: WidgetKey {

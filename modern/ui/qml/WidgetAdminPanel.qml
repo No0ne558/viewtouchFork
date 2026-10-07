@@ -64,7 +64,9 @@ Item {
     onPanelChanged: single ? choose(0) : (index = -2)
 
     // Controls are laid out at a comfortable size, then scaled with the page.
-    readonly property real zoom: zone ? zone.formZoom(680) : 1.6
+    // Upright (a phone): the list, then a record's form on its own, with ‹ List.
+    readonly property bool narrow: zone ? zone.narrow : false
+    readonly property real zoom: zone ? zone.formZoom(narrow ? 340 : 680) : 1.6
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
@@ -126,9 +128,9 @@ Item {
 
             // --- list ---
             ColumnLayout {
-                visible: !w.single
-                Layout.fillWidth: false    // nested layouts fill by default
-                Layout.preferredWidth: parent.width * 0.36
+                visible: !w.single && (!w.narrow || w.index === -2)
+                Layout.fillWidth: w.narrow    // nested layouts fill by default
+                Layout.preferredWidth: w.narrow ? parent.width : parent.width * 0.36
                 Layout.fillHeight: true
                 spacing: 6
 
@@ -174,7 +176,7 @@ Item {
             }
 
             Rectangle {
-                visible: !w.single
+                visible: !w.single && !w.narrow
                 Layout.fillHeight: true
                 implicitWidth: 1
                 color: "#3a4250"
@@ -182,10 +184,17 @@ Item {
 
             // --- form ---
             ColumnLayout {
+                visible: !w.narrow || w.index !== -2 || w.single
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 spacing: 8
 
+                Button {
+                    objectName: "adminBackToList"
+                    visible: w.narrow && !w.single && w.index !== -2
+                    text: qsTr("‹ List")
+                    onClicked: { w.index = -2; w.dirty = false }
+                }
                 Label {
                     visible: w.index === -2
                     Layout.fillWidth: true

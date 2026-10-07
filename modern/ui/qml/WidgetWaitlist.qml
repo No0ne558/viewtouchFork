@@ -67,7 +67,11 @@ Item {
         clearForm()
     }
 
-    readonly property real zoom: zone ? zone.formZoom(719, 330) : 1
+    // Upright (a phone): the list; + Add a Party or a party, each on its own, with ‹ List.
+    readonly property bool narrow: zone ? zone.narrow : false
+    property bool adding: false
+    readonly property bool listShown: !narrow || (!adding && chosen === null)
+    readonly property real zoom: zone ? zone.formZoom(narrow ? 360 : 719, narrow ? 0 : 330) : 1
     Item {
         width: w.width / w.zoom
         height: w.height / w.zoom
@@ -81,8 +85,9 @@ Item {
 
             // --- the line and the book ---
             ColumnLayout {
-                Layout.preferredWidth: parent.width * 0.52
-                Layout.fillWidth: false
+                visible: w.listShown
+                Layout.preferredWidth: w.narrow ? parent.width : parent.width * 0.52
+                Layout.fillWidth: w.narrow
                 Layout.fillHeight: true
                 spacing: 6
                 TabBar {
@@ -159,16 +164,29 @@ Item {
                     text: qsTr("Seated today %1  ·  average wait %2 min  ·  no-shows %3")
                           .arg(w.info.seatedToday ?? 0).arg(w.info.averageWait ?? 0).arg(w.info.noShows ?? 0)
                 }
+                Button {
+                    visible: w.narrow
+                    Layout.fillWidth: true
+                    implicitHeight: 52
+                    highlighted: true
+                    text: qsTr("+ Add a Party")
+                    onClicked: w.adding = true
+                }
             }
 
-            ToolSeparator { Layout.fillHeight: true }
+            ToolSeparator { Layout.fillHeight: true; visible: !w.narrow }
 
             // --- add a party ---
             ColumnLayout {
-                visible: w.chosen === null
+                visible: w.chosen === null && (!w.narrow || w.adding)
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 spacing: 8
+                Button {
+                    visible: w.narrow
+                    text: qsTr("‹ List")
+                    onClicked: w.adding = false
+                }
                 Label {
                     text: w.reservation ? qsTr("Book a table") : qsTr("Add to the waitlist")
                     font.pixelSize: 20
@@ -240,7 +258,7 @@ Item {
                     highlighted: true
                     enabled: w.newName.trim().length > 0
                     text: w.reservation ? qsTr("Book It") : qsTr("Add to the Waitlist")
-                    onClicked: w.add()
+                    onClicked: { w.add(); w.adding = false }
                 }
             }
 
@@ -250,6 +268,11 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 spacing: 8
+                Button {
+                    visible: w.narrow
+                    text: qsTr("‹ List")
+                    onClicked: w.chosenId = null
+                }
                 Label {
                     text: w.chosen ? w.chosen.name + "  ·  " + (w.chosen.size === 1 ? qsTr("1 person") : qsTr("%1 people").arg(w.chosen.size)) : ""
                     font.pixelSize: 22
