@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "host",
-  "name": "Host Stand",
+  "id": "seating",
+  "name": "Seating",
   "kind": "custom",
   "canvas": {
     "w": 1920,
@@ -21,11 +21,11 @@
       },
       "shape": "rect",
       "behavior": "none",
-      "label": "Waitlist & reservations"
+      "label": "Seating"
     },
     {
-      "id": "waitlist",
-      "kind": "waitlist",
+      "id": "host-stand",
+      "kind": "hostStand",
       "rect": {
         "x": 16,
         "y": 112,
@@ -56,32 +56,7 @@
       ]
     },
     {
-      "id": "seating",
-      "kind": "button",
-      "rect": {
-        "x": 744,
-        "y": 944,
-        "w": 432,
-        "h": 120
-      },
-      "shape": "rect",
-      "behavior": "blink",
-      "label": "Seating\u2026",
-      "actions": [
-        {
-          "type": "jump",
-          "mode": "push",
-          "page": "seating"
-        }
-      ],
-      "style": {
-        "normal": {
-          "fill": "#1f6f73"
-        }
-      }
-    },
-    {
-      "id": "customers",
+      "id": "waitlist",
       "kind": "button",
       "rect": {
         "x": 1472,
@@ -91,14 +66,19 @@
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "Customers\u2026",
+      "label": "Waitlist & Reservations\u2026",
       "actions": [
         {
           "type": "jump",
           "mode": "push",
-          "page": "customers"
+          "page": "host"
         }
-      ]
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
     }
   ]
 }

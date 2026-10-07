@@ -512,6 +512,7 @@ public:
     qint64 selectedLine() const override { return selectedLine_; }
     qint64 selectedPayment() const override { return selectedPayment_; }
     QVariantList openChecks() const override;
+    QVariantMap floor() const override;
     QStringList popularItems() const override;
     // Arranging the self-filling menu by touch (managers): one place earlier
     // or later within its family, and its button color.
@@ -646,6 +647,13 @@ public:
     bool notifyParty(qint64 id);       // "your table is ready" (texted when set up)
     // Seat them: opens their table's check for `serverId` (default: you).
     bool seatParty(qint64 id, const QString &table, const QString &serverId = {});
+    // The host stand (pos_waitlist.cpp).
+    bool seatPartyAt(qint64 partyId, const QStringList &tables, const QString &serverId);
+    bool seatWalkIn(int size, const QStringList &tables, const QString &serverId);
+    bool reserveTables(qint64 partyId, const QStringList &tables);
+    bool setTableState(const QString &table, const QString &state);
+    bool tableTaken(const QString &table) const;   // an open table check is on it
+    void tableEmptied(const std::string &table);   // its last check closed: dirty
     // Left the line, or (a reservation) never came.
     bool partyGone(qint64 id, bool noShow = false);
     QVariantMap waitlistInfo() const override;

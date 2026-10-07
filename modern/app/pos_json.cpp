@@ -740,6 +740,13 @@ QJsonObject toJson(const PosSettings &s)
         {u"openingChecklist"_s, [&] { QJsonArray a; for (const std::string &t : s.openingChecklist) a.append(qs(t)); return a; }()},
         {u"closingChecklist"_s, [&] { QJsonArray a; for (const std::string &t : s.closingChecklist) a.append(qs(t)); return a; }()},
         {u"checklistDayId"_s, qint64(s.checklistDayId)},
+        {u"tableStates"_s, [&] {
+             QJsonArray a;
+             for (const PosSettings::TableState &t : s.tableStates)
+                 a.append(QJsonObject{{u"table"_s, qs(t.table)}, {u"state"_s, qs(t.state)}, {u"with"_s, qs(t.with)},
+                                      {u"by"_s, qs(t.by)}, {u"partyId"_s, qint64(t.partyId)}, {u"since"_s, qint64(t.since)}});
+             return a;
+         }()},
         {u"prepSeconds"_s, [&] {
              QJsonObject o;
              for (const auto &[id, sec] : s.prepSeconds)
@@ -917,6 +924,12 @@ PosSettings settingsFromJson(const QJsonObject &o)
     for (const QJsonValue &v : o.value(u"closingChecklist").toArray())
         s.closingChecklist.push_back(ss(v.toString()));
     s.checklistDayId = i64(o.value(u"checklistDayId"));
+    for (const QJsonValue &v : o.value(u"tableStates").toArray()) {
+        const QJsonObject x = v.toObject();
+        s.tableStates.push_back({ss(x.value(u"table").toString()), ss(x.value(u"state").toString()),
+                                 ss(x.value(u"with").toString()), ss(x.value(u"by").toString()),
+                                 i64(x.value(u"partyId")), i64(x.value(u"since"))});
+    }
     const QJsonObject prep = o.value(u"prepSeconds").toObject();
     for (auto it = prep.begin(); it != prep.end(); ++it)
         s.prepSeconds[ss(it.key())] = it.value().toInt();

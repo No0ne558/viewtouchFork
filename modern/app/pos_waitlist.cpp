@@ -277,3 +277,180 @@ bool PosService::partyGone(qint64 id, bool noShow)
 }
 
 } // namespace vt::app
+
+// --- the host stand: the floor, seating at tables, reserving, bussing --------------
+
+namespace vt::app {
+
+bool PosService::tableTaken(const QString &table) const
+{
+    for (const auto &[id, c] : s_->open)
+        if (c.type == CheckType::DineIn && !c.training && QString::compare(qs(c.label), table, Qt::CaseInsensitive) == 0)
+            return true;
+    return false;
+}
+
+QVariantMap PosService::floor() const
+{
+    if (!user())
+        return {};
+    const std::int64_t t = now();
+    QVariantMap out;
+    // Seated: a table check is open there.
+    for (const auto &[id, c] : s_->open) {
+        if (c.type != CheckType::DineIn || c.training)
+            continue;
+        const QString label = qs(c.label);
+        if (out.contains(label))
+            continue;
+        out.insert(label, QVariantMap{{u"state"_s, u"seated"_s}, {u"guests"_s, c.guests},
+                                      {u"server"_s, qs(c.serverName)}, {u"serverId"_s, qs(c.serverId)},
+                                      {u"minutes"_s, int((t - c.openedAt) / kMinute)},
+                                      {u"party"_s, qs(c.customer.name)}});
+    }
+    for (const PosSettings::TableState &s : s_->settings.tableStates) {
+        const QString label = qs(s.table);
+        if (out.contains(label))
+            continue;   // seated wins
+        if (s.state == "joined") {
+            // Pushed together with a seated table: seated too, with it.
+            QVariantMap with = out.value(qs(s.with)).toMap();
+            if (with.value(u"state"_s).toString() == u"seated") {
+                with.insert(u"with"_s, qs(s.with));
+                out.insert(label, with);
+            }
+        } else if (s.state == "dirty") {
+            out.insert(label, QVariantMap{{u"state"_s, u"dirty"_s}, {u"minutes"_s, int((t - s.since) / kMinute)}});
+        } else if (s.state == "reserved") {
+            const Party *p = nullptr;
+            for (const Party &x : s_->parties)
+                if (x.id == s.partyId)
+                    p = &x;
+            if (!p || p->done())
+                continue;   // seated somewhere else, left, or a no-show: free again
+            out.insert(label, QVariantMap{{u"state"_s, u"reserved"_s}, {u"partyId"_s, qint64(p->id)},
+                                          {u"party"_s, qs(p->name)}, {u"size"_s, p->size},
+                                          {u"time"_s, p->reservedFor ? clock(p->reservedFor) : QString()}});
+        }
+    }
+    return out;
+}
+
+void PosService::tableEmptied(const std::string &table)
+{
+    if (tableTaken(qs(table)))
+        return;   // another check is still open there
+    auto &states = s_->settings.tableStates;
+    // It, and the tables pushed together with it, need bussing.
+    std::vector<std::string> tables{table};
+    for (const PosSettings::TableState &s : states)
+        if (s.state == "joined" && s.with == table)
+            tables.push_back(s.table);
+    std::erase_if(states, [&](const PosSettings::TableState &s) {
+        return std::ranges::find(tables, s.table) != tables.end();
+    });
+    for (const std::string &t : tables)
+        states.push_back({t, "dirty", {}, {}, 0, now()});
+    s_->saveSettings();
+    emit s_->checksChanged();
+}
+
+bool PosService::setTableState(const QString &table, const QString &state)
+{
+    if (!require(perm::Order, tr("The host stand")))
+        return false;
+    const std::string label = ss(table.trimmed());
+    if (label.empty())
+        return fail(tr("Choose a table."));
+    if (state != u"clean" && state != u"dirty")
+        return fail(tr("Mark it clean or dirty."));
+    if (tableTaken(table))
+        return fail(tr("%1 has guests: close its check first.").arg(table));
+    auto &states = s_->settings.tableStates;
+    std::erase_if(states, [&](const PosSettings::TableState &s) { return s.table == label; });
+    if (state == u"dirty")
+        states.push_back({label, "dirty", {}, user()->name, 0, now()});
+    s_->saveSettings();
+    emit notice(state == u"dirty" ? tr("%1 needs bussing").arg(table) : tr("%1 is ready").arg(table));
+    emit s_->checksChanged();
+    return true;
+}
+
+bool PosService::reserveTables(qint64 partyId, const QStringList &tables)
+{
+    if (!require(perm::Order, tr("Reservations")))
+        return false;
+    Party *p = party(partyId);
+    if (!p || p->done())
+        return fail(tr("That party isn't waiting."));
+    if (tables.isEmpty())
+        return fail(tr("Choose a table."));
+    const QVariantMap now_ = floor();
+    for (const QString &t : tables) {
+        const QVariantMap f = now_.value(t).toMap();
+        if (f.value(u"state"_s).toString() == u"seated")
+            return fail(tr("%1 has guests.").arg(t));
+        if (f.value(u"state"_s).toString() == u"reserved" && f.value(u"partyId"_s).toLongLong() != partyId)
+            return fail(tr("%1 is held for %2.").arg(t, f.value(u"party"_s).toString()));
+    }
+    auto &states = s_->settings.tableStates;
+    // Their tables now: these (any held before are let go).
+    std::erase_if(states, [&](const PosSettings::TableState &s) {
+        return (s.state == "reserved" && s.partyId == partyId) || tables.contains(qs(s.table), Qt::CaseInsensitive);
+    });
+    for (const QString &t : tables)
+        states.push_back({ss(t), "reserved", {}, user()->name, partyId, now()});
+    p->table = ss(tables.join(u'+'));
+    saveParty(*p);
+    s_->saveSettings();
+    emit notice(tr("%1 held for %2").arg(tables.join(u" + "_s), qs(p->name)));
+    emit s_->checksChanged();
+    return true;
+}
+
+bool PosService::seatPartyAt(qint64 partyId, const QStringList &tables, const QString &serverId)
+{
+    if (tables.isEmpty())
+        return fail(tr("Choose a table."));
+    const QVariantMap f = floor();
+    for (const QString &t : tables) {
+        const QVariantMap s = f.value(t).toMap();
+        if (s.value(u"state"_s).toString() == u"seated")
+            return fail(tr("%1 is taken.").arg(t));
+        if (s.value(u"state"_s).toString() == u"reserved" && s.value(u"partyId"_s).toLongLong() != partyId)
+            return fail(tr("%1 is held for %2.").arg(t, s.value(u"party"_s).toString()));
+    }
+    // The check goes on the first table; the others are pushed together with it.
+    if (!seatParty(partyId, tables.first(), serverId))
+        return false;
+    auto &states = s_->settings.tableStates;
+    std::erase_if(states, [&](const PosSettings::TableState &s) {
+        return tables.contains(qs(s.table), Qt::CaseInsensitive) || (s.state == "reserved" && s.partyId == partyId);
+    });
+    for (qsizetype i = 1; i < tables.size(); ++i)
+        states.push_back({ss(tables[i]), "joined", ss(tables.first()), user()->name, partyId, now()});
+    if (Party *p = party(partyId); p && tables.size() > 1) {
+        p->table = ss(tables.join(u'+'));
+        saveParty(*p);
+    }
+    s_->saveSettings();
+    emit s_->checksChanged();
+    return true;
+}
+
+bool PosService::seatWalkIn(int size, const QStringList &tables, const QString &serverId)
+{
+    if (!require(perm::Order, tr("Seating guests")))
+        return false;
+    Party p;
+    p.id = ++s_->lastPartyId;
+    p.name = ss(tr("Walk-in"));
+    p.size = std::clamp(size, 1, 99);
+    p.addedAt = now();
+    p.status = Party::Status::Waiting;
+    s_->parties.push_back(p);
+    saveParty(p);
+    return seatPartyAt(p.id, tables, serverId);
+}
+
+} // namespace vt::app

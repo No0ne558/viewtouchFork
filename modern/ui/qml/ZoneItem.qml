@@ -178,7 +178,7 @@ Item {
         "soldOutList", "orderList", "loginPad", "guestCount", "numPad",
         "paymentPanel", "checkList", "keyboard", "clock", "logoutPanel", "statusBar",
         "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "kitchenDisplay", "customerInfo",
-        "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock", "dashboard", "checklist"]
+        "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock", "dashboard", "checklist", "hostStand"]
     readonly property bool hasWidget: isWidget && builtWidgets.includes(kind)
     readonly property bool interactive: zoneEnabled && behavior !== "passthrough"
                                         && (kind === "button" || kind === "image")

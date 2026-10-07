@@ -305,6 +305,8 @@ QVariantMap PosService::userPrefs() const
                 job = p.job;
         if (const auto it = s_->settings.startPages.find(job); it != s_->settings.startPages.end())
             start = it->second;
+        else if (job == "host")
+            start = "seating";   // hosts: the seating screen (when the layout has it)
     }
     return {{u"textSize"_s, e->textSize}, {u"leftHanded"_s, e->leftHanded}, {u"startPage"_s, qs(start)}};
 }
@@ -1436,8 +1438,12 @@ bool PosService::closeCheck()
     s_->closedToday.push_back(*c);
     lastClosedId_ = c->id;
     const qint64 id = c->id;
+    const bool table = c->type == CheckType::DineIn && !c->training;
+    const std::string label = c->label;
     unlockCheck(id);
     s_->open.erase(id);
+    if (table)
+        tableEmptied(label);   // the host stand sees it needs bussing
     currentId_ = 0;
     selectedLine_ = 0;
     selectedPayment_ = 0;
@@ -2165,6 +2171,10 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"moveMenuItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.moveMenuItem(a.value(0).toString(), a.value(1).toInt())); }},
         {u"setMenuItemColor"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setMenuItemColor(a.value(0).toString(), a.value(1).toString())); }},
         {u"refreshDay"_s, [](PosService &p, const QVariantList &) { emit p.shared()->dayChanged(); return QVariant(true); }},
+        {u"seatPartyAt"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.seatPartyAt(a.value(0).toLongLong(), a.value(1).toStringList(), a.value(2).toString())); }},
+        {u"seatWalkIn"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.seatWalkIn(a.value(0).toInt(), a.value(1).toStringList(), a.value(2).toString())); }},
+        {u"reserveTables"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.reserveTables(a.value(0).toLongLong(), a.value(1).toStringList())); }},
+        {u"setTableState"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setTableState(a.value(0).toString(), a.value(1).toString())); }},
         {u"clockOutPunch"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.clockOutPunch(a.value(0).toLongLong())); }},
         {u"timeClockDone"_s, [](PosService &p, const QVariantList &) { p.timeClockDone(); return QVariant(true); }},
         {u"undoLast"_s, [](PosService &p, const QVariantList &) { return QVariant(p.undoLast()); }},

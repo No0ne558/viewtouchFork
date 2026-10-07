@@ -299,6 +299,15 @@ struct PosSettings {
         bool operator==(const ChecklistTick &) const = default;
     };
     std::int64_t checklistDayId = 0;
+    // Tables the host stand marked: "dirty" (until bussed), "reserved" for a
+    // party, or "joined" to another table for a big party (`with`).
+    struct TableState {
+        std::string table, state, with, by;
+        std::int64_t partyId = 0;
+        std::int64_t since = 0;
+        bool operator==(const TableState &) const = default;
+    };
+    std::vector<TableState> tableStates;
     std::vector<ChecklistTick> checklistTicks;
     // Kitchen stations, each with its own screen (Manager -> Menu: where an item is made).
     std::vector<Station> stations;

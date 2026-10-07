@@ -10,7 +10,11 @@ Item {
     readonly property PosService pos: zone ? zone.pos : null
     readonly property string name: zone ? zone.label.trim() : ""
     readonly property var status: { w.pos ? w.pos.openChecks : null; return w.pos && w.name ? w.pos.tableStatus(w.name) : ({ open: false }) }
-    readonly property color tint: !status.open ? (zone.st.fill ?? "#2d3440")
+    readonly property string floorState: status.floor ?? ""
+    readonly property color tint: floorState === "dirty" ? zone.statusColor("tableDirty", "#7a3b3b")
+                                  : floorState === "reserved" ? zone.statusColor("tableReserved", "#5b4aa8")
+                                  : floorState === "joined" ? zone.statusColor("tableOpen", "#a86a12")
+                                  : !status.open ? (zone.st.fill ?? "#2d3440")
                                   : status.current ? zone.statusColor("tableCurrent", "#2f6fd6")
                                   : status.mine ? zone.statusColor("tableMine", "#1f8a4c")
                                   : zone.statusColor("tableOpen", "#a86a12")
@@ -61,7 +65,19 @@ Item {
         Text {
             width: parent.width
             horizontalAlignment: Text.AlignHCenter
-            visible: !(w.status.open ?? false) && w.seats > 0
+            visible: w.floorState !== ""
+            text: w.floorState === "dirty" ? qsTr("Needs bussing")
+                : w.floorState === "joined" ? qsTr("With %1").arg(w.status.with ?? "")
+                : qsTr("Held: %1").arg(w.status.party ?? "") + (w.status.time ? "  ·  " + w.status.time : "")
+            color: w.ink
+            font.family: w.face
+            font.pixelSize: Math.min(w.height * 0.13, 20)
+            elide: Text.ElideRight
+        }
+        Text {
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
+            visible: !(w.status.open ?? false) && w.floorState === "" && w.seats > 0
             text: w.seats === 1 ? qsTr("1 seat") : qsTr("%1 seats").arg(w.seats)
             color: Qt.darker(w.ink, 1.4)
             font.family: w.face

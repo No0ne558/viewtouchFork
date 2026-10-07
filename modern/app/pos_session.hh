@@ -53,6 +53,9 @@ class PosSession : public QObject {
     Q_PROPERTY(qint64 selectedLine READ selectedLine WRITE selectLine NOTIFY checkChanged)
     Q_PROPERTY(qint64 selectedPayment READ selectedPayment WRITE selectPayment NOTIFY checkChanged)
     Q_PROPERTY(QVariantList openChecks READ openChecks NOTIFY openChecksChanged)
+    // The host stand's floor: table -> {state: seated | dirty | reserved, ...}
+    // (tables not in it are available).
+    Q_PROPERTY(QVariantMap floor READ floor NOTIFY openChecksChanged)
     // Today's best sellers so far (item ids, most sold first): the Popular page.
     Q_PROPERTY(QStringList popularItems READ popularItems NOTIFY openChecksChanged)
     // Checks closed today, newest first (managers, to reopen one).
@@ -194,6 +197,7 @@ public:
     virtual QVariantList payments() const = 0;
     virtual qint64 selectedLine() const = 0;
     virtual qint64 selectedPayment() const = 0;
+    virtual QVariantMap floor() const = 0;
     virtual QVariantList openChecks() const = 0;
     virtual QStringList popularItems() const = 0;
     virtual QVariantList tableChecks() const = 0;
@@ -339,6 +343,12 @@ public:
     Q_INVOKABLE void setMenuItemColor(const QString &id, const QString &color) { invoke(QStringLiteral("setMenuItemColor"), {id, color}); }
     // The day's figures again (the dashboard, once a minute: labor keeps adding up).
     Q_INVOKABLE void refreshDay() { invoke(QStringLiteral("refreshDay"), {}); }
+    // The host stand: seat a party (or walk-ins) at one or more tables, reserve
+    // tables for a party, and mark tables clean or dirty.
+    Q_INVOKABLE void seatPartyAt(qint64 partyId, const QStringList &tables, const QString &serverId = {}) { invoke(QStringLiteral("seatPartyAt"), {partyId, tables, serverId}); }
+    Q_INVOKABLE void seatWalkIn(int size, const QStringList &tables, const QString &serverId = {}) { invoke(QStringLiteral("seatWalkIn"), {size, tables, serverId}); }
+    Q_INVOKABLE void reserveTables(qint64 partyId, const QStringList &tables) { invoke(QStringLiteral("reserveTables"), {partyId, tables}); }
+    Q_INVOKABLE void setTableState(const QString &table, const QString &state) { invoke(QStringLiteral("setTableState"), {table, state}); }
     Q_INVOKABLE void timeClockDone() { invoke(QStringLiteral("timeClockDone"), {}); }
     Q_INVOKABLE void undoLast() { invoke(QStringLiteral("undoLast"), {}); }
     Q_INVOKABLE void newTableCheck() { invoke(QStringLiteral("newTableCheck"), {}); }

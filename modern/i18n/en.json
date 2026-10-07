@@ -50,5 +50,13 @@
  "Imported every page, and added %n picture(s) and font(s) to the store": {
   "one": "Imported every page, and added %n picture or font to the store",
   "other": "Imported every page, and added %n pictures and fonts to the store"
+ },
+ "%n seat(s)": {
+  "one": "%n seat",
+  "other": "%n seats"
+ },
+ "%1 for %n guest(s)": {
+  "one": "%1 for %n guest",
+  "other": "%1 for %n guests"
  }
 }

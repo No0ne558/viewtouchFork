@@ -168,3 +168,64 @@ TEST_CASE("The waitlist is saved and comes back", "[waitlist][store]")
     CHECK(waiting(pos).size() == 1);
     CHECK(booked(pos).size() == 1);
 }
+
+TEST_CASE("Host stand: seat at tables pushed together, hold tables, bussing", "[waitlist][host]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    qint64 clock = todayAt(17);
+    pos.shared()->setClock([&] { return clock; });
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const auto state = [&](const QString &t) { return pos.floor().value(t).toMap().value(u"state"_s).toString(); };
+
+    // A party of 8 at 7:00: two tables held for them.
+    const qint64 lee = pos.addReservation({{u"name"_s, u"Lee"_s}, {u"size"_s, 8}, {u"at"_s, todayAt(19)}});
+    REQUIRE(lee > 0);
+    REQUIRE(pos.reserveTables(lee, {u"T5"_s, u"T6"_s}));
+    CHECK(state(u"T5"_s) == u"reserved"_s);
+    CHECK(pos.floor().value(u"T6"_s).toMap().value(u"party"_s) == u"Lee"_s);
+    CHECK(pos.tableStatus(u"T6"_s).value(u"floor"_s) == u"reserved"_s);
+    CHECK(state(u"T1"_s).isEmpty());                                  // available
+
+    // Someone else can't have them.
+    const qint64 kim = pos.addToWaitlist({{u"name"_s, u"Kim"_s}, {u"size"_s, 2}});
+    CHECK_FALSE(pos.seatPartyAt(kim, {u"T5"_s}, {}));
+    CHECK_FALSE(pos.reserveTables(kim, {u"T6"_s}));
+    REQUIRE(pos.seatPartyAt(kim, {u"T1"_s}, {}));
+    CHECK(state(u"T1"_s) == u"seated"_s);
+    CHECK(pos.floor().value(u"T1"_s).toMap().value(u"guests"_s) == 2);
+
+    // Lee arrives: seated at both, one check on T5, T6 with it.
+    REQUIRE(pos.seatPartyAt(lee, {u"T5"_s, u"T6"_s}, {}));
+    CHECK(state(u"T5"_s) == u"seated"_s);
+    CHECK(state(u"T6"_s) == u"seated"_s);
+    CHECK(pos.floor().value(u"T6"_s).toMap().value(u"with"_s) == u"T5"_s);
+    CHECK(pos.tableStatus(u"T6"_s).value(u"floor"_s) == u"joined"_s);
+    CHECK(booked(pos).isEmpty());
+
+    // Walk-ins, no name.
+    REQUIRE(pos.seatWalkIn(3, {u"T2"_s}, {}));
+    CHECK(state(u"T2"_s) == u"seated"_s);
+    CHECK_FALSE(pos.seatWalkIn(2, {u"T2"_s}, {}));                     // taken
+
+    // Lee's check closes: both tables need bussing.
+    qint64 leeCheck = 0;
+    for (const QVariant &v : pos.openChecks())
+        if (v.toMap().value(u"label"_s) == u"T5"_s)
+            leeCheck = v.toMap().value(u"id"_s).toLongLong();
+    REQUIRE(pos.openCheck(leeCheck));
+    REQUIRE(pos.closeCheck());
+    CHECK(state(u"T5"_s) == u"dirty"_s);
+    CHECK(state(u"T6"_s) == u"dirty"_s);
+    CHECK(pos.tableStatus(u"T5"_s).value(u"floor"_s) == u"dirty"_s);
+    CHECK_FALSE(pos.setTableState(u"T1"_s, u"clean"_s));               // has guests
+    REQUIRE(pos.setTableState(u"T5"_s, u"clean"_s));
+    CHECK(state(u"T5"_s).isEmpty());
+    REQUIRE(pos.setTableState(u"T3"_s, u"dirty"_s));
+    CHECK(state(u"T3"_s) == u"dirty"_s);
+
+    // A hold lets go when the party leaves.
+    const qint64 ana = pos.addReservation({{u"name"_s, u"Ana"_s}, {u"size"_s, 2}, {u"at"_s, todayAt(20)}});
+    REQUIRE(pos.reserveTables(ana, {u"T4"_s}));
+    REQUIRE(pos.partyGone(ana, true));
+    CHECK(state(u"T4"_s).isEmpty());
+}

@@ -27,7 +27,12 @@ Item {
         pos ? pos.openChecks : null   // refresh when checks change
         const size = chosen ? chosen.size : 1
         const all = zone && zone.controller ? zone.controller.tables() : []
-        const free = all.filter(t => !w.pos.tableStatus(t.name).open)
+        // Not dirty, not pushed into another party's table, not held for someone else.
+        const free = all.filter(t => {
+            const s = w.pos.tableStatus(t.name)
+            return !s.open && s.floor !== "dirty" && s.floor !== "joined"
+                   && !(s.floor === "reserved" && (!w.chosen || s.partyId !== w.chosen.id))
+        })
         free.sort((a, b) => {
             const fa = a.seats >= size, fb = b.seats >= size
             if (fa !== fb) return fa ? -1 : 1

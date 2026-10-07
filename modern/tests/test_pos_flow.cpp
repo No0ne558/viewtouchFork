@@ -3665,3 +3665,52 @@ TEST_CASE("Phone audit: every page in portrait", "[.][phoneaudit]")
     }
     QTest::qWait(30);
 }
+
+TEST_CASE("Host stand screen: pick a party, push tables together, seat; bussing", "[ui][host]")
+{
+    for (const bool phone : {false, true}) {
+        Screen s(false, phone ? 412 : 1600, phone ? 870 : 900, phone ? u"phone"_s : QString());
+        REQUIRE(s.pos.loginWithPin(u"1234"_s));
+        const qint64 lee = s.pos.addReservation({{u"name"_s, u"Lee"_s}, {u"size"_s, 8},
+                                                 {u"at"_s, QDateTime::currentMSecsSinceEpoch() + 3'600'000}});
+        REQUIRE(lee > 0);
+        REQUIRE(s.pos.addToWaitlist({{u"name"_s, u"Kim"_s}, {u"size"_s, 2}}) > 0);
+        REQUIRE(s.pos.setTableState(u"T3"_s, u"dirty"_s));
+        REQUIRE(s.c.jumpTo(u"seating"_s));
+        QTest::qWait(60);
+        QQuickItem *root = s.window->contentItem();
+        const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+
+        // Hold T5 + T6 for Lee.
+        s.tapItem(by(u"hostBooked"_s));
+        s.tapItem(by(u"hostParty-Lee"_s));
+        s.tapItem(by(u"host-T5"_s));
+        s.tapItem(by(u"host-T6"_s));
+        s.shot(phone ? "host-phone-picked" : "host-picked");
+        CHECK(by(u"hostHint"_s)->property("text").toString().startsWith(u"T5 + T6 for 8 guests"_s));
+        s.tapItem(by(u"hostHold"_s));
+        CHECK(s.pos.floor().value(u"T6"_s).toMap().value(u"state"_s) == u"reserved"_s);
+
+        // Seat Kim at T1, and a walk-in of 3 at T2.
+        s.tapItem(by(u"hostWaiting"_s));
+        s.tapItem(by(u"hostParty-Kim"_s));
+        s.tapItem(by(u"host-T1"_s));
+        s.tapItem(by(u"hostSeat"_s));
+        CHECK(s.pos.floor().value(u"T1"_s).toMap().value(u"state"_s) == u"seated"_s);
+        s.tapItem(by(u"hostWalkIn"_s));
+        s.tapItem(by(u"host-T2"_s));
+        s.tapItem(by(u"hostSeat"_s));
+        CHECK(s.pos.floor().value(u"T2"_s).toMap().value(u"guests"_s) == 2);
+
+        // T3 bussed.
+        s.tapItem(by(u"host-T3"_s));
+        s.tapItem(by(u"hostClean"_s));
+        CHECK_FALSE(s.pos.floor().contains(u"T3"_s));
+        s.tapItem(by(u"host-T4"_s));
+        s.tapItem(by(u"hostDirty"_s));
+        CHECK(s.pos.floor().value(u"T4"_s).toMap().value(u"state"_s) == u"dirty"_s);
+        QTest::qWait(30);
+        s.shot(phone ? "host-phone" : "host");
+        CHECK_FALSE(s.pos.hasCheck());   // the host doesn't keep the tables' checks
+    }
+}

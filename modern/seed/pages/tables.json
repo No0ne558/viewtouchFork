@@ -281,12 +281,12 @@
       },
       "shape": "rect",
       "behavior": "blink",
-      "label": "Waitlist",
+      "label": "Host Stand",
       "actions": [
         {
           "type": "jump",
           "mode": "push",
-          "page": "host"
+          "page": "seating"
         }
       ],
       "style": {

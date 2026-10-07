@@ -21,7 +21,7 @@ const QStringList &PosSession::stateKeys()
         u"terminalName"_s, u"loggedIn"_s, u"userName"_s, u"userRole"_s, u"permissions"_s, u"clockedIn"_s,
         u"clockedInSince"_s, u"storeName"_s, u"currencySymbol"_s, u"pinLength"_s, u"entry"_s, u"entryAmount"_s,
         u"entryGuests"_s, u"textEntry"_s, u"pendingQualifier"_s, u"pendingTable"_s, u"hasCheck"_s, u"check"_s, u"tableChecks"_s, u"undoText"_s,
-        u"lines"_s, u"totals"_s, u"payments"_s, u"selectedLine"_s, u"selectedPayment"_s, u"openChecks"_s, u"popularItems"_s, u"stockLeft"_s, u"dashboard"_s, u"checklists"_s,
+        u"lines"_s, u"totals"_s, u"payments"_s, u"selectedLine"_s, u"selectedPayment"_s, u"openChecks"_s, u"floor"_s, u"popularItems"_s, u"stockLeft"_s, u"dashboard"_s, u"checklists"_s,
         u"checkFilter"_s, u"kitchenTickets"_s, u"drawer"_s, u"day"_s, u"days"_s, u"adminRevision"_s,
         u"tipsOwed"_s, u"mealPeriods"_s, u"pairing"_s, u"screenMode"_s, u"terminalLook"_s,
         u"closedChecks"_s, u"staff"_s, u"checkHistory"_s, u"choosing"_s, u"weighing"_s, u"setup"_s, u"soldOut"_s, u"menuItems"_s, u"onBreakSince"_s,
@@ -53,7 +53,7 @@ QVariantMap PosSession::snapshot() const
         {u"pendingQualifier"_s, pendingQualifier()}, {u"pendingTable"_s, pendingTable()},
         {u"hasCheck"_s, hasCheck()}, {u"check"_s, checkInfo()}, {u"tableChecks"_s, tableChecks()}, {u"undoText"_s, undoText()}, {u"lines"_s, lines()}, {u"totals"_s, totals()},
         {u"payments"_s, payments()}, {u"selectedLine"_s, selectedLine()}, {u"selectedPayment"_s, selectedPayment()},
-        {u"openChecks"_s, openChecks()}, {u"popularItems"_s, popularItems()}, {u"stockLeft"_s, stockLeft()}, {u"dashboard"_s, dashboard()}, {u"checklists"_s, checklists()}, {u"checkFilter"_s, checkFilter()}, {u"kitchenTickets"_s, kitchenTickets()},
+        {u"openChecks"_s, openChecks()}, {u"floor"_s, floor()}, {u"popularItems"_s, popularItems()}, {u"stockLeft"_s, stockLeft()}, {u"dashboard"_s, dashboard()}, {u"checklists"_s, checklists()}, {u"checkFilter"_s, checkFilter()}, {u"kitchenTickets"_s, kitchenTickets()},
         {u"drawer"_s, drawerInfo()}, {u"day"_s, dayInfo()}, {u"days"_s, days()},
         {u"adminRevision"_s, adminRevision()}, {u"tipsOwed"_s, tipsOwed()},
         {u"mealPeriods"_s, mealPeriods()}, {u"pairing"_s, pairingInfo()}, {u"screenMode"_s, screenMode()}, {u"terminalLook"_s, terminalLook()},
@@ -106,6 +106,19 @@ QVariantMap PosSession::tableStatus(const QString &label) const
         status.insert(u"total"_s, formatCents(total));
         status.insert(u"current"_s, current);
         status.insert(u"busyOn"_s, busy);   // open on another terminal
+    }
+    // The host stand: needs bussing, held for a party, or pushed together with another table.
+    const QVariantMap f = floor().value(label).toMap();
+    const QString state = f.value(u"state"_s).toString();
+    if (count == 0 && (state == u"dirty" || state == u"reserved")) {
+        status.insert(u"floor"_s, state);
+        status.insert(u"party"_s, f.value(u"party"_s));
+        status.insert(u"partyId"_s, f.value(u"partyId"_s));
+        status.insert(u"time"_s, f.value(u"time"_s));
+    } else if (count == 0 && f.contains(u"with"_s)) {
+        status.insert(u"floor"_s, u"joined"_s);
+        status.insert(u"with"_s, f.value(u"with"_s));
+        status.insert(u"server"_s, f.value(u"server"_s));
     }
     return status;
 }

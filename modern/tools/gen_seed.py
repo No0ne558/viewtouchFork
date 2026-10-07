@@ -365,7 +365,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock", "dashboard", "checklist"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock", "dashboard", "checklist", "hostStand"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -557,7 +557,7 @@ page("tables", "Tables", "tables", [
     zone("takeout", 1472, 182, 208, 150, "Takeout", actions=[command("startTakeout"), jump(page="customer")]),
     zone("delivery", 1696, 182, 208, 150, "Delivery", actions=[command("startDelivery"), jump(page="customer")]),
     zone("checks", 1472, 348, 432, 150, "Open Checks", actions=[jump(role="checkList")]),
-    zone("host", 1056, 914, 400, 150, "Waitlist", actions=[jump(page="host")], style=fill(TEAL)),
+    zone("host", 1056, 914, 400, 150, "Host Stand", actions=[jump(page="seating")], style=fill(TEAL)),
     zone("tabs", 1056, 748, 400, 150, "Bar Tabs", actions=[jump(page="tabs")], style=fill(AMBER)),
     zone("status", 1472, 514, 432, 140, kind="logoutPanel"),
     # The next person: their PIN, while this one stays clocked in (their check opens again when they're back).
@@ -625,7 +625,17 @@ page("host", "Host Stand", "custom", [
     label("title", 16, 16, 1888, 80, "Waitlist & reservations"),
     zone("waitlist", 16, 112, 1888, 816, kind="waitlist"),
     zone("back", 16, 944, 432, 120, "‹ Tables", actions=[jump(role="tables")]),
+    zone("seating", 744, 944, 432, 120, "Seating…", actions=[jump(page="seating")], style=fill(TEAL)),
     zone("customers", 1472, 944, 432, 120, "Customers…", actions=[jump(page="customers")]),
+], permission="order")
+
+# The host stand: every table by state (available, seated, dirty, held),
+# the waitlist and reservations; seat or hold parties at one or more tables.
+page("seating", "Seating", "custom", [
+    label("title", 16, 16, 1888, 80, "Seating"),
+    zone("host-stand", 16, 112, 1888, 816, kind="hostStand"),
+    zone("back", 16, 944, 432, 120, "‹ Tables", actions=[jump(role="tables")]),
+    zone("waitlist", 1472, 944, 432, 120, "Waitlist & Reservations…", actions=[jump(page="host")], style=fill(TEAL)),
 ], permission="order")
 
 # --- customers and gift cards ---
