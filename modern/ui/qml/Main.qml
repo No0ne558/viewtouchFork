@@ -35,13 +35,29 @@ ApplicationWindow {
         const area = activeFocusItem as TextEdit
         return area && !area.readOnly ? area : null
     }
-    // Typing outside the page (a dialog, the setup guide): the keyboard
-    // floats over everything instead of docking under the page.
-    readonly property bool typingOverPage: {
-        for (let p = typingIn; p; p = p.parent)
-            if (p === pageColumn) return false
-        return typingIn !== null
+    // The keyboard pops up over the screen (the page keeps its size). When it
+    // would cover the field being typed in, the page (or the setup guide)
+    // slides up just enough to keep the field in view, and back down after.
+    readonly property real keysTop: touchKeys.visible ? root.height - touchKeys.height : root.height
+    property real lift: 0
+    Behavior on lift { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+    function inside(item, container) {
+        for (let p = item; p; p = p.parent)
+            if (p === container) return true
+        return false
     }
+    function updateLift() {
+        const field = typingIn
+        if (!touchKeys.visible || !field || !(inside(field, pageColumn) || inside(field, setupLoader))) {
+            lift = 0
+            return
+        }
+        // Where the field's bottom is with the page where it belongs.
+        const bottom = field.mapToItem(null, 0, field.height).y + lift
+        lift = Math.max(0, Math.min(bottom + 16 - keysTop, touchKeys.height))
+    }
+    onTypingInChanged: Qt.callLater(updateLift)
+    onKeysTopChanged: Qt.callLater(updateLift)
 
     // Phones get phone pages (the controller decides; see formFactor).
     onWidthChanged: controller.windowResized(width, height)
@@ -105,6 +121,7 @@ ApplicationWindow {
         anchors.bottom: parent.bottom
         width: root.posWidth
         spacing: 0
+        transform: Translate { y: -root.lift }
 
         Loader {
             Layout.fillWidth: true
@@ -182,27 +199,15 @@ ApplicationWindow {
                 }
             }
         }
-
-        // Docked below the page (which shrinks to fit), so the field being
-        // typed in stays in view.
-        TouchKeyboard {
-            id: touchKeys
-            objectName: "touchKeys"
-            Layout.fillWidth: true
-            Layout.preferredHeight: implicitHeight
-            visible: root.touchKeyboard && root.typingIn !== null && !root.typingOverPage && !selfOrder.visible
-            target: visible ? root.typingIn : null
-            onDismissed: pageView.forceActiveFocus()
-        }
     }
 
-    // The keyboard for fields over the page: in a dialog or the setup guide.
-    // Above every dialog, and it never takes the focus from the field.
+    // The on-screen keyboard: over the screen, above every dialog, and it
+    // never takes the focus from the field.
     Popup {
-        id: floatingKeys
-        objectName: "floatingKeys"
+        id: touchKeys
+        objectName: "touchKeys"
         parent: Overlay.overlay
-        visible: root.touchKeyboard && root.typingIn !== null && root.typingOverPage && !selfOrder.visible
+        visible: root.touchKeyboard && root.typingIn !== null && !selfOrder.visible
         modal: false
         focus: false
         closePolicy: Popup.NoAutoClose
@@ -214,8 +219,8 @@ ApplicationWindow {
         y: root.height - height
         background: null
         contentItem: TouchKeyboard {
-            id: floatKeyboard
-            target: floatingKeys.visible ? root.typingIn : null
+            id: keyboard
+            target: touchKeys.visible ? root.typingIn : null
             onDismissed: pageView.forceActiveFocus()
         }
     }
@@ -433,8 +438,9 @@ ApplicationWindow {
 
     // A new store's setup guide (managers; Manager -> Setup Guide…).
     Loader {
+        id: setupLoader
         anchors.fill: parent
-        anchors.bottomMargin: floatingKeys.visible ? floatingKeys.height : 0   // above the keyboard
+        transform: Translate { y: -root.lift }
         z: 70
         active: root.controller.setupOpen
         sourceComponent: SetupGuide { controller: root.controller }
@@ -459,7 +465,8 @@ ApplicationWindow {
         objectName: "toast"
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 24 + (touchKeys.visible ? touchKeys.height : floatingKeys.visible ? floatingKeys.height : 0)   // above the keyboard
+        // At the top while the keyboard is up (not over the field being typed in).
+        anchors.bottomMargin: touchKeys.visible ? root.height - height - 24 : 24
         width: Math.min(toastText.implicitWidth + 40, root.width - 40)
         height: toastText.implicitHeight + 20
         radius: 18

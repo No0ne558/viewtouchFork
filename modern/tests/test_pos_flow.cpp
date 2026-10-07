@@ -277,11 +277,23 @@ struct Screen : Session {
         QTest::qWait(30);
     }
 
+    // The on-screen keyboard (it pops up over the screen).
+    QQuickItem *keyboard()
+    {
+        QObject *popup = window->findChild<QObject *>(u"touchKeys"_s);
+        return popup ? qvariant_cast<QQuickItem *>(popup->property("contentItem")) : nullptr;
+    }
+    bool keyboardShown()
+    {
+        QObject *popup = window->findChild<QObject *>(u"touchKeys"_s);
+        return popup && popup->property("visible").toBool();
+    }
+
     // Tap on-screen keyboard keys (their labels), one per character.
     void typeOnScreen(const QString &labels)
     {
         for (QChar ch : labels)
-            tapItem(findBy(window->contentItem(), "text", QString(ch)));
+            tapItem(findBy(keyboard(), "text", QString(ch)));
     }
 
     // Tap a visible keypad key by its text.
@@ -392,11 +404,11 @@ TEST_CASE("UI: the on-screen keyboard finds a customer; a gift card by its numbe
     REQUIRE(s.c.jumpTo(u"customers"_s));
     QTest::qWait(50);
 
-    auto *keyboard = s.window->findChild<QQuickItem *>(u"touchKeys"_s);
+    QQuickItem *keyboard = s.keyboard();
     REQUIRE(keyboard);
-    CHECK_FALSE(keyboard->isVisible());
+    CHECK_FALSE(s.keyboardShown());
     s.tapItem(Screen::findBy(s.window->contentItem(), "placeholderText", u"Phone or name…"_s));
-    CHECK(keyboard->isVisible());                       // a text field is being typed in
+    CHECK(s.keyboardShown());                           // a text field is being typed in
     s.typeOnScreen(u"Dan"_s);                          // capital first, then small letters
     QTest::qWait(400);
     REQUIRE(s.pos.customerResults().size() == 1);
@@ -408,12 +420,12 @@ TEST_CASE("UI: the on-screen keyboard finds a customer; a gift card by its numbe
     REQUIRE(s.c.jumpTo(u"gift-card"_s));
     QTest::qWait(50);
     s.tapItem(Screen::findBy(s.window->contentItem(), "placeholderText", u"Type or swipe…"_s));
-    REQUIRE(keyboard->isVisible());
+    REQUIRE(s.keyboardShown());
     CHECK(Screen::findBy(keyboard, "text", u"Done"_s));   // number fields get the number pad
     s.typeOnScreen(u"60012"_s);
     s.tapItem(Screen::findBy(keyboard, "text", u"Done"_s));   // Enter looks the card up
     CHECK(s.pos.giftCardInfo()[u"number"_s] == u"60012"_s);
-    CHECK_FALSE(keyboard->isVisible());
+    CHECK_FALSE(s.keyboardShown());
     s.shot("7-gift-card");
 }
 
@@ -3772,7 +3784,7 @@ TEST_CASE("Phone orders: name, phone and address right on the check", "[flow][ui
     s.shot("who-4-done");
 }
 
-TEST_CASE("On-screen keyboard: on by default, under the page or over a dialog, off by setting", "[ui][keyboard]")
+TEST_CASE("On-screen keyboard: on by default, over the screen, lifts a covered field, off by setting", "[ui][keyboard]")
 {
     Session s;
     REQUIRE(s.pos.loginWithPin(u"1234"_s));
@@ -3798,14 +3810,22 @@ TEST_CASE("On-screen keyboard: on by default, under the page or over a dialog, o
         return text->parentItem();
     };
 
-    // A takeout's name, typed on the screen's keyboard (docked under the page).
+    // A takeout's name, typed on the screen's keyboard: over the page, which keeps its size.
     REQUIRE(s.c.jumpTo(u"tables"_s));
     s.c.activate(u"takeout"_s);
     QTest::qWait(50);
+    QQuickItem *page = window->findChild<QQuickItem *>(u"pageSurface"_s);
+    REQUIRE(page);
+    const QSizeF pageSize(page->width() * page->scale(), page->height() * page->scale());
     tap(by(root, u"who-name"_s));
-    QQuickItem *docked = by(root, u"touchKeys"_s);
+    QObject *popup = window->findChild<QObject *>(u"touchKeys"_s);
+    REQUIRE(popup);
+    CHECK(popup->property("visible").toBool());
+    auto *docked = qvariant_cast<QQuickItem *>(popup->property("contentItem"));
     REQUIRE(docked);
-    CHECK(docked->isVisible());
+    QTest::qWait(200);
+    CHECK(QSizeF(page->width() * page->scale(), page->height() * page->scale()) == pageSize);
+    CHECK(window->property("lift").toReal() == 0);                // the field is above the keyboard
     for (const char *k : {"S", "a", "m"})                         // a capital to start
         tap(key(docked, QString::fromLatin1(k)));
     CHECK(by(root, u"whoField"_s)->property("text") == u"Sam"_s);
@@ -3825,6 +3845,31 @@ TEST_CASE("On-screen keyboard: on by default, under the page or over a dialog, o
     CHECK(by(root, u"whoField"_s)->property("text") == u"555"_s);
     shot("kb-1-numbers");
     tap(by(root, u"whoSave"_s));
+
+    // A field low on the screen: the page slides up to keep it in view, and back after.
+    REQUIRE(s.c.jumpTo(u"customer"_s));
+    QTest::qWait(80);
+    QQuickItem *lowest = nullptr;
+    std::function<void(QQuickItem *)> walk = [&](QQuickItem *item) {
+        if (!item->isVisible())
+            return;
+        if ((item->inherits("QQuickTextField") || item->inherits("QQuickTextArea"))
+            && (!lowest || item->mapToScene(QPointF(0, 0)).y() > lowest->mapToScene(QPointF(0, 0)).y()))
+            lowest = item;
+        for (QQuickItem *child : item->childItems())
+            walk(child);
+    };
+    walk(page);
+    REQUIRE(lowest);
+    tap(lowest);
+    QTest::qWait(300);
+    CHECK(window->property("lift").toReal() > 0);
+    const qreal keysTop = window->height() - docked->height();
+    CHECK(lowest->mapToScene(QPointF(0, lowest->height())).y() <= keysTop);
+    shot("kb-0-lifted");
+    tap(key(docked, u"⌨▾"_s));                                   // put away: the page comes back
+    QTest::qWait(300);
+    CHECK(window->property("lift").toReal() == 0);
     s.pos.releaseCheck();
 
     // The setup guide covers the page: the keyboard floats over it.
@@ -3835,9 +3880,6 @@ TEST_CASE("On-screen keyboard: on by default, under the page or over a dialog, o
     QQuickItem *storeName = by(root, u"setupStoreName"_s);
     REQUIRE(storeName);
     tap(storeName);
-    CHECK_FALSE(docked->isVisible());
-    QObject *popup = window->findChild<QObject *>(u"floatingKeys"_s);
-    REQUIRE(popup);
     CHECK(popup->property("visible").toBool());
     auto *keys = qvariant_cast<QQuickItem *>(popup->property("contentItem"));
     REQUIRE(keys);
