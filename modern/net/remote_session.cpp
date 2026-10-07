@@ -239,7 +239,10 @@ bool RemoteSession::waitForWelcome(int msec)
 void RemoteSession::onConnected()
 {
     encrypted_ = true;
-    send({{u"t"_s, u"hello"_s}, {u"terminal"_s, terminal_}, {u"protocol"_s, ProtocolVersion}});
+    QJsonObject hello{{u"t"_s, u"hello"_s}, {u"terminal"_s, terminal_}, {u"protocol"_s, ProtocolVersion}};
+    if (!requestedScreen_.isEmpty())
+        hello.insert(u"screen"_s, requestedScreen_);
+    send(hello);
 }
 
 void RemoteSession::onReadyRead()

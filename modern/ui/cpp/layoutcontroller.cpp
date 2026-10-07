@@ -301,7 +301,7 @@ void LayoutController::restAtLoginPage()
 QString LayoutController::loginPage() const
 {
     // A Time Clock terminal (Manager -> Terminals): its page is where it rests.
-    if (pos_ && pos_->screenMode() == u"timeClock")
+    if (timeClockScreen_ || (pos_ && pos_->screenMode() == u"timeClock"))
         if (const vt::layout::Page *p = activeLayout().pageByRole(u"timeClock"_s))
             return p->id;
     return homePageOf(activeLayout());
@@ -523,6 +523,11 @@ LayoutController::Shown LayoutController::shown() const
 
 void LayoutController::setFormFactorOverride(const QString &formFactor)
 {
+    if (formFactor == u"timeClock") {   // not a page size: where it rests
+        timeClockScreen_ = true;
+        restAtLoginPage();
+        return;
+    }
     formFactorOverride_ = formFactor == u"auto" ? QString() : formFactor;
     updateFormFactor();
 }

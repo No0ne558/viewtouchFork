@@ -102,6 +102,8 @@ struct Options {
         u"Be the store's standby server: keep a live copy of the main server's data, ready to take over if it "
          "stops (a manager does it from any screen). <server>: the main server's address, or auto. The first "
          "time, add --pair with a code from Manager -> Terminals."_s, u"server"_s};
+    QCommandLineOption pairOnly{u"pair-only"_s,
+        u"With --standby and --pair: pair, save it, and exit (vtmodern-setup; the service then runs it)."_s};
     QCommandLineOption factoryReset{u"factory-reset"_s,
         u"Back to a fresh install: back up the database, then delete it (sales, customers, staff, menu, pages, "
          "settings). The next start begins with the starter set. Backups and saved exports stay. ViewTouch must "
@@ -119,8 +121,9 @@ struct Options {
     QCommandLineOption touchKeyboard{u"touch-keyboard"_s,
         u"Show an on-screen keyboard for text fields: yes or no (default: yes with --kiosk)."_s, u"yes|no"_s};
     QCommandLineOption screen{u"screen"_s,
-        u"Pages for this screen: phone (phone versions, portrait), standard, or auto "
-        "(phones get phone pages; the default on Android). Overrides Manager → Terminals."_s, u"mode"_s};
+        u"Pages for this screen: phone (phone versions, portrait), standard, auto "
+        "(phones get phone pages; the default on Android), or timeClock (only clocking in and out "
+        "and schedules). Overrides Manager → Terminals."_s, u"mode"_s};
     QCommandLineOption windowed{u"windowed"_s,
         u"Start in a window instead of full screen (also with --size). F11 switches either way."_s};
     QCommandLineOption backupDir{u"backup-dir"_s, u"Where backups go (default: <data dir>/backups)."_s, u"dir"_s};
@@ -517,6 +520,10 @@ int runTerminal(const Args &cli, const Options &o)
 
         vt::net::RemoteSession remote(creds->terminalName);
         remote.setCredentials(*creds);
+        if (cli.isSet(o.selfOrder))
+            remote.setRequestedScreen(u"selfOrder"_s);
+        else if (cli.value(o.screen) == u"timeClock")
+            remote.setRequestedScreen(u"timeClock"_s);
         QObject::connect(&remote, &vt::net::RemoteSession::credentialsChanged, &remote, save);
         remote.connectTo(creds->host, creds->port);
         qInfo().noquote() << "Connecting to" << creds->host << "port" << creds->port << "as" << creds->terminalName
@@ -817,7 +824,7 @@ int runStore(const Args &cli, const Options &o)
         marker.remove();
         ++shared->settings.serverTerm;
         shared->saveSettings();
-        qWarning().noquote() << "Serving the store as the main server now (taken over for" << by << ")";
+        qWarning().noquote() << "Serving the store as the main server now (taken over" << by + u')';
     }
     // Languages: each screen its user's; the customer display the store's.
     vt::i18n::install(QDir(dataDirOf(cli, o)).filePath(u"translations"_s));
@@ -1272,6 +1279,8 @@ int runStandby(const Args &cli, const Options &o)
         }
         creds->save(credentialFile, &error);
         qInfo().noquote() << "This computer is the standby of" << creds->serverName << "at" << creds->host;
+        if (cli.isSet(o.pairOnly))
+            return 0;
     }
 
     vt::net::ReplicaClient replica(dbPath, *creds);
@@ -1290,7 +1299,7 @@ int runStandby(const Args &cli, const Options &o)
         qWarning().noquote() << "Screens can't find this standby by themselves:" << discovery.errorString();
     bool tookOver = false;
     QObject::connect(&listener, &vt::net::StandbyListener::takeOverRequested, &replica, [&](const QString &by) {
-        qWarning().noquote() << "Taking over as the main server, for" << by;
+        qWarning().noquote() << "Taking over as the main server:" << by;
         replica.stop();
         tookOver = true;
         QFile marker(dbPath + u".took-over"_s);
@@ -1306,7 +1315,7 @@ int runStandby(const Args &cli, const Options &o)
         const qint64 heard = replica.lastHeard();
         if (heard > 0 && !replica.inSync() && !tookOver
             && QDateTime::currentMSecsSinceEpoch() - heard > kTakeOverSeconds * 1000)
-            emit listener.takeOverRequested(u"automatic: the main server stopped answering"_s);
+            emit listener.takeOverRequested(u"by itself (the main server stopped answering)"_s);
     });
     silence.start();
     replica.start();
@@ -1538,7 +1547,7 @@ int main(int argc, char *argv[])
     cli.addHelpOption();
     cli.addVersionOption();
     const QList<QCommandLineOption> all = {o.config, o.dataDir, o.db, o.layout, o.resetLayout, o.resetMenu, o.serve,
-        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.selfOrder, o.touchKeyboard, o.customerDisplay, o.factoryReset, o.demoData, o.standby, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
+        o.port, o.listen, o.headless, o.connect, o.pair, o.terminal, o.kiosk, o.selfOrder, o.touchKeyboard, o.customerDisplay, o.factoryReset, o.demoData, o.standby, o.pairOnly, o.windowed, o.screen, o.login, o.page, o.edit, o.select, o.size,
         o.screenshot, o.backupDir, o.backupKeep, o.backupEvery, o.backup, o.restore, o.pairingCode, o.exportDir};
     cli.addOptions(all);
     cli.process(app);

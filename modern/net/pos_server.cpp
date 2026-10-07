@@ -200,6 +200,16 @@ void PosServer::handle(Connection *c, const QJsonObject &m)
             c->socket->abort();
             return;
         }
+        // Set up as a self-order kiosk or a time clock (vtmodern-setup): taken
+        // when Manager -> Terminals has no screen for it yet.
+        const std::string wanted = m.value(u"screen").toString().toStdString();
+        if (paired->screen.empty() && (wanted == "selfOrder" || wanted == "timeClock"))
+            for (core::TerminalConfig &t : shared_->settings.terminals)
+                if (t.id == paired->id) {
+                    t.screen = wanted;
+                    shared_->saveSettings();
+                    emit shared_->adminChanged();
+                }
         const QString name = QString::fromStdString(paired->name);
         c->session = std::make_unique<app::PosService>(shared_, name);
         app::PosService *s = c->session.get();

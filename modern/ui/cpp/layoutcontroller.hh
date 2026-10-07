@@ -245,6 +245,7 @@ private:
     void updateFormFactor();
     QString formFactor_ = QStringLiteral("standard");
     QString formFactorOverride_;
+    bool timeClockScreen_ = false;   // --screen timeClock
     bool autoFormFactor_ = false;
     bool phoneSizedWindow_ = false;
     QString exportDir_;

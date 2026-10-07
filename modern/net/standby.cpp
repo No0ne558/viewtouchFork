@@ -254,7 +254,7 @@ StandbyListener::StandbyListener(QString databasePath, QString storeId, QObject 
                                                    << socket->property("vtTerminal").toString();
                     channel->send({{u"t"_s, u"tookOver"_s}});
                     socket->flush();
-                    emit takeOverRequested(by);
+                    emit takeOverRequested(u"asked by "_s + by);
                 }
             });
         }

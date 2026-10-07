@@ -26,6 +26,9 @@ class RemoteSession : public app::PosSession {
 
 public:
     explicit RemoteSession(QString terminalName, QObject *parent = nullptr);
+    // What this screen is set up as (vtmodern-setup): "selfOrder" or "timeClock".
+    // The server takes it when Manager -> Terminals hasn't said otherwise.
+    void setRequestedScreen(const QString &screen) { requestedScreen_ = screen; }
     ~RemoteSession() override;
 
     void setCredentials(const Credentials &credentials);
@@ -164,6 +167,7 @@ private:
     QVariant query(const QString &key, const QString &method, const QVariantList &args);
 
     QString terminal_;
+    QString requestedScreen_;
     QString host_;
     quint16 port_ = 0;
     QSslSocket socket_;

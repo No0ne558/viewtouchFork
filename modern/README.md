@@ -40,23 +40,30 @@ The full design and milestones are in [docs/PLAN.md](docs/PLAN.md).
 
 ## Installing
 
-Packages are built for Fedora 44, Debian 13 (and Raspberry Pi OS based on it) and Ubuntu 26.04, on x86_64 and aarch64 (64-bit Raspberry Pi). They need Qt 6.8 or newer, so older releases (Debian 12, Ubuntu 24.04) are not supported.
+Works on Fedora 44, Debian 13 (and Raspberry Pi OS based on it) and Ubuntu 26.04, on x86_64 and aarch64 (64-bit Raspberry Pi). It needs Qt 6.8 or newer, so older releases (Debian 12, Ubuntu 24.04) are not supported.
+
+**A new machine, from zero:** one command installs everything and asks what the machine is.
 
 ```sh
-sudo dnf install ./vtmodern-0.7.0-1.fc44.x86_64.rpm            # Fedora
-sudo apt install ./vtmodern_0.7.0-1~debian13_arm64.deb         # Debian / Raspberry Pi OS
+curl -fsSL https://raw.githubusercontent.com/No0ne558/viewtouchFork/Modernization/modern/packaging/install-viewtouch.sh | sudo sh
 ```
 
-Installing starts nothing. Pick this machine's part in the store:
+With no package it fetches the source, installs the build tools, builds a package for this machine and installs it (a few minutes), plus `cage` for the screens. With a package already at hand: `sudo sh install-viewtouch.sh vtmodern-*.rpm` (or `.deb`). To skip the questions, put the setup after `--`: `sudo sh install-viewtouch.sh -- kitchen auto Grill`.
 
-| Command | This machine |
-|---|---|
-| `sudo vtmodern-setup store` | Has a screen and keeps the data; other terminals may join |
-| `sudo vtmodern-setup server` | Keeps the data with no screen (back office, closet box) |
-| `sudo vtmodern-setup terminal [server] [name]` | Has a screen and joins a store: shows the Join screen to pair it (the store is found on the network unless given) |
-| `sudo vtmodern-setup pair` | On the server: prints a code to pair a terminal with |
-| `sudo vtmodern-setup off` | Stops starting ViewTouch at boot |
-| `vtmodern-setup status` | Shows what is set up and the newest backup |
+Then it runs **`sudo vtmodern-setup`**, which asks what this machine is (any time later too, to change it):
+
+| Choice | Command | This machine |
+|---|---|---|
+| Main register | `vtmodern-setup store` | Has a screen and keeps the store's data; other screens join it |
+| Back-office server | `vtmodern-setup server` | Keeps the data with no screen (back office, closet box) |
+| Another register | `vtmodern-setup terminal [host] [name]` | A register that joins the store |
+| Kitchen screen | `vtmodern-setup kitchen [host] [name]` | Opens on the orders to make; its Station button picks what it shows |
+| Self-order kiosk | `vtmodern-setup selforder [host] [name]` | Guests order on their own and pay at the counter |
+| Time clock | `vtmodern-setup timeclock [host] [name]` | Staff clock in and out and see their schedules |
+| Standby server | `vtmodern-setup standby CODE [host]` | A live copy of the data that takes over if the main machine stops (pairs once with the code) |
+| Nothing | `vtmodern-setup off` | ViewTouch doesn't start at boot |
+
+`host` is the main machine's address, or `auto` (the default) to find it on the network; `name` is the screen's name (the default: the computer's). Screens that join show the Join screen the first time: pick the store and type a pairing code from Manager → Terminals → **Pair a Device** (on a server with no screen: `sudo vtmodern-setup pair`). `--guest-display` adds a guest-facing second monitor (registers); `--no-desktop` turns the desktop login off. `vtmodern-setup status` shows what is set up and the newest backup.
 
 - **Screens start full screen at boot** (`vtmodern-kiosk.service`) in the `cage` kiosk on the first console, with no desktop and no mouse pointer. To leave it, a manager uses **Manager → Close ViewTouch** (touch it twice). The kiosk then stays closed until the next boot and the screen switches to the second console: your desktop, or a text login on a dedicated register. A technician can also switch consoles with Ctrl+Alt+F2 (add Fn on keyboards whose F-keys need it). Turn off any desktop login (`sudo systemctl disable gdm`) on a dedicated POS screen. On a desktop, *ViewTouch* is also in the applications menu.
 - **The server** (`vtmodern.service`) runs sandboxed as the `viewtouch` account and restarts if it stops. Open port 7719 (TCP and UDP) in the firewall for the terminals.
