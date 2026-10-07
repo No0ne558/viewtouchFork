@@ -167,9 +167,46 @@ Item {
                 onClicked: w.pos.newTableCheck()
             }
         }
+        // Phone orders: who it's for, right on the check. Touch to type it in
+        // (no page of its own); a delivery's address too. Missing: in amber.
+        Row {
+            id: who
+            readonly property var customer: w.check.customer ?? ({})
+            readonly property bool delivery: w.check.type === "delivery"
+            visible: w.controls && w.pos && w.pos.hasCheck && (delivery || w.check.type === "takeout")
+            Layout.fillWidth: true
+            Layout.preferredHeight: w.unit * 1.9
+            spacing: w.unit * 0.25
+            // Name, phone, (address,) and when it's wanted.
+            readonly property int keys: delivery ? 4 : 3
+            readonly property real keyW: (width - spacing * (keys - 1)) / keys
+            Repeater {
+                model: who.delivery ? ["name", "phone", "address"] : ["name", "phone"]
+                delegate: WidgetKey {
+                    required property string modelData
+                    objectName: "who-" + modelData
+                    width: who.keyW; height: who.height
+                    fontScale: 0.42
+                    readonly property string value: who.customer[modelData] ?? ""
+                    readonly property bool needed: value === "" && (modelData === "name" || (modelData === "address" && who.delivery))
+                    text: value !== "" ? value
+                        : modelData === "name" ? qsTr("+ Name") : modelData === "phone" ? qsTr("+ Phone") : qsTr("+ Address")
+                    baseColor: needed ? "#a86a12" : (keySt.keyFill ?? "#343c49")
+                    onClicked: sheet.ask(modelData)
+                }
+            }
+            WidgetKey {
+                objectName: "who-later"
+                width: who.keyW; height: who.height
+                fontScale: 0.42
+                text: w.check.due ? w.check.due : qsTr("Ready Later…")
+                baseColor: w.check.due ? "#1f6f78" : (keySt.keyFill ?? "#343c49")
+                onClicked: w.zone.controller.jumpTo("order-later")
+            }
+        }
         Text {
             readonly property var customer: w.check.customer ?? ({})
-            visible: w.pos && w.pos.hasCheck && !!(customer.name || customer.phone)
+            visible: w.pos && w.pos.hasCheck && !who.visible && !!(customer.name || customer.phone)
             text: (customer.name ?? "") + (customer.phone ? "  ·  " + customer.phone : "")
             color: "#7ec8ff"
             font.family: w.face
@@ -542,6 +579,24 @@ Item {
             mode = ""
             w.pos.splitLine(checkId)
         }
+        // Who the order is for: "name" | "phone" | "address".
+        readonly property bool asking: mode === "name" || mode === "phone" || mode === "address"
+        function ask(field) {
+            mode = field
+            whoField.text = (w.check.customer ?? {})[field] ?? ""
+            whoField.selectAll()
+            whoField.forceActiveFocus()
+        }
+        function saveWho() {
+            const c = Object.assign({}, w.check.customer ?? {})
+            c[mode] = whoField.text
+            mode = ""
+            w.pos.setCustomer(c)
+        }
+        function useRegular(id) {
+            mode = ""
+            w.pos.useCustomer(id)
+        }
 
         Column {
             anchors.centerIn: parent
@@ -551,13 +606,52 @@ Item {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: sheet.mode === "move" ? qsTr("Move %1 to…").arg(w.pos.lines.find(l => l.selected)?.name ?? "")
+                text: sheet.mode === "name" ? qsTr("Name for the order")
+                    : sheet.mode === "phone" ? qsTr("Their phone number")
+                    : sheet.mode === "address" ? qsTr("Where to deliver it")
+                    : sheet.mode === "move" ? qsTr("Move %1 to…").arg(w.pos.lines.find(l => l.selected)?.name ?? "")
                     : sheet.mode === "fire" ? qsTr("Fire course %1").arg(w.nextCourse)
                     : (w.check.label ?? "")
                 color: "white"
                 font.family: w.face
                 font.pixelSize: w.unit
                 font.bold: true
+            }
+            // Who it's for: type it, or touch a regular that matches.
+            TextField {
+                id: whoField
+                objectName: "whoField"
+                visible: sheet.asking
+                width: parent.width
+                height: sheet.key
+                font.family: w.face
+                font.pixelSize: w.unit * 0.9
+                inputMethodHints: sheet.mode === "phone" ? Qt.ImhDialableCharactersOnly : Qt.ImhNone
+                placeholderText: sheet.mode === "name" ? qsTr("Name") : sheet.mode === "phone" ? qsTr("Phone")
+                                                                       : qsTr("Street, apartment, city")
+                onTextEdited: if (sheet.mode !== "address" && text.trim().length >= 3) w.pos.findCustomers(text.trim())
+                onAccepted: sheet.saveWho()
+            }
+            Repeater {
+                model: sheet.asking && sheet.mode !== "address" && whoField.text.trim().length >= 3
+                       ? (w.pos.customers ?? []).slice(0, 3) : []
+                delegate: WidgetKey {
+                    required property var modelData
+                    objectName: "regular-" + modelData.id
+                    width: parent.width; height: sheet.key * 0.8
+                    fontScale: 0.38
+                    text: modelData.name + (modelData.phone ? "  ·  " + modelData.phone : "")
+                    onClicked: sheet.useRegular(modelData.id)
+                }
+            }
+            WidgetKey {
+                objectName: "whoSave"
+                visible: sheet.asking
+                width: parent.width; height: sheet.key
+                fontScale: 0.42
+                text: qsTr("Save")
+                baseColor: "#1f8a4c"
+                onClicked: sheet.saveWho()
             }
             // Table tools
             WidgetKey {

@@ -2756,15 +2756,16 @@ TEST_CASE("UI: a takeout ready later, picked by day, hour and minutes", "[flow][
     REQUIRE(s.pos.loginWithPin(u"1234"_s));
     REQUIRE(s.c.jumpTo(u"tables"_s));
     s.c.activate(u"takeout"_s);
-    CHECK(s.c.pageId() == u"customer"_s);
-    s.c.activate(u"later"_s);
-    CHECK(s.c.pageId() == u"order-later"_s);
+    CHECK(s.c.pageId() == u"index-lunch"_s);                  // straight to the menu
     QTest::qWait(50);
     const auto key = [&](const QString &name) {
         QQuickItem *k = Screen::findBy(s.window->contentItem(), "objectName", name);
         REQUIRE(k);
         return k;
     };
+    s.tapItem(key(u"who-later"_s));                          // Ready Later… on the check
+    CHECK(s.c.pageId() == u"order-later"_s);
+    QTest::qWait(50);
     s.tapItem(key(u"laterDay-1"_s));      // tomorrow
     s.tapItem(key(u"laterHour-18"_s));    // 6 PM
     s.tapItem(key(u"laterMinute-30"_s));
@@ -3713,4 +3714,60 @@ TEST_CASE("Host stand screen: pick a party, push tables together, seat; bussing"
         s.shot(phone ? "host-phone" : "host");
         CHECK_FALSE(s.pos.hasCheck());   // the host doesn't keep the tables' checks
     }
+}
+
+TEST_CASE("Phone orders: name, phone and address right on the check", "[flow][ui][who]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.saveCustomer({{u"name"_s, u"Dana Ruiz"_s}, {u"phone"_s, u"555-0142"_s},
+                                {u"address"_s, u"12 Oak St"_s}}));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.activate(u"delivery"_s);
+    CHECK(s.c.pageId() == u"index-lunch"_s);
+    QTest::qWait(50);
+    const auto key = [&](const QString &name) {
+        QQuickItem *k = Screen::findBy(s.window->contentItem(), "objectName", name);
+        REQUIRE(k);
+        return k;
+    };
+    CHECK(key(u"who-name"_s)->property("text") == u"+ Name"_s);
+    CHECK(key(u"who-address"_s)->property("text") == u"+ Address"_s);
+    s.shot("who-1-empty");
+
+    // Type a name.
+    s.tapItem(key(u"who-name"_s));
+    for (char ch : std::string("Sam"))
+        QTest::keyClick(s.window, ch);
+    s.shot("who-2-typing");
+    s.tapItem(key(u"whoSave"_s));
+    CHECK(s.pos.checkInfo()[u"customer"_s].toMap()[u"name"_s] == u"Sam"_s);
+    CHECK(key(u"who-name"_s)->property("text") == u"Sam"_s);
+
+    // A phone number that matches a regular: touch them, and everything fills in.
+    s.tapItem(key(u"who-phone"_s));
+    for (char ch : std::string("0142"))
+        QTest::keyClick(s.window, ch);
+    QTest::qWait(30);
+    QQuickItem *regular = nullptr;
+    for (const QVariant &v : s.pos.customerResults())
+        if (v.toMap()[u"name"_s] == u"Dana Ruiz"_s)
+            regular = key(u"regular-"_s + v.toMap()[u"id"_s].toString());
+    s.shot("who-3-regular");
+    s.tapItem(regular);
+    const QVariantMap who = s.pos.checkInfo()[u"customer"_s].toMap();
+    CHECK(who[u"name"_s] == u"Dana Ruiz"_s);
+    CHECK(who[u"address"_s] == u"12 Oak St"_s);
+    CHECK(key(u"who-address"_s)->property("text") == u"12 Oak St"_s);
+
+    // Change just the address: Enter saves.
+    s.tapItem(key(u"who-address"_s));
+    QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
+    for (char ch : std::string("9 Elm Ave"))
+        QTest::keyClick(s.window, ch);
+    QTest::keyClick(s.window, Qt::Key_Return);
+    CHECK(s.pos.checkInfo()[u"customer"_s].toMap()[u"address"_s] == u"9 Elm Ave"_s);
+    CHECK(s.pos.checkInfo()[u"customer"_s].toMap()[u"phone"_s] == u"555-0142"_s);
+    QTest::qWait(30);
+    s.shot("who-4-done");
 }

@@ -106,8 +106,7 @@
         },
         {
           "type": "jump",
-          "mode": "push",
-          "page": "customer"
+          "mode": "index"
         }
       ]
     },
@@ -130,8 +129,7 @@
         },
         {
           "type": "jump",
-          "mode": "push",
-          "page": "customer"
+          "mode": "index"
         }
       ]
     },

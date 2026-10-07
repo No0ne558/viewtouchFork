@@ -192,8 +192,8 @@ TEST_CASE("Customer details typed then Continue are kept", "[ui][pages]")
     REQUIRE(window);
     REQUIRE(QTest::qWaitForWindowExposed(window));
 
-    c.activate(u"delivery"_s);                     // start a delivery -> customer page
-    REQUIRE(c.pageId() == u"customer"_s);
+    c.activate(u"delivery"_s);                     // start a delivery
+    REQUIRE(c.jumpTo(u"customer"_s));              // the full form page still works
     QTest::qWait(50);
     auto *surface = window->findChild<QQuickItem *>(u"pageSurface"_s);
     REQUIRE(surface);

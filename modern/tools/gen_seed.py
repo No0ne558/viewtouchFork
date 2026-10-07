@@ -554,8 +554,8 @@ page("tables", "Tables", "tables", [
     *[table_zone(t) for t in TABLES],
     zone("quick", 1472, 16, 432, 150, "Quick Order", actions=[command("startQuick"), jump(mode="index")],
          style=fill(GREEN)),
-    zone("takeout", 1472, 182, 208, 150, "Takeout", actions=[command("startTakeout"), jump(page="customer")]),
-    zone("delivery", 1696, 182, 208, 150, "Delivery", actions=[command("startDelivery"), jump(page="customer")]),
+    zone("takeout", 1472, 182, 208, 150, "Takeout", actions=[command("startTakeout"), jump(mode="index")]),
+    zone("delivery", 1696, 182, 208, 150, "Delivery", actions=[command("startDelivery"), jump(mode="index")]),
     zone("checks", 1472, 348, 432, 150, "Open Checks", actions=[jump(role="checkList")]),
     zone("host", 1056, 914, 400, 150, "Host Stand", actions=[jump(page="seating")], style=fill(TEAL)),
     zone("tabs", 1056, 748, 400, 150, "Bar Tabs", actions=[jump(page="tabs")], style=fill(AMBER)),
@@ -980,8 +980,8 @@ phone_page("login", "Login", "login", [
 tables_buttons, _ = grid_buttons([
     ("quick", "Quick Order", [command("startQuick"), jump(mode="index")], {"style": fill(GREEN)}),
     ("checks", "Open Checks", [jump(role="checkList")], {}),
-    ("takeout", "Takeout", [command("startTakeout"), jump(page="customer")], {}),
-    ("delivery", "Delivery", [command("startDelivery"), jump(page="customer")], {}),
+    ("takeout", "Takeout", [command("startTakeout"), jump(mode="index")], {}),
+    ("delivery", "Delivery", [command("startDelivery"), jump(mode="index")], {}),
     ("manager", "Manager", [jump(role="manager")], {}),
     ("logout", "Log Out", [jump(role="logout")], {"style": fill(RED)}),
 ], 1640, 2, 190)

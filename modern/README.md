@@ -203,7 +203,7 @@ Store Settings → **Kitchen stations** lists the stations (the demo: Grill, Fry
 
 ## Orders for later
 
-On the takeout or delivery customer page (or Check… on any order), **Ready Later…** picks the day, hour and minutes it should be ready: up to 60 days ahead. Send saves it without bothering the kitchen. The store's computer sends it to the kitchen by itself 20 minutes before it's due (Store Settings → *Orders for later go to the kitchen*). The ticket and the kitchen screen say **READY AT 6:30 PM**.
+On a takeout or delivery check (or Check… on any order), **Ready Later…** picks the day, hour and minutes it should be ready: up to 60 days ahead. Send saves it without bothering the kitchen. The store's computer sends it to the kitchen by itself 20 minutes before it's due (Store Settings → *Orders for later go to the kitchen*). The ticket and the kitchen screen say **READY AT 6:30 PM**.
 - It can't be closed until the kitchen has it.
 - An order for another day is paid on that day, and it doesn't hold up tonight's end of day.
 
@@ -348,7 +348,7 @@ Run the main server and the standby as headless services on two computers, both 
   - Touch a ticket when it's ready. Recall brings the last one back.
   - Each station bumps only its own lines, so the bar clearing drinks leaves the kitchen's food on its screen.
   - Paid-first counter orders stay on screen until they are bumped.
-- **Takeout / Delivery** (floor plan) asks for the customer: name, phone, address and a note. The details save as you type. They print on the receipt and kitchen tickets and show on the order, the kitchen card and the check list. A takeout or delivery that is put away with nothing ordered is discarded.
+- **Takeout / Delivery** (floor plan) open the menu at once. The check shows **+ Name**, **+ Phone**, **+ Address** (delivery) and **Ready Later…** keys: each opens a field over the check (Enter or Save keeps it), so no separate page is needed. Three or more characters of a phone or name list up to three matching customers; touching one fills in their name, phone and address. Missing name (and address on a delivery) show in amber. The full form (page `customer`, name, phone, address and a note, saving as you type) is still there for layouts that link to it. They print on the receipt and kitchen tickets and show on the order, the kitchen card and the check list. A takeout or delivery that is put away with nothing ordered is discarded.
 
 ## Prices by order type, staff meals
 
