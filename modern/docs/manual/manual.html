@@ -59,13 +59,20 @@
 
 <h2>One store, any number of screens</h2>
 <p>One computer keeps the store's data: checks, menu, staff and reports. Every other screen (a terminal) connects to it over the network. All screens see the same checks and tables, and a check open on one screen can't be changed on another at the same time.</p>
+<p><b>Setting up a new computer.</b> On a computer with Linux (Fedora, Debian, Ubuntu or Raspberry Pi OS) and an internet connection, open a terminal and paste:</p>
+<pre>curl -fsSL https://raw.githubusercontent.com/No0ne558/viewtouchFork/Modernization/modern/packaging/install-viewtouch.sh | sudo sh</pre>
+<p>It installs everything (a few minutes), then asks what this computer is:</p>
 <table border="1" cellpadding="5" cellspacing="0" width="100%">
-<tr><th>Command (on each computer)</th><th>What that computer does</th></tr>
-<tr><td><code>sudo vtmodern-setup store</code></td><td>Has a screen and keeps the data. Other screens may join.</td></tr>
-<tr><td><code>sudo vtmodern-setup server</code></td><td>Keeps the data with no screen (a back-office box).</td></tr>
-<tr><td><code>sudo vtmodern-setup terminal</code></td><td>Has a screen and joins a store (it finds the store on the network).</td></tr>
-<tr><td><code>vtmodern-setup status</code></td><td>Shows what is set up and the newest backup.</td></tr>
+<tr><th>Choice</th><th>What that computer does</th></tr>
+<tr><td>1. Main register</td><td>Has a screen and keeps the store's data. Other screens join it.</td></tr>
+<tr><td>2. Back-office server</td><td>Keeps the data with no screen (a box in the office).</td></tr>
+<tr><td>3. Another register</td><td>A register that joins the store.</td></tr>
+<tr><td>4. Kitchen screen</td><td>Shows the orders to make.</td></tr>
+<tr><td>5. Self-order kiosk</td><td>Guests order on their own and pay at the counter.</td></tr>
+<tr><td>6. Time clock</td><td>Staff clock in and out and see their schedules.</td></tr>
+<tr><td>7. Standby server</td><td>A live copy of everything that takes over if the main computer stops (it asks for a pairing code).</td></tr>
 </table>
+<p>To change it later, run <code>sudo vtmodern-setup</code> again; <code>vtmodern-setup status</code> shows what's set up and the newest backup. A screen that joins the store shows a <b>Join</b> screen the first time: pick the store and type a pairing code (next section).</p>
 <p>Screens start full screen at boot and have no way out for staff. To close ViewTouch on a screen, a manager touches <b>Manager → Close ViewTouch</b> twice.</p>
 
 <h2>Adding a screen or tablet (pairing)</h2>

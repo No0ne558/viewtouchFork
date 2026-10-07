@@ -193,17 +193,19 @@ no_desktop=no
 host=auto
 name=$(uname -n)
 code=
-args=""
-for a in "$@"; do
+# The switches, wherever they are; the rest in order (names may have spaces).
+n=$#
+while [ "$n" -gt 0 ]; do
+    a=$1
+    shift
+    n=$((n - 1))
     case "$a" in
         --guest-display) guest_display=yes ;;
         --no-desktop) no_desktop=yes ;;
         -h|--help) usage 0 ;;
-        *) args="$args $a" ;;
+        *) set -- "$@" "$a" ;;
     esac
 done
-# shellcheck disable=SC2086
-set -- $args
 
 cmd=${1:-}
 if [ -z "$cmd" ]; then
