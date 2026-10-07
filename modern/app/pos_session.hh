@@ -154,6 +154,8 @@ class PosSession : public QObject {
     Q_PROPERTY(QString screenMode READ screenMode NOTIFY adminChanged)
     // This terminal's own look (Manager -> Terminals); empty: the store's.
     Q_PROPERTY(QString terminalLook READ terminalLook NOTIFY adminChanged)
+    // This terminal's on-screen keyboard: "on", "off" or "" (automatic).
+    Q_PROPERTY(QString terminalKeyboard READ terminalKeyboard NOTIFY adminChanged)
     // A device pairing in progress (managers only): {active, code, until}.
     Q_PROPERTY(QVariantMap pairing READ pairingInfo NOTIFY adminChanged)
     // The store's meal periods: [{id, name, start (minutes after midnight)}].
@@ -265,6 +267,7 @@ public:
     virtual QVariantMap pairingInfo() const = 0;
     virtual QString screenMode() const = 0;
     virtual QString terminalLook() const = 0;
+    virtual QString terminalKeyboard() const = 0;
     virtual int queryRevision() const { return 0; }
 
     virtual void selectLine(qint64 lineId) { invoke(QStringLiteral("selectLine"), {lineId}); }

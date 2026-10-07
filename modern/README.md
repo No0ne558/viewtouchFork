@@ -287,7 +287,7 @@ The screens come in English and Spanish (Español).
 
 ## On-screen keyboard
 
-Text fields (customer names, Manager forms…) get an on-screen keyboard, docked below the page, on touch screens: on by default with `--kiosk`, or `--touch-keyboard yes|no`. Number fields get a number pad.
+Text fields (customer names, notes, Manager forms…) get an on-screen keyboard, since most touch screens have no keyboard. It is **on by default** everywhere except Android (phones and tablets use their own). Turn it off for a screen that has a keyboard in Manager → Terminals → *On-screen keyboard*, or with `--touch-keyboard yes|no` (which wins over the setting). It docks below the page (which shrinks so the field stays in view); for fields over the page (a dialog, the setup guide) it floats on top instead. Number fields (phone, amounts, counts) get a number pad; the first letter of an empty field is a capital.
 
 ## Meal periods
 

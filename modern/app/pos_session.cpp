@@ -23,7 +23,7 @@ const QStringList &PosSession::stateKeys()
         u"entryGuests"_s, u"textEntry"_s, u"pendingQualifier"_s, u"pendingTable"_s, u"hasCheck"_s, u"check"_s, u"tableChecks"_s, u"undoText"_s,
         u"lines"_s, u"totals"_s, u"payments"_s, u"selectedLine"_s, u"selectedPayment"_s, u"openChecks"_s, u"floor"_s, u"popularItems"_s, u"stockLeft"_s, u"dashboard"_s, u"checklists"_s,
         u"checkFilter"_s, u"kitchenTickets"_s, u"drawer"_s, u"day"_s, u"days"_s, u"adminRevision"_s,
-        u"tipsOwed"_s, u"mealPeriods"_s, u"pairing"_s, u"screenMode"_s, u"terminalLook"_s,
+        u"tipsOwed"_s, u"mealPeriods"_s, u"pairing"_s, u"screenMode"_s, u"terminalLook"_s, u"terminalKeyboard"_s,
         u"closedChecks"_s, u"staff"_s, u"checkHistory"_s, u"choosing"_s, u"weighing"_s, u"setup"_s, u"soldOut"_s, u"menuItems"_s, u"onBreakSince"_s,
         u"customers"_s, u"customer"_s, u"giftCard"_s, u"waitlist"_s, u"customerPrompt"_s, u"schedule"_s, u"nextShift"_s, u"rangeReport"_s, u"expoTickets"_s, u"approval"_s, u"training"_s, u"autoLogoutMinutes"_s, u"screenSaverMinutes"_s, u"storeImages"_s, u"storeLogo"_s, u"kitchenStations"_s, u"kitchenStation"_s, u"messages"_s, u"network"_s, u"language"_s, u"userPrefs"_s, u"storeLanguage"_s, u"selfOrder"_s, u"kioskMenu"_s, u"clockInJobs"_s, u"timeClock"_s, u"receiving"_s, u"checkSearch"_s,
     };
@@ -56,7 +56,7 @@ QVariantMap PosSession::snapshot() const
         {u"openChecks"_s, openChecks()}, {u"floor"_s, floor()}, {u"popularItems"_s, popularItems()}, {u"stockLeft"_s, stockLeft()}, {u"dashboard"_s, dashboard()}, {u"checklists"_s, checklists()}, {u"checkFilter"_s, checkFilter()}, {u"kitchenTickets"_s, kitchenTickets()},
         {u"drawer"_s, drawerInfo()}, {u"day"_s, dayInfo()}, {u"days"_s, days()},
         {u"adminRevision"_s, adminRevision()}, {u"tipsOwed"_s, tipsOwed()},
-        {u"mealPeriods"_s, mealPeriods()}, {u"pairing"_s, pairingInfo()}, {u"screenMode"_s, screenMode()}, {u"terminalLook"_s, terminalLook()},
+        {u"mealPeriods"_s, mealPeriods()}, {u"pairing"_s, pairingInfo()}, {u"screenMode"_s, screenMode()}, {u"terminalLook"_s, terminalLook()}, {u"terminalKeyboard"_s, terminalKeyboard()},
         {u"closedChecks"_s, closedChecks()}, {u"staff"_s, staff()}, {u"checkHistory"_s, checkHistory()},
         {u"choosing"_s, choosingInfo()}, {u"weighing"_s, weighingInfo()}, {u"setup"_s, setupInfo()}, {u"soldOut"_s, soldOut()}, {u"menuItems"_s, menuItems()},
         {u"onBreakSince"_s, onBreakSince()},

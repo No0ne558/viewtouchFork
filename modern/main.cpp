@@ -119,7 +119,8 @@ struct Options {
         u"This screen is a self-order kiosk: guests order on their own and pay at the counter. A manager's PIN "
          "(hold the top-left corner) ends it. Also set per terminal in Manager -> Terminals."_s};
     QCommandLineOption touchKeyboard{u"touch-keyboard"_s,
-        u"Show an on-screen keyboard for text fields: yes or no (default: yes with --kiosk)."_s, u"yes|no"_s};
+        u"Show an on-screen keyboard for text fields: yes or no (default: the terminal's setting, "
+          "Manager -> Terminals; on, except on Android, which has its own)."_s, u"yes|no"_s};
     QCommandLineOption screen{u"screen"_s,
         u"Pages for this screen: phone (phone versions, portrait), standard, auto "
         "(phones get phone pages; the default on Android), or timeClock (only clocking in and out "
@@ -360,7 +361,7 @@ std::unique_ptr<QQmlApplicationEngine> showUi(const Args &cli, const Options &o,
     engine->setInitialProperties({
         {u"controller"_s, QVariant::fromValue(&controller)},
         {u"kiosk"_s, cli.isSet(o.kiosk)},
-        {u"touchKeyboard"_s, cli.isSet(o.touchKeyboard) ? cli.value(o.touchKeyboard) != u"no" : cli.isSet(o.kiosk)},
+        {u"keyboardFlag"_s, cli.isSet(o.touchKeyboard) ? (cli.value(o.touchKeyboard) != u"no" ? u"on"_s : u"off"_s) : QString()},
         {u"customerDisplay"_s, display == u"split"},
         {u"customerDisplayAt"_s, [] {
              // The leftmost monitor's width: the POS stays on it.

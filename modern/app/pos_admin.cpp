@@ -471,6 +471,10 @@ QVariantList PosService::adminFields(const QString &panel)
                                         {"timeClock", "Time Clock (clock in / out and schedules only)"}})),
             // Choices filled in by the screen (its looks).
             field(u"look"_s, tr("Look"), u"look"_s, tr("This screen's colors; the store's look elsewhere.")),
+            with(field(u"keyboard"_s, tr("On-screen keyboard"), u"enum"_s,
+                       tr("For typing names, notes and numbers on a touch screen. Phones and tablets use their own.")),
+                 u"options"_s, options({{"", "Automatic (on; phones and tablets use their own)"}, {"on", "On"},
+                                        {"off", "Off (this screen has a keyboard)"}})),
         };
     }
     return {};
@@ -661,7 +665,7 @@ QVariantList PosService::adminRecords(const QString &panel)
         for (const TerminalConfig &t : s_->settings.terminals) {
             const PrinterConfig *p = s_->settings.printer(t.receiptPrinter);
             add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}, {u"drawer"_s, qs(t.drawer)},
-                 {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)}},
+                 {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)}, {u"keyboard"_s, qs(t.keyboard)}},
                 qs(t.name), (p ? qs(p->name) : tr("Receipt (default)"))
                                 + (s_->settings.hasDrawer(t.name) ? QString() : tr(" · no drawer"))
                                 + (t.key.empty() ? QString() : tr(" · paired device")));
@@ -691,7 +695,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"staffMeal"_s, false}};
     if (panel == u"terminals")
         return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}, {u"drawer"_s, QString()},
-                {u"screen"_s, QString()}, {u"look"_s, QString()}};
+                {u"screen"_s, QString()}, {u"look"_s, QString()}, {u"keyboard"_s, QString()}};
     if (panel == u"mealPeriods")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"modifierGroups")
@@ -806,6 +810,10 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             return fail(tr("Choose the terminal's screen layout."));
         t.screen = ss(screen);
         t.look = ss(record.value(u"look"_s).toString().left(40));
+        const QString keyboard = record.value(u"keyboard"_s).toString();
+        if (!QStringList{QString(), u"on"_s, u"off"_s}.contains(keyboard))
+            return fail(tr("Choose whether the screen shows a keyboard."));
+        t.keyboard = ss(keyboard);
         if (index >= 0 && index < int(list.size()))
             list[index] = t;
         else
@@ -1732,6 +1740,14 @@ QString PosService::terminalLook() const
     for (const TerminalConfig &t : s_->settings.terminals)
         if (qs(t.name) == terminal_)
             return qs(t.look);
+    return {};
+}
+
+QString PosService::terminalKeyboard() const
+{
+    for (const TerminalConfig &t : s_->settings.terminals)
+        if (qs(t.name) == terminal_)
+            return qs(t.keyboard);
     return {};
 }
 

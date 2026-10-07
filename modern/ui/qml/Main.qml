@@ -19,8 +19,14 @@ ApplicationWindow {
     readonly property real posWidth: !customerDisplay ? width
                                      : customerDisplayAt > 0 ? Math.min(width, customerDisplayAt)
                                      : Math.round(width * 0.66)
-    // An on-screen keyboard for text fields (touch screens with no keyboard).
-    property bool touchKeyboard: kiosk
+    // An on-screen keyboard for text fields: most touch screens have no
+    // keyboard. --touch-keyboard yes|no, else the terminal's setting (Manager
+    // -> Terminals), else on (Android: the device's own keyboard instead).
+    property string keyboardFlag: ""
+    readonly property string keyboardSetting: controller.pos ? ((controller.pos as PosService).terminalKeyboard ?? "") : ""
+    property bool touchKeyboard: keyboardFlag !== "" ? keyboardFlag === "on"
+                               : keyboardSetting !== "" ? keyboardSetting === "on"
+                               : Qt.platform.os !== "android"
     // The text field being typed in, if any.
     readonly property Item typingIn: {
         const line = activeFocusItem as TextInput
@@ -28,6 +34,13 @@ ApplicationWindow {
             return line
         const area = activeFocusItem as TextEdit
         return area && !area.readOnly ? area : null
+    }
+    // Typing outside the page (a dialog, the setup guide): the keyboard
+    // floats over everything instead of docking under the page.
+    readonly property bool typingOverPage: {
+        for (let p = typingIn; p; p = p.parent)
+            if (p === pageColumn) return false
+        return typingIn !== null
     }
 
     // Phones get phone pages (the controller decides; see formFactor).
@@ -86,6 +99,7 @@ ApplicationWindow {
     }
 
     ColumnLayout {
+        id: pageColumn
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
@@ -176,8 +190,32 @@ ApplicationWindow {
             objectName: "touchKeys"
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
-            visible: root.touchKeyboard && root.typingIn !== null && !selfOrder.visible
+            visible: root.touchKeyboard && root.typingIn !== null && !root.typingOverPage && !selfOrder.visible
             target: visible ? root.typingIn : null
+            onDismissed: pageView.forceActiveFocus()
+        }
+    }
+
+    // The keyboard for fields over the page: in a dialog or the setup guide.
+    // Above every dialog, and it never takes the focus from the field.
+    Popup {
+        id: floatingKeys
+        objectName: "floatingKeys"
+        parent: Overlay.overlay
+        visible: root.touchKeyboard && root.typingIn !== null && root.typingOverPage && !selfOrder.visible
+        modal: false
+        focus: false
+        closePolicy: Popup.NoAutoClose
+        z: 1000
+        padding: 0
+        x: 0
+        width: root.posWidth
+        height: Math.min(root.height * 0.42, 420)
+        y: root.height - height
+        background: null
+        contentItem: TouchKeyboard {
+            id: floatKeyboard
+            target: floatingKeys.visible ? root.typingIn : null
             onDismissed: pageView.forceActiveFocus()
         }
     }
@@ -396,6 +434,7 @@ ApplicationWindow {
     // A new store's setup guide (managers; Manager -> Setup Guide…).
     Loader {
         anchors.fill: parent
+        anchors.bottomMargin: floatingKeys.visible ? floatingKeys.height : 0   // above the keyboard
         z: 70
         active: root.controller.setupOpen
         sourceComponent: SetupGuide { controller: root.controller }
@@ -420,7 +459,7 @@ ApplicationWindow {
         objectName: "toast"
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 24
+        anchors.bottomMargin: 24 + (touchKeys.visible ? touchKeys.height : floatingKeys.visible ? floatingKeys.height : 0)   // above the keyboard
         width: Math.min(toastText.implicitWidth + 40, root.width - 40)
         height: toastText.implicitHeight + 20
         radius: 18

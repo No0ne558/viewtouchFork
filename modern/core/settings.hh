@@ -53,6 +53,9 @@ struct TerminalConfig {
     std::string station;
     // Its own look (a Look id: the bar dark, the patio light); empty = the store's.
     std::string look;
+    // The on-screen keyboard for typing: "on", "off", or empty = on (but the
+    // phone's or tablet's own keyboard on Android).
+    std::string keyboard;
 
     bool operator==(const TerminalConfig &) const = default;
 };

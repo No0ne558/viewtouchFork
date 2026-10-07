@@ -3771,3 +3771,85 @@ TEST_CASE("Phone orders: name, phone and address right on the check", "[flow][ui
     QTest::qWait(30);
     s.shot("who-4-done");
 }
+
+TEST_CASE("On-screen keyboard: on by default, under the page or over a dialog, off by setting", "[ui][keyboard]")
+{
+    Session s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    QQmlApplicationEngine engine;
+    // No --touch-keyboard: the terminal's setting decides (on when not set).
+    engine.setInitialProperties({{u"controller"_s, QVariant::fromValue(&s.c)}, {u"width"_s, 1600}, {u"height"_s, 900}});
+    engine.loadFromModule("ViewTouch", "Main");
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0));
+    REQUIRE(window);
+    REQUIRE(QTest::qWaitForWindowExposed(window));
+    CHECK(window->property("touchKeyboard").toBool());
+    QQuickItem *root = window->contentItem();
+    const auto by = [&](QQuickItem *in, const QString &name) { return Screen::findBy(in, "objectName", name); };
+    const auto tap = [&](QQuickItem *item) {
+        REQUIRE(item);
+        QTest::mouseClick(window, Qt::LeftButton, {}, item->mapToScene(QPointF(item->width() / 2, item->height() / 2)).toPoint());
+        QTest::qWait(30);
+    };
+    // A key of the keyboard: its label's parent.
+    const auto key = [&](QQuickItem *keyboard, const QString &label) {
+        QQuickItem *text = Screen::findBy(keyboard, "text", label);
+        REQUIRE(text);
+        return text->parentItem();
+    };
+
+    // A takeout's name, typed on the screen's keyboard (docked under the page).
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.activate(u"takeout"_s);
+    QTest::qWait(50);
+    tap(by(root, u"who-name"_s));
+    QQuickItem *docked = by(root, u"touchKeys"_s);
+    REQUIRE(docked);
+    CHECK(docked->isVisible());
+    for (const char *k : {"S", "a", "m"})                         // a capital to start
+        tap(key(docked, QString::fromLatin1(k)));
+    CHECK(by(root, u"whoField"_s)->property("text") == u"Sam"_s);
+    tap(key(docked, u"⏎"_s));                                    // Enter saves it
+    CHECK(s.pos.checkInfo()[u"customer"_s].toMap()[u"name"_s] == u"Sam"_s);
+    const auto shot = [&](const char *name) {
+        if (const QByteArray dir = qgetenv("VTM_SHOTS"); !dir.isEmpty())
+            window->grabWindow().save(QString::fromLocal8Bit(dir) + u'/' + QString::fromLatin1(name) + u".png"_s);
+    };
+
+    // A phone number: the number pad.
+    tap(by(root, u"who-phone"_s));
+    QTest::qWait(30);
+    CHECK(Screen::findBy(docked, "text", u"q"_s) == nullptr);
+    for (const char *k : {"5", "5", "5"})
+        tap(key(docked, QString::fromLatin1(k)));
+    CHECK(by(root, u"whoField"_s)->property("text") == u"555"_s);
+    shot("kb-1-numbers");
+    tap(by(root, u"whoSave"_s));
+    s.pos.releaseCheck();
+
+    // The setup guide covers the page: the keyboard floats over it.
+    s.c.openSetup();
+    QTest::qWait(80);
+    tap(by(root, u"setupNext"_s));                                // past the welcome
+    QTest::qWait(80);
+    QQuickItem *storeName = by(root, u"setupStoreName"_s);
+    REQUIRE(storeName);
+    tap(storeName);
+    CHECK_FALSE(docked->isVisible());
+    QObject *popup = window->findChild<QObject *>(u"floatingKeys"_s);
+    REQUIRE(popup);
+    CHECK(popup->property("visible").toBool());
+    auto *keys = qvariant_cast<QQuickItem *>(popup->property("contentItem"));
+    REQUIRE(keys);
+    QTest::keyClick(window, Qt::Key_A, Qt::ControlModifier);
+    for (const char *k : {"b", "o", "b"})
+        tap(key(keys, QString::fromLatin1(k)));
+    CHECK(storeName->property("text").toString().endsWith(u"bob"_s));
+    shot("kb-2-setup");
+
+    // Off for this terminal (it has a keyboard): none shows.
+    REQUIRE(s.pos.adminSave(u"terminals"_s, -1, {{u"name"_s, s.pos.terminalName()}, {u"keyboard"_s, u"off"_s}}));
+    QTest::qWait(30);
+    CHECK_FALSE(window->property("touchKeyboard").toBool());
+    CHECK_FALSE(popup->property("visible").toBool());
+}
