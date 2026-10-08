@@ -112,6 +112,18 @@ void TicketPrinter::printReceipt(const PosSettings &settings, const Check &check
     }
 }
 
+void TicketPrinter::printOrderSlip(const PosSettings &settings, const Check &check, const std::string &printerId,
+                                   bool sent)
+{
+    const i18n::Scope language(QString::fromStdString(settings.language));
+    if (const PrinterConfig *p = receiptPrinter(settings, printerId)) {
+        TicketContext ctx = context(settings);
+        if (settings.receiptLogo && p->effectiveFormat() == "escpos")
+            ctx.logo = logoFor(settings, p->width);
+        send(settings, *p, orderSlip(check, sent, ctx), u"Order slip #%1"_s.arg(check.id));
+    }
+}
+
 void TicketPrinter::printReport(const PosSettings &settings, const Report &report, const std::string &printerId)
 {
     if (const PrinterConfig *p = receiptPrinter(settings, printerId))

@@ -74,6 +74,14 @@ public:
     // A test page on printer `printerId` (its logo, text sizes, a cut), and
     // the drawer wired to it opened when `kickDrawer`. False: no such printer.
     virtual bool printTestPage(const core::PosSettings &, const std::string &, bool) { return false; }
+    // A self-order kiosk's slip for the guest: the order number to show at
+    // the counter and what they ordered; `sent`: already being made.
+    virtual void printOrderSlip(const core::PosSettings &settings, const core::Check &check,
+                                const std::string &printerId, bool sent)
+    {
+        (void)sent;
+        printReceipt(settings, check, printerId);
+    }
 };
 
 // A closed business day and its final reports (report id -> report JSON).

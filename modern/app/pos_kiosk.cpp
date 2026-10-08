@@ -142,8 +142,12 @@ bool PosService::kioskFinish(const QVariantMap &guest)
     if (sendNow && !sendOrder())
         return false;
     const Totals t = c->totals(s_->settings.tax);
+    // Their slip: the number to show at the counter, and what they ordered.
+    const bool slip = s_->settings.kioskSlip && s_->printer && s_->settings.printer(receiptPrinter());
+    if (slip)
+        s_->printer->printOrderSlip(s_->settings, *c, receiptPrinter(), sendNow);
     lastKioskOrder_ = {{u"number"_s, qint64(c->id)}, {u"name"_s, name}, {u"sent"_s, sendNow},
-                       {u"total"_s, format(t.total)}};
+                       {u"total"_s, format(t.total)}, {u"slip"_s, slip}};
     choosingLine_ = 0;
     releaseCheck();   // for the counter now
     emit checkChanged();

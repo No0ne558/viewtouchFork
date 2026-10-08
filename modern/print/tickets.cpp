@@ -123,6 +123,49 @@ Document receipt(const Check &check, const TicketContext &ctx)
     return d;
 }
 
+Document orderSlip(const Check &check, bool sent, const TicketContext &ctx)
+{
+    const Totals t = check.totals(ctx.settings.tax);
+    Document d;
+    if (ctx.logo)
+        d.image(ctx.logo);
+    d.center(ctx.settings.storeName, true);
+    d.blank();
+    d.center("YOUR ORDER NUMBER", true);
+    d.center(std::to_string(check.id), true, true);
+    if (!check.customer.name.empty())
+        d.center(check.customer.name, true, true);
+    d.center(check.type == CheckType::DineIn ? "For here" : "To go");
+    d.center(ctx.dateTime(ctx.now));
+    d.rule();
+    for (const OrderLine &l : check.lines) {
+        if (l.voided || l.isComment())
+            continue;
+        const std::string qty = l.quantity > 1 ? std::to_string(l.quantity) + " x " : "";
+        d.columns(qty + l.displayName(), ctx.money(qualifiedPrice(l.unitPrice, l.qualifier) * l.quantity));
+        for (const Modifier &m : l.modifiers) {
+            if (m.price().cents() == 0 && !ctx.settings.receiptFreeChoices)
+                continue;
+            d.columns("  " + m.displayName(), m.price().cents() ? ctx.money(m.price() * l.quantity) : "");
+        }
+    }
+    d.rule();
+    d.columns("Subtotal", ctx.money(t.items));
+    for (const auto &[cls, amount] : t.taxByClass)
+        d.columns(capitalized(toString(cls)) + " tax", ctx.money(amount));
+    d.columns("TOTAL", ctx.money(t.total), true, true);
+    d.blank();
+    if (t.balance.cents() > 0)
+        d.center("Please pay at the counter", true);
+    if (sent)
+        d.center("We're making it now", true);
+    else
+        d.center("We'll make it once it's paid");
+    d.center("Show this slip at the counter");
+    d.blank();
+    return d;
+}
+
 Document kitchenTicket(const Check &check, const std::vector<OrderLine> &lines, const std::string &station,
                        bool voids, const TicketContext &ctx)
 {

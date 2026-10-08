@@ -198,6 +198,9 @@ struct PosSettings {
     // untouched order waits before it is cleared.
     bool kioskSendNow = false;
     int kioskIdleSeconds = 90;
+    // A slip from the kiosk's receipt printer when the guest places the
+    // order: the number to show at the counter, and what they ordered.
+    bool kioskSlip = true;
     // How the self-order kiosk looks and what it asks (its accent color,
     // logo and pictures are the customer display's). Colors "#rrggbb";
     // empty = the usual.

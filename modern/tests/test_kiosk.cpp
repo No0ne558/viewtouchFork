@@ -1,10 +1,13 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <sstream>
+
 #include "net/layout_hub.hh"
 #include "net/pairing.hh"
 #include "net/pos_server.hh"
 #include "net/remote_session.hh"
 #include "pos_fixture.hh"
+#include "print/tickets.hh"
 #include "qt_catch.hh"
 
 #include <QDeadlineTimer>
@@ -251,4 +254,95 @@ TEST_CASE("Self-order: a paired screen set up as a kiosk comes up as one", "[kio
     CHECK(waitFor([&] { return lobby.selfOrderInfo()[u"ordering"_s].toBool(); }));
     lobby.kioskAdd(u"caesar"_s);
     CHECK(waitFor([&] { return lobby.lines().size() == 1; }));
+}
+
+TEST_CASE("Self-order: the guest's slip, from the kiosk's own printer", "[kiosk][slip]")
+{
+    app::PosData data = test::seedPosData(true);
+    core::PrinterConfig lobby;
+    lobby.id = "lobby";
+    lobby.name = "Lobby printer";
+    lobby.type = "file";
+    lobby.path = "lobby.txt";
+    data.settings.printers.push_back(lobby);
+    core::TerminalConfig t;
+    t.name = "Lobby";
+    t.receiptPrinter = "lobby";
+    data.settings.terminals.push_back(t);
+    app::PosShared shared(data, nullptr);
+    struct Slips : app::PosPrinter {
+        std::vector<std::tuple<std::int64_t, std::string, bool>> slips;
+        int receipts = 0;
+        void printKitchen(const core::PosSettings &, const core::Check &, const std::vector<core::OrderLine> &, bool) override {}
+        void printReceipt(const core::PosSettings &, const core::Check &, const std::string &) override { ++receipts; }
+        void printReport(const core::PosSettings &, const core::Report &, const std::string &) override {}
+        void openDrawer(const core::PosSettings &, const std::string &) override {}
+        void printOrderSlip(const core::PosSettings &, const core::Check &c, const std::string &p, bool sent) override
+        {
+            slips.emplace_back(c.id, p, sent);
+        }
+    } printer;
+    shared.printer = &printer;
+    app::PosService kiosk(&shared, u"Lobby"_s);
+    kiosk.enableSelfOrder();
+    REQUIRE(kiosk.kioskStart(false));
+    const qint64 id = kiosk.checkInfo()[u"id"_s].toLongLong();
+    REQUIRE(kiosk.kioskAdd(u"water"_s));
+    REQUIRE(kiosk.kioskFinish({{u"name"_s, u"Lee"_s}}));
+    REQUIRE(printer.slips.size() == 1);
+    CHECK(std::get<0>(printer.slips[0]) == id);
+    CHECK(std::get<1>(printer.slips[0]) == "lobby");   // the kiosk's own printer
+    CHECK_FALSE(std::get<2>(printer.slips[0]));        // waits for the counter
+    CHECK(printer.receipts == 0);
+    CHECK(kiosk.selfOrderInfo()[u"lastOrder"_s].toMap()[u"slip"_s].toBool());
+
+    // Turned off: none.
+    shared.settings.kioskSlip = false;
+    kiosk.kioskCancel();
+    REQUIRE(kiosk.kioskStart(false));
+    REQUIRE(kiosk.kioskAdd(u"water"_s));
+    REQUIRE(kiosk.kioskFinish({{u"name"_s, u"Sam"_s}}));
+    CHECK(printer.slips.size() == 1);
+    CHECK_FALSE(kiosk.selfOrderInfo()[u"lastOrder"_s].toMap()[u"slip"_s].toBool());
+}
+
+TEST_CASE("Self-order: what the slip says, on any paper", "[kiosk][slip]")
+{
+    const app::PosData data = test::seedPosData(true);
+    core::Check c;
+    c.id = 4127;
+    c.type = core::CheckType::Takeout;
+    c.customer.name = "Lee";
+    core::OrderLine l;
+    l.id = 1;
+    l.itemId = "burger";
+    l.name = "Cheeseburger";
+    l.unitPrice = Money::fromCents(1150);
+    l.quantity = 2;
+    core::Modifier rare;
+    rare.name = "Medium rare";
+    core::Modifier bacon;
+    bacon.name = "Extra bacon";
+    bacon.unitPrice = Money::fromCents(200);
+    l.modifiers = {rare, bacon};
+    c.lines.push_back(l);
+    print::TicketContext ctx{data.settings, [](std::int64_t) { return std::string("Oct 7, 2026 6:30 PM"); },
+                             [](std::int64_t) { return std::string("6:30 PM"); }, 0, nullptr};
+    for (const bool sent : {false, true}) {
+        for (const int width : {32, 42, 48}) {
+            const std::string text = print::renderText(print::orderSlip(c, sent, ctx), width);
+            INFO(width << "\n" << text);
+            CHECK(text.find("4127") != std::string::npos);
+            CHECK(text.find("Lee") != std::string::npos);
+            CHECK(text.find("To go") != std::string::npos);
+            CHECK(text.find("2 x Cheeseburger") != std::string::npos);
+            CHECK(text.find("Extra bacon") != std::string::npos);
+            CHECK(text.find("Medium rare") == std::string::npos);   // free: as on receipts
+            CHECK(text.find("Please pay at the counter") != std::string::npos);
+            CHECK(text.find(sent ? "We're making it now" : "once it's paid") != std::string::npos);
+            std::istringstream in(text);
+            for (std::string row; std::getline(in, row);)
+                CHECK(print::displayWidth(row) <= std::size_t(width));
+        }
+    }
 }

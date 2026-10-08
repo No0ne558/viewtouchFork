@@ -448,6 +448,9 @@ QVariantList PosService::adminFields(const QString &panel)
                      "Each pay out picks one; Reports -> Expenses adds them up.")),
             field(u"kioskSendNow"_s, tr("Self-order kiosk: send orders to the kitchen at once"), u"bool"_s,
                   tr("Otherwise a kiosk order goes to the kitchen when it is paid for at the counter.")),
+            field(u"kioskSlip"_s, tr("Self-order kiosk: print an order slip"), u"bool"_s,
+                  tr("On the kiosk's receipt printer (Terminals) when the order is placed: the order number "
+                     "to show at the counter, the name, what was ordered and the total.")),
             with(with(field(u"kioskIdleSeconds"_s, tr("Self-order kiosk: clear an untouched order after (seconds)"),
                             u"int"_s), u"min"_s, 30), u"max"_s, 600),
             field(u"kioskWelcome"_s, tr("Self-order kiosk: welcome button"), u"string"_s,
@@ -646,6 +649,7 @@ QVariantList PosService::adminRecords(const QString &panel)
               }()},
              {u"extraCharge"_s, s_->settings.extraCharge.cents() / 100.0},
              {u"kioskSendNow"_s, s_->settings.kioskSendNow}, {u"kioskIdleSeconds"_s, s_->settings.kioskIdleSeconds},
+             {u"kioskSlip"_s, s_->settings.kioskSlip},
              {u"kioskWelcome"_s, qs(s_->settings.kioskLook.welcome)}, {u"kioskAskWhere"_s, s_->settings.kioskLook.askWhere},
              {u"kioskAskName"_s, s_->settings.kioskLook.askName}, {u"kioskEasyReach"_s, s_->settings.kioskLook.easyReach},
              {u"kioskSizePercent"_s, s_->settings.kioskLook.sizePercent},
@@ -1200,6 +1204,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         }
         if (record.contains(u"kioskSendNow"_s))
             s_->settings.kioskSendNow = record.value(u"kioskSendNow"_s).toBool();
+        if (record.contains(u"kioskSlip"_s))
+            s_->settings.kioskSlip = record.value(u"kioskSlip"_s).toBool();
         if (record.contains(u"kioskIdleSeconds"_s))
             s_->settings.kioskIdleSeconds = std::clamp(record.value(u"kioskIdleSeconds"_s).toInt(), 30, 600);
         {

@@ -805,6 +805,18 @@ Rectangle {
                 font.pixelSize: k.u * 1.4
                 wrapMode: Text.WordWrap
             }
+            Text {
+                objectName: "kioskTakeSlip"
+                font.family: k.face
+                visible: k.lastOrder.slip ?? false
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: qsTr("Take your slip below and show it at the counter.")
+                color: k.ink
+                font.pixelSize: k.u * 1.2
+                font.bold: true
+                wrapMode: Text.WordWrap
+            }
             Big {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.preferredWidth: k.u * 16

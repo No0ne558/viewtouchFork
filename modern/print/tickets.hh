@@ -24,6 +24,10 @@ struct TicketContext {
 // Customer receipt (legacy SubCheck::PrintReceipt).
 Document receipt(const core::Check &check, const TicketContext &ctx);
 
+// A self-order kiosk's slip: the order number, big, to show at the
+// counter; the name, what was ordered and the total; `sent`: being made.
+Document orderSlip(const core::Check &check, bool sent, const TicketContext &ctx);
+
 // Kitchen / bar ticket for the given lines (legacy Check::PrintWorkOrder).
 // `voids` prints the lines as cancelled.
 Document kitchenTicket(const core::Check &check, const std::vector<core::OrderLine> &lines,

@@ -774,7 +774,7 @@ QJsonObject toJson(const PosSettings &s)
                  a.append(qs(c));
              return a;
          }()},
-        {u"kioskSendNow"_s, s.kioskSendNow}, {u"kioskIdleSeconds"_s, s.kioskIdleSeconds},
+        {u"kioskSendNow"_s, s.kioskSendNow}, {u"kioskIdleSeconds"_s, s.kioskIdleSeconds}, {u"kioskSlip"_s, s.kioskSlip},
         {u"kioskLook"_s, QJsonObject{{u"background"_s, qs(s.kioskLook.background)}, {u"card"_s, qs(s.kioskLook.card)},
                                      {u"go"_s, qs(s.kioskLook.go)}, {u"text"_s, qs(s.kioskLook.text)},
                                      {u"font"_s, qs(s.kioskLook.font)}, {u"welcome"_s, qs(s.kioskLook.welcome)},
@@ -965,6 +965,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
             s.expenseCategories.push_back(ss(v.toString()));
     }
     s.kioskSendNow = o.value(u"kioskSendNow").toBool(false);
+    s.kioskSlip = o.value(u"kioskSlip").toBool(true);
     s.kioskIdleSeconds = std::clamp(o.value(u"kioskIdleSeconds").toInt(90), 30, 600);
     {
         const QJsonObject k = o.value(u"kioskLook").toObject();
