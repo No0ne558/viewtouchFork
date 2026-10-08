@@ -907,13 +907,22 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.gratuityMinGuests = gratuity.value(u"minGuests").toInt(6);
     for (const QJsonValue &v : o.value(u"terminals").toArray()) {
         const QJsonObject t = v.toObject();
-        s.terminals.push_back({ss(t.value(u"name").toString()), ss(t.value(u"receiptPrinter").toString()),
-                               ss(t.value(u"drawer").toString()), ss(t.value(u"id").toString()),
-                               ss(t.value(u"key").toString()), i64(t.value(u"pairedAt")),
-                               ss(t.value(u"screen").toString()), ss(t.value(u"station").toString()),
-                               ss(t.value(u"look").toString()), ss(t.value(u"keyboard").toString()),
-                               ss(t.value(u"requireName").toString()), ss(t.value(u"cardReader").toString()),
-                               ss(t.value(u"afterPaying").toString())});
+        // By name: a new setting can't shift the others.
+        TerminalConfig c;
+        c.name = ss(t.value(u"name").toString());
+        c.receiptPrinter = ss(t.value(u"receiptPrinter").toString());
+        c.drawer = ss(t.value(u"drawer").toString());
+        c.id = ss(t.value(u"id").toString());
+        c.key = ss(t.value(u"key").toString());
+        c.pairedAt = i64(t.value(u"pairedAt"));
+        c.screen = ss(t.value(u"screen").toString());
+        c.station = ss(t.value(u"station").toString());
+        c.look = ss(t.value(u"look").toString());
+        c.keyboard = ss(t.value(u"keyboard").toString());
+        c.requireName = ss(t.value(u"requireName").toString());
+        c.cardReader = ss(t.value(u"cardReader").toString());
+        c.afterPaying = ss(t.value(u"afterPaying").toString());
+        s.terminals.push_back(std::move(c));
     }
     s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));
     const QJsonObject labor = o.value(u"labor").toObject();

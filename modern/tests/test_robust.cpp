@@ -277,3 +277,49 @@ TEST_CASE("A card approved while the store is out of reach survives the app clos
     CHECK(pos.payments()[0].toMap()[u"name"_s].toString().contains(u"4242"_s));
     CHECK_FALSE(QSettings().contains(u"cards/unsent"_s));
 }
+
+TEST_CASE("Every screen setting comes back as saved", "[robust][settings]")
+{
+    core::PosSettings s;
+    core::TerminalConfig t;
+    t.name = "Patio";
+    t.receiptPrinter = "ask";
+    t.drawer = "no";
+    t.id = "dev-1";
+    t.key = "a2V5";
+    t.pairedAt = 1234;
+    t.screen = "phone";
+    t.station = "grill";
+    t.look = "dark";
+    t.keyboard = "off";
+    t.requireName = "yes";
+    t.cardReader = "stripe";
+    t.afterPaying = "ask";
+    s.terminals = {t};
+    const core::PosSettings back = app::settingsFromJson(app::toJson(s));
+    REQUIRE(back.terminals.size() == 1);
+    CHECK(back.terminals[0] == t);
+}
+
+TEST_CASE("This screen's card reader: saved, left, and after a restart", "[robust][settings]")
+{
+    test::RecordingSink sink;
+    PosService pos(test::seedPosData(), &sink);
+    login(pos);
+    const QVariantList records = pos.adminRecords(u"terminals"_s);   // this screen is listed
+    int self = -1;
+    for (int i = 0; i < records.size(); ++i)
+        if (records[i].toMap()[u"name"_s] == pos.terminalName())
+            self = i;
+    REQUIRE(self >= 0);
+    QVariantMap r = records[self].toMap();
+    r[u"cardReader"_s] = u"simulated"_s;
+    REQUIRE(pos.adminSave(u"terminals"_s, self, r));
+    CHECK(pos.adminRecords(u"terminals"_s)[self].toMap()[u"cardReader"_s] == u"simulated"_s);
+    CHECK(pos.terminalCardReader() == u"simulated"_s);
+    CHECK(pos.adminRecords(u"terminals"_s)[self].toMap()[u"afterPaying"_s].toString().isEmpty());
+    // Read back as a restart would.
+    const core::PosSettings again = app::settingsFromJson(app::toJson(pos.shared()->settings));
+    CHECK(again.terminals[self].cardReader == "simulated");
+    CHECK(again.terminals[self].afterPaying.empty());
+}
