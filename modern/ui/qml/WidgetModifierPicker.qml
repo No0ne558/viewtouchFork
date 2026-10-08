@@ -76,6 +76,7 @@ Item {
                                 // "No Onion", "Extra Cheese +$1.50": how it was chosen.
                                 text: (modelData.qualifier ? modelData.qualifier + " " : "") + modelData.name
                                       + (modelData.soldOut ? "\n" + qsTr("sold out")
+                                         : modelData.included && !modelData.chosen ? "\n" + qsTr("comes on it")
                                          : modelData.chosen ? (modelData.chosenPrice ? "\n+" + modelData.chosenPrice : "")
                                          : modelData.price ? "\n+" + modelData.price : "")
                                 accent: modelData.chosen && !leftOff
@@ -84,7 +85,10 @@ Item {
                                 opacity: enabled ? 1 : 0.4
                                 fontScale: 0.3
                                 holdable: true
-                                onClicked: w.pos.chooseOption(group.modelData.id, modelData.index)
+                                // Comes on it: how it's had (No, Lite, Extra, Side) is the question.
+                                onClicked: modelData.included && !modelData.chosen
+                                           ? w.askHow(group.modelData.id, modelData.index, modelData.name)
+                                           : w.pos.chooseOption(group.modelData.id, modelData.index)
                                 // Held: No / Lite / Extra / Side for it.
                                 onHeld: w.askHow(group.modelData.id, modelData.index, modelData.name)
                             }

@@ -867,16 +867,66 @@ Rectangle {
                                 spacing: k.u * 0.3
                                 Text {
                                     font.family: k.face
-                                    text: group.modelData.name + "  ·  " + group.modelData.rule
+                                    text: group.modelData.onlyIncluded ? group.modelData.name
+                                                                       : group.modelData.name + "  ·  " + group.modelData.rule
                                     color: group.modelData.done ? k.soft : "#f5b940"
                                     font.pixelSize: k.u * 1.1
                                     font.bold: true
+                                }
+                                // What comes on it: each No, Light, as it comes, Extra or on the side.
+                                Text {
+                                    visible: group.modelData.included && !group.modelData.onlyIncluded
+                                    font.family: k.face
+                                    text: qsTr("What's on it")
+                                    color: k.soft
+                                    font.pixelSize: k.u * 0.95
+                                }
+                                Repeater {
+                                    model: (group.modelData.options ?? []).filter(o => o.included)
+                                    delegate: RowLayout {
+                                        id: onIt
+                                        required property var modelData
+                                        Layout.fillWidth: true
+                                        spacing: k.u * 0.3
+                                        Text {
+                                            font.family: k.face
+                                            Layout.preferredWidth: k.u * 7
+                                            text: onIt.modelData.name
+                                            color: onIt.modelData.how === "no" ? k.soft : k.ink
+                                            font.strikeout: onIt.modelData.how === "no"
+                                            font.pixelSize: k.u * 1.05
+                                            elide: Text.ElideRight
+                                        }
+                                        Repeater {
+                                            model: [{ how: "no", text: qsTr("No") }, { how: "lite", text: qsTr("Light") },
+                                                    { how: "", text: qsTr("Regular") }, { how: "extra", text: qsTr("Extra") },
+                                                    { how: "side", text: qsTr("On the side") }]
+                                            delegate: Big {
+                                                required property var modelData
+                                                objectName: "kioskHow-" + onIt.modelData.name + "-" + (modelData.how || "regular")
+                                                Layout.fillWidth: true
+                                                Layout.preferredHeight: k.u * 2.4
+                                                text: modelData.text
+                                                size: 0.75
+                                                base: (onIt.modelData.how ?? "") === modelData.how ? k.accent : k.card
+                                                onClicked: k.pos.setChoice(group.modelData.id, onIt.modelData.index,
+                                                                           modelData.how === "" ? "off" : modelData.how)
+                                            }
+                                        }
+                                    }
+                                }
+                                Text {
+                                    visible: group.modelData.included && !group.modelData.onlyIncluded
+                                    font.family: k.face
+                                    text: qsTr("Add")
+                                    color: k.soft
+                                    font.pixelSize: k.u * 0.95
                                 }
                                 Flow {
                                     Layout.fillWidth: true
                                     spacing: k.u * 0.4
                                     Repeater {
-                                        model: group.modelData.options
+                                        model: (group.modelData.options ?? []).filter(o => !o.included)
                                         delegate: Big {
                                             required property var modelData
                                             width: k.u * 10
@@ -888,6 +938,39 @@ Rectangle {
                                             size: 0.95
                                             base: modelData.chosen ? k.accent : k.card
                                             onClicked: k.pos.chooseOption(group.modelData.id, modelData.index)
+                                        }
+                                    }
+                                }
+                                // A choice made, had Light, Extra or on the side (dressing on the side).
+                                Repeater {
+                                    model: group.modelData.askHow
+                                           ? (group.modelData.options ?? []).filter(o => !o.included && o.chosen) : []
+                                    delegate: RowLayout {
+                                        id: added
+                                        required property var modelData
+                                        Layout.fillWidth: true
+                                        spacing: k.u * 0.3
+                                        Text {
+                                            font.family: k.face
+                                            Layout.preferredWidth: k.u * 7
+                                            text: added.modelData.name
+                                            color: k.ink
+                                            font.pixelSize: k.u * 1.05
+                                            elide: Text.ElideRight
+                                        }
+                                        Repeater {
+                                            model: [{ how: "", text: qsTr("Regular") }, { how: "lite", text: qsTr("Light") },
+                                                    { how: "extra", text: qsTr("Extra") }, { how: "side", text: qsTr("On the side") }]
+                                            delegate: Big {
+                                                required property var modelData
+                                                objectName: "kioskHow-" + added.modelData.name + "-" + (modelData.how || "regular")
+                                                Layout.fillWidth: true
+                                                Layout.preferredHeight: k.u * 2.4
+                                                text: modelData.text
+                                                size: 0.75
+                                                base: (added.modelData.how ?? "") === modelData.how ? k.accent : k.card
+                                                onClicked: k.pos.setChoice(group.modelData.id, added.modelData.index, modelData.how)
+                                            }
                                         }
                                     }
                                 }

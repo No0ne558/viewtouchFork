@@ -496,7 +496,12 @@ QVariantList PosService::adminFields(const QString &panel)
                             tr("1 = pick one (a new choice replaces it), 0 = any number")), u"min"_s, 0), u"max"_s, 20),
             field(u"options"_s, tr("Options"), u"text"_s,
                   tr("One per line; a price after +, e.g. \"Onion Rings + 1.50\". After |, what the kitchen sees "
-                     "(\"Ranch | RNCH\"), or - to leave it off the kitchen ticket (\"No dressing | -\").")),
+                     "(\"Ranch | RNCH\"), or - to leave it off the kitchen ticket (\"No dressing | -\"). "
+                     "Start with * what comes on the item (\"*Onion\"): guests can have it No, Light, Extra or "
+                     "on the side.")),
+            field(u"askHow"_s, tr("Guests can ask for Light, Extra or On the side"), u"bool"_s,
+                  tr("On the kiosk, a choice can be had Light, Extra or on the side (dressing on the side, "
+                     "extra bacon). Off for temperatures and sizes.")),
             field(u"menuItems"_s, tr("Options are menu items"), u"bool"_s,
                   tr("For combos: each option is the menu item of that name (\"Soda\", \"Fries\"). It uses up "
                      "that item's stock, can't be chosen while it's sold out, and shows on the Items report.")),
@@ -743,10 +748,11 @@ QVariantList PosService::adminRecords(const QString &panel)
         for (const ModifierGroup &g : s_->settings.modifierGroups) {
             QStringList lines;
             for (const ModifierOption &o : g.options)
-                lines << (o.price.cents() ? u"%1 + %2"_s.arg(qs(o.name), qs(o.price.toString())) : qs(o.name))
+                lines << (o.included ? u"*"_s : QString())
+                             + (o.price.cents() ? u"%1 + %2"_s.arg(qs(o.name), qs(o.price.toString())) : qs(o.name))
                              + (o.kitchenHide ? u" | -"_s : o.kitchenName.empty() ? QString() : u" | "_s + qs(o.kitchenName));
             add({{u"id"_s, qs(g.id)}, {u"name"_s, qs(g.name)}, {u"min"_s, g.min}, {u"max"_s, g.max},
-                 {u"options"_s, lines.join(u'\n')}, {u"menuItems"_s, g.menuItems}},
+                 {u"options"_s, lines.join(u'\n')}, {u"menuItems"_s, g.menuItems}, {u"askHow"_s, g.askHow}},
                 qs(g.name), tr("%1 options").arg(g.options.size()) + (g.min > 0 ? tr(" · required") : QString())
                                 + (g.menuItems ? tr(" · menu items") : QString()));
         }
@@ -805,7 +811,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"mealPeriods")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"modifierGroups")
-        return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"min"_s, 1}, {u"max"_s, 1}, {u"options"_s, QString()},
+        return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"min"_s, 1}, {u"max"_s, 1}, {u"options"_s, QString()}, {u"askHow"_s, false},
                 {u"menuItems"_s, false}};
     if (panel == u"promotions")
         return promotionRecord({});
@@ -1638,6 +1644,7 @@ bool PosService::saveModifierGroupRecord(int index, const QVariantMap &record)
     g.min = std::max(0, record.value(u"min"_s).toInt());
     g.max = std::max(0, record.value(u"max"_s).toInt());
     g.menuItems = record.value(u"menuItems"_s).toBool();
+    g.askHow = record.value(u"askHow"_s).toBool();
     if (g.max > 0 && g.min > g.max)
         return fail(tr("It can't require more choices than it allows."));
     for (QString line : record.value(u"options"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
@@ -1647,6 +1654,10 @@ bool PosService::saveModifierGroupRecord(int index, const QVariantMap &record)
             kitchen = line.mid(bar + 1).trimmed();
             line = line.left(bar);
         }
+        // "*Onion": it comes on the item.
+        const bool included = line.trimmed().startsWith(u'*');
+        if (included)
+            line = line.trimmed().mid(1);
         const qsizetype plus = line.lastIndexOf(u'+');
         QString optName = (plus > 0 ? line.left(plus) : line).trimmed();
         Money price;
@@ -1672,7 +1683,7 @@ bool PosService::saveModifierGroupRecord(int index, const QVariantMap &record)
         }
         if (!optName.isEmpty())
             g.options.push_back({ss(optName), price, kitchen == u"-" ? std::string() : ss(kitchen), kitchen == u"-",
-                                 itemId});
+                                 itemId, included});
     }
     if (g.options.empty())
         return fail(tr("Add the options, one per line."));

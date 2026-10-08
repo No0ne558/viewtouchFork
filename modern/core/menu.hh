@@ -104,6 +104,9 @@ struct ModifierOption {
     // The menu item it is (ModifierGroup::menuItems): it uses up the item's
     // stock and can't be chosen while it's sold out.
     std::string itemId;
+    // It comes on the item (a burger's lettuce, onion, mayo): nothing to
+    // choose, but it can be had No, Lite, Extra or on the Side.
+    bool included = false;
 
     bool operator==(const ModifierOption &) const = default;
 };
@@ -120,6 +123,9 @@ struct ModifierGroup {
     // Each option is the menu item of that name. That's how a combo works:
     // "Burger Combo" asks for a side and a drink from the menu.
     bool menuItems = false;
+    // Guests (the kiosk) can have a choice Lite, Extra or on the Side
+    // (dressing on the side, extra bacon); always for what comes on it.
+    bool askHow = false;
 
     bool operator==(const ModifierGroup &) const = default;
 };

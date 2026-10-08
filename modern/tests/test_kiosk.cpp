@@ -474,3 +474,82 @@ TEST_CASE("Printer alerts reach every screen, and go when fixed", "[status][aler
     shared.setPrinterProblem("bar", "");
     CHECK(a.printerAlerts().isEmpty());
 }
+
+TEST_CASE("Self-order: no onion, light mayo, extra bacon, dressing on the side", "[kiosk][how]")
+{
+    app::PosShared shared(test::seedPosData(true), nullptr);
+    app::PosService kiosk(&shared, u"Lobby"_s);
+    kiosk.enableSelfOrder();
+    REQUIRE(kiosk.kioskStart(true));
+    REQUIRE(kiosk.kioskAdd(u"classic-burger"_s));
+    const auto option = [&](const QString &group, const QString &name) {
+        for (const QVariant &g : kiosk.choosingInfo()[u"groups"_s].toList())
+            if (g.toMap()[u"id"_s] == group)
+                for (const QVariant &o : g.toMap()[u"options"_s].toList())
+                    if (o.toMap()[u"name"_s] == name)
+                        return o.toMap();
+        return QVariantMap{};
+    };
+    CHECK(option(u"toppings"_s, u"Onion"_s)[u"included"_s].toBool());     // comes on it
+    CHECK_FALSE(option(u"toppings"_s, u"Bacon"_s)[u"included"_s].toBool());
+    const int onion = option(u"toppings"_s, u"Onion"_s)[u"index"_s].toInt();
+    const int mayo = option(u"toppings"_s, u"Mayo"_s)[u"index"_s].toInt();
+    const int bacon = option(u"toppings"_s, u"Bacon"_s)[u"index"_s].toInt();
+
+    REQUIRE(kiosk.setChoice(u"toppings"_s, onion, u"no"_s));
+    REQUIRE(kiosk.setChoice(u"toppings"_s, mayo, u"lite"_s));
+    REQUIRE(kiosk.setChoice(u"toppings"_s, mayo, u"side"_s));               // changed their mind: on the side
+    REQUIRE(kiosk.setChoice(u"toppings"_s, bacon, u""_s));                  // add bacon
+    REQUIRE(kiosk.setChoice(u"toppings"_s, bacon, u"extra"_s));             // extra bacon
+    CHECK(option(u"toppings"_s, u"Onion"_s)[u"how"_s] == u"no"_s);
+    CHECK(option(u"toppings"_s, u"Mayo"_s)[u"how"_s] == u"side"_s);
+    CHECK(option(u"toppings"_s, u"Bacon"_s)[u"how"_s] == u"extra"_s);
+    CHECK_FALSE(kiosk.setChoice(u"toppings"_s, bacon, u"no"_s));            // "No" is for what comes on it
+    CHECK_FALSE(kiosk.setChoice(u"temperature"_s, 0, u"extra"_s));          // not for temperatures
+    // What comes on it is no choice of its own: Medium + Fries are still needed.
+    CHECK_FALSE(kiosk.finishChoosing());
+    REQUIRE(kiosk.chooseOption(u"temperature"_s, 2));
+    REQUIRE(kiosk.chooseOption(u"side"_s, 0));
+    REQUIRE(kiosk.finishChoosing());
+
+    const core::OrderLine &l = shared.open.at(kiosk.checkInfo()[u"id"_s].toLongLong()).lines.front();
+    QStringList mods;
+    for (const core::Modifier &m : l.modifiers)
+        mods << QString::fromStdString(m.displayName());
+    CHECK(mods.contains(u"No Onion"_s));
+    CHECK(mods.contains(u"Side of Mayo"_s));
+    CHECK(mods.contains(u"Extra Bacon"_s));
+    CHECK(mods.size() == 5);   // + Medium, Fries; nothing for what's left as it comes
+
+    // Back to as it comes.
+    REQUIRE(kiosk.chooseLine(l.id));
+    REQUIRE(kiosk.setChoice(u"toppings"_s, onion, u"off"_s));
+    CHECK(option(u"toppings"_s, u"Onion"_s)[u"how"_s] == u""_s);
+
+    // Salad dressing on the side, on a one-choice group.
+    REQUIRE(kiosk.finishChoosing());
+    REQUIRE(kiosk.kioskAdd(u"house-salad"_s));
+    REQUIRE(kiosk.setChoice(u"dressing"_s, 0, u"side"_s));
+    CHECK(option(u"dressing"_s, u"Ranch"_s)[u"how"_s] == u"side"_s);
+    REQUIRE(kiosk.finishChoosing());                                        // it counts as the dressing
+}
+
+TEST_CASE("Modifier groups: * marks what comes on it, saved and shown again", "[kiosk][how][admin]")
+{
+    app::PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.adminSave(u"modifierGroups"_s, -1,
+                          {{u"name"_s, u"Taco Toppings"_s}, {u"min"_s, 0}, {u"max"_s, 0}, {u"askHow"_s, true},
+                           {u"options"_s, u"*Onion\n*Cilantro | CIL\nGuacamole + 2.00"_s}}));
+    const core::ModifierGroup &g = pos.shared()->settings.modifierGroups.back();
+    REQUIRE(g.options.size() == 3);
+    CHECK(g.options[0].included);
+    CHECK(g.options[1].included);
+    CHECK(g.options[1].kitchenName == "CIL");
+    CHECK_FALSE(g.options[2].included);
+    CHECK(g.askHow);
+    const QVariantMap shown = pos.adminRecords(u"modifierGroups"_s).back().toMap();
+    CHECK(shown[u"options"_s].toString() == u"*Onion\n*Cilantro | CIL\nGuacamole + 2.00"_s);
+    // And through a restart.
+    CHECK(app::modifierGroupsFromJson(app::modifierGroupsToJson({g})).front() == g);
+}

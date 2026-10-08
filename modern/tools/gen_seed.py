@@ -304,21 +304,21 @@ write("pos/settings.json", {
     "stations": [{"id": "grill", "name": "Grill"}, {"id": "fryer", "name": "Fryer"},
                  {"id": "cold", "name": "Cold Line"}],
     "modifierGroups": link_items([
-        {"id": "dressing", "name": "Dressing", "min": 1, "max": 1,
+        {"id": "dressing", "name": "Dressing", "min": 1, "max": 1, "askHow": True,   # on the side
          "options": [{"name": n, "price": 0, "kitchenName": k} for n, k in
                      (("Ranch", "RNCH"), ("Blue Cheese", "BLU CHZ"), ("Balsamic", "BALS"), ("Caesar", "CAES"),
                       ("Oil & Vinegar", "O&V"))]},
-        {"id": "salad-protein", "name": "Add a Protein", "min": 0, "max": 1,
+        {"id": "salad-protein", "name": "Add a Protein", "min": 0, "max": 1, "askHow": True,
          "options": [{"name": "Grilled Chicken", "price": 4.00}, {"name": "Shrimp", "price": 5.00},
                      {"name": "Salmon", "price": 6.00}]},
         {"id": "eggs", "name": "Eggs", "min": 1, "max": 1,
          "options": [{"name": n, "price": 0} for n in ("Scrambled", "Over Easy", "Over Medium", "Sunny Side Up", "Poached")]},
         {"id": "toast", "name": "Toast", "min": 1, "max": 1,
          "options": [{"name": n, "price": 0} for n in ("White", "Wheat", "Sourdough", "Rye", "English Muffin")]},
-        {"id": "syrup", "name": "Syrup", "min": 1, "max": 1,
+        {"id": "syrup", "name": "Syrup", "min": 1, "max": 1, "askHow": True,
          "options": [{"name": "Maple", "price": 0}, {"name": "Blueberry", "price": 0},
                      {"name": "Strawberry", "price": 0}, {"name": "Real Maple", "price": 1.50}]},
-        {"id": "breakfast-add-ons", "name": "Add-ons", "min": 0, "max": 0,
+        {"id": "breakfast-add-ons", "name": "Add-ons", "min": 0, "max": 0, "askHow": True,
          "options": [{"name": "Bacon", "price": 3.00}, {"name": "Sausage", "price": 3.00},
                      {"name": "Fruit Cup", "price": 2.50}, {"name": "Hash Browns", "price": 2.75},
                      {"name": "Whipped Cream", "price": 0.75}]},
@@ -328,8 +328,10 @@ write("pos/settings.json", {
         {"id": "side", "name": "Side", "min": 1, "max": 1, "menuItems": True,   # "No Side": nothing for the kitchen
          "options": [dict({"name": n, "price": p}, **({"kitchenHide": True} if n == "No Side" else {}))
                      for n, p in SIDES]},
-        {"id": "toppings", "name": "Toppings", "min": 0, "max": 0,
-         "options": [{"name": n, "price": p, "kitchenName": k} for n, p, k in
+        # Lettuce, tomato, onion, pickles and mayo come on it: No, Lite, Extra, on the Side.
+        {"id": "toppings", "name": "Toppings", "min": 0, "max": 0, "askHow": True,
+         "options": [dict({"name": n, "price": p, "kitchenName": k}, **({"included": True} if p == 0 else {}))
+                     for n, p, k in
                      (("Lettuce", 0, "LETT"), ("Tomato", 0, "TOM"), ("Onion", 0, "ONION"), ("Pickles", 0, "PICK"),
                       ("Mayo", 0, "MAYO"), ("Cheese", 1.00, "CHZ"), ("Bacon", 2.00, "BCN"), ("Avocado", 1.50, "AVO"),
                       ("Jalapeños", 0.75, "JAL"))]},
@@ -344,7 +346,7 @@ write("pos/settings.json", {
         {"id": "drink-size", "name": "Size", "min": 1, "max": 1,
          "options": [{"name": "Small", "price": 0}, {"name": "Medium", "price": 0.50},
                      {"name": "Large", "price": 1.00}]},
-        {"id": "coffee-extras", "name": "Coffee", "min": 0, "max": 0,
+        {"id": "coffee-extras", "name": "Coffee", "min": 0, "max": 0, "askHow": True,
          "options": [{"name": "Cream", "price": 0}, {"name": "Oat Milk", "price": 0.75},
                      {"name": "Sugar", "price": 0}, {"name": "Sweetener", "price": 0},
                      {"name": "Extra Shot", "price": 1.25}, {"name": "Decaf", "price": 0}]},
@@ -357,7 +359,7 @@ write("pos/settings.json", {
          "options": [{"name": n, "price": 0} for n in ("Red", "White", "Rosé")]},
         {"id": "wine-pour", "name": "Pour", "min": 1, "max": 1,
          "options": [{"name": "Glass", "price": 0}, {"name": "Bottle", "price": 22.00}]},
-        {"id": "omelette-fillings", "name": "Fillings", "min": 0, "max": 3,
+        {"id": "omelette-fillings", "name": "Fillings", "min": 0, "max": 3, "askHow": True,
          "options": [{"name": "Cheese", "price": 0}, {"name": "Ham", "price": 1.00}, {"name": "Mushrooms", "price": 0},
                      {"name": "Peppers", "price": 0}, {"name": "Onions", "price": 0}, {"name": "Spinach", "price": 0},
                      {"name": "Bacon", "price": 1.50}]},

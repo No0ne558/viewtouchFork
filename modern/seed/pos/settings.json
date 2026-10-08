@@ -222,6 +222,7 @@
       "name": "Dressing",
       "min": 1,
       "max": 1,
+      "askHow": true,
       "options": [
         {
           "name": "Ranch",
@@ -255,6 +256,7 @@
       "name": "Add a Protein",
       "min": 0,
       "max": 1,
+      "askHow": true,
       "options": [
         {
           "name": "Grilled Chicken",
@@ -331,6 +333,7 @@
       "name": "Syrup",
       "min": 1,
       "max": 1,
+      "askHow": true,
       "options": [
         {
           "name": "Maple",
@@ -355,6 +358,7 @@
       "name": "Add-ons",
       "min": 0,
       "max": 0,
+      "askHow": true,
       "options": [
         {
           "name": "Bacon",
@@ -451,31 +455,37 @@
       "name": "Toppings",
       "min": 0,
       "max": 0,
+      "askHow": true,
       "options": [
         {
           "name": "Lettuce",
           "price": 0,
-          "kitchenName": "LETT"
+          "kitchenName": "LETT",
+          "included": true
         },
         {
           "name": "Tomato",
           "price": 0,
-          "kitchenName": "TOM"
+          "kitchenName": "TOM",
+          "included": true
         },
         {
           "name": "Onion",
           "price": 0,
-          "kitchenName": "ONION"
+          "kitchenName": "ONION",
+          "included": true
         },
         {
           "name": "Pickles",
           "price": 0,
-          "kitchenName": "PICK"
+          "kitchenName": "PICK",
+          "included": true
         },
         {
           "name": "Mayo",
           "price": 0,
-          "kitchenName": "MAYO"
+          "kitchenName": "MAYO",
+          "included": true
         },
         {
           "name": "Cheese",
@@ -602,6 +612,7 @@
       "name": "Coffee",
       "min": 0,
       "max": 0,
+      "askHow": true,
       "options": [
         {
           "name": "Cream",
@@ -710,6 +721,7 @@
       "name": "Fillings",
       "min": 0,
       "max": 3,
+      "askHow": true,
       "options": [
         {
           "name": "Cheese",

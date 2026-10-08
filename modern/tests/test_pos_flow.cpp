@@ -4791,3 +4791,29 @@ TEST_CASE("UI: a printer out of paper shows on every staff screen, not on the ki
     QTest::qWait(60);
     CHECK_FALSE(Screen::findBy(root, "objectName", u"printerAlerts"_s));
 }
+
+TEST_CASE("UI: on the kiosk, a guest has no onion and mayo on the side", "[flow][ui][kiosk][how]")
+{
+    Screen s(false, 1080, 1920);
+    s.pos.enableSelfOrder();
+    QTest::qWait(60);
+    auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    QQuickItem *kiosk = find(u"selfOrder"_s);
+    s.tapItem(find(u"kioskAttract"_s));
+    QTest::qWait(60);
+    s.tapItem(find(u"kioskForHere"_s));
+    QTest::qWait(60);
+    s.tapItem(Screen::findBy(kiosk, "text", u"Classic Burger"_s));
+    QTest::qWait(100);
+    REQUIRE(find(u"kioskHow-Onion-no"_s));
+    s.tapItem(find(u"kioskHow-Onion-no"_s));
+    s.tapItem(find(u"kioskHow-Mayo-side"_s));
+    QTest::qWait(60);
+    s.shot("kiosk-how");
+    const QVariantList mods = s.pos.lines()[0].toMap()[u"modifiers"_s].toList();
+    QStringList names;
+    for (const QVariant &m : mods)
+        names << m.toString() + m.toMap()[u"name"_s].toString();
+    CHECK(names.join(u' ').contains(u"No Onion"_s));
+    CHECK(names.join(u' ').contains(u"Side of Mayo"_s));
+}

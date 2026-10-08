@@ -23,10 +23,14 @@ std::string PosService::currentMealPeriod() const
 
 namespace {
 // Choices made in a group ("No Onion" leaves something off: it isn't one).
-int chosenIn(const OrderLine &l, const std::string &group)
+// Choices made in a group: not "No", and not how something that comes on
+// it is had (Lite Mayo isn't a choice of topping).
+int chosenIn(const OrderLine &l, const ModifierGroup &group)
 {
     return int(std::ranges::count_if(l.modifiers, [&](const Modifier &m) {
-        return m.group == group && m.qualifier != Qualifier::No;
+        if (m.group != group.id || m.qualifier == Qualifier::No)
+            return false;
+        return std::ranges::none_of(group.options, [&](const ModifierOption &o) { return o.included && o.name == m.name; });
     }));
 }
 } // namespace
@@ -56,16 +60,23 @@ QVariantMap PosService::choosingInfo() const
                                        {u"chosen"_s, chosen}, {u"soldOut"_s, linked && !linked->available},
                                        // "No", "Extra"...: how it was chosen (and the price that way)
                                        {u"qualifier"_s, chosen ? qs(qualifierPrefix(it->qualifier)).trimmed() : QString()},
-                                       {u"chosenPrice"_s, chosen && it->price().cents() ? format(it->price()) : QString()}});
+                                       {u"chosenPrice"_s, chosen && it->price().cents() ? format(it->price()) : QString()},
+                                       // Comes on it; how it's had: "", no, lite, extra, side.
+                                       {u"included"_s, o.included},
+                                       {u"how"_s, chosen ? qs(toString(it->qualifier)) : QString()}});
         }
-        const int n = chosenIn(*l, g->id);
+        const int n = chosenIn(*l, *g);
         const QString rule = g->min == 1 && g->max == 1 ? tr("Choose 1")
                              : g->min > 0               ? tr("Choose at least %1").arg(g->min)
                              : g->max == 1              ? tr("Optional")
                              : g->max > 1               ? tr("Up to %1").arg(g->max)
                                                         : tr("Any");
+        const bool anyIncluded = std::ranges::any_of(g->options, &ModifierOption::included);
         groups.append(QVariantMap{{u"id"_s, qs(g->id)}, {u"name"_s, qs(g->name)}, {u"rule"_s, rule},
-                                  {u"chosen"_s, n}, {u"done"_s, n >= g->min}, {u"options"_s, options}});
+                                  {u"chosen"_s, n}, {u"done"_s, n >= g->min}, {u"options"_s, options},
+                                  {u"askHow"_s, g->askHow || anyIncluded}, {u"included"_s, anyIncluded},
+                                  // Only what comes on it: nothing to choose (no rule to show).
+                                  {u"onlyIncluded"_s, std::ranges::all_of(g->options, &ModifierOption::included)}});
     }
     return {{u"active"_s, true}, {u"lineId"_s, qint64(l->id)}, {u"item"_s, qs(l->displayName())},
             {u"groups"_s, groups},
@@ -81,7 +92,7 @@ QString PosService::missingChoice(const std::vector<OrderLine> &lines) const
             continue;
         for (const std::string &gid : item->modifierGroups) {
             const ModifierGroup *g = s_->settings.modifierGroup(gid);
-            if (g && g->min > 0 && chosenIn(l, g->id) < g->min)
+            if (g && g->min > 0 && chosenIn(l, *g) < g->min)
                 return tr("%1 needs a %2. Touch it, then choose.").arg(qs(l.displayName()), qs(g->name));
         }
     }
@@ -123,6 +134,10 @@ bool PosService::chooseOption(const QString &groupId, int index)
     }
     if (q == Qualifier::Sub)
         return fail(tr("Sub is for menu items: touch Sub, then the item to swap in."));
+    // Comes on it already: it's how it's had that matters.
+    if (o.included && q == Qualifier::None
+        && std::ranges::none_of(l->modifiers, [&](const Modifier &m) { return m.group == g->id && m.name == o.name; }))
+        return fail(tr("%1 comes on it: touch No, Lite, Extra or Side first.").arg(qs(o.name)));
     // Touching a chosen option takes it off (or, with a qualifier, changes how it's had).
     auto same = [&](const Modifier &m) { return m.group == g->id && m.name == o.name; };
     const auto had = std::ranges::find_if(l->modifiers, same);
@@ -133,9 +148,9 @@ bool PosService::chooseOption(const QString &groupId, int index)
             std::erase_if(l->modifiers, same);   // the same option, another way
         // "No" leaves something off: it doesn't replace the group's choice or count toward it.
         if (q != Qualifier::No) {
-            if (g->max == 1)   // one choice: the new one replaces it
+            if (g->max == 1 && !o.included)   // one choice: the new one replaces it
                 std::erase_if(l->modifiers, [&](const Modifier &m) { return m.group == g->id && m.qualifier != Qualifier::No; });
-            else if (g->max > 1 && chosenIn(*l, g->id) >= g->max)
+            else if (g->max > 1 && !o.included && chosenIn(*l, *g) >= g->max)
                 return fail(tr("%1: up to %2.").arg(qs(g->name)).arg(g->max));
         }
         if (linked && !linked->available)
@@ -168,6 +183,38 @@ bool PosService::chooseOptionAs(const QString &groupId, int index, const QString
 {
     qualifier_ = qualifierFromString(ss(qualifier));
     return chooseOption(groupId, index);
+}
+
+bool PosService::setChoice(const QString &groupId, int index, const QString &how)
+{
+    Check *c = current();
+    OrderLine *l = c ? c->line(choosingLine_) : nullptr;
+    if (!l)
+        return fail(tr("Nothing to choose for."));
+    const ModifierGroup *g = s_->settings.modifierGroup(ss(groupId));
+    if (!g || index < 0 || index >= int(g->options.size()))
+        return false;
+    const ModifierOption &o = g->options[index];
+    const bool anyIncluded = std::ranges::any_of(g->options, &ModifierOption::included);
+    // How it can be had: off/as it comes; plain (an add-on); Lite, Extra,
+    // Side where the group allows; No only for what comes on it.
+    static const QStringList hows{u"off"_s, u""_s, u"lite"_s, u"extra"_s, u"side"_s, u"no"_s};
+    if (!hows.contains(how) || (how == u"no" && !o.included) || (o.included && how.isEmpty())
+        || ((how == u"lite" || how == u"extra" || how == u"side") && !g->askHow && !anyIncluded))
+        return fail(tr("%1 can't be had that way.").arg(qs(o.name)));
+    const auto same = [&](const Modifier &m) { return m.group == g->id && m.name == o.name; };
+    if (how == u"off") {   // as it comes (or not added)
+        std::erase_if(l->modifiers, same);
+        changed(*c);
+        return true;
+    }
+    const std::vector<Modifier> before = l->modifiers;
+    std::erase_if(l->modifiers, same);
+    if (!chooseOptionAs(groupId, index, how)) {
+        l->modifiers = before;
+        return false;
+    }
+    return true;
 }
 
 bool PosService::finishChoosing()

@@ -2411,6 +2411,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"payOnAccount"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.payOnAccount(a.value(0).toString(), a.value(1).toLongLong())); }},
         {u"setSeat"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setSeat(a.value(0).toInt())); }},
+        {u"setChoice"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.setChoice(a.value(0).toString(), a.value(1).toInt(), a.value(2).toString())); }},
         {u"chooseOptionAs"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.chooseOptionAs(a.value(0).toString(), a.value(1).toInt(), a.value(2).toString())); }},
         {u"chooseOption"_s, [](PosService &p, const QVariantList &a) {

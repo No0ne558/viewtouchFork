@@ -426,6 +426,9 @@ public:
     bool chooseOption(const QString &groupId, int index);
     // The same, as "no", "lite", "extra" or "side" (held down on the Choose page).
     bool chooseOptionAs(const QString &groupId, int index, const QString &qualifier);
+    // Exactly how a choice is had: "off" (as it comes / not added), "" (an
+    // add-on, plain), "no" (what comes on it), "lite", "extra", "side".
+    bool setChoice(const QString &groupId, int index, const QString &how);
     bool finishChoosing();
     bool cancelChoosing();
     // Choose again for an unsent item already on the check.
