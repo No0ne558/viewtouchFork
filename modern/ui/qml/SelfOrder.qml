@@ -21,7 +21,7 @@ Rectangle {
     readonly property var brand: pos ? pos.customerPrompt : ({})
     readonly property color accent: brand.accent || "#2f6fd6"
     // Pictures by ref ("store:logo.png", a path...): this screen's copy.
-    function img(ref) { return pos ? (pos.imageRevision, pos.imageUrl(ref)) : ref }
+    function img(ref) { return pos ? (pos.imageRevision < 0 ? undefined : pos.imageUrl(ref)) : ref }
     readonly property string logo: !brand.logo ? "" : img(brand.logo)
     readonly property bool portrait: height > width * 1.15
     // One unit: about 6 mm on a 21.5" portrait kiosk (26 px of 1080), 20 px

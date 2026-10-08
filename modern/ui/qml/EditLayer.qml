@@ -364,7 +364,8 @@ Item {
                 if (!overlay.sel.includes(z.id))
                     overlay.editor.select(z.id, false)
                 if (m.button === Qt.RightButton) {
-                    contextMenu.popup()
+                    const at = mouse.mapToItem(contextMenu.parent, m.x, m.y)
+                    contextMenu.popup(at.x, at.y)
                     overlay.mode = ""
                     return
                 }
@@ -406,6 +407,15 @@ Item {
         }
 
         onCanceled: overlay.finishGesture()
+
+        // A touchscreen has no right button: holding a zone opens its menu.
+        onPressAndHold: m => {
+            if (overlay.mode !== "pending")
+                return   // dragging, resizing or drawing a box
+            overlay.finishGesture()
+            const at = mouse.mapToItem(contextMenu.parent, m.x, m.y)
+            contextMenu.popup(at.x, at.y)
+        }
 
         onDoubleClicked: m => {
             const z = overlay.zoneAt(m.x, m.y)

@@ -356,3 +356,18 @@ TEST_CASE("Widgets: their settings, built-in buttons and button look are in the 
             if (!b.command.isEmpty())
                 CHECK(commands.contains(b.command));
 }
+
+TEST_CASE("A new zone goes in free space, not on top of others", "[editor]")
+{
+    LayoutEditor e(seed());
+    const auto rectOf = [&](const QString &id) {
+        return e.layout().page(u"tables"_s)->zone(id)->rect;
+    };
+    for (int i = 0; i < 3; ++i) {
+        const QString id = e.addZone(u"tables"_s, u"button"_s);
+        REQUIRE_FALSE(id.isEmpty());
+        for (const auto &pz : e.layout().effectiveZones(u"tables"_s))
+            if (pz.zone->id != id)
+                CHECK_FALSE(pz.zone->rect.intersects(rectOf(id)));
+    }
+}

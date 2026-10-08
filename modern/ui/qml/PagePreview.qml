@@ -21,7 +21,7 @@ Popup {
         radius: 10
     }
 
-    readonly property var info: visible && editor ? (editor.revision, editor.previewInfo()) : ({})
+    readonly property var info: visible && editor && editor.revision >= 0 ? editor.previewInfo() : ({})
     readonly property real canvasW: info.canvasW ?? 1920
     readonly property real canvasH: info.canvasH ?? 1080
     // Screens: the viewing area in millimeters (as held: phones and tablets

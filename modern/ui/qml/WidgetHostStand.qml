@@ -48,7 +48,7 @@ Item {
         for (const t of tables) c[stateOf(t.name)] = (c[stateOf(t.name)] ?? 0) + 1
         return c
     }
-    readonly property var tally: { floor; return counts() }
+    readonly property var tally: { if (!floor) return ({}); return counts() }   // floor: compared, so it refreshes
     function colorFor(state) {
         return state === "seated" ? zone.statusColor("tableOpen", "#a86a12")
              : state === "dirty" ? zone.statusColor("tableDirty", "#7a3b3b")

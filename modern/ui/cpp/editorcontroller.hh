@@ -68,6 +68,7 @@ public:
     QString notice() const { return notice_; }
     QStringList textures() const;
     QStringList basicKinds() const;
+    Q_INVOKABLE QString kindName(const QString &kind) const;
     QStringList widgetKinds() const;
     QStringList pageKinds() const;
 

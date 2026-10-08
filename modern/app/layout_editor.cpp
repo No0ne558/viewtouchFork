@@ -8,6 +8,7 @@
 #include <QSet>
 
 #include <algorithm>
+#include <optional>
 #include <limits>
 
 using namespace Qt::StringLiterals;
@@ -224,7 +225,30 @@ QString LayoutEditor::addZone(const QString &pageId, const QString &kind, QRect 
         QPoint pos((page->canvas.width() - size.width()) / 2, (page->canvas.height() - size.height()) / 2);
         pos = {pos.x() / grid * grid, pos.y() / grid * grid};
         rect = QRect(pos, size);
-        // Don't drop a new zone exactly on top of an existing one.
+        // In the free space nearest the middle (not on top of the tables);
+        // zones from the template count too.
+        std::vector<QRect> taken;
+        for (const Layout::PlacedZone &pz : layout_.effectiveZones(pageId))
+            taken.push_back(pz.zone->rect);
+        const int step = std::max(grid, 8) * 2;
+        std::optional<QRect> best;
+        qint64 bestDistance = 0;
+        for (int y = 0; y + size.height() <= page->canvas.height(); y += step) {
+            for (int x = 0; x + size.width() <= page->canvas.width(); x += step) {
+                const QRect candidate(QPoint(x, y), size);
+                if (std::ranges::any_of(taken, [&](const QRect &r) { return r.intersects(candidate); }))
+                    continue;
+                const qint64 dx = candidate.center().x() - page->canvas.width() / 2;
+                const qint64 dy = candidate.center().y() - page->canvas.height() / 2;
+                if (!best || dx * dx + dy * dy < bestDistance) {
+                    best = candidate;
+                    bestDistance = dx * dx + dy * dy;
+                }
+            }
+        }
+        if (best)
+            rect = *best;
+        // No room: don't drop it exactly on top of an existing one.
         for (int tries = 0; tries < 32; ++tries) {
             const bool occupied = std::ranges::any_of(page->zones, [&](const Zone &z) {
                 return z.rect.topLeft() == rect.topLeft();

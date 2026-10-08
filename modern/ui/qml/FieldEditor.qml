@@ -127,7 +127,7 @@ ColumnLayout {
                     asynchronous: true
                     source: {
                         const ref = parent.parent.current || (fe.resolved ?? "")
-                        return fe.pos ? (fe.pos.imageRevision, fe.pos.imageUrl(ref)) : ref
+                        return fe.pos ? (fe.pos.imageRevision < 0 ? undefined : fe.pos.imageUrl(ref)) : ref
                     }
                 }
             }
@@ -298,7 +298,7 @@ ColumnLayout {
                 objectName: "fontChoice"
                 Layout.fillWidth: true
                 // Again when the store's fonts change.
-                readonly property var opts: [qsTr("(inherit)")].concat(fe.pos ? (fe.pos.imageRevision, Qt.fontFamilies())
+                readonly property var opts: [qsTr("(inherit)")].concat(fe.pos ? (fe.pos.imageRevision < 0 ? undefined : Qt.fontFamilies())
                                                                               : Qt.fontFamilies())
                 model: opts
                 currentIndex: fe.mixed ? -1 : (!fe.isSet ? 0 : Math.max(0, opts.indexOf(fe.value)))
@@ -326,7 +326,7 @@ ColumnLayout {
         ComboBox {
             // From the editor, or the owner's list (admin forms); field.emptyText names "none".
             readonly property var opts: {
-                const list = fe.editor ? (fe.editor.revision, fe.editor.pageOptions()) : fe.pages
+                const list = fe.editor ? (fe.editor.revision >= 0 ? fe.editor.pageOptions() : []) : fe.pages   // compared: new pages show
                 return list.map((o, i) => i === 0 && o.value === "" && fe.field.emptyText
                                 ? { value: "", text: fe.field.emptyText } : o)
             }

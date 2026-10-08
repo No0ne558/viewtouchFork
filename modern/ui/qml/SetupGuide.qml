@@ -163,7 +163,7 @@ Rectangle {
                                 anchors.fill: parent
                                 anchors.margins: 10
                                 fillMode: Image.PreserveAspectFit
-                                source: g.pos && g.logoRef ? (g.pos.imageRevision, g.pos.imageUrl(g.logoRef)) : ""
+                                source: g.pos && g.logoRef ? (g.pos.imageRevision < 0 ? undefined : g.pos.imageUrl(g.logoRef)) : ""
                             }
                             Label {
                                 anchors.centerIn: parent
@@ -216,7 +216,7 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: 12
                         Repeater {
-                            model: g.current === "look" && g.controller ? (g.pos.imageRevision, g.controller.looks()) : []
+                            model: g.current === "look" && g.controller ? (g.pos.imageRevision < 0 ? undefined : g.controller.looks()) : []
                             delegate: Rectangle {
                                 id: look
                                 required property var modelData

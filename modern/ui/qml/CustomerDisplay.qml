@@ -19,7 +19,7 @@ Rectangle {
     readonly property color accent: prompt.accent || "#2f6fd6"
     readonly property real unit: Math.max(14, Math.min(width, height * 1.6) / 40)
     // Pictures by ref ("store:logo.png", a path...): this screen's copy.
-    function img(ref) { return pos ? (pos.imageRevision, pos.imageUrl(ref)) : ref }
+    function img(ref) { return pos ? (pos.imageRevision < 0 ? undefined : pos.imageUrl(ref)) : ref }
     readonly property string logo: !prompt.logo ? "" : img(prompt.logo)
 
     color: "#0f1318"

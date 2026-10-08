@@ -3,6 +3,7 @@
 #include "app/pos_session.hh"
 #include "layout/schema.hh"
 
+#include <QHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -193,6 +194,58 @@ QStringList EditorController::textures() const
 
 QStringList EditorController::basicKinds() const { return vt::layout::schema::basicKinds(); }
 QStringList EditorController::widgetKinds() const { return vt::layout::schema::widgetKinds(); }
+
+// What a kind is called on screen (the + Panel menu, the Type box).
+QString EditorController::kindName(const QString &kind) const
+{
+    static const QHash<QString, const char *> names = {
+        {u"button"_s, QT_TR_NOOP("Button")},
+        {u"label"_s, QT_TR_NOOP("Text")},
+        {u"image"_s, QT_TR_NOOP("Picture")},
+        {u"comment"_s, QT_TR_NOOP("Note (editing only)")},
+        {u"table"_s, QT_TR_NOOP("Table")},
+        {u"tableGrid"_s, QT_TR_NOOP("Table map")},
+        {u"staffPicker"_s, QT_TR_NOOP("Staff picker")},
+        {u"checkHistory"_s, QT_TR_NOOP("Check history")},
+        {u"modifierPicker"_s, QT_TR_NOOP("Choices picker")},
+        {u"soldOutList"_s, QT_TR_NOOP("Sold out list")},
+        {u"orderList"_s, QT_TR_NOOP("Order list")},
+        {u"loginPad"_s, QT_TR_NOOP("Login keypad")},
+        {u"guestCount"_s, QT_TR_NOOP("Guest count")},
+        {u"checkList"_s, QT_TR_NOOP("Open checks")},
+        {u"paymentPanel"_s, QT_TR_NOOP("Payment panel")},
+        {u"numPad"_s, QT_TR_NOOP("Number keypad")},
+        {u"keyboard"_s, QT_TR_NOOP("Keyboard")},
+        {u"splitCheck"_s, QT_TR_NOOP("Split check")},
+        {u"drawerPanel"_s, QT_TR_NOOP("Cash drawer")},
+        {u"reportView"_s, QT_TR_NOOP("Reports")},
+        {u"endOfDay"_s, QT_TR_NOOP("End of day")},
+        {u"logoutPanel"_s, QT_TR_NOOP("Log out panel")},
+        {u"clock"_s, QT_TR_NOOP("Clock")},
+        {u"statusBar"_s, QT_TR_NOOP("Status bar")},
+        {u"adminPanel"_s, QT_TR_NOOP("Manager editor")},
+        {u"kitchenDisplay"_s, QT_TR_NOOP("Kitchen display")},
+        {u"customerInfo"_s, QT_TR_NOOP("Customer details")},
+        {u"customerLookup"_s, QT_TR_NOOP("Customer lookup")},
+        {u"giftCard"_s, QT_TR_NOOP("Gift cards")},
+        {u"waitlist"_s, QT_TR_NOOP("Waitlist")},
+        {u"schedule"_s, QT_TR_NOOP("Schedule")},
+        {u"factoryReset"_s, QT_TR_NOOP("Start over (erase)")},
+        {u"messageComposer"_s, QT_TR_NOOP("Messages")},
+        {u"network"_s, QT_TR_NOOP("Network")},
+        {u"receiveDelivery"_s, QT_TR_NOOP("Receive a delivery")},
+        {u"checkSearch"_s, QT_TR_NOOP("Find a check")},
+        {u"orderLater"_s, QT_TR_NOOP("Order for later")},
+        {u"menuGrid"_s, QT_TR_NOOP("Menu (self-filling)")},
+        {u"timeClock"_s, QT_TR_NOOP("Time clock")},
+        {u"dashboard"_s, QT_TR_NOOP("Dashboard")},
+        {u"checklist"_s, QT_TR_NOOP("Checklists")},
+        {u"hostStand"_s, QT_TR_NOOP("Seating (host stand)")},
+        {u"deliveryBoard"_s, QT_TR_NOOP("Deliveries board")},
+    };
+    const auto it = names.constFind(kind);
+    return it == names.cend() ? kind : tr(*it);
+}
 QStringList EditorController::pageKinds() const { return vt::layout::schema::pageKinds(); }
 
 // --- selection -----------------------------------------------------------------

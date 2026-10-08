@@ -618,7 +618,7 @@ Press **F1** or **Ctrl+E** (no Fn needed), or touch **Manager → Edit Pages**. 
 - Drag a zone to move it. Drag one of its 8 handles to resize it.
 - Zones snap to the page grid, or to pink guides at other zones' edges and centers and the canvas center.
 - Zones from a template are dimmed and locked. Double-click one to open its template page.
-- Right-click a zone for copy, cut, duplicate, delete and layer order.
+- Right-click a zone, or hold it (a touchscreen), for copy, cut, duplicate, delete and layer order. Toolbar menus open under their buttons; on a narrow screen the tools scroll sideways and Save / Done stay in view. New zones go in the free space nearest the middle.
 
 **Keys**
 

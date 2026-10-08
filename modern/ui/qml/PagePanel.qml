@@ -138,7 +138,7 @@ Rectangle {
             ComboBox {
                 id: templateBox
                 Layout.fillWidth: true
-                model: panel.editor.pageOptions()
+                model: panel.editor.revision >= 0 ? panel.editor.pageOptions() : []   // pages made since show too
                 textRole: "text"
                 valueRole: "value"
             }

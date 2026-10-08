@@ -23,7 +23,7 @@ Popup {
         radius: 10
     }
 
-    readonly property var choices: visible && editor ? (editor.revision, editor.arrangements()) : []
+    readonly property var choices: visible && editor && editor.revision >= 0 ? editor.arrangements() : []   // compared: a comma's left side is compiled away
 
     // A small drawing of a page: its zones as boxes in their colors.
     component Preview: Rectangle {

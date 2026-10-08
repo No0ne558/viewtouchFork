@@ -51,7 +51,7 @@ Item {
                     .sort((a, b) => a.rank - b.rank || a.item.name.localeCompare(b.item.name)).map(x => x.item)
     }
     function title(f) { return f === "" ? qsTr("Other") : qsTranslate("Page", f.charAt(0).toUpperCase() + f.slice(1)) }
-    function img(ref) { return w.pos && ref ? (w.pos.imageRevision, w.pos.imageUrl(ref)) : "" }
+    function img(ref) { return w.pos && ref ? (w.pos.imageRevision < 0 ? undefined : w.pos.imageUrl(ref)) : "" }
 
     readonly property real gap: 12
     // Arranging (managers): touch an item, then move it or color it.

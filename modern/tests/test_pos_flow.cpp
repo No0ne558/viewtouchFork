@@ -4269,3 +4269,285 @@ TEST_CASE("UI: a handheld's receipt: choose the printer, or no receipt", "[flow]
     CHECK_FALSE(sheet->isVisible());
     CHECK(printed.printers.size() == 1);
 }
+
+namespace {
+
+// A visible item of a class (a QML type) whose `text` is `value`, searched
+// from the window's root (popups and menus included).
+QQuickItem *findTyped(QQuickItem *root, const char *cls, const QString &value)
+{
+    for (QQuickItem *item : root->childItems()) {
+        if (!item->isVisible())
+            continue;
+        if (QByteArray(item->metaObject()->className()).contains(cls) && item->property("text").toString() == value)
+            return item;
+        if (QQuickItem *hit = findTyped(item, cls, value))
+            return hit;
+    }
+    return nullptr;
+}
+
+// Scrolls the nearest Flickable so `item` is in view.
+void scrollTo(QQuickItem *item)
+{
+    for (QQuickItem *p = item->parentItem(); p; p = p->parentItem()) {
+        if (QByteArray(p->metaObject()->className()).contains("Flickable")) {
+            const qreal y = item->mapToItem(p->property("contentItem").value<QQuickItem *>(), QPointF(0, 0)).y();
+            p->setProperty("contentY", std::max<qreal>(0, y - p->height() / 2));
+            QTest::qWait(60);
+            return;
+        }
+    }
+}
+
+} // namespace
+
+TEST_CASE("UI editor: + Add action shows each new action, the menu opens under its button", "[flow][ui][editorui]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    REQUIRE(e);
+    const QString mine = e->addZone(u"button"_s);
+    e->selectOnly({mine});
+    QTest::qWait(150);
+    QQuickItem *root = s.window->contentItem();   // menus and popups are in its overlay
+    const QStringList picks = {u"Command"_s, u"Go to page"_s, u"Qualifier"_s};
+    for (int round = 0; round < 3; ++round) {
+        INFO("round " << round);
+        QQuickItem *add = findTyped(root, "Button", u"+ Add action"_s);
+        REQUIRE(add);
+        scrollTo(add);
+        s.tapItem(add);
+        QTest::qWait(150);
+        QQuickItem *item = findTyped(root, "MenuItem", picks[round]);
+        REQUIRE(item);
+        // Under the button, not in a corner.
+        const QPointF b = add->mapToScene(QPointF(0, add->height()));
+        const QPointF m = item->mapToScene(QPointF(0, 0));
+        CHECK(std::abs(m.x() - b.x()) < 40);
+        CHECK(m.y() >= b.y() - 4);
+        s.tapItem(item);
+        QTest::qWait(150);
+        REQUIRE(e->actions().size() == round + 1);
+        CHECK(findTyped(root, "Label", QString::number(round + 1) + u"."_s));   // its card
+        CHECK_FALSE(findTyped(root, "Label", u"Nothing happens when this is touched."_s));
+    }
+    QStringList types;
+    for (const QVariant &a : e->actions())
+        types << a.toMap()[u"type"_s].toString();
+    CHECK(types == QStringList{u"command"_s, u"jump"_s, u"qualifier"_s});
+    s.shot("ed-actions");
+
+    // Removing one: the cards follow.
+    QQuickItem *remove = findTyped(root, "ToolButton", u"✕"_s);
+    REQUIRE(remove);
+    s.tapItem(remove);
+    QTest::qWait(120);
+    CHECK(e->actions().size() == 2);
+    CHECK_FALSE(findTyped(root, "Label", u"3."_s));
+
+    // Undo brings it back, in the panel too.
+    e->undo();
+    QTest::qWait(120);
+    CHECK(e->actions().size() == 3);
+    CHECK(findTyped(root, "Label", u"3."_s));
+}
+
+TEST_CASE("UI editor: the inspector shows a change made elsewhere", "[flow][ui][editorui]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    const QString mine = e->addZone(u"button"_s);
+    e->selectOnly({mine});
+    QTest::qWait(150);
+    QQuickItem *root = s.window->contentItem();   // menus and popups are in its overlay
+    REQUIRE(e->setField(u"zone"_s, u"label"_s, u"Happy Hour"_s));
+    QTest::qWait(120);
+    CHECK(Screen::findBy(root, "text", u"Happy Hour"_s));       // the Text field and the button
+    e->undo();
+    QTest::qWait(120);
+    CHECK_FALSE(Screen::findBy(root, "text", u"Happy Hour"_s));
+}
+
+TEST_CASE("UI editor: holding a zone opens its menu (a touchscreen has no right button)", "[flow][ui][editorui]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    const QString mine = e->addZone(u"button"_s);
+    e->selectOnly({mine});
+    QTest::qWait(150);
+    QQuickItem *root = s.window->contentItem();   // menus and popups are in its overlay
+    QQuickItem *zone = Screen::findBy(root, "text", u"New Button"_s);
+    REQUIRE(zone);
+    const QPoint at = zone->mapToScene(QPointF(zone->width() / 2, zone->height() / 2)).toPoint();
+    QTest::mousePress(s.window, Qt::LeftButton, {}, at);
+    QTest::qWait(1200);
+    QTest::mouseRelease(s.window, Qt::LeftButton, {}, at);
+    QTest::qWait(150);
+    QQuickItem *copy = findTyped(root, "MenuItem", u"Copy"_s);
+    REQUIRE(copy);
+    const QPointF m = copy->mapToScene(QPointF(0, 0));
+    CHECK(std::abs(m.x() - at.x()) < 60);
+    CHECK(std::abs(m.y() - at.y()) < 60);
+    CHECK(e->selection() == QStringList{mine});
+}
+
+TEST_CASE("UI editor: typing in the inspector edits the button; undo shows in the field", "[flow][ui][editorui]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    const QString mine = e->addZone(u"button"_s);
+    e->selectOnly({mine});
+    QTest::qWait(150);
+    QQuickItem *root = s.window->contentItem();
+    // The Text box (the canvas's button has that text too).
+    std::function<QQuickItem *(QQuickItem *)> textBox = [&](QQuickItem *it) -> QQuickItem * {
+        for (QQuickItem *c : it->childItems()) {
+            const QByteArray cls = c->metaObject()->className();
+            if (c->isVisible() && (cls.contains("TextArea") || cls.contains("TextField"))
+                && c->property("text").toString() == u"New Button"_s)
+                return c;
+            if (QQuickItem *hit = textBox(c))
+                return hit;
+        }
+        return nullptr;
+    };
+    QQuickItem *box = textBox(root);
+    REQUIRE(box);
+    const auto type = [&](const char *text) {
+        for (const char *ch = text; *ch; ++ch)
+            QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+    };
+    s.tapItem(box);
+    QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
+    type("Happy Hour");
+    box->setFocus(false);   // leaving the box saves it
+    QTest::qWait(120);
+    CHECK(e->fieldInfo(u"zone"_s, u"label"_s)[u"value"_s].toString() == u"Happy Hour"_s);
+    CHECK(textBox(root) == nullptr);   // the button on the canvas says it now
+    CHECK(box->property("text").toString() == u"Happy Hour"_s);
+    // Undo shows in the field.
+    e->undo();
+    QTest::qWait(120);
+    CHECK(box->property("text").toString() == u"New Button"_s);
+}
+
+TEST_CASE("UI editor: toolbar menus open under their buttons; the toolbar fits a small screen", "[flow][ui][editorui]")
+{
+    Screen s(false, 1024, 600);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    e->selectOnly({e->addZone(u"button"_s)});
+    QTest::qWait(150);
+    QQuickItem *root = s.window->contentItem();
+    s.shot("ed-1024");
+    // Save and Done are always on screen.
+    for (const QString &t : {u"Save"_s, u"Done"_s}) {
+        QQuickItem *k = findTyped(root, "Button", t);
+        REQUIRE(k);
+        CHECK(k->mapToScene(QPointF(k->width(), 0)).x() <= s.window->width());
+    }
+    for (const auto &[button, item] : {std::pair{u"+ Panel ▾"_s, u"Order list"_s}, std::pair{u"Arrange ▾"_s, u"Bring to front"_s},
+                                       std::pair{u"File ▾"_s, u"Export this page…"_s}}) {
+        INFO(button.toStdString());
+        QQuickItem *b = Screen::findBy(root, "text", button);
+        REQUIRE(b);
+        // Swiped into view when the screen is narrow.
+        auto *tools = Screen::findBy(root, "objectName", u"editorTools"_s);
+        REQUIRE(tools);
+        const qreal x = b->mapToItem(tools->property("contentItem").value<QQuickItem *>(), QPointF(0, 0)).x();
+        const qreal most = std::max<qreal>(0, tools->property("contentWidth").toReal() - tools->width());
+        tools->setProperty("contentX", std::clamp<qreal>(x - tools->width() / 2, 0, most));
+        QTest::qWait(60);
+        CHECK(b->mapToScene(QPointF(b->width(), 0)).x() <= s.window->width());   // on screen
+        s.tapItem(b);
+        QTest::qWait(150);
+        QQuickItem *m = findTyped(root, "MenuItem", item);
+        REQUIRE(m);
+        const QPointF under = b->mapToScene(QPointF(0, b->height()));
+        CHECK(m->mapToScene(QPointF(0, 0)).y() >= under.y() - 4);
+        CHECK(std::abs(m->mapToScene(QPointF(0, 0)).x() - under.x()) < 120);
+        QTest::keyClick(s.window, Qt::Key_Escape);
+        QTest::qWait(80);
+    }
+}
+
+TEST_CASE("UI editor: a page made now is offered to Go to page right away", "[flow][ui][editorui]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.enterEditMode();
+    EditorController *e = s.c.editor();
+    const QString button = e->addZone(u"button"_s);
+    e->selectOnly({button});
+    e->setActions({QVariantMap{{u"type"_s, u"jump"_s}, {u"mode"_s, u"push"_s}}});
+    QTest::qWait(150);
+    QQuickItem *root = s.window->contentItem();
+    const auto offered = [&](const QString &name) {
+        std::function<bool(QQuickItem *)> look = [&](QQuickItem *it) {
+            for (QQuickItem *c : it->childItems()) {
+                if (c->isVisible() && QByteArray(c->metaObject()->className()).contains("ComboBox")) {
+                    const QVariant model = c->property("model");
+                    for (const QVariant &o : model.toList())
+                        if (o.toMap()[u"text"_s].toString().startsWith(name))
+                            return true;
+                }
+                if (look(c))
+                    return true;
+            }
+            return false;
+        };
+        return look(root);
+    };
+    CHECK_FALSE(offered(u"Happy Hour"_s));
+    const QString page = e->newPage(u"Happy Hour"_s, u"custom"_s, {});
+    REQUIRE_FALSE(page.isEmpty());
+    REQUIRE(s.c.jumpTo(u"tables"_s));   // back to the button
+    QTest::qWait(100);
+    e->selectOnly({button});
+    QTest::qWait(150);
+    CHECK(offered(u"Happy Hour"_s));
+}
+
+// A binding that refreshes when a value changes must use the value: a read
+// that is thrown away ("x.revision", "void x", "(x, y)") is compiled out
+// of compiled QML, and the screen then never refreshes.
+TEST_CASE("Screens never depend on a value they throw away", "[ui][lint]")
+{
+    const QDir qml(QStringLiteral(VTM_SEED_DIR) + u"/../ui/qml"_s);
+    REQUIRE(qml.exists());
+    const QRegularExpression bare(uR"(^\s*[A-Za-z_]\w*(\.\w+)+;?\s*$)"_s);
+    const QRegularExpression voided(uR"(\bvoid [A-Za-z_])"_s);
+    const QRegularExpression comma(uR"(\([A-Za-z_][\w.]*(Revision|revision|tick)\w*, )"_s);
+    int files = 0;
+    for (const QString &name : qml.entryList({u"*.qml"_s})) {
+        QFile f(qml.filePath(name));
+        REQUIRE(f.open(QIODevice::ReadOnly));
+        ++files;
+        int n = 0;
+        for (const QString &line : QString::fromUtf8(f.readAll()).split(u'\n')) {
+            ++n;
+            const QString code = line.section(u"//"_s, 0, 0);
+            INFO(name.toStdString() << ":" << n << ": " << line.trimmed().toStdString());
+            CHECK_FALSE(bare.match(code).hasMatch());
+            CHECK_FALSE(voided.match(code).hasMatch());
+            CHECK_FALSE(comma.match(code).hasMatch());
+        }
+    }
+    CHECK(files > 50);
+}

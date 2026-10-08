@@ -410,7 +410,7 @@ ApplicationWindow {
                 readonly property var pos: root.controller.pos
                 anchors.horizontalCenter: parent.horizontalCenter
                 visible: status === Image.Ready
-                source: pos && screenSaver.visible ? (pos.imageRevision, pos.imageUrl("logo:")) : ""
+                source: pos && screenSaver.visible ? (pos.imageRevision < 0 ? undefined : pos.imageUrl("logo:")) : ""
                 sourceSize.height: Math.min(root.width, root.height) * 0.3
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true

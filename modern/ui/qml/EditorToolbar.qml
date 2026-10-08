@@ -51,96 +51,114 @@ Rectangle {
             Layout.rightMargin: 8
         }
 
-        Sep {}
-        Tool { text: qsTr("Undo"); enabled: bar.editor.canUndo; tip: bar.editor.undoText; onClicked: bar.editor.undo() }
-        Tool { text: qsTr("Redo"); enabled: bar.editor.canRedo; tip: bar.editor.redoText; onClicked: bar.editor.redo() }
+        // The tools scroll sideways on a narrow screen; Save and Done stay put.
+        Flickable {
+            id: toolsScroll
+            objectName: "editorTools"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            contentWidth: tools.implicitWidth
+            contentHeight: height
+            flickableDirection: Flickable.HorizontalFlick
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentWidth > width
+            clip: true
+            ScrollIndicator.horizontal: ScrollIndicator {}
+            RowLayout {
+                id: tools
+                height: toolsScroll.height
+                spacing: 2
+                Sep {}
+                Tool { text: qsTr("Undo"); enabled: bar.editor.canUndo; tip: bar.editor.undoText; onClicked: bar.editor.undo() }
+                Tool { text: qsTr("Redo"); enabled: bar.editor.canRedo; tip: bar.editor.redoText; onClicked: bar.editor.redo() }
 
-        Sep {}
-        Tool { text: qsTr("+ Button"); tip: qsTr("Add a button"); onClicked: bar.editor.addZone("button") }
-        Tool { text: qsTr("+ Text"); tip: qsTr("Add a text label"); onClicked: bar.editor.addZone("label") }
-        Tool { text: qsTr("+ Image"); tip: qsTr("Add an image button"); onClicked: bar.editor.addZone("image") }
-        Tool { text: qsTr("+ Note"); tip: qsTr("Add a note only visible while editing"); onClicked: bar.editor.addZone("comment") }
-        Tool {
-            text: qsTr("+ Panel ▾")
-            tip: qsTr("Add a working panel: order list, keypad, table map…")
-            onClicked: widgetMenu.popup()
-            Menu {
-                id: widgetMenu
-                Repeater {
-                    model: bar.editor.widgetKinds
-                    delegate: MenuItem {
-                        required property string modelData
-                        text: modelData
-                        onTriggered: bar.editor.addZone(modelData)
+                Sep {}
+                Tool { text: qsTr("+ Button"); tip: qsTr("Add a button"); onClicked: bar.editor.addZone("button") }
+                Tool { text: qsTr("+ Text"); tip: qsTr("Add a text label"); onClicked: bar.editor.addZone("label") }
+                Tool { text: qsTr("+ Image"); tip: qsTr("Add an image button"); onClicked: bar.editor.addZone("image") }
+                Tool { text: qsTr("+ Note"); tip: qsTr("Add a note only visible while editing"); onClicked: bar.editor.addZone("comment") }
+                Tool {
+                    text: qsTr("+ Panel ▾")
+                    tip: qsTr("Add a working panel: order list, keypad, table map…")
+                    onClicked: widgetMenu.popup(0, height)   // under the button (a touch has no pointer)
+                    Menu {
+                        id: widgetMenu
+                        Repeater {
+                            model: bar.editor.widgetKinds
+                            delegate: MenuItem {
+                                required property string modelData
+                                text: bar.editor.kindName(modelData)
+                                onTriggered: bar.editor.addZone(modelData)
+                            }
+                        }
+                    }
+                }
+
+                Sep {}
+                Tool { text: qsTr("Copy"); enabled: bar.hasSelection; tip: "Ctrl+C"; onClicked: bar.editor.copy() }
+                Tool { text: qsTr("Paste"); enabled: bar.editor.hasClipboard; tip: qsTr("Ctrl+V — works across pages"); onClicked: bar.editor.paste() }
+                Tool { text: qsTr("Duplicate"); enabled: bar.hasSelection; tip: "Ctrl+D"; onClicked: bar.editor.duplicateSelection() }
+                Tool { text: qsTr("Delete"); enabled: bar.hasSelection; tip: "Del"; onClicked: bar.editor.deleteSelection() }
+
+                Sep {}
+                Tool {
+                    text: qsTr("Arrange ▾")
+                    enabled: bar.hasSelection
+                    onClicked: arrangeMenu.popup(0, height)   // under the button (a touch has no pointer)
+                    Menu {
+                        id: arrangeMenu
+                        MenuItem { text: qsTr("Bring to front"); onTriggered: bar.editor.bringToFront() }
+                        MenuItem { text: qsTr("Send to back"); onTriggered: bar.editor.sendToBack() }
+                        MenuSeparator {}
+                        MenuItem { text: qsTr("Align left edges"); onTriggered: bar.editor.align("left") }
+                        MenuItem { text: qsTr("Align centers"); onTriggered: bar.editor.align("hcenter") }
+                        MenuItem { text: qsTr("Align right edges"); onTriggered: bar.editor.align("right") }
+                        MenuItem { text: qsTr("Align top edges"); onTriggered: bar.editor.align("top") }
+                        MenuItem { text: qsTr("Align middles"); onTriggered: bar.editor.align("vcenter") }
+                        MenuItem { text: qsTr("Align bottom edges"); onTriggered: bar.editor.align("bottom") }
+                        MenuSeparator {}
+                        MenuItem { text: qsTr("Space evenly across"); onTriggered: bar.editor.distribute("horizontal") }
+                        MenuItem { text: qsTr("Space evenly down"); onTriggered: bar.editor.distribute("vertical") }
+                        MenuSeparator {}
+                        MenuItem { text: qsTr("Same width as first"); onTriggered: bar.editor.matchSize("width") }
+                        MenuItem { text: qsTr("Same height as first"); onTriggered: bar.editor.matchSize("height") }
+                        MenuItem { text: qsTr("Same size as first"); onTriggered: bar.editor.matchSize("both") }
+                    }
+                }
+                Tool {
+                    objectName: "previewButton"
+                    text: qsTr("Preview…")
+                    tip: qsTr("This page on a phone, a tablet, a terminal and a kiosk")
+                    onClicked: preview.open()
+                }
+                Tool {
+                    objectName: "layoutsButton"
+                    text: qsTr("Layouts…")
+                    tip: qsTr("Ready-made layouts for this page, and page files")
+                    onClicked: gallery.open()
+                }
+                Tool {
+                    text: qsTr("File ▾")
+                    onClicked: fileMenu.popup(0, height)   // under the button (a touch has no pointer)
+                    Menu {
+                        id: fileMenu
+                        MenuItem { text: qsTr("Export this page…"); onTriggered: fileDialog.run("exportPage") }
+                        MenuItem { text: qsTr("Import a page…"); onTriggered: fileDialog.run("importPage") }
+                        MenuItem { text: qsTr("Use a page file for this page…"); onTriggered: fileDialog.run("importPageHere") }
+                        MenuSeparator {}
+                        MenuItem { text: qsTr("Export all pages…"); onTriggered: fileDialog.run("exportLayout") }
+                        MenuItem { text: qsTr("Replace all pages from file…"); onTriggered: fileDialog.run("importLayout") }
                     }
                 }
             }
         }
 
-        Sep {}
-        Tool { text: qsTr("Copy"); enabled: bar.hasSelection; tip: "Ctrl+C"; onClicked: bar.editor.copy() }
-        Tool { text: qsTr("Paste"); enabled: bar.editor.hasClipboard; tip: qsTr("Ctrl+V — works across pages"); onClicked: bar.editor.paste() }
-        Tool { text: qsTr("Duplicate"); enabled: bar.hasSelection; tip: "Ctrl+D"; onClicked: bar.editor.duplicateSelection() }
-        Tool { text: qsTr("Delete"); enabled: bar.hasSelection; tip: "Del"; onClicked: bar.editor.deleteSelection() }
-
-        Sep {}
-        Tool {
-            text: qsTr("Arrange ▾")
-            enabled: bar.hasSelection
-            onClicked: arrangeMenu.popup()
-            Menu {
-                id: arrangeMenu
-                MenuItem { text: qsTr("Bring to front"); onTriggered: bar.editor.bringToFront() }
-                MenuItem { text: qsTr("Send to back"); onTriggered: bar.editor.sendToBack() }
-                MenuSeparator {}
-                MenuItem { text: qsTr("Align left edges"); onTriggered: bar.editor.align("left") }
-                MenuItem { text: qsTr("Align centers"); onTriggered: bar.editor.align("hcenter") }
-                MenuItem { text: qsTr("Align right edges"); onTriggered: bar.editor.align("right") }
-                MenuItem { text: qsTr("Align top edges"); onTriggered: bar.editor.align("top") }
-                MenuItem { text: qsTr("Align middles"); onTriggered: bar.editor.align("vcenter") }
-                MenuItem { text: qsTr("Align bottom edges"); onTriggered: bar.editor.align("bottom") }
-                MenuSeparator {}
-                MenuItem { text: qsTr("Space evenly across"); onTriggered: bar.editor.distribute("horizontal") }
-                MenuItem { text: qsTr("Space evenly down"); onTriggered: bar.editor.distribute("vertical") }
-                MenuSeparator {}
-                MenuItem { text: qsTr("Same width as first"); onTriggered: bar.editor.matchSize("width") }
-                MenuItem { text: qsTr("Same height as first"); onTriggered: bar.editor.matchSize("height") }
-                MenuItem { text: qsTr("Same size as first"); onTriggered: bar.editor.matchSize("both") }
-            }
-        }
-        Tool {
-            objectName: "previewButton"
-            text: qsTr("Preview…")
-            tip: qsTr("This page on a phone, a tablet, a terminal and a kiosk")
-            onClicked: preview.open()
-        }
-        Tool {
-            objectName: "layoutsButton"
-            text: qsTr("Layouts…")
-            tip: qsTr("Ready-made layouts for this page, and page files")
-            onClicked: gallery.open()
-        }
-        Tool {
-            text: qsTr("File ▾")
-            onClicked: fileMenu.popup()
-            Menu {
-                id: fileMenu
-                MenuItem { text: qsTr("Export this page…"); onTriggered: fileDialog.run("exportPage") }
-                MenuItem { text: qsTr("Import a page…"); onTriggered: fileDialog.run("importPage") }
-                MenuItem { text: qsTr("Use a page file for this page…"); onTriggered: fileDialog.run("importPageHere") }
-                MenuSeparator {}
-                MenuItem { text: qsTr("Export all pages…"); onTriggered: fileDialog.run("exportLayout") }
-                MenuItem { text: qsTr("Replace all pages from file…"); onTriggered: fileDialog.run("importLayout") }
-            }
-        }
-
-        Item { Layout.fillWidth: true }
-
         Label {
             visible: bar.editor.dirty
-            text: qsTr("Unsaved changes")
+            text: bar.width < 1200 ? qsTr("Unsaved") : qsTr("Unsaved changes")
             color: EditorStyle.warning
             Layout.rightMargin: 6
+            Layout.leftMargin: 8
         }
         Button {
             text: qsTr("Save")

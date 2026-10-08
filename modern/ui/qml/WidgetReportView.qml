@@ -64,9 +64,10 @@ Item {
         if (!pos) return ({ rows: [] })
         if (period !== "day")
             return range.report ?? ({ title: range.loading ? qsTr("Reading the checks…") : "", rows: [] })
-        void pos.day          // live: refresh when checks close
-        void pos.drawer
-        void pos.queryRevision   // remote terminals: the server's answer arrived
+        // Live: again when checks close, the drawer changes, or (remote
+        // terminals) the server's answer arrives. Compared, not just read:
+        // an unused read is compiled away.
+        if (!pos.day || !pos.drawer || pos.queryRevision < 0) return ({ rows: [] })
         return pos.report(reportId, day.id)
     }
 

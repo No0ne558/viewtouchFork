@@ -29,7 +29,7 @@ Item {
         return c !== undefined && c !== "" ? Number(c) : item.cost
     }
     readonly property real total: {
-        void typed
+        if (typed < 0) return 0   // compared, not just read: so it refreshes
         let t = 0
         for (const item of info.ingredients ?? [])
             if (Number(qty[item.id] ?? 0) > 0)
@@ -137,7 +137,7 @@ Item {
                             implicitHeight: 44
                             font.pixelSize: 16
                             inputMethodHints: Qt.ImhFormattedNumbersOnly
-                            text: { void w.typed; return w.qty[row.modelData.id] ?? "" }
+                            text: w.typed >= 0 ? (w.qty[row.modelData.id] ?? "") : ""
                             placeholderText: row.modelData.unit
                             onTextEdited: { w.qty[row.modelData.id] = text; ++w.typed }
                         }
@@ -147,14 +147,14 @@ Item {
                             implicitHeight: 44
                             font.pixelSize: 16
                             inputMethodHints: Qt.ImhFormattedNumbersOnly
-                            text: { void w.typed; return w.cost[row.modelData.id] ?? "" }
+                            text: w.typed >= 0 ? (w.cost[row.modelData.id] ?? "") : ""
                             placeholderText: Number(row.modelData.cost).toFixed(2)
                             onTextEdited: { w.cost[row.modelData.id] = text; ++w.typed }
                         }
                         Label {
                             Layout.preferredWidth: 90
                             horizontalAlignment: Text.AlignRight
-                            text: { void w.typed; const q = Number(w.qty[row.modelData.id] ?? 0)
+                            text: { if (w.typed < 0) return ""; const q = Number(w.qty[row.modelData.id] ?? 0)
                                     return q > 0 ? "$" + (q * w.unitCost(row.modelData)).toFixed(2) : "" }
                         }
                     }

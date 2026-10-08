@@ -209,7 +209,7 @@ Item {
 
     // Its picture: the store's ("store:logo.png"), the store logo ("logo:"),
     // or a resource; each screen shows its own copy.
-    readonly property string pictureUrl: !imagePath ? "" : pos ? (pos.imageRevision, pos.imageUrl(imagePath)) : imagePath
+    readonly property string pictureUrl: !imagePath ? "" : pos ? (pos.imageRevision < 0 ? undefined : pos.imageUrl(imagePath)) : imagePath
     // A logo zone with no logo set: nothing to show (the editor still shows it).
     readonly property bool emptyLogo: imagePath === "logo:" && pictureUrl === "" && kind === "image"
 

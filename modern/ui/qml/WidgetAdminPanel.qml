@@ -13,15 +13,12 @@ Item {
     readonly property bool single: panel === "taxes" || panel === "store"
 
     readonly property var fields: {
-        if (!pos) return []
-        void pos.adminRevision
-        void pos.queryRevision
+        // Compared, not just read: an unused read is compiled away (no refresh).
+        if (!pos || pos.adminRevision < 0 || pos.queryRevision < 0) return []
         return pos.adminFields(panel)
     }
     readonly property var records: {
-        if (!pos) return []
-        void pos.adminRevision
-        void pos.queryRevision
+        if (!pos || pos.adminRevision < 0 || pos.queryRevision < 0) return []
         return pos.adminRecords(panel)
     }
 

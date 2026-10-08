@@ -15,9 +15,8 @@ Item {
     readonly property real unit: narrow ? Math.max(14, Math.min(44, w.width * 0.045))
                                         : Math.max(14, Math.min(28, w.width * 0.022))
     readonly property var targets: {
-        if (!pos) return []
-        void pos.openChecks
-        void pos.lines
+        // Compared, not just read: an unused read is compiled away (no refresh).
+        if (!pos || !pos.openChecks || !pos.lines) return []
         return pos.splitTargets()
     }
 

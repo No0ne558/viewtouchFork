@@ -27,21 +27,22 @@ Rectangle {
     }
 
     readonly property string zoneKind: {
-        editor.revision
-        if (editor.selection.length === 0) return ""
+        if (editor.revision < 0 || editor.selection.length === 0) return ""   // (compared, not just read: an unused read is compiled away and nothing refreshes)
         return editor.selectionKind !== "" ? editor.selectionKind
              : (editor.fieldInfo("zone", "kind").value ?? "button")
     }
-    readonly property var fields: {
-        editor.revision
-        if (mode === "zone") return editor.selection.length ? editor.zoneFields(zoneKind) : []
-        if (mode === "theme") return editor.themeFields()
-        return editor.pageFields()
+    // As text: unchanged after an edit, so the rows below aren't rebuilt
+    // (a field being typed in keeps its place).
+    readonly property string fieldsJson: {
+        if (editor.revision < 0) return "[]"
+        if (mode === "zone") return JSON.stringify(editor.selection.length ? editor.zoneFields(zoneKind) : [])
+        if (mode === "theme") return JSON.stringify(editor.themeFields())
+        return JSON.stringify(editor.pageFields())
     }
     // [{ name, fields }] in schema order.
     readonly property var groups: {
         const out = []
-        for (const f of fields) {
+        for (const f of JSON.parse(fieldsJson)) {
             let g = out.find(x => x.name === f.group)
             if (!g) { g = { name: f.group, fields: [] }; out.push(g) }
             g.fields.push(f)
@@ -89,7 +90,7 @@ Rectangle {
                     ComboBox {
                         Layout.fillWidth: true
                         readonly property var kinds: inspector.editor.basicKinds.concat(inspector.editor.widgetKinds)
-                        model: kinds
+                        model: kinds.map(k => inspector.editor.kindName(k))
                         currentIndex: inspector.editor.selectionKind === "" ? -1 : kinds.indexOf(inspector.editor.selectionKind)
                         displayText: inspector.editor.selectionKind === "" ? qsTr("(mixed)") : currentText
                         onActivated: index => inspector.editor.setField("zone", "kind", kinds[index])
@@ -214,7 +215,7 @@ Rectangle {
                                     id: fieldComponent
                                     FieldEditor {
                                         readonly property var info: {
-                                            inspector.editor.revision
+                                            if (inspector.editor.revision < 0) return ({})
                                             return inspector.editor.fieldInfo(inspector.mode, row.modelData.path)
                                         }
                                         field: row.modelData

@@ -10,7 +10,10 @@ ColumnLayout {
 
     required property EditorController editor
 
-    readonly property var actions: { editor.revision; return editor.actions() }
+    readonly property var actions: {
+        if (editor.revision < 0) return []   // (compared, not just read: an unused read is compiled away and nothing refreshes)
+        return editor.actions()
+    }
     readonly property var types: editor.actionTypes()
 
     spacing: 8
@@ -138,7 +141,7 @@ ColumnLayout {
 
     Button {
         text: qsTr("+ Add action")
-        onClicked: addMenu.popup()
+        onClicked: addMenu.popup(0, height)   // under the button (a touch has no pointer)
         Menu {
             id: addMenu
             Repeater {
