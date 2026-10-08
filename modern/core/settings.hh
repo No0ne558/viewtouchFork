@@ -22,6 +22,7 @@ struct PrinterConfig {
     int width = 42;              // characters per line
     bool cutter = true;
     bool drawerKick = false;     // cash drawer is wired to this printer
+    bool receipts = false;       // offered when a screen asks where a receipt goes
 
     std::string effectiveFormat() const { return !format.empty() ? format : type == "network" ? "escpos" : "text"; }
     bool operator==(const PrinterConfig &) const = default;
@@ -58,6 +59,10 @@ struct TerminalConfig {
     std::string keyboard;
     // Phone orders need a name before Send here: "yes", "no", or empty = the person's / the store's.
     std::string requireName;
+    // After a check is paid here: "print" a receipt, "ask" (print, email or
+    // none), or nothing (empty). receiptPrinter "ask": choose the printer
+    // each time (a handheld).
+    std::string afterPaying;
     // Its card reader: "stripe" (a Stripe smart reader this app runs on),
     // "counter:tmr_..." (a Stripe reader beside it, run from the store's
     // computer), "simulated" (approves after a moment: for practice), or none.
@@ -363,7 +368,7 @@ struct PosSettings {
     std::string receiptPrinterFor(const std::string &terminal) const
     {
         for (const TerminalConfig &t : terminals) {
-            if (t.name == terminal && !t.receiptPrinter.empty())
+            if (t.name == terminal && !t.receiptPrinter.empty() && t.receiptPrinter != "ask")
                 return t.receiptPrinter;
         }
         return "receipt";

@@ -168,6 +168,9 @@ class PosSession : public QObject {
     // A countertop reader taking a card for this screen: {status, amount,
     // readerLabel, test...}; empty when none.
     Q_PROPERTY(QVariantMap counterCharge READ counterCharge NOTIFY sessionChanged)
+    // A receipt to print (where?) or email, offered after paying or asked
+    // for: {checkId, label, total, printers, canEmail, email}; empty: none.
+    Q_PROPERTY(QVariantMap receiptOffer READ receiptOffer NOTIFY sessionChanged)
     // A device pairing in progress (managers only): {active, code, until}.
     Q_PROPERTY(QVariantMap pairing READ pairingInfo NOTIFY adminChanged)
     // The store's meal periods: [{id, name, start (minutes after midnight)}].
@@ -285,6 +288,7 @@ public:
     virtual QString terminalCardReader() const = 0;
     virtual QVariantMap readerToken() const = 0;
     virtual QVariantMap counterCharge() const = 0;
+    virtual QVariantMap receiptOffer() const = 0;
     virtual int queryRevision() const { return 0; }
 
     virtual void selectLine(qint64 lineId) { invoke(QStringLiteral("selectLine"), {lineId}); }
@@ -370,6 +374,9 @@ public:
     Q_INVOKABLE void requestReaderToken() { invoke(QStringLiteral("requestReaderToken"), {}); }
     // A refund on a closed check (Find a Check): a manager's.
     Q_INVOKABLE void refundPayment(qint64 checkId, qint64 paymentId, qint64 cents, const QString &reason) { invoke(QStringLiteral("refundPayment"), {checkId, paymentId, cents, reason}); }
+    Q_INVOKABLE void printReceiptOn(qint64 checkId, const QString &printerId) { invoke(QStringLiteral("printReceiptOn"), {checkId, printerId}); }
+    Q_INVOKABLE void emailReceipt(qint64 checkId, const QString &email) { invoke(QStringLiteral("emailReceipt"), {checkId, email}); }
+    Q_INVOKABLE void noReceipt() { invoke(QStringLiteral("noReceipt"), {}); }
     Q_INVOKABLE void cancelCounterCharge() { invoke(QStringLiteral("cancelCounterCharge"), {}); }
     Q_INVOKABLE void presentTestCard(bool decline) { invoke(QStringLiteral("presentTestCard"), {decline}); }
     Q_INVOKABLE void sameAsLastTime() { invoke(QStringLiteral("sameAsLastTime"), {}); }

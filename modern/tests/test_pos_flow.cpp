@@ -4221,3 +4221,51 @@ TEST_CASE("Find a Check: show all, a check's history, refund part of it", "[ui][
     QTest::qWait(60);
     s.shot("find-3-refunded");
 }
+
+TEST_CASE("UI: a handheld's receipt: choose the printer, or no receipt", "[flow][ui][receipts]")
+{
+    Screen s(false, 540, 960, u"phone"_s);
+    struct Printed : app::PosPrinter {
+        std::vector<std::string> printers;
+        void printKitchen(const core::PosSettings &, const core::Check &, const std::vector<core::OrderLine> &, bool) override {}
+        void printReceipt(const core::PosSettings &, const core::Check &, const std::string &p) override { printers.push_back(p); }
+        void printReport(const core::PosSettings &, const core::Report &, const std::string &) override {}
+        void openDrawer(const core::PosSettings &, const std::string &) override {}
+    } printed;
+    auto &settings = s.pos.shared()->settings;
+    core::PrinterConfig host;
+    host.id = "host";
+    host.name = "Host Stand";
+    host.type = "file";
+    host.receipts = true;
+    settings.printers.push_back(host);
+    core::TerminalConfig t;
+    t.name = s.pos.terminalName().toStdString();
+    t.receiptPrinter = "ask";
+    t.afterPaying = "ask";
+    settings.terminals.push_back(t);
+    s.pos.shared()->printer = &printed;
+
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.entryKey(u"10000"_s);
+    REQUIRE(s.pos.openDrawerSession());
+    REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+    REQUIRE(s.pos.addItem(u"coffee"_s));
+    REQUIRE(s.pos.tender(u"cash"_s));
+    REQUIRE(s.pos.closeCheck());
+    QTest::qWait(50);
+    auto *sheet = s.window->findChild<QQuickItem *>(u"receiptSheet"_s);
+    REQUIRE(sheet);
+    CHECK(sheet->isVisible());
+    s.shot("receipt-handheld");
+    s.tapKey(u"Host Stand"_s);
+    CHECK(printed.printers == std::vector<std::string>{"host"});
+    CHECK_FALSE(sheet->isVisible());
+
+    REQUIRE(s.pos.printReceipt());   // the last check again: asked where
+    QTest::qWait(30);
+    CHECK(sheet->isVisible());
+    s.tapKey(u"No Receipt"_s);
+    CHECK_FALSE(sheet->isVisible());
+    CHECK(printed.printers.size() == 1);
+}

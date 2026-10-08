@@ -90,6 +90,10 @@ bool PosService::printReceipt()
         return fail(tr("No check to print."));
     if (!s_->printer)
         return fail(tr("No printer is set up."));
+    if (askReceiptPrinter()) {   // a handheld: where?
+        offerReceipt(*c, true);
+        return true;
+    }
     s_->printer->printReceipt(s_->settings, *c, receiptPrinter());
     emit notice(tr("Printing receipt for %1").arg(qs(c->label)));
     return true;

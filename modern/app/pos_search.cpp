@@ -155,6 +155,10 @@ bool PosService::reprintCheck(qint64 id)
         return fail(tr("Find the check first."));
     if (!s_->printer)
         return fail(tr("No printer is set up."));
+    if (askReceiptPrinter()) {   // a handheld: where?
+        offerReceipt(*it, true);
+        return true;
+    }
     s_->printer->printReceipt(s_->settings, *it, receiptPrinter());
     emit notice(tr("Printing a copy of check #%1").arg(id));
     return true;

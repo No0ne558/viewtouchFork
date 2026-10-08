@@ -102,6 +102,7 @@ public:
     QString terminalCardReader() const override { return v(u"cardReader").toString(); }
     QVariantMap readerToken() const override { return v(u"readerToken").toMap(); }
     QVariantMap counterCharge() const override { return v(u"counterCharge").toMap(); }
+    QVariantMap receiptOffer() const override { return v(u"receiptOffer").toMap(); }
     QVariantList closedChecks() const override { return v(u"closedChecks").toList(); }
     QVariantList staff() const override { return v(u"staff").toList(); }
     QVariantList checkHistory() const override { return v(u"checkHistory").toList(); }

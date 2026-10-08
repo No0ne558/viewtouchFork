@@ -519,6 +519,107 @@ ApplicationWindow {
         }
     }
 
+    // The guest's receipt: where to print it, an email (a Stripe card), or none.
+    // Near the top, so the keyboard below leaves the email box in view.
+    Rectangle {
+        id: receiptSheet
+        objectName: "receiptSheet"
+        readonly property var offer: root.controller.pos ? (root.controller.pos as PosService).receiptOffer : ({})
+        readonly property real u: Math.max(14, Math.min(root.width, root.height) / 30)
+        anchors.fill: parent
+        z: 74
+        visible: !!offer.checkId
+        color: Qt.rgba(0.04, 0.05, 0.07, 0.9)
+        onVisibleChanged: if (visible) receiptEmail.text = offer.email ?? ""
+        MouseArea { anchors.fill: parent }
+        Column {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: Math.max(receiptSheet.u, parent.height * 0.08)
+            width: Math.min(parent.width * 0.9, receiptSheet.u * 30)
+            spacing: receiptSheet.u * 0.6
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: qsTr("Receipt · %1 · %2").arg(receiptSheet.offer.label ?? "").arg(receiptSheet.offer.total ?? "")
+                color: "white"
+                font.pixelSize: receiptSheet.u * 1.3
+                font.bold: true
+            }
+            Text {
+                visible: (receiptSheet.offer.printers ?? []).length > 0
+                text: qsTr("Print on")
+                color: "#c8cfda"
+                font.pixelSize: receiptSheet.u * 0.9
+            }
+            Flow {
+                width: parent.width
+                spacing: receiptSheet.u * 0.4
+                Repeater {
+                    model: receiptSheet.offer.printers ?? []
+                    delegate: WidgetKey {
+                        required property var modelData
+                        objectName: "receiptOn-" + modelData.id
+                        width: (parent.width - receiptSheet.u * 0.4) / 2
+                        height: receiptSheet.u * 2.8
+                        fontScale: 0.34
+                        text: modelData.name
+                        baseColor: "#2f5fb0"
+                        onClicked: (root.controller.pos as PosService).printReceiptOn(receiptSheet.offer.checkId, modelData.id)
+                    }
+                }
+            }
+            Text {
+                visible: !(receiptSheet.offer.printers ?? []).length
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: qsTr("No printer prints receipts yet (Manager → Printers → Prints receipts).")
+                color: "#c8cfda"
+                font.pixelSize: receiptSheet.u * 0.8
+            }
+            // A card from a Stripe reader: Stripe emails its receipt.
+            Text {
+                visible: !!receiptSheet.offer.canEmail
+                text: qsTr("Or email it")
+                color: "#c8cfda"
+                font.pixelSize: receiptSheet.u * 0.9
+            }
+            Row {
+                visible: !!receiptSheet.offer.canEmail
+                width: parent.width
+                spacing: receiptSheet.u * 0.4
+                TextField {
+                    id: receiptEmail
+                    objectName: "receiptEmail"
+                    width: parent.width - emailSend.width - parent.spacing
+                    height: receiptSheet.u * 2.8
+                    font.pixelSize: receiptSheet.u
+                    inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
+                    placeholderText: qsTr("guest@example.com")
+                    onAccepted: emailSend.clicked()
+                }
+                WidgetKey {
+                    id: emailSend
+                    objectName: "receiptEmailSend"
+                    width: receiptSheet.u * 6
+                    height: receiptSheet.u * 2.8
+                    fontScale: 0.34
+                    text: qsTr("Email")
+                    baseColor: "#1f8a4c"
+                    onClicked: (root.controller.pos as PosService).emailReceipt(receiptSheet.offer.checkId, receiptEmail.text)
+                }
+            }
+            WidgetKey {
+                objectName: "noReceipt"
+                width: parent.width
+                height: receiptSheet.u * 2.6
+                fontScale: 0.34
+                text: qsTr("No Receipt")
+                onClicked: (root.controller.pos as PosService).noReceipt()
+            }
+        }
+    }
+
     // A new store's setup guide (managers; Manager -> Setup Guide…).
     Loader {
         id: setupLoader

@@ -609,7 +609,8 @@ DrawerSession drawerFromJson(const QJsonObject &o)
 QJsonObject toJson(const PrinterConfig &p)
 {
     QJsonObject o{{u"id"_s, qs(p.id)}, {u"name"_s, qs(p.name)}, {u"type"_s, qs(p.type)},
-                  {u"width"_s, p.width}, {u"cutter"_s, p.cutter}, {u"drawerKick"_s, p.drawerKick}};
+                  {u"width"_s, p.width}, {u"cutter"_s, p.cutter}, {u"drawerKick"_s, p.drawerKick},
+                  {u"receipts"_s, p.receipts}};
     if (!p.host.empty()) o.insert(u"host"_s, qs(p.host));
     if (p.port != 9100) o.insert(u"port"_s, p.port);
     if (!p.path.empty()) o.insert(u"path"_s, qs(p.path));
@@ -632,6 +633,8 @@ PrinterConfig printerFromJson(const QJsonObject &o)
     p.width = std::clamp(o.value(u"width").toInt(42), 16, 80);
     p.cutter = o.value(u"cutter").toBool(true);
     p.drawerKick = o.value(u"drawerKick").toBool(false);
+    // Saved before this setting: the receipt printer, and those with a drawer, print receipts.
+    p.receipts = o.value(u"receipts").toBool(p.id == "receipt" || p.drawerKick);
     return p;
 }
 
@@ -702,7 +705,8 @@ QJsonObject toJson(const PosSettings &s)
                                      {u"drawer"_s, qs(t.drawer)}, {u"id"_s, qs(t.id)}, {u"key"_s, qs(t.key)},
                                      {u"pairedAt"_s, qint64(t.pairedAt)}, {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)},
                                      {u"station"_s, qs(t.station)}, {u"keyboard"_s, qs(t.keyboard)},
-                                     {u"requireName"_s, qs(t.requireName)}, {u"cardReader"_s, qs(t.cardReader)}});
+                                     {u"requireName"_s, qs(t.requireName)}, {u"cardReader"_s, qs(t.cardReader)},
+                                     {u"afterPaying"_s, qs(t.afterPaying)}});
     QJsonArray printers;
     for (const PrinterConfig &p : s.printers)
         printers.append(toJson(p));
@@ -908,7 +912,8 @@ PosSettings settingsFromJson(const QJsonObject &o)
                                ss(t.value(u"key").toString()), i64(t.value(u"pairedAt")),
                                ss(t.value(u"screen").toString()), ss(t.value(u"station").toString()),
                                ss(t.value(u"look").toString()), ss(t.value(u"keyboard").toString()),
-                               ss(t.value(u"requireName").toString()), ss(t.value(u"cardReader").toString())});
+                               ss(t.value(u"requireName").toString()), ss(t.value(u"cardReader").toString()),
+                               ss(t.value(u"afterPaying").toString())});
     }
     s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));
     const QJsonObject labor = o.value(u"labor").toObject();

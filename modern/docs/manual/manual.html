@@ -655,6 +655,15 @@
 <li><b>Terminals</b>: each screen's receipt printer, cash drawer and screen layout (standard, phone, or <b>Self-order kiosk</b>), and <b>Pair a Device</b>.</li>
 </ul>
 
+<h3>Receipts on handhelds</h3>
+<p>A handheld has no printer of its own. Its receipts print on a printer on the store's network:</p>
+<ul>
+<li><b>Which printer:</b> Manager → Terminals → the handheld → <b>Receipts and cash drawer on</b>. Pick one printer, or <b>Ask each time</b>: then <b>Print Receipt</b> shows the printers to choose from (the bar, the host stand…), so the server prints wherever they're standing. Only printers with <b>Prints receipts</b> on (Manager → Printers) are offered; the kitchen's aren't.</li>
+<li><b>After a check is paid</b> (Manager → Terminals): <i>Nothing</i> (touch Print Receipt when the guest wants one), <i>Print a receipt</i> (every time, by itself), or <i>Ask</i>: Print / Email / No Receipt comes up as the check closes.</li>
+<li><b>Email:</b> for a card taken on a Stripe reader, type the guest's email (or let them type it) and touch <b>Email</b>. Stripe sends its receipt for the card payment; no email server is needed. A customer's email on file is filled in, and one typed for a customer without one is saved. Stripe only sends these with a live key, not in test mode. Cash and typed-in cards can only be printed.</li>
+<li><b>A copy later:</b> Find a Check → the check → <b>Reprint Receipt</b>. On a handheld set to Ask each time, it asks where.</li>
+</ul>
+
 <h2>Meal periods</h2>
 <p class="shot"><img src="shots/m39-meal-periods.png" width="480" height="270"></p>
 <p>When breakfast, lunch and dinner start. Each runs until the next one begins.</p>

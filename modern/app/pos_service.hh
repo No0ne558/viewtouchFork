@@ -693,6 +693,13 @@ public:
     bool notifyParty(qint64 id);       // "your table is ready" (texted when set up)
     // Seat them: opens their table's check for `serverId` (default: you).
     bool seatParty(qint64 id, const QString &table, const QString &serverId = {});
+    // The guest's receipt (pos_receipts.cpp): printed where chosen, after
+    // paying by itself or offered, emailed by Stripe for a Stripe card.
+    QVariantMap receiptOffer() const override { return receiptOffer_; }
+    bool printReceiptOn(qint64 checkId, const QString &printerId);
+    bool emailReceipt(qint64 checkId, const QString &email);
+    void noReceipt();
+    QVariantList receiptPrinters() const;
     // Refunds on closed checks, today's or found (pos_refunds.cpp): a
     // manager's; `cents` 0: all that's left of that payment.
     bool refundPayment(qint64 checkId, qint64 paymentId, qint64 cents, const QString &reason);
@@ -934,6 +941,12 @@ private:
     // The card a countertop reader is taking: {status: starting | waiting,
     // reader, readerLabel, paymentIntent, amount, test...}; empty when none.
     QVariantMap counter_;
+    QVariantMap receiptOffer_;   // {checkId, label, total, printers, choosePrinter, canEmail, email}; empty: none
+    const core::TerminalConfig *terminalConfig() const;
+    bool askReceiptPrinter() const;
+    const core::Check *checkForReceipt(qint64 checkId) const;
+    void offerReceipt(const core::Check &c, bool choosePrinter);
+    void receiptAfterClosing(const core::Check &c);
     QTimer counterPoll_;
     int counterPolls_ = 0;
     bool counterAsking_ = false;

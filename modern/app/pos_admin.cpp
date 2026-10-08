@@ -303,6 +303,8 @@ QVariantList PosService::adminFields(const QString &panel)
             with(with(field(u"width"_s, tr("Characters per line"), u"int"_s), u"min"_s, 16), u"max"_s, 80),
             field(u"cutter"_s, tr("Cut paper after each ticket"), u"bool"_s),
             field(u"drawerKick"_s, tr("Cash drawer is connected to this printer"), u"bool"_s),
+            field(u"receipts"_s, tr("Prints receipts"), u"bool"_s,
+                  tr("Offered when a screen asks where to print a receipt (handhelds: Terminals -> Ask each time).")),
         };
     }
     if (panel == u"taxes") {
@@ -496,7 +498,7 @@ QVariantList PosService::adminFields(const QString &panel)
         };
     }
     if (panel == u"terminals") {
-        QVariantList printers = options({{"", "Receipt (default)"}});
+        QVariantList printers = options({{"", "Receipt (default)"}, {"ask", "Ask each time (handhelds)"}});
         for (const PrinterConfig &p : s_->settings.printers)
             printers.append(QVariantMap{{u"value"_s, qs(p.id)}, {u"text"_s, qs(p.name)}});
         return {
@@ -519,6 +521,10 @@ QVariantList PosService::adminFields(const QString &panel)
             with(field(u"requireName"_s, tr("Phone orders need a name before Send"), u"enum"_s,
                        tr("At this screen, whoever is taking the order. Empty: the person's setting, else the store's.")),
                  u"options"_s, options({{"", "The person's / store setting"}, {"yes", "Yes"}, {"no", "No"}})),
+            with(field(u"afterPaying"_s, tr("After a check is paid"), u"enum"_s,
+                       tr("Ask: print (choosing the printer), email (cards from a Stripe reader) or no receipt.")),
+                 u"options"_s, options({{"", "Nothing (Print Receipt when asked)"}, {"print", "Print a receipt"},
+                                        {"ask", "Ask: print, email or no receipt"}})),
             with(field(u"cardReader"_s, tr("Card reader"), u"enum"_s,
                        tr("Stripe: this app runs on a Stripe Reader S700 (Apps on Devices) and takes cards on it; "
                           "the store needs its Stripe secret key (Store Settings). Simulated: approves after a moment, "
@@ -748,7 +754,8 @@ QVariantList PosService::adminRecords(const QString &panel)
             const PrinterConfig *p = s_->settings.printer(t.receiptPrinter);
             add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}, {u"drawer"_s, qs(t.drawer)},
                  {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)}, {u"keyboard"_s, qs(t.keyboard)},
-                 {u"requireName"_s, qs(t.requireName)}, {u"cardReader"_s, qs(t.cardReader)}},
+                 {u"requireName"_s, qs(t.requireName)}, {u"cardReader"_s, qs(t.cardReader)},
+                 {u"afterPaying"_s, qs(t.afterPaying)}},
                 qs(t.name), (p ? qs(p->name) : tr("Receipt (default)"))
                                 + (s_->settings.hasDrawer(t.name) ? QString() : tr(" · no drawer"))
                                 + (t.key.empty() ? QString() : tr(" · paired device"))
@@ -780,7 +787,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"terminals")
         return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}, {u"drawer"_s, QString()},
                 {u"screen"_s, QString()}, {u"look"_s, QString()}, {u"keyboard"_s, QString()}, {u"requireName"_s, QString()},
-                {u"cardReader"_s, QString()}};
+                {u"cardReader"_s, QString()}, {u"afterPaying"_s, QString()}};
     if (panel == u"mealPeriods")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"modifierGroups")
@@ -803,7 +810,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"printers")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"type"_s, u"network"_s}, {u"host"_s, QString()},
                 {u"port"_s, 9100}, {u"path"_s, QString()}, {u"format"_s, QString()}, {u"width"_s, 42},
-                {u"cutter"_s, true}, {u"drawerKick"_s, false}};
+                {u"cutter"_s, true}, {u"drawerKick"_s, false}, {u"receipts"_s, true}};
     return {};
 }
 
@@ -931,6 +938,10 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         if (!paired && !QStringList{QString(), u"stripe"_s, u"simulated"_s}.contains(reader))
             return fail(tr("Choose the screen's card reader."));
         t.cardReader = ss(reader);
+        const QString after = record.value(u"afterPaying"_s).toString();
+        if (!QStringList{QString(), u"print"_s, u"ask"_s}.contains(after))
+            return fail(tr("Choose what happens after a check is paid."));
+        t.afterPaying = ss(after);
         if (index >= 0 && index < int(list.size()))
             list[index] = t;
         else

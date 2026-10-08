@@ -1491,6 +1491,7 @@ bool PosService::closeCheck()
         s_->printer->openDrawer(s_->settings, receiptPrinter());
     s_->closedToday.push_back(*c);
     lastClosedId_ = c->id;
+    receiptAfterClosing(s_->closedToday.back());   // printed, or offered (this terminal's choice)
     const qint64 id = c->id;
     const bool table = c->type == CheckType::DineIn && !c->training;
     const std::string label = c->label;
@@ -2245,6 +2246,9 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"refreshDay"_s, [](PosService &p, const QVariantList &) { emit p.shared()->dayChanged(); return QVariant(true); }},
         {u"cardCharge"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.cardCharge(a.value(0).toString())); }},
         {u"recordCardPayment"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.recordCardPayment(a.value(0).toMap())); }},
+        {u"printReceiptOn"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.printReceiptOn(a.value(0).toLongLong(), a.value(1).toString())); }},
+        {u"emailReceipt"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.emailReceipt(a.value(0).toLongLong(), a.value(1).toString())); }},
+        {u"noReceipt"_s, [](PosService &p, const QVariantList &) { p.noReceipt(); return QVariant(true); }},
         {u"refundPayment"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.refundPayment(a.value(0).toLongLong(), a.value(1).toLongLong(), a.value(2).toLongLong(), a.value(3).toString())); }},
         {u"startCounterCharge"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.startCounterCharge(a.value(0).toString())); }},
