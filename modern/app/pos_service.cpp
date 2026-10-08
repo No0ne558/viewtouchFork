@@ -107,6 +107,12 @@ PosService::PosService(PosShared *shared, QString terminalName, QObject *parent)
 
 PosService::~PosService()
 {
+    // A card on a reader beside this terminal, still being taken: the store
+    // keeps watching it and puts it on the check when Stripe answers.
+    if (!counter_.value(u"paymentIntent"_s).toString().isEmpty() && !counterHeir_) {
+        auto *heir = new PosService(s_, terminal_, s_);
+        heir->adoptCounterCharge(counter_);
+    }
     // A terminal going away (or disconnecting) lets go of its check.
     std::erase_if(s_->lockedBy, [this](const auto &kv) { return kv.second == this; });
     disconnect(s_, nullptr, this, nullptr);
@@ -114,6 +120,18 @@ PosService::~PosService()
 
 void PosService::connectShared()
 {
+    // A refund recorded (here or on another terminal): checks found here show it.
+    connect(s_, &PosShared::refundRecorded, this, [this](const Refund &r, const QString &what) {
+        bool shown = false;
+        for (Check &c : searchHits_)
+            if (c.id == r.checkId && std::ranges::none_of(c.refunds, [&](const Refund &x) { return x.id == r.id; })) {
+                c.refunds.push_back(r);
+                c.note(r.at, r.by, ss(what), "refund", r.amount);
+                shown = true;
+            }
+        if (shown || r.by == (user() ? user()->name : std::string()))
+            emit sessionChanged();
+    });
     // Changes made by any terminal refresh every terminal's view.
     connect(s_, &PosShared::checksChanged, this, [this] {
         emit openChecksChanged();
@@ -1444,7 +1462,10 @@ bool PosService::closeCheck()
     if (waitingForLater(*c) && c->unsentCount() > 0)
         return fail(tr("This order is for %1: close it when it's picked up.").arg(dueText(c->dueAt)));
     if (c->unsentCount() > 0) {
-        // Closing sends whatever is left, held courses too.
+        // Closing sends whatever is left, held courses too (a phone order
+        // still needs its name first).
+        if (const QString who = missingWho(*c); !who.isEmpty())
+            return fail(who);
         const std::vector<OrderLine> fresh = c->sendable(true);
         if (const QString missing = missingChoice(fresh); !missing.isEmpty())
             return fail(missing);

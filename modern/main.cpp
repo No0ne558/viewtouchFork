@@ -838,6 +838,9 @@ int runStore(const Args &cli, const Options &o)
         shared->history = [dbPath](std::int64_t from, std::int64_t to) {
             return vt::storage::closedChecksBetween(dbPath, from, to);
         };
+        shared->refundHistory = [dbPath](std::int64_t from, std::int64_t to) {
+            return vt::storage::refundsBetween(dbPath, from, to);
+        };
         shared->findChecks = [dbPath](const vt::app::PosShared::CheckFind &f) {
             return vt::storage::findClosedChecks(dbPath, f.from, f.to, f.words, f.limit, f.offset);
         };

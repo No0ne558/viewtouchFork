@@ -24,6 +24,7 @@ struct Party {
     std::int64_t notifiedAt = 0;  // told their table is ready
     std::int64_t seatedAt = 0;
     std::string table;            // where they sat
+    bool walkIn = false;          // seated straight from the door (no wait to count)
     std::int64_t checkId = 0;
     Status status = Status::Waiting;
 

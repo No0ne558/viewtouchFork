@@ -588,6 +588,30 @@ void SqlPosSink::savePunch(const TimePunch &p)
     });
 }
 
+std::vector<core::Refund> refundsBetween(const QString &dbPath, std::int64_t from, std::int64_t to)
+{
+    static QAtomicInt counter;
+    const QString name = u"vt-refunds-%1"_s.arg(counter.fetchAndAddRelaxed(1));
+    std::vector<core::Refund> out;
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(u"QSQLITE"_s, name);
+        db.setDatabaseName(dbPath);
+        db.setConnectOptions(u"QSQLITE_BUSY_TIMEOUT=5000"_s);
+        if (db.open()) {
+            QSqlQuery q(db);
+            q.prepare(u"SELECT json FROM refunds WHERE at >= ? AND at < ? ORDER BY at"_s);
+            q.addBindValue(qint64(from));
+            q.addBindValue(qint64(to));
+            if (q.exec())
+                while (q.next())
+                    out.push_back(app::refundFromJson(QJsonDocument::fromJson(q.value(0).toByteArray()).object()));
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(name);
+    return out;
+}
+
 std::vector<Check> findClosedChecks(const QString &dbPath, std::int64_t from, std::int64_t to,
                                     const QStringList &words, int limit, int offset, QString *error)
 {

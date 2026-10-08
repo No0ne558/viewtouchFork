@@ -1046,7 +1046,8 @@ const QStringList kRangeReports = {u"sales"_s, u"items"_s, u"categories"_s, u"ho
                                    u"royalty"_s, u"accounting"_s};
 } // namespace
 
-Report PosService::rangeCapableReport(const QString &id, const std::vector<Check> &closed, const ReportContext &ctx) const
+Report PosService::rangeCapableReport(const QString &id, const std::vector<Check> &closed, const ReportContext &ctx,
+                                      const std::vector<Refund> *refunds) const
 {
     std::vector<const Check *> ptrs;
     for (const Check &c : closed)
@@ -1081,7 +1082,7 @@ Report PosService::rangeCapableReport(const QString &id, const std::vector<Check
             familyOf[m.id] = m.family;
         return accountingReport(closed, familyOf, ctx);
     }
-    return salesSummary(closed, ctx);
+    return salesSummary(closed, ctx, refunds);
 }
 
 bool PosService::requestRangeReport(const QString &id, const QString &period, const QString &fromText,
@@ -1128,28 +1129,40 @@ bool PosService::requestRangeReport(const QString &id, const QString &period, co
 
     // Read the checks away from the screen, then build here.
     auto history = s_->history;
+    auto refundHistory = s_->refundHistory;
     std::vector<Check> today_ = s_->closedToday;
+    std::vector<Refund> refundsToday = s_->refundsToday;
     QPointer<PosService> self(this);
-    QThreadPool::globalInstance()->start([=, today_ = std::move(today_)]() mutable {
+    QThreadPool::globalInstance()->start([=, today_ = std::move(today_), refundsToday = std::move(refundsToday)]() mutable {
         std::vector<Check> now = history ? history(a, b) : std::vector<Check>{};
         std::vector<Check> before = history && compare ? history(a0, b0) : std::vector<Check>{};
+        // Refunds by when they were made (today's may not be written yet).
+        std::vector<Refund> refundsNow = refundHistory ? refundHistory(a, b) : std::vector<Refund>{};
+        std::vector<Refund> refundsBefore = refundHistory && compare ? refundHistory(a0, b0) : std::vector<Refund>{};
+        for (const Refund &r : refundsToday)
+            if (r.at >= a && r.at < b && std::ranges::none_of(refundsNow, [&](const Refund &x) { return x.id == r.id; }))
+                refundsNow.push_back(r);
         // Today's closed checks may not be written yet: the ones in memory count.
         for (Check &c : today_) {
             if (c.closedAt >= a && c.closedAt < b
                 && std::ranges::none_of(now, [&](const Check &x) { return x.id == c.id; }))
                 now.push_back(std::move(c));
         }
+        const bool byDate = bool(refundHistory) || !refundsNow.empty();
         QMetaObject::invokeMethod(self, [self, request, id, label, beforeLabel, compare, now = std::move(now),
-                                         before = std::move(before)] {
+                                         before = std::move(before), refundsNow = std::move(refundsNow),
+                                         refundsBefore = std::move(refundsBefore), byDate] {
             if (!self || request != self->rangeRequest_)
                 return;   // a newer request replaced it
             const ReportContext ctx = self->reportContext(label);
-            Report r = self->rangeCapableReport(kRangeReports.contains(id) ? id : u"sales"_s, now, ctx);
+            Report r = self->rangeCapableReport(kRangeReports.contains(id) ? id : u"sales"_s, now, ctx,
+                                                byDate ? &refundsNow : nullptr);
             if (!kRangeReports.contains(id))
                 r.note(tr("That report is one day at a time (pick Day). Showing sales.").toStdString());
             if (compare) {
                 const ReportContext was = self->reportContext(beforeLabel);
-                r = compareReports(r, self->rangeCapableReport(kRangeReports.contains(id) ? id : u"sales"_s, before, was),
+                r = compareReports(r, self->rangeCapableReport(kRangeReports.contains(id) ? id : u"sales"_s, before, was,
+                                                               byDate ? &refundsBefore : nullptr),
                                    beforeLabel.toStdString());
             }
             QVariantMap out = self->rangeReport_;

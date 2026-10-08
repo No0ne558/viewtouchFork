@@ -98,6 +98,8 @@ bool PosService::sameAsLastTime()
                                              c->type == CheckType::Delivery);
         }
         copy.id = c->nextLineId++;
+        copy.seat = seat_;        // this order's seat and course, not last time's
+        copy.course = course_;
         copy.sent = copy.voided = copy.made = copy.served = false;
         copy.sentAt = copy.madeAt = copy.servedAt = 0;
         for (Modifier &mod : copy.modifiers) {

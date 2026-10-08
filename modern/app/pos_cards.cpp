@@ -167,17 +167,21 @@ PosService::RefundStart PosService::refundCardPayment(const Check &c, const Paym
     }
     refunding_.insert(p.id);
     emit notice(tr("Refunding %1…").arg(format(p.amount + p.tip)));
+    // Finished by the store, even if this terminal is gone by then.
     QPointer<PosService> self(this);
+    PosShared *shared = s_;
     const std::int64_t checkId = c.id, paymentId = p.id;
+    const std::string who = user() ? user()->name : std::string();
+    const QString label = format(p.amount + p.tip);
     s_->stripeRefund(qs(p.reference), (p.amount + p.tip).cents(),
-                     [self, checkId, paymentId](const QString &refundId, const QString &error) {
-        if (!self)
-            return;
-        self->refunding_.erase(paymentId);
-        const auto it = self->s_->open.find(checkId);
-        if (!error.isEmpty() || it == self->s_->open.end()) {
-            self->fail(error.isEmpty() ? tr("The check closed before the refund came back: check Stripe.")
-                                       : tr("The refund didn't go through: %1").arg(error));
+                     [self, shared, checkId, paymentId, who, label](const QString &refundId, const QString &error) {
+        if (self)
+            self->refunding_.erase(paymentId);
+        const auto it = shared->open.find(checkId);
+        if (!error.isEmpty() || it == shared->open.end()) {
+            if (self)
+                self->fail(error.isEmpty() ? tr("The check closed before the refund came back: check Stripe.")
+                                           : tr("The refund didn't go through: %1").arg(error));
             return;
         }
         Check &check = it->second;
@@ -186,11 +190,15 @@ PosService::RefundStart PosService::refundCardPayment(const Check &c, const Paym
             return;
         const Payment removed = *paid;
         check.removePayment(paymentId);
-        self->noteEvent(check, tr("Card refunded: %1 %2 (%3)").arg(cardText(removed), self->format(removed.amount + removed.tip),
-                                                                    refundId),
-                        "unpay", removed.amount);
-        emit self->notice(tr("Refunded %1").arg(self->format(removed.amount + removed.tip)));
-        self->changed(check);
+        check.note(shared->now(), who, ss(tr("Card refunded: %1 %2 (%3)").arg(cardText(removed), label, refundId)),
+                   "unpay", removed.amount);
+        if (shared->sink)
+            shared->sink->saveCheck(check);
+        emit shared->checksChanged();
+        if (self) {
+            emit self->notice(tr("Refunded %1").arg(label));
+            emit self->checkChanged();
+        }
     });
     return RefundStart::Started;
 }
@@ -256,6 +264,18 @@ void PosService::counterDone(const QString &message)
     emit sessionChanged();
     if (!message.isEmpty())
         emit notice(message);
+    if (counterHeir_)
+        deleteLater();   // its terminal's card is settled
+}
+
+void PosService::adoptCounterCharge(const QVariantMap &state)
+{
+    counterHeir_ = true;
+    counter_ = state;
+    counter_.insert(u"status"_s, u"waiting"_s);
+    counterPolls_ = 0;
+    connect(&counterPoll_, &QTimer::timeout, this, &PosService::pollCounter, Qt::UniqueConnection);
+    counterPoll_.start(kCounterPollMs);
 }
 
 bool PosService::startCounterCharge(const QString &tenderId)
@@ -318,6 +338,8 @@ void PosService::pollCounter()
     if (++counterPolls_ > kCounterGiveUpPolls) {
         counterPoll_.stop();
         emit notice(tr("No answer from the card reader: check it, then Cancel."));
+        if (counterHeir_)
+            deleteLater();
         return;
     }
     counterAsking_ = true;

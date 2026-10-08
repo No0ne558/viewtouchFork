@@ -82,6 +82,8 @@ std::vector<core::TimePunch> punchesBetween(const QString &dbPath, std::int64_t 
 // Closed checks, the newest first: closed in [from, to) (to 0: no end),
 // whose saved record contains any of `words` (none: every one), `limit`
 // of them from `offset`. Its own connection: for a worker thread.
+// Refunds made in [from, to), any check's. Its own connection: for a worker thread.
+std::vector<core::Refund> refundsBetween(const QString &dbPath, std::int64_t from, std::int64_t to);
 std::vector<core::Check> findClosedChecks(const QString &dbPath, std::int64_t from, std::int64_t to,
                                           const QStringList &words, int limit, int offset, QString *error = nullptr);
 std::vector<core::Check> closedChecksBetween(const QString &dbPath, std::int64_t from, std::int64_t to,

@@ -190,6 +190,15 @@ public:
     std::vector<PastDay> pastDays;
     std::vector<core::Refund> refundsToday;
     std::int64_t lastRefundId = 0;
+    // Refunds sent to Stripe and not answered yet ("check/payment"), from any terminal.
+    QSet<QString> refundsUnderway;
+    // How much of a payment has gone back: on the check, and today's from any terminal.
+    vt::Money refundedSoFar(const core::Check &check, std::int64_t paymentId) const;
+    // A refund done: on the check (today's here, or `found`: one from an
+    // earlier day, as it was read), saved, in today's refunds; every
+    // terminal is told (refundRecorded). Doesn't need the terminal that
+    // started it to still be there.
+    void recordRefund(core::Refund refund, const core::Check &found, const QString &what);
     // Closed checks back to the first one (Find a Check): the newest first,
     // in [from, to) (to = 0: up to now), those whose saved record contains
     // any of `words` (none: all), `limit` from `offset`. Set by main (storage).
@@ -199,6 +208,8 @@ public:
         int limit = 50, offset = 0;
     };
     std::function<std::vector<core::Check>(const CheckFind &)> findChecks;
+    // Refunds made in [from, to), whatever day their check was (range reports).
+    std::function<std::vector<core::Refund>(std::int64_t from, std::int64_t to)> refundHistory;
 
     // The terminal's open drawer / its most recent one today.
     core::DrawerSession *openDrawerFor(const std::string &terminal);
@@ -255,6 +266,7 @@ public:
 
 signals:
     void checksChanged();    // any check: open, closed, made
+    void refundRecorded(const core::Refund &refund, const QString &what);
     void dayChanged();
     void drawerChanged();
     void adminChanged();     // menu, settings, tenders, printers, taxes
@@ -774,8 +786,9 @@ private:
     qint64 selectedHit_ = 0;
     int searchRequest_ = 0;
     // A report that can cover several days, over `closed`.
+    // `refunds`: made in the range (by date); none: those on these checks.
     core::Report rangeCapableReport(const QString &id, const std::vector<core::Check> &closed,
-                                    const core::ReportContext &ctx) const;
+                                    const core::ReportContext &ctx, const std::vector<core::Refund> *refunds = nullptr) const;
     qint64 addParty(const QVariantMap &r, bool reservation);
     core::Party *party(qint64 id);
     void saveParty(const core::Party &p);
@@ -917,7 +930,6 @@ private:
     QVariantMap readerToken_;          // the latest connection token for this terminal's reader
     int readerTokenSeq_ = 0;
     std::set<std::int64_t> refunding_; // card payments whose refund is on its way
-    QSet<QString> refundsUnderway_;    // "check/payment" refunds on their way (closed checks)
     core::Check *closedCheckFor(qint64 checkId);
     // The card a countertop reader is taking: {status: starting | waiting,
     // reader, readerLabel, paymentIntent, amount, test...}; empty when none.
@@ -926,6 +938,8 @@ private:
     int counterPolls_ = 0;
     bool counterAsking_ = false;
     void pollCounter();
+    bool counterHeir_ = false;   // watching a card for a terminal that went away
+    void adoptCounterCharge(const QVariantMap &state);
     void counterPaid(const QString &paymentIntent);
     void counterDone(const QString &message);
     void stripe(const QString &method, const QString &path, const QString &form,

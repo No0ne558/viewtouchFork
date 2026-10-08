@@ -293,6 +293,9 @@ private:
     int readerTokenSeq_ = 0;   // the last connection token handed to the reader
     void takeCard(const QString &tenderId, Done done);
     void cardTaken(const QVariantMap &result);
+    // Cards approved while the store couldn't be reached: sent when it can.
+    QList<QVariantMap> unsentCards_;
+    void sendUnsentCards();
     vt::app::PosSession *pos_ = nullptr;
     int pending_ = 0;
 };

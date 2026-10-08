@@ -240,6 +240,7 @@ void LayoutController::setPos(PosSession *pos)
     pos_ = pos;
     if (pos_) {
         connect(pos_, &PosSession::notice, this, &LayoutController::setStatus);
+        connect(pos_, &PosSession::onlineChanged, this, &LayoutController::sendUnsentCards);
         connect(pos_, &PosSession::loggedInChanged, this, &LayoutController::onLoggedInChanged);
         connect(pos_, &PosSession::checkClosed, this, [this] { navigate(Navigator::Mode::Home); });
         connect(pos_, &PosSession::qualifierChanged, this, &LayoutController::refresh);
@@ -1107,15 +1108,29 @@ void LayoutController::cardTaken(const QVariantMap &result)
                                                                   : result.value(u"message"_s).toString());
         return;
     }
-    if (!pos_) {
-        setStatus(tr("A card was approved, but the store isn't connected: check Stripe for it."));
+    // The money is taken: it must reach the check. Kept until it does (sent
+    // again, it counts once).
+    unsentCards_.append(result);
+    sendUnsentCards();
+}
+
+void LayoutController::sendUnsentCards()
+{
+    if (!pos_ || unsentCards_.isEmpty())
+        return;
+    if (!pos_->online()) {
+        setStatus(tr("A card was approved; it goes on the check when the store is back."));
         return;
     }
-    // On the check (sent again after a dropped connection, it counts once).
+    const QVariantMap result = unsentCards_.first();
     call(u"recordCardPayment"_s, {result}, [this, result](const QVariant &ok) {
+        if (!pos_ || !pos_->online())
+            return;   // still offline: tried again when it's back
+        unsentCards_.removeOne(result);
         if (!ok.toBool())
             setStatus(tr("The card was approved (%1) but isn't on the check: add it by hand or refund it in Stripe.")
                           .arg(result.value(u"reference"_s).toString()));
+        sendUnsentCards();
     });
 }
 

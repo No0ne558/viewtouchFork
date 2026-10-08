@@ -260,6 +260,7 @@
  "A big logo on the left half, the keypad on the right.": "Un logo grande a la izquierda, el teclado a la derecha.",
  "A break with no end needs the punch still open: %1": "Un descanso sin fin necesita que el registro siga abierto: %1",
  "A card was approved, but the store isn't connected: check Stripe for it.": "Se aprobó una tarjeta, pero no hay conexión con la tienda: búsquela en Stripe.",
+ "A card was approved; it goes on the check when the store is back.": "Se aprobó una tarjeta; va a la cuenta cuando vuelva la conexión con la tienda.",
  "A customer needs a name or a phone number.": "Un cliente necesita un nombre o un número de teléfono.",
  "A discount is 100% at most.": "Un descuento es de 100% como máximo.",
  "A factory reset is done on the computer that keeps the data.": "El restablecimiento se hace en la computadora que guarda los datos.",

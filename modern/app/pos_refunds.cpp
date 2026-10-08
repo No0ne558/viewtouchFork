@@ -10,6 +10,8 @@
 
 #include <QPointer>
 
+#include <set>
+
 #include <algorithm>
 
 using namespace Qt::StringLiterals;
@@ -28,6 +30,40 @@ Check *PosService::closedCheckFor(qint64 checkId)
     return nullptr;
 }
 
+Money PosShared::refundedSoFar(const Check &check, std::int64_t paymentId) const
+{
+    Money sum;
+    std::set<std::int64_t> seen;
+    for (const Refund &r : check.refunds)
+        if (r.paymentId == paymentId && seen.insert(r.id).second)
+            sum += r.amount;
+    for (const Refund &r : refundsToday)   // made today, maybe on another terminal
+        if (r.checkId == check.id && r.paymentId == paymentId && seen.insert(r.id).second)
+            sum += r.amount;
+    return sum;
+}
+
+void PosShared::recordRefund(Refund r, const Check &found, const QString &what)
+{
+    r.id = ++lastRefundId;
+    Check *today = nullptr;
+    for (Check &c : closedToday)
+        if (c.id == r.checkId)
+            today = &c;
+    Check updated = today ? *today : found;
+    updated.refunds.push_back(r);
+    updated.note(r.at, r.by, ss(what), "refund", r.amount);
+    if (today)
+        *today = updated;
+    refundsToday.push_back(r);
+    if (sink) {
+        sink->saveCheck(updated);
+        sink->saveRefund(r);
+    }
+    emit refundRecorded(r, what);
+    emit dayChanged();
+}
+
 bool PosService::refundPayment(qint64 checkId, qint64 paymentId, qint64 cents, const QString &reason)
 {
     // The manager who approved it (or the one logged in) is who refunded it.
@@ -44,7 +80,8 @@ bool PosService::refundPayment(qint64 checkId, qint64 paymentId, qint64 cents, c
         return fail(tr("That payment isn't on the check."));
     if (p->kind == TenderKind::Discount || p->kind == TenderKind::GiftCard || p->kind == TenderKind::HouseAccount)
         return fail(tr("%1 can't be refunded here.").arg(qs(p->tenderName)));
-    const Money left = c->kept(*p, s_->settings.tax) - c->refunded(paymentId);
+    // What was kept, less what went back already (today's from any terminal too).
+    const Money left = c->kept(*p, s_->settings.tax) - s_->refundedSoFar(*c, paymentId);
     const Money amount = cents > 0 ? Money::fromCents(cents) : left;
     if (left.cents() <= 0)
         return fail(tr("That payment was already refunded in full."));
@@ -54,82 +91,54 @@ bool PosService::refundPayment(qint64 checkId, qint64 paymentId, qint64 cents, c
     if (why.isEmpty())
         return fail(tr("Say why (the reason goes in the check's history)."));
     const QString key = u"%1/%2"_s.arg(checkId).arg(paymentId);
-    if (refundsUnderway_.contains(key))
+    if (s_->refundsUnderway.contains(key))
         return fail(tr("That refund is on its way."));
 
     const Payment paid = *p;
-    const QString label = qs(c->label);
-    QPointer<PosService> self(this);
-    // On the check (both copies: today's and the one found), its history,
-    // and today's refunds.
-    const std::string method = paid.processor == "stripe" && !paid.reference.empty() ? "stripe"
-                             : paid.kind == TenderKind::Cash                         ? "cash"
-                                                                                     : "recorded";
-    const auto record = [self, checkId, paid, amount, why, approver, label, method](const QString &reference) {
-        if (!self)
-            return;
-        PosShared *s = self->s_;
-        Refund r;
-        r.id = ++s->lastRefundId;
-        r.at = self->now();
-        r.paymentId = paid.id;
-        r.amount = amount;
-        r.reason = ss(why);
-        r.by = approver;
-        r.reference = ss(reference);
-        r.tenderName = paid.tenderName;
-        r.method = method;
-        r.day = s->day.id;
-        r.checkId = checkId;
-        r.checkLabel = ss(label);
-        const QString what = tr("Refunded %1 (%2): %3").arg(self->format(amount), qs(paid.tenderName), why)
-                             + (reference.isEmpty() ? QString() : u" · "_s + reference);
-        Check *saved = nullptr;
-        for (Check &c : s->closedToday)
-            if (c.id == checkId) {
-                c.refunds.push_back(r);
-                c.note(r.at, approver, ss(what), "refund", amount);
-                saved = &c;
-            }
-        for (Check &c : self->searchHits_)
-            if (c.id == checkId) {
-                c.refunds.push_back(r);
-                c.note(r.at, approver, ss(what), "refund", amount);
-                if (!saved)
-                    saved = &c;
-            }
-        s->refundsToday.push_back(r);
-        if (s->sink) {
-            if (saved)
-                s->sink->saveCheck(*saved);
-            s->sink->saveRefund(r);
-        }
-        emit self->notice(tr("Refunded %1 on %2 #%3").arg(self->format(amount), label).arg(checkId));
-        emit self->sessionChanged();
-        emit s->dayChanged();
+    Refund r;
+    r.at = now();
+    r.paymentId = paid.id;
+    r.amount = amount;
+    r.reason = ss(why);
+    r.by = approver;
+    r.tenderName = paid.tenderName;
+    r.method = paid.processor == "stripe" && !paid.reference.empty() ? "stripe"
+             : paid.kind == TenderKind::Cash                         ? "cash"
+                                                                     : "recorded";
+    r.day = s_->day.id;
+    r.checkId = checkId;
+    r.checkLabel = c->label;
+    const Check found = *c;   // as it was read: the record is kept from this, whoever is still here
+    PosShared *shared = s_;
+    const auto what = [this, r](const QString &reference) {
+        return tr("Refunded %1 (%2): %3").arg(format(r.amount), qs(r.tenderName), qs(r.reason))
+               + (reference.isEmpty() ? QString() : u" · "_s + reference);
     };
 
-    if (paid.processor == "stripe" && !paid.reference.empty()) {
+    if (r.method == "stripe") {
         if (!s_->stripeRefund || s_->settings.stripeSecretKey.empty())
             return fail(tr("Refunding a card needs the store's Stripe key (Store Settings), or refund it in the Stripe Dashboard."));
-        refundsUnderway_.insert(key);
+        s_->refundsUnderway.insert(key);
         emit notice(tr("Refunding %1 through Stripe…").arg(format(amount)));
+        const QString done = what(u"%1"_s);   // the reference goes in when it's known
+        QPointer<PosService> self(this);
         s_->stripeRefund(qs(paid.reference), amount.cents(),
-                         [self, key, record](const QString &refundId, const QString &error) {
-            if (!self)
-                return;
-            self->refundsUnderway_.remove(key);
+                         [shared, self, key, r, found, done](const QString &refundId, const QString &error) mutable {
+            shared->refundsUnderway.remove(key);
             if (!error.isEmpty()) {
-                self->fail(tr("The refund didn't go through: %1").arg(error));
-                emit self->sessionChanged();
+                if (self) {
+                    self->fail(tr("The refund didn't go through: %1").arg(error));
+                    emit self->sessionChanged();
+                }
                 return;
             }
-            record(refundId);
+            r.reference = ss(refundId);
+            shared->recordRefund(r, found, QString(done).replace(u"%1"_s, refundId));
         });
         emit sessionChanged();
         return true;
     }
-    if (paid.kind == TenderKind::Cash) {
+    if (r.method == "cash") {
         // Out of this person's bank or this terminal's drawer, as a refund.
         DrawerSession *d = serverBank() ? ensureMyBank() : myDrawer();
         if (!d)
@@ -138,7 +147,7 @@ bool PosService::refundPayment(qint64 checkId, qint64 paymentId, qint64 cents, c
         m.id = d->nextMovementId++;
         m.kind = CashMovement::Kind::Payout;
         m.amount = amount;
-        m.reason = ss(tr("Refund, %1 #%2: %3").arg(label).arg(checkId).arg(why));
+        m.reason = ss(tr("Refund, %1 #%2: %3").arg(qs(c->label)).arg(checkId).arg(why));
         m.by = approver;
         m.at = now();
         m.category = ss(tr("Refunds"));
@@ -148,12 +157,10 @@ bool PosService::refundPayment(qint64 checkId, qint64 paymentId, qint64 cents, c
         if (s_->printer && !serverBank() && terminalHasDrawer())
             s_->printer->openDrawer(s_->settings, receiptPrinter());
         emit s_->drawerChanged();
-        record({});
-        return true;
     }
-    // A card typed in (taken on another machine): give it back there.
-    record({});
-    emit notice(tr("Recorded. Refund %1 on the card machine it was taken on.").arg(format(amount)));
+    s_->recordRefund(r, found, what({}));
+    if (r.method == "recorded")
+        emit notice(tr("Recorded. Refund %1 on the card machine it was taken on.").arg(format(amount)));
     return true;
 }
 

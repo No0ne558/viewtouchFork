@@ -98,7 +98,7 @@ QVariantMap PosService::waitlistInfo() const
     int seated = 0, noShows = 0;
     std::int64_t waitedTotal = 0;
     for (const Party &p : s_->parties) {
-        if (p.status == Party::Status::Seated && p.seatedAt >= since) {
+        if (p.status == Party::Status::Seated && p.seatedAt >= since && !p.walkIn) {
             ++seated;
             waitedTotal += p.seatedAt - p.waitingSince();
         } else if (p.status == Party::Status::NoShow && p.reservedFor >= since) {
@@ -447,6 +447,7 @@ bool PosService::seatWalkIn(int size, const QStringList &tables, const QString &
     p.name = ss(tr("Walk-in"));
     p.size = std::clamp(size, 1, 99);
     p.addedAt = now();
+    p.walkIn = true;
     p.status = Party::Status::Waiting;
     s_->parties.push_back(p);
     saveParty(p);

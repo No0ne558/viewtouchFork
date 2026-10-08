@@ -1214,6 +1214,7 @@ QJsonObject toJson(const Party &p)
         {u"reservedFor"_s, qint64(p.reservedFor)}, {u"quotedMinutes"_s, p.quotedMinutes},
         {u"arrivedAt"_s, qint64(p.arrivedAt)}, {u"notifiedAt"_s, qint64(p.notifiedAt)},
         {u"seatedAt"_s, qint64(p.seatedAt)}, {u"table"_s, qs(p.table)}, {u"checkId"_s, qint64(p.checkId)},
+        {u"walkIn"_s, p.walkIn},
         {u"status"_s, qs(toString(p.status))},
     };
 }
@@ -1235,6 +1236,7 @@ Party partyFromJson(const QJsonObject &o)
     p.seatedAt = i64(o.value(u"seatedAt"));
     p.table = ss(o.value(u"table").toString());
     p.checkId = i64(o.value(u"checkId"));
+    p.walkIn = o.value(u"walkIn").toBool();
     p.status = partyStatusFromString(ss(o.value(u"status").toString()));
     return p;
 }
