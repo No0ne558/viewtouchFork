@@ -412,6 +412,8 @@ public:
     Q_INVOKABLE void setChoice(const QString &groupId, int index, const QString &how) { invoke(QStringLiteral("setChoice"), {groupId, index, how}); }
     Q_INVOKABLE void saveCategory(const QVariantMap &record) { invoke(QStringLiteral("saveCategory"), {record}); }
     Q_INVOKABLE void moveCategory(const QString &id, int by) { invoke(QStringLiteral("moveCategory"), {id, by}); }
+    Q_INVOKABLE void moveCategoryTo(const QString &id, int position) { invoke(QStringLiteral("moveCategoryTo"), {id, position}); }
+    Q_INVOKABLE void moveMenuItemTo(const QString &id, int position) { invoke(QStringLiteral("moveMenuItemTo"), {id, position}); }
     Q_INVOKABLE void deleteCategory(const QString &id) { invoke(QStringLiteral("deleteCategory"), {id}); }
     Q_INVOKABLE void saveMenuItemCard(const QVariantMap &card) { invoke(QStringLiteral("saveMenuItemCard"), {card}); }
     Q_INVOKABLE void deleteMenuItemCard(const QString &id) { invoke(QStringLiteral("deleteMenuItemCard"), {id}); }

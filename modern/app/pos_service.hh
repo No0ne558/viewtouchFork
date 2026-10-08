@@ -611,6 +611,8 @@ public:
     // The Menu Builder (pos_menu_builder.cpp).
     bool saveCategory(const QVariantMap &record);   // {id ("" new), name, color, periods, printer, station, taxClass}
     bool moveCategory(const QString &id, int by);
+    bool moveCategoryTo(const QString &id, int position);   // dragged
+    bool moveMenuItemTo(const QString &id, int position);   // among its category's items
     bool deleteCategory(const QString &id);          // only an empty one
     // {id ("" new), name, price, family, image, description, available, kioskHide,
     //  taxClass, printer, station, groups: [ids], onIt: [ingredients]}

@@ -5136,3 +5136,38 @@ TEST_CASE("UI: the menu screen's buttons fit their category, and Favorites come 
     CHECK(Screen::findBy(root, "objectName", u"menuItem-cobb"_s));
     s.shot("menu-favorites");
 }
+
+TEST_CASE("UI: in the Menu Builder, hold an item and drag it to its new place", "[flow][ui][menubuild]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    s.tapItem(by(u"builderCategory-burgers"_s));
+    QTest::qWait(60);
+    QQuickItem *from = by(u"builderItem-classic-burger"_s), *to = by(u"builderItem-veggie-burger"_s);
+    REQUIRE(from);
+    REQUIRE(to);
+    const QPoint a = from->mapToScene(QPointF(from->width() / 2, from->height() / 2)).toPoint();
+    const QPoint b = to->mapToScene(QPointF(to->width() / 2, to->height() / 2)).toPoint();
+    QTest::mousePress(s.window, Qt::LeftButton, {}, a);
+    QTest::qWait(500);                                      // held
+    for (int i = 1; i <= 10; ++i) {
+        QTest::mouseMove(s.window, a + (b - a) * i / 10);
+        QTest::qWait(15);
+    }
+    REQUIRE(by(u"builderGhost"_s));                         // under the finger
+    s.shot("builder-drag");
+    QTest::mouseRelease(s.window, Qt::LeftButton, {}, b);
+    QTest::qWait(120);
+    QStringList ids;
+    for (const QVariant &m : s.pos.menuItems())
+        if (m.toMap()[u"family"_s] == u"burgers"_s)
+            ids << m.toMap()[u"id"_s].toString();
+    // Veggie Burger was 5th; Classic is there now.
+    CHECK(ids.indexOf(u"classic-burger"_s) == 4);
+    CHECK(ids.first() == u"cheeseburger"_s);
+    CHECK_FALSE(by(u"builderGhost"_s));
+}

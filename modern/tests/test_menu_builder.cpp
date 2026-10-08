@@ -214,3 +214,35 @@ TEST_CASE("Menu Builder: Duplicate copies an item with its choices and what's on
         if (m.toMap()[u"name"_s] == u"Fish Tacos"_s)
             CHECK(m.toMap()[u"onIt"_s].toStringList() == QStringList{u"cabbage"_s, u"crema"_s});
 }
+
+TEST_CASE("Menu Builder: an item or a category moved to an exact place", "[menubuilder][drag]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const auto burgers = [&] {
+        QStringList ids;
+        for (const QVariant &m : pos.menuItems())
+            if (m.toMap()[u"family"_s] == u"burgers"_s && !m.toMap()[u"modifier"_s].toBool())
+                ids << m.toMap()[u"id"_s].toString();
+        return ids;
+    };
+    const QStringList before = burgers();
+    REQUIRE(before.first() == u"classic-burger"_s);
+    REQUIRE(pos.moveMenuItemTo(u"classic-burger"_s, 3));
+    QStringList expected = before;
+    expected.move(0, 3);
+    CHECK(burgers() == expected);
+    REQUIRE(pos.moveMenuItemTo(u"classic-burger"_s, 0));
+    CHECK(burgers() == before);
+    // The other categories' items keep their places.
+    CHECK(pos.shared()->menu.front().id == "classic-burger");
+
+    const auto order = [&] {
+        QStringList ids;
+        for (const QVariant &c : pos.menuCategories())
+            ids << c.toMap()[u"id"_s].toString();
+        return ids;
+    };
+    REQUIRE(pos.moveCategoryTo(u"drinks"_s, 0));
+    CHECK(order().first() == u"drinks"_s);
+}

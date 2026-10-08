@@ -42,6 +42,9 @@ Item {
     readonly property var editedGroup: editingGroup && draft.id ? (pos ? pos.choiceGroups.find(g => g.id === draft.id) : null) : null
     property var draft: ({})
     property string stage: "categories"   // a phone: categories | items | card
+    // Dragging an item tile or a category (hold, then drag): which, and where to.
+    property string dragId: ""
+    property int dropIndex: -1
 
     Component.onCompleted: if (categories.length) categoryId = categories[0].id
     // A new category, once saved, is the one shown.
@@ -282,6 +285,7 @@ Item {
                 ListView {
                     id: categoryList
                     visible: w.mode === "menu"
+                    interactive: w.dragId === ""
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
@@ -316,7 +320,47 @@ Item {
                                 }
                             }
                         }
-                        MouseArea { anchors.fill: parent; onClicked: w.pickCategory(modelData.id) }
+                        Rectangle {
+                            anchors.fill: parent
+                            visible: w.dragId !== "" && w.dropIndex === index && w.dragId !== modelData.id && w.mode === "menu"
+                            color: "transparent"
+                            radius: parent.radius
+                            border.color: "#f5b940"
+                            border.width: 4
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            pressAndHoldInterval: 350
+                            property bool dragging: false
+                            preventStealing: dragging
+                            onClicked: w.pickCategory(modelData.id)
+                            onPressAndHold: m => {
+                                dragging = true
+                                w.dragId = modelData.id
+                                ghost.text = modelData.name
+                                ghost.color = modelData.color || "#4a5260"
+                                moved(m)
+                            }
+                            function moved(m) {
+                                const p = mapToItem(categoryList, m.x, m.y)
+                                w.dropIndex = categoryList.indexAt(p.x + categoryList.contentX, p.y + categoryList.contentY)
+                                const g = mapToItem(ghost.parent, m.x, m.y)
+                                ghost.x = g.x - ghost.width / 2
+                                ghost.y = g.y - ghost.height / 2
+                            }
+                            onPositionChanged: m => { if (dragging) moved(m) }
+                            onReleased: {
+                                if (!dragging) return
+                                dragging = false
+                                const to = w.dropIndex
+                                const id = w.dragId
+                                w.dragId = ""
+                                w.dropIndex = -1
+                                if (to >= 0 && w.categories[to] && w.categories[to].id !== id)
+                                    w.pos.moveCategoryTo(id, to)
+                            }
+                            onCanceled: { dragging = false; w.dragId = ""; w.dropIndex = -1 }
+                        }
                     }
                 }
                 RowLayout {
@@ -364,8 +408,15 @@ Item {
                         onClicked: w.editCategory(w.category)
                     }
                 }
+                Label {
+                    visible: w.items.length > 1
+                    text: qsTr("Hold one and drag it to move it (the order screen follows).")
+                    opacity: 0.6
+                    font.pixelSize: 13
+                }
                 GridView {
                     id: itemGrid
+                    interactive: w.dragId === ""
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
@@ -374,6 +425,7 @@ Item {
                     model: [{ add: true }].concat(w.items)
                     delegate: Item {
                         required property var modelData
+                        required property int index
                         width: itemGrid.cellWidth
                         height: itemGrid.cellHeight
                         Rectangle {
@@ -409,10 +461,51 @@ Item {
                                     font.pixelSize: 15
                                 }
                             }
+                            // Outlined: where a dragged item will go.
+                            Rectangle {
+                                anchors.fill: parent
+                                visible: w.dragId !== "" && !modelData.add && w.dropIndex === index && w.dragId !== modelData.id
+                                color: "transparent"
+                                radius: parent.radius
+                                border.color: "#f5b940"
+                                border.width: 4
+                            }
                             MouseArea {
                                 anchors.fill: parent
                                 enabled: !!w.category
+                                pressAndHoldInterval: 350
+                                property bool dragging: false
+                                preventStealing: dragging
                                 onClicked: w.editItem(modelData.add ? null : modelData)
+                                // Held: dragged to another place in the category.
+                                onPressAndHold: m => {
+                                    if (modelData.add) return
+                                    dragging = true
+                                    w.dragId = modelData.id
+                                    ghost.text = modelData.name
+                                    ghost.color = parent.tint
+                                    moved(m)
+                                }
+                                function moved(m) {
+                                    const p = mapToItem(itemGrid, m.x, m.y)
+                                    w.dropIndex = itemGrid.indexAt(p.x + itemGrid.contentX, p.y + itemGrid.contentY)
+                                    const g = mapToItem(ghost.parent, m.x, m.y)
+                                    ghost.x = g.x - ghost.width / 2
+                                    ghost.y = g.y - ghost.height / 2
+                                }
+                                onPositionChanged: m => { if (dragging) moved(m) }
+                                onReleased: {
+                                    if (!dragging) return
+                                    dragging = false
+                                    // Cleared first: the move rebuilds the tiles (this one too).
+                                    const to = w.dropIndex - 1   // the first tile is + Add Item
+                                    const id = w.dragId
+                                    w.dragId = ""
+                                    w.dropIndex = -1
+                                    if (to >= 0 && to < w.items.length && w.items[to].id !== id)
+                                        w.pos.moveMenuItemTo(id, to)
+                                }
+                                onCanceled: { dragging = false; w.dragId = ""; w.dropIndex = -1 }
                             }
                         }
                     }
@@ -893,6 +986,31 @@ Item {
     }
 
     // Many at once: "Carne Asada 3.50" a line, or "Tacos: Carne Asada 3.50, Al Pastor 3.25".
+    // What's being dragged, under the finger.
+    Rectangle {
+        id: ghost
+        objectName: "builderGhost"
+        property string text
+        visible: w.dragId !== ""
+        z: 100
+        width: 200 * w.zoom
+        height: 72 * w.zoom
+        radius: 10
+        opacity: 0.9
+        border.color: "#f5b940"
+        border.width: 3
+        Label {
+            anchors.centerIn: parent
+            width: parent.width - 12
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+            text: ghost.text
+            color: w.inkOn(ghost.color)
+            font.pixelSize: 17 * w.zoom
+            font.bold: true
+        }
+    }
+
     Dialog {
         id: severalDialog
         objectName: "builderSeveral"

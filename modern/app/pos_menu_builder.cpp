@@ -142,6 +142,56 @@ bool PosService::moveCategory(const QString &id, int by)
     return true;
 }
 
+bool PosService::moveCategoryTo(const QString &id, int position)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    std::vector<MenuCategory> list = s_->categories();
+    const auto it = std::ranges::find_if(list, [&](const MenuCategory &c) { return qs(c.id) == id; });
+    if (it == list.end())
+        return fail(tr("That category is gone."));
+    MenuCategory c = *it;
+    list.erase(it);
+    list.insert(list.begin() + std::clamp(position, 0, int(list.size())), c);
+    s_->settings.menuCategories = list;
+    settingsChanged();
+    menuChanged();
+    return true;
+}
+
+// Its place among its category's items (dragged in the Menu Builder): the
+// category's items trade the places they have in the menu.
+bool PosService::moveMenuItemTo(const QString &id, int position)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    auto &menu = s_->menu;
+    const auto it = std::ranges::find_if(menu, [&](const MenuItem &m) { return qs(m.id) == id; });
+    if (it == menu.end())
+        return fail(tr("'%1' is not on the menu.").arg(id));
+    const std::string family = it->family;
+    std::vector<int> places;
+    std::vector<MenuItem> items;
+    for (int i = 0; i < int(menu.size()); ++i)
+        if (menu[i].family == family && !menu[i].isModifier) {
+            places.push_back(i);
+            items.push_back(menu[i]);
+        }
+    const auto from = std::ranges::find_if(items, [&](const MenuItem &m) { return qs(m.id) == id; });
+    MenuItem moved = *from;
+    items.erase(from);
+    items.insert(items.begin() + std::clamp(position, 0, int(items.size())), moved);
+    for (std::size_t k = 0; k < places.size(); ++k) {
+        if (menu[places[k]].id == items[k].id)
+            continue;
+        menu[places[k]] = items[k];
+        if (s_->sink)
+            s_->sink->saveMenuItem(menu[places[k]], places[k]);
+    }
+    menuChanged();
+    return true;
+}
+
 bool PosService::deleteCategory(const QString &id)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
