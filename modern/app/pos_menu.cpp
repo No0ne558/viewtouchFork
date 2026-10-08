@@ -384,6 +384,54 @@ QStringList PosService::soldOut() const
     return out;
 }
 
+namespace {
+
+// The groups an item asks for (not its own What's on it).
+QStringList groupsOf(const MenuItem &m)
+{
+    QStringList out;
+    for (const std::string &g : m.modifierGroups)
+        if (g != "on-" + m.id)
+            out << QString::fromStdString(g);
+    return out;
+}
+
+} // namespace
+
+// What's on an item (its own group's ingredients).
+QStringList PosService::onItOf(const MenuItem &m) const
+{
+    QStringList out;
+    if (const ModifierGroup *g = s_->settings.modifierGroup("on-" + m.id))
+        for (const ModifierOption &o : g->options)
+            out << qs(o.name);
+    return out;
+}
+
+QVariantList PosService::choiceGroups() const
+{
+    QVariantList out;
+    for (const ModifierGroup &g : s_->settings.modifierGroups) {
+        QVariantList options;
+        for (const ModifierOption &o : g.options)
+            options.append(QVariantMap{{u"name"_s, qs(o.name)}, {u"price"_s, double(o.price.cents()) / 100.0},
+                                       {u"included"_s, o.included}, {u"kitchenName"_s, qs(o.kitchenName)},
+                                       {u"kitchenHide"_s, o.kitchenHide}});
+        QStringList usedBy;
+        for (const MenuItem &m : s_->menu)
+            if (std::ranges::find(m.modifierGroups, g.id) != m.modifierGroups.end())
+                usedBy << qs(m.name);
+        const QString rule = g.min == 1 && g.max == 1 ? tr("Pick 1")
+                             : g.min == 0 && g.max == 1 ? tr("Optional, pick 1")
+                             : g.max == 0 ? (g.min > 0 ? tr("At least %1").arg(g.min) : tr("Any"))
+                             : g.min > 0 ? tr("%1 to %2").arg(g.min).arg(g.max) : tr("Up to %1").arg(g.max);
+        out.append(QVariantMap{{u"id"_s, qs(g.id)}, {u"name"_s, qs(g.name)}, {u"min"_s, g.min}, {u"max"_s, g.max},
+                               {u"rule"_s, rule}, {u"askHow"_s, g.askHow}, {u"menuItems"_s, g.menuItems},
+                               {u"own"_s, g.id.starts_with("on-")}, {u"options"_s, options}, {u"usedBy"_s, usedBy}});
+    }
+    return out;
+}
+
 std::vector<MenuCategory> PosShared::categories() const
 {
     std::vector<MenuCategory> out = settings.menuCategories;
@@ -429,7 +477,13 @@ QVariantList PosService::menuItems() const
                                {u"available"_s, m.available && ticketsLeft(m) != 0}, {u"image"_s, qs(m.image)},
                                {u"color"_s, qs(m.kitchenColor)}, {u"byWeight"_s, m.byWeight},
                                {u"unit"_s, qs(m.weightUnit)}, {u"number"_s, qs(m.number)},
-                               {u"buttonColor"_s, qs(m.buttonColor)}});
+                               {u"buttonColor"_s, qs(m.buttonColor)},
+                               // The Menu Builder's card.
+                               {u"priceValue"_s, double(m.price.cents()) / 100.0}, {u"groups"_s, groupsOf(m)},
+                               {u"onIt"_s, onItOf(m)}, {u"taxClass"_s, qs(toString(m.taxClass))},
+                               {u"printer"_s, qs(m.printer)}, {u"station"_s, qs(m.station)},
+                               {u"description"_s, qs(m.description)}, {u"kioskHide"_s, m.kioskHide},
+                               {u"availableSet"_s, m.available}});
     }
     return out;
 }

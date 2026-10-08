@@ -148,6 +148,7 @@ public:
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }
     QVariantList menuCategories() const override { return v(u"menuCategories").toList(); }
+    QVariantList choiceGroups() const override { return v(u"choiceGroups").toList(); }
     int queryRevision() const override { return queryRevision_; }
 
     // Answered from a cache; fetched from the server when missing or stale.

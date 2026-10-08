@@ -138,6 +138,9 @@ class PosSession : public QObject {
     // The menu's categories, in order: [{id, name, color, periods, count, now}]
     // (now: on the menu at this hour).
     Q_PROPERTY(QVariantList menuCategories READ menuCategories NOTIFY adminChanged)
+    // Every choice group: [{id, name, min, max, rule, askHow, menuItems, own,
+    // options: [{name, price, included, kitchenName, kitchenHide}], usedBy: [names]}].
+    Q_PROPERTY(QVariantList choiceGroups READ choiceGroups NOTIFY adminChanged)
     // The current check's history [{time, who, what}].
     Q_PROPERTY(QVariantList checkHistory READ checkHistory NOTIFY checkChanged)
     Q_PROPERTY(QString checkFilter READ checkFilter WRITE setCheckFilter NOTIFY openChecksChanged)
@@ -279,6 +282,7 @@ public:
     virtual QStringList soldOut() const = 0;
     virtual QVariantList menuItems() const = 0;
     virtual QVariantList menuCategories() const = 0;
+    virtual QVariantList choiceGroups() const = 0;
     virtual QString checkFilter() const = 0;
     virtual QVariantList kitchenTickets() const = 0;
     virtual QVariantList expoTickets() const = 0;
@@ -406,6 +410,11 @@ public:
     Q_INVOKABLE void chooseOption(const QString &groupId, int index) { invoke(QStringLiteral("chooseOption"), {groupId, index}); }
     Q_INVOKABLE void chooseOptionAs(const QString &groupId, int index, const QString &qualifier) { invoke(QStringLiteral("chooseOptionAs"), {groupId, index, qualifier}); }
     Q_INVOKABLE void setChoice(const QString &groupId, int index, const QString &how) { invoke(QStringLiteral("setChoice"), {groupId, index, how}); }
+    Q_INVOKABLE void saveCategory(const QVariantMap &record) { invoke(QStringLiteral("saveCategory"), {record}); }
+    Q_INVOKABLE void moveCategory(const QString &id, int by) { invoke(QStringLiteral("moveCategory"), {id, by}); }
+    Q_INVOKABLE void deleteCategory(const QString &id) { invoke(QStringLiteral("deleteCategory"), {id}); }
+    Q_INVOKABLE void saveMenuItemCard(const QVariantMap &card) { invoke(QStringLiteral("saveMenuItemCard"), {card}); }
+    Q_INVOKABLE void deleteMenuItemCard(const QString &id) { invoke(QStringLiteral("deleteMenuItemCard"), {id}); }
     Q_INVOKABLE void finishChoosing() { invoke(QStringLiteral("finishChoosing")); }
     Q_INVOKABLE void cancelChoosing() { invoke(QStringLiteral("cancelChoosing")); }
     Q_INVOKABLE void backupNow() { invoke(QStringLiteral("backupNow")); }

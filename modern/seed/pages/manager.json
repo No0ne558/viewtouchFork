@@ -50,10 +50,35 @@
       }
     },
     {
-      "id": "admin-menu",
+      "id": "menu-builder",
       "kind": "button",
       "rect": {
         "x": 484,
+        "y": 124,
+        "w": 300,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Menu Builder",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "menu-builder"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f8a4c"
+        }
+      }
+    },
+    {
+      "id": "admin-menu",
+      "kind": "button",
+      "rect": {
+        "x": 808,
         "y": 124,
         "w": 300,
         "h": 120
@@ -75,7 +100,7 @@
       "id": "admin-employees",
       "kind": "button",
       "rect": {
-        "x": 808,
+        "x": 1132,
         "y": 124,
         "w": 300,
         "h": 120
@@ -97,7 +122,7 @@
       "id": "admin-settings",
       "kind": "button",
       "rect": {
-        "x": 1132,
+        "x": 1456,
         "y": 124,
         "w": 300,
         "h": 120
@@ -119,8 +144,8 @@
       "id": "admin-taxes",
       "kind": "button",
       "rect": {
-        "x": 1456,
-        "y": 124,
+        "x": 160,
+        "y": 258,
         "w": 300,
         "h": 120
       },
@@ -141,7 +166,7 @@
       "id": "admin-tenders",
       "kind": "button",
       "rect": {
-        "x": 160,
+        "x": 484,
         "y": 258,
         "w": 300,
         "h": 120
@@ -163,7 +188,7 @@
       "id": "admin-printers",
       "kind": "button",
       "rect": {
-        "x": 484,
+        "x": 808,
         "y": 258,
         "w": 300,
         "h": 120
@@ -185,7 +210,7 @@
       "id": "admin-reports",
       "kind": "button",
       "rect": {
-        "x": 808,
+        "x": 1132,
         "y": 258,
         "w": 300,
         "h": 120
@@ -207,7 +232,7 @@
       "id": "admin-drawers",
       "kind": "button",
       "rect": {
-        "x": 1132,
+        "x": 1456,
         "y": 258,
         "w": 300,
         "h": 120
@@ -229,8 +254,8 @@
       "id": "admin-endOfDay",
       "kind": "button",
       "rect": {
-        "x": 1456,
-        "y": 258,
+        "x": 160,
+        "y": 392,
         "w": 300,
         "h": 120
       },
@@ -251,7 +276,7 @@
       "id": "admin-terminals",
       "kind": "button",
       "rect": {
-        "x": 160,
+        "x": 484,
         "y": 392,
         "w": 300,
         "h": 120
@@ -273,7 +298,7 @@
       "id": "admin-mealPeriods",
       "kind": "button",
       "rect": {
-        "x": 484,
+        "x": 808,
         "y": 392,
         "w": 300,
         "h": 120
@@ -295,7 +320,7 @@
       "id": "admin-modifierGroups",
       "kind": "button",
       "rect": {
-        "x": 808,
+        "x": 1132,
         "y": 392,
         "w": 300,
         "h": 120
@@ -317,7 +342,7 @@
       "id": "admin-inventory",
       "kind": "button",
       "rect": {
-        "x": 1132,
+        "x": 1456,
         "y": 392,
         "w": 300,
         "h": 120
@@ -339,8 +364,8 @@
       "id": "admin-schedule",
       "kind": "button",
       "rect": {
-        "x": 1456,
-        "y": 392,
+        "x": 160,
+        "y": 526,
         "w": 300,
         "h": 120
       },
@@ -361,7 +386,7 @@
       "id": "admin-promotions",
       "kind": "button",
       "rect": {
-        "x": 160,
+        "x": 484,
         "y": 526,
         "w": 300,
         "h": 120
@@ -383,7 +408,7 @@
       "id": "checklists",
       "kind": "button",
       "rect": {
-        "x": 484,
+        "x": 808,
         "y": 526,
         "w": 300,
         "h": 120
@@ -408,7 +433,7 @@
       "id": "kitchen-display",
       "kind": "button",
       "rect": {
-        "x": 808,
+        "x": 1132,
         "y": 526,
         "w": 300,
         "h": 120
@@ -428,7 +453,7 @@
       "id": "bar-display",
       "kind": "button",
       "rect": {
-        "x": 1132,
+        "x": 1456,
         "y": 526,
         "w": 300,
         "h": 120
@@ -448,8 +473,8 @@
       "id": "expo-display",
       "kind": "button",
       "rect": {
-        "x": 1456,
-        "y": 526,
+        "x": 160,
+        "y": 660,
         "w": 300,
         "h": 120
       },
@@ -468,7 +493,7 @@
       "id": "edit-pages",
       "kind": "button",
       "rect": {
-        "x": 160,
+        "x": 484,
         "y": 660,
         "w": 300,
         "h": 120
@@ -492,7 +517,7 @@
       "id": "setup-guide",
       "kind": "button",
       "rect": {
-        "x": 484,
+        "x": 808,
         "y": 660,
         "w": 300,
         "h": 120
@@ -516,7 +541,7 @@
       "id": "customers",
       "kind": "button",
       "rect": {
-        "x": 808,
+        "x": 1132,
         "y": 660,
         "w": 300,
         "h": 120
@@ -536,7 +561,7 @@
       "id": "gift-cards",
       "kind": "button",
       "rect": {
-        "x": 1132,
+        "x": 1456,
         "y": 660,
         "w": 300,
         "h": 120
@@ -556,8 +581,8 @@
       "id": "sold-out",
       "kind": "button",
       "rect": {
-        "x": 1456,
-        "y": 660,
+        "x": 160,
+        "y": 794,
         "w": 300,
         "h": 120
       },
@@ -576,7 +601,7 @@
       "id": "close-app",
       "kind": "button",
       "rect": {
-        "x": 160,
+        "x": 484,
         "y": 794,
         "w": 300,
         "h": 120
@@ -600,7 +625,7 @@
       "id": "factory-reset",
       "kind": "button",
       "rect": {
-        "x": 484,
+        "x": 808,
         "y": 794,
         "w": 300,
         "h": 120

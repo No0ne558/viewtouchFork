@@ -314,7 +314,6 @@ write("pos/settings.json", {
          "printer": "kitchen", "station": "cold"},
         {"id": "plates", "name": "Plates", "color": "#6b46c1", "periods": ["lunch", "dinner"], "printer": "kitchen"},
         {"id": "combos", "name": "Combos", "color": "#1f8a4c", "periods": ["lunch", "dinner"], "printer": "kitchen"},
-        {"id": "sides", "name": "Sides", "color": "#8a5a2b", "periods": [], "printer": "kitchen", "station": "fryer"},
         {"id": "drinks", "name": "Drinks", "color": "#1f6f73", "periods": [], "printer": "bar"},
         {"id": "events", "name": "Events", "color": "#6b46c1", "periods": [], "printer": "kitchen"},
     ],
@@ -389,7 +388,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "menuCategories", "timeClock", "dashboard", "checklist", "hostStand", "deliveryBoard"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "menuCategories", "menuBuilder", "timeClock", "dashboard", "checklist", "hostStand", "deliveryBoard"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -813,7 +812,9 @@ admin = [("Menu", "menu"), ("Employees", "employees"), ("Settings", "settings"),
 mgr = [label("title", 160, 24, 1600, 100, "Manager")]
 # The Manager screens, then the rest.
 # Today at a glance first.
-slots = [zone("dashboard", 0, 0, 0, 0, "Dashboard", actions=[jump(page="dashboard")], style=fill(BLUE))]
+slots = [zone("dashboard", 0, 0, 0, 0, "Dashboard", actions=[jump(page="dashboard")], style=fill(BLUE)),
+         # The menu on one screen: categories, items, choices, what's on them.
+         zone("menu-builder", 0, 0, 0, 0, "Menu Builder", actions=[jump(page="menu-builder")], style=fill(GREEN))]
 slots += [zone(f"admin-{panel}", 0, 0, 0, 0, text, actions=[command("openAdmin", panel=panel)]) for text, panel in admin]
 slots.append(zone("checklists", 0, 0, 0, 0, "Checklists", actions=[jump(page="checklists")], style=fill(TEAL)))
 slots += [
@@ -841,6 +842,13 @@ mgr.append(zone("network", 568, 940, 384, 120, "Network…", actions=[jump(page=
 mgr.append(zone("self-order", 976, 940, 384, 120, "Self-Order Kiosk", actions=[command("selfOrder")], style=fill(BLUE)))
 mgr.append(zone("find-check", 1384, 940, 384, 120, "Find a Check…", actions=[jump(page="find-check")]))
 page("manager", "Manager", "manager", mgr, role="manager", permission="manager")
+
+# The Menu Builder: categories, a category's items, an item's card.
+page("menu-builder", "Menu Builder", "manager", [
+    label("title", 16, 16, 1888, 80, "Menu Builder"),
+    zone("builder", 16, 112, 1888, 816, kind="menuBuilder"),
+    zone("back", 16, 944, 432, 120, "‹ Manager", actions=[jump(mode="back")]),
+], permission="manager")
 
 # Manager screens (reached through openAdmin from the Manager page)
 for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees", "Employees", "employees"),

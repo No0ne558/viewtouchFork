@@ -269,14 +269,6 @@
       "printer": "kitchen"
     },
     {
-      "id": "sides",
-      "name": "Sides",
-      "color": "#8a5a2b",
-      "periods": [],
-      "printer": "kitchen",
-      "station": "fryer"
-    },
-    {
       "id": "drinks",
       "name": "Drinks",
       "color": "#1f6f73",

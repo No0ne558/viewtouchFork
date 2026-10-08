@@ -4910,3 +4910,56 @@ TEST_CASE("UI: a new item shows up on the menu screen by itself", "[flow][ui][me
     REQUIRE(s.pos.lines().size() == 1);
     CHECK(s.pos.lines()[0].toMap()[u"name"_s].toString() == u"Fish Tacos"_s);
 }
+
+TEST_CASE("UI: the Menu Builder adds an item, with what's on it, and a category", "[flow][ui][menubuild]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto type = [&](const QString &field, const char *text) {
+        QQuickItem *f = by(field);
+        REQUIRE(f);
+        s.tapItem(f);
+        QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
+        for (const char *ch = text; *ch; ++ch)
+            QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+    };
+    REQUIRE(by(u"builderCategory-burgers"_s));
+    s.tapItem(by(u"builderCategory-burgers"_s));
+    QTest::qWait(60);
+    REQUIRE(by(u"builderItem-classic-burger"_s));
+    s.tapItem(by(u"builderAddItem"_s));
+    QTest::qWait(60);
+    type(u"builderName"_s, "Patty Melt");
+    type(u"builderPrice"_s, "12.75");
+    type(u"builderOnIt"_s, "rye, grilled onion, swiss");
+    scrollTo(by(u"builderGroup-temperature"_s));   // down the card
+    s.tapItem(by(u"builderGroup-temperature"_s));
+    s.shot("builder-new-item");
+    s.tapItem(by(u"builderSave"_s));
+    QTest::qWait(150);
+    QVariantMap melt;
+    for (const QVariant &m : s.pos.menuItems())
+        if (m.toMap()[u"name"_s] == u"Patty Melt"_s)
+            melt = m.toMap();
+    REQUIRE_FALSE(melt.isEmpty());
+    CHECK(melt[u"price"_s] == u"$12.75"_s);
+    CHECK(melt[u"family"_s] == u"burgers"_s);
+    CHECK(melt[u"station"_s] == u"grill"_s);   // the Burgers category's
+    CHECK(melt[u"onIt"_s].toStringList() == QStringList{u"rye"_s, u"grilled onion"_s, u"swiss"_s});
+    CHECK(melt[u"groups"_s].toStringList() == QStringList{u"temperature"_s});
+    CHECK(by(u"builderItem-"_s + melt[u"id"_s].toString()));   // its tile, and its card open
+
+    // A new category.
+    s.tapItem(by(u"builderAddCategory"_s));
+    QTest::qWait(60);
+    type(u"builderCategoryName"_s, "Tacos");
+    s.tapItem(by(u"builderSaveCategory"_s));
+    QTest::qWait(100);
+    CHECK(by(u"builderCategory-tacos"_s));
+    CHECK(by(u"builderAddItem"_s));   // Tacos is the one shown, ready for its items
+    s.shot("builder");
+}

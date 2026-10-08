@@ -74,5 +74,9 @@
  "%n order(s) out with %1": {
   "one": "%n order out with %1",
   "other": "%n orders out with %1"
+ },
+ "Move or remove its %n item(s) first.": {
+  "one": "Move or remove its item first.",
+  "other": "Move or remove its %n items first."
  }
 }

@@ -58,7 +58,7 @@ if(Qt6_FOUND)
         app/pos_session.hh app/pos_session.cpp
         app/i18n.hh app/i18n.cpp
         app/pos_service.hh app/pos_service.cpp
-        app/pos_day.cpp app/pos_admin.cpp app/pos_checks.cpp app/pos_menu.cpp app/pos_customers.cpp app/pos_waitlist.cpp app/pos_inventory.cpp app/pos_schedule.cpp app/pos_demo.cpp app/pos_loyalty.cpp app/pos_kiosk.cpp app/pos_search.cpp app/pos_images.cpp app/pos_setup.cpp app/pos_punches.cpp app/pos_dashboard.cpp app/pos_requests.cpp app/pos_phone_orders.cpp app/pos_cards.cpp app/pos_refunds.cpp app/pos_receipts.cpp
+        app/pos_day.cpp app/pos_admin.cpp app/pos_checks.cpp app/pos_menu.cpp app/pos_customers.cpp app/pos_waitlist.cpp app/pos_inventory.cpp app/pos_schedule.cpp app/pos_demo.cpp app/pos_loyalty.cpp app/pos_kiosk.cpp app/pos_search.cpp app/pos_images.cpp app/pos_setup.cpp app/pos_punches.cpp app/pos_dashboard.cpp app/pos_requests.cpp app/pos_phone_orders.cpp app/pos_cards.cpp app/pos_refunds.cpp app/pos_receipts.cpp app/pos_menu_builder.cpp
     )
     target_link_libraries(vtm_pos PUBLIC vtm_core Qt6::Core)
     # Phrase files for the screens' languages (see app/i18n.hh)
@@ -152,6 +152,7 @@ if(Qt6_FOUND)
             ui/qml/WidgetOrderLater.qml
             ui/qml/WidgetMenuGrid.qml
             ui/qml/WidgetMenuCategories.qml
+            ui/qml/WidgetMenuBuilder.qml
             ui/qml/WidgetTimeClock.qml
             ui/qml/WidgetDashboard.qml
             ui/qml/WidgetChecklist.qml

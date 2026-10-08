@@ -238,6 +238,7 @@ QString EditorController::kindName(const QString &kind) const
         {u"orderLater"_s, QT_TR_NOOP("Order for later")},
         {u"menuGrid"_s, QT_TR_NOOP("Menu (self-filling)")},
         {u"menuCategories"_s, QT_TR_NOOP("Menu categories (self-filling)")},
+        {u"menuBuilder"_s, QT_TR_NOOP("Menu Builder")},
         {u"timeClock"_s, QT_TR_NOOP("Time clock")},
         {u"dashboard"_s, QT_TR_NOOP("Dashboard")},
         {u"checklist"_s, QT_TR_NOOP("Checklists")},

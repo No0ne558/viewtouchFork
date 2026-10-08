@@ -607,6 +607,15 @@ public:
     QStringList soldOut() const override;
     QVariantList menuItems() const override;
     QVariantList menuCategories() const override;
+    QVariantList choiceGroups() const override;
+    // The Menu Builder (pos_menu_builder.cpp).
+    bool saveCategory(const QVariantMap &record);   // {id ("" new), name, color, periods, printer, station, taxClass}
+    bool moveCategory(const QString &id, int by);
+    bool deleteCategory(const QString &id);          // only an empty one
+    // {id ("" new), name, price, family, image, description, available, kioskHide,
+    //  taxClass, printer, station, groups: [ids], onIt: [ingredients]}
+    bool saveMenuItemCard(const QVariantMap &card);
+    bool deleteMenuItemCard(const QString &id);
     QVariantList kitchenTickets() const override;
     QVariantMap drawerInfo() const override;
     QVariantMap dayInfo() const override;
@@ -930,6 +939,7 @@ private:
     void noteEvent(core::Check &c, const QString &what, const char *kind, Money amount = {});
     bool mayManage(const core::Check &c, const QString &action);
     bool mayOpen(const core::Check &c) const;
+    QStringList onItOf(const core::MenuItem &m) const;
     core::ReportContext reportContext(const QString &period) const;
     QString dayLabel(const core::BusinessDay &day) const;
     bool saveMenuRecord(int index, const QVariantMap &record);
@@ -942,6 +952,7 @@ private:
     QStringList periodIds() const;
     bool savePrinterRecord(int index, const QVariantMap &record);
     void settingsChanged();
+    void menuChanged();   // the menu changed: sold out again, every screen's menu
 
     PosShared *s_;
     std::unique_ptr<PosShared> owned_;
