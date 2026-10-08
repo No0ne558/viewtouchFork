@@ -479,7 +479,8 @@ page("find-item", "Find an Item", "items", [
 # page), with a button for each category across the top. New items appear
 # with no editing.
 page("menu-all", "Menu", "items", [
-    zone("menu", 592, 104, 1312, 860, kind="menuGrid", props={"columns": 4}),
+    # No columns set: as many as fit the category's items, as big as they can be.
+    zone("menu", 592, 104, 1312, 860, kind="menuGrid"),
 ], templateId="order-template", role="menu")
 
 # ---------------------------------------------------------------- item pages

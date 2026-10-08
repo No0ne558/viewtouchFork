@@ -4922,6 +4922,7 @@ TEST_CASE("UI: the Menu Builder adds an item, with what's on it, and a category"
     const auto type = [&](const QString &field, const char *text) {
         QQuickItem *f = by(field);
         REQUIRE(f);
+        scrollTo(f);
         s.tapItem(f);
         QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
         for (const char *ch = text; *ch; ++ch)
@@ -5048,4 +5049,90 @@ TEST_CASE("UI: the Menu Builder adds several at once, and duplicates one", "[flo
     QQuickItem *name = by(u"builderName"_s);
     REQUIRE(name);
     CHECK(name->property("text").toString() == u"Fish Tacos 2"_s);
+}
+
+TEST_CASE("UI: an older store switches its menu pages to self-filling, then saves", "[flow][ui][menuscreens]")
+{
+    Screen s(false, 1280, 800);
+    // Lunch as older stores have it: category buttons placed by hand.
+    vt::layout::Layout old = s.c.activeLayout();
+    vt::layout::Page *lunch = old.page(u"index-lunch"_s);
+    REQUIRE(lunch);
+    lunch->zones.removeIf([](const vt::layout::Zone &z) { return z.kind == u"menuCategories"_s; });
+    for (const auto &[id, target, x] : {std::tuple{u"cat-burgers"_s, u"items-burgers"_s, 592}, std::tuple{u"cat-salads"_s, u"items-salads"_s, 1036}}) {
+        vt::layout::Zone z;
+        z.id = id;
+        z.label = id;
+        z.rect = QRect(x, 192, 424, 240);
+        vt::layout::Action a;
+        a.data = {{u"type"_s, u"jump"_s}, {u"page"_s, target}};
+        z.actions.append(a);
+        lunch->zones.append(z);
+    }
+    s.c.replaceLayout(old);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    REQUIRE(by(u"builderHandBuilt"_s));                      // the offer
+    s.shot("builder-handbuilt");
+    s.tapItem(by(u"builderSwitchScreens"_s));
+    QTest::qWait(150);
+    REQUIRE(s.c.editing());                                  // to look over
+    CHECK(s.c.pageId() == u"index-lunch"_s);
+    s.shot("builder-switched");
+    REQUIRE(s.c.leaveEditMode(true));                        // Save
+    CHECK_FALSE(s.c.menuScreensHandBuilt());
+    CHECK(s.c.activeLayout().page(u"index-lunch"_s)->zone(u"categories"_s));
+    CHECK_FALSE(s.c.activeLayout().page(u"index-lunch"_s)->zone(u"cat-burgers"_s));
+    QTest::qWait(60);
+    CHECK_FALSE(by(u"builderHandBuilt"_s));                  // nothing more to offer
+}
+
+TEST_CASE("UI: the menu screen's buttons fit their category, and Favorites come first", "[flow][ui][menufit]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.saveMenuItemCard({{u"id"_s, u"cobb"_s}, {u"name"_s, u"Cobb Salad"_s}, {u"favorite"_s, true}}));
+    REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+    QQuickItem *root = s.window->contentItem();
+    QQuickItem *grid = nullptr;
+    const auto findGrid = [&] {
+        std::function<void(QQuickItem *)> walk = [&](QQuickItem *it) {
+            for (QQuickItem *c : it->childItems()) {
+                if (c->isVisible() && QByteArray(c->metaObject()->className()).contains("GridView")
+                    && c->parentItem() && c->parentItem()->parentItem()
+                    && QByteArray(c->parentItem()->parentItem()->metaObject()->className()).contains("WidgetMenuGrid"))
+                    grid = c;
+                walk(c);
+            }
+        };
+        grid = nullptr;
+        walk(root);
+        return grid;
+    };
+    // Every category's items on the screen at once, as big as fits.
+    for (const QVariant &c : s.pos.menuCategories()) {
+        if (c.toMap()[u"count"_s].toInt() == 0)
+            continue;
+        REQUIRE(s.c.openCategory(c.toMap()[u"id"_s].toString()));
+        QTest::qWait(80);
+        REQUIRE(findGrid());
+        INFO(c.toMap()[u"name"_s].toString().toStdString());
+        CHECK(grid->property("contentHeight").toReal() <= grid->height() + 1);   // no scrolling
+        CHECK(grid->property("cellHeight").toReal() >= 90);                     // big enough to touch
+    }
+    REQUIRE(s.c.openCategory(u"burgers"_s));
+    QTest::qWait(80);
+    s.shot("menu-fit-burgers");
+
+    // ★ Favorites: first, with the one marked.
+    QQuickItem *fav = Screen::findBy(root, "objectName", u"menuFamily-★"_s);
+    REQUIRE(fav);
+    s.tapItem(fav);
+    QTest::qWait(80);
+    CHECK(s.c.menuCategory() == u"★"_s);
+    CHECK(Screen::findBy(root, "objectName", u"menuItem-cobb"_s));
+    s.shot("menu-favorites");
 }

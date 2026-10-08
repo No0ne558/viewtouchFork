@@ -332,6 +332,8 @@ QJsonObject toJson(const MenuItem &m)
         o.insert(u"image"_s, qs(m.image));
     if (m.kioskHide)
         o.insert(u"kioskHide"_s, true);
+    if (m.favorite)
+        o.insert(u"favorite"_s, true);
     return o;
 }
 
@@ -379,6 +381,7 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     m.noStaffDiscount = o.value(u"noStaffDiscount").toBool();
     m.image = ss(o.value(u"image").toString().trimmed());
     m.kioskHide = o.value(u"kioskHide").toBool();
+    m.favorite = o.value(u"favorite").toBool();
     return m;
 }
 

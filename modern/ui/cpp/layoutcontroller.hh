@@ -62,6 +62,9 @@ class LayoutController : public QObject {
     // The menu category being shown (a self-filling menu with no category of
     // its own shows this one).
     Q_PROPERTY(QString menuCategory READ menuCategory WRITE setMenuCategory NOTIFY menuCategoryChanged)
+    // The store's meal pages have category buttons placed by hand (new
+    // items show up on none): the Menu Builder offers to switch them.
+    Q_PROPERTY(bool menuScreensHandBuilt READ menuScreensHandBuilt NOTIFY menuScreensChanged)
     // Font families this screen can use: its own and the store's (installed here).
     Q_PROPERTY(QStringList fontFamilies READ fontFamilies NOTIFY fontsChanged)
     // The setup guide is showing (opens for managers until it's finished).
@@ -169,6 +172,11 @@ public:
     Q_INVOKABLE bool jumpTo(const QString &pageId);
     // A category's items: the menu page (role "menu", else "menu-all") on it.
     Q_INVOKABLE bool openCategory(const QString &categoryId);
+    bool menuScreensHandBuilt() const;
+    // The meal pages made self-filling, in the page editor (one step: look it
+    // over, then Save, or Undo); false when there's nothing to switch or
+    // this person may not edit pages.
+    Q_INVOKABLE bool switchToSelfFillingMenu();
     QString menuCategory() const { return menuCategory_; }
     void setMenuCategory(const QString &id);
     // Holding a button: what it does, in plain words, instead of doing it.
@@ -217,6 +225,7 @@ signals:
     void mealPeriodChanged();
     void statusColorsChanged();
     void menuCategoryChanged();
+    void menuScreensChanged();
     void fontsChanged();
     void setupOpenChanged();
     // A command for the widgets on the page (kitchenStation, kitchenAllDay...).

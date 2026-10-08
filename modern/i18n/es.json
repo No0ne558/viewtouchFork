@@ -381,6 +381,7 @@
  "Allergy: please check": "Alergia: por favor revisar",
  "Almost done: %1": "Casi listo: %1",
  "Also copy backups to": "Copiar también las copias de seguridad a",
+ "Always in the order screen's ★ Favorites, with today's best sellers.": "Siempre en ★ Favoritos de la pantalla de pedidos, con lo más vendido hoy.",
  "Amount": "Cantidad",
  "Amount (up to %1)": "Cantidad (hasta %1)",
  "Amount entered": "Cantidad escrita",
@@ -1693,6 +1694,7 @@
  "Select two or more zones to align.": "Seleccione dos o más zonas para alinear.",
  "Select two or more zones; the first one sets the size.": "Seleccione dos o más zonas; la primera fija el tamaño.",
  "Self-Order Kiosk": "Quiosco de autoservicio",
+ "Self-filling menu screens": "Pantallas del menú automáticas",
  "Self-order kiosk": "Quiosco de autoservicio",
  "Self-order kiosk (guests order on their own)": "Quiosco de autoservicio (los clientes ordenan solos)",
  "Self-order kiosk off": "Quiosco de autoservicio desactivado",
@@ -1836,6 +1838,7 @@
  "Subtotal": "Subtotal",
  "Sunday": "Domingo",
  "Switch User": "Cambiar Usuario",
+ "Switch to Self-Filling": "Cambiar a automáticas",
  "T1": "T1",
  "T2": "T2",
  "T3": "T3",
@@ -2335,6 +2338,8 @@
  "Your change: %1": "Su cambio: %1",
  "Your logo": "Su logo",
  "Your logo goes on the login page, the screen saver, the customer display and the kiosk, and on receipts if you like.": "Su logo va en la página de inicio, el protector de pantalla, la pantalla del cliente y el quiosco, y en los recibos si quiere.",
+ "Your menu pages have buttons placed by hand, so new items and categories don't show up on them. Switch them to fill themselves from the menu? You'll see them in the page editor first, to Save or Undo.": "Sus páginas del menú tienen botones colocados a mano, así que los artículos y categorías nuevos no aparecen en ellas. ¿Cambiarlas para que se llenen solas desde el menú? Primero las verá en el editor de páginas, para Guardar o Deshacer.",
+ "Your menu pages now fill themselves. Look them over, then Save (Undo puts them back).": "Sus páginas del menú ahora se llenan solas. Revíselas y luego Guarde (Deshacer las regresa).",
  "Your name, so we can call your order": "Su nombre, para llamarle cuando esté su orden",
  "Your order number": "Su número de orden",
  "Your order will be cleared in %1 seconds.": "Su orden se borrará en %1 segundos.",
@@ -2466,5 +2471,7 @@
  "‹ Results": "‹ Resultados",
  "‹ Search": "‹ Buscar",
  "‹ Tables": "‹ Mesas",
- "◀ Earlier": "◀ Antes"
+ "◀ Earlier": "◀ Antes",
+ "★ Favorite": "★ Favorito",
+ "★ Favorites": "★ Favoritos"
 }

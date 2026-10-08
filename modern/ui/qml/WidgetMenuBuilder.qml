@@ -77,7 +77,7 @@ Item {
     function editItem(i) {
         draft = i ? { id: i.id, name: i.name, price: i.priceValue.toFixed(2), family: i.family, image: i.image,
                       groups: i.groups.slice(), onIt: i.onIt.join(", "), available: i.availableSet,
-                      kioskHide: i.kioskHide, description: i.description }
+                      kioskHide: i.kioskHide, description: i.description, favorite: i.favorite }
                   : { id: "", name: "", price: "", family: categoryId, image: "", groups: [], onIt: "",
                       available: true, kioskHide: false, description: "" }
         itemId = i ? i.id : ""
@@ -180,9 +180,37 @@ Item {
         scale: w.zoom
         transformOrigin: Item.TopLeft
 
+        // Older stores: meal pages with category buttons placed by hand.
+        Rectangle {
+            id: handBuilt
+            objectName: "builderHandBuilt"
+            visible: w.zone && w.zone.controller ? w.zone.controller.menuScreensHandBuilt : false
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+            height: visible ? handBuiltRow.implicitHeight + 20 : 0
+            radius: 8
+            color: "#4a3a14"
+            RowLayout {
+                id: handBuiltRow
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 12
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 15
+                    text: qsTr("Your menu pages have buttons placed by hand, so new items and categories don't show up on them. Switch them to fill themselves from the menu? You'll see them in the page editor first, to Save or Undo.")
+                }
+                TouchButton {
+                    objectName: "builderSwitchScreens"
+                    highlighted: true
+                    text: qsTr("Switch to Self-Filling")
+                    onClicked: w.zone.controller.switchToSelfFillingMenu()
+                }
+            }
+        }
+
         RowLayout {
-            anchors.fill: parent
-            anchors.margins: 8
+            anchors { left: parent.left; right: parent.right; top: handBuilt.bottom; bottom: parent.bottom; margins: 8 }
             spacing: 12
 
             // --- categories ---
@@ -474,6 +502,14 @@ Item {
                                 Switch {
                                     checked: !(w.draft.available ?? true)
                                     onToggled: w.set("available", !checked)
+                                }
+                                Label { text: qsTr("★ Favorite") }
+                                Switch {
+                                    objectName: "builderFavorite"
+                                    checked: w.draft.favorite ?? false
+                                    onToggled: w.set("favorite", checked)
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("Always in the order screen's ★ Favorites, with today's best sellers.")
                                 }
                                 Label { text: qsTr("On the kiosk") }
                                 Switch {

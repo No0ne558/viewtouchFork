@@ -12,7 +12,22 @@ Item {
     property ZoneItem zone
     readonly property PosService pos: zone ? zone.pos : null
     readonly property string fixedFamily: zone && zone.props && zone.props.family ? zone.props.family : ""
-    readonly property int columns: zone && zone.props && zone.props.columns > 0 ? zone.props.columns : 4
+    // Columns: set, or (none set) as many as fit the items without scrolling,
+    // as big as they can be.
+    readonly property int setColumns: zone && zone.props && zone.props.columns > 0 ? zone.props.columns : 0
+    readonly property int columns: setColumns > 0 ? setColumns : fitColumns
+    readonly property int fitColumns: {
+        const n = Math.max(1, shown.length)
+        const W = grid.width, H = grid.height
+        if (W <= 0 || H <= 0)
+            return 4
+        let best = 3, bestHeight = 0
+        for (let c = 2; c <= 7; ++c) {
+            const h = Math.min(W / c * (photos ? 0.9 : 0.62), H / Math.ceil(n / c))
+            if (h > bestHeight + 0.5) { best = c; bestHeight = h }
+        }
+        return best
+    }
     readonly property bool photos: zone && zone.props && zone.props.photos === true
     readonly property bool search: zone && zone.props && zone.props.search === true
     readonly property bool popular: zone && zone.props && zone.props.popular === true
@@ -22,7 +37,17 @@ Item {
     readonly property var items: pos ? pos.menuItems.filter(i => !i.modifier) : []
     // The menu's categories with items, in their order (Menu Builder).
     readonly property var categories: pos ? pos.menuCategories.filter(c => c.count > 0) : []
-    readonly property var families: categories.map(c => c.id)
+    // ★ Favorites first: the items marked so, then today's best sellers (12 in all).
+    readonly property var favorites: {
+        const out = items.filter(i => i.favorite)
+        for (const id of (pos ? pos.popularItems : []))
+            if (out.length < 12 && !out.some(i => i.id === id)) {
+                const i = items.find(x => x.id === id)
+                if (i) out.push(i)
+            }
+        return out.slice(0, Math.max(12, items.filter(i => i.favorite).length))
+    }
+    readonly property var families: (favorites.length ? ["★"] : []).concat(categories.map(c => c.id))
     // The category being shown: the one touched on the menu screen.
     readonly property string chosen: zone && zone.controller ? zone.controller.menuCategory : ""
     readonly property string family: fixedFamily !== "" ? fixedFamily
@@ -34,7 +59,7 @@ Item {
         if (popular)
             return (pos ? pos.popularItems : []).map(id => items.find(i => i.id === id)).filter(i => i !== undefined)
         if (!search)
-            return items.filter(i => i.family === family)
+            return family === "★" ? favorites : items.filter(i => i.family === family)
         if (typed === "")
             return []
         const digits = /^[0-9]+$/.test(typed)
@@ -49,6 +74,8 @@ Item {
                     .sort((a, b) => a.rank - b.rank || a.item.name.localeCompare(b.item.name)).map(x => x.item)
     }
     function title(f) {
+        if (f === "★")
+            return qsTr("★ Favorites")
         const name = categoryOf(f).name ?? ""
         return f === "" ? qsTr("Other") : qsTranslate("Page", name !== "" ? name : f.charAt(0).toUpperCase() + f.slice(1))
     }
@@ -117,7 +144,10 @@ Item {
             clip: true
             model: w.shown
             cellWidth: width / w.columns
-            cellHeight: Math.min(cellWidth * (w.photos ? 0.9 : 0.6), Math.max(110, height / 3))
+            // Set columns: as before. Fitted: as tall as the rows allow.
+            cellHeight: w.setColumns > 0 ? Math.min(cellWidth * (w.photos ? 0.9 : 0.6), Math.max(110, height / 3))
+                                        : Math.max(90, Math.min(cellWidth * (w.photos ? 0.9 : 0.75),
+                                                                height / Math.ceil(Math.max(1, w.shown.length) / w.columns)))
             boundsBehavior: Flickable.StopAtBounds
             delegate: Item {
                 id: cell
@@ -205,7 +235,9 @@ Item {
                             text: qsTranslate("Page", cell.modelData.name)
                             color: cell.itemColor ? w.inkOn(cell.itemColor) : (card.st.keyTextColor ?? "white")
                             font.family: card.st.keyFont ?? w.face
-                            font.pixelSize: Math.max(14, Math.min(cell.height * 0.16, cell.width * 0.11))
+                            // Smaller for a long word, so it never breaks mid-word.
+                            readonly property int longest: Math.max(4, ...cell.modelData.name.split(/\s+/).map(x => x.length))
+                            font.pixelSize: Math.max(13, Math.min(cell.height * 0.16, cell.width * 0.11, cell.width * 1.6 / longest))
                             font.bold: true
                         }
                         Text {

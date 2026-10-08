@@ -12,6 +12,7 @@
 
 #include "core/employee.hh"
 #include "core/settings.hh"
+#include "layout/menu_screens.hh"
 #include "layout/reflow.hh"
 #include "layout/schema.hh"
 #include "reportexport.hh"
@@ -222,6 +223,7 @@ void LayoutController::setStore(vt::storage::LayoutStore *store)
 void LayoutController::replaceLayout(Layout layout)
 {
     layout_ = std::move(layout);
+    emit menuScreensChanged();
     if (lookedLayout_)
         updateTerminalLook();   // the new pages, in this screen's look
     if (editing_) {
@@ -715,6 +717,33 @@ void LayoutController::setMenuCategory(const QString &id)
     emit menuCategoryChanged();
 }
 
+bool LayoutController::menuScreensHandBuilt() const
+{
+    return vt::layout::hasHandBuiltMenu(layout_);
+}
+
+bool LayoutController::switchToSelfFillingMenu()
+{
+    if (!vt::layout::hasHandBuiltMenu(layout_))
+        return false;
+    if (!requestEditMode())
+        return false;
+    const vt::layout::Layout before = editor_->layout();
+    const vt::layout::Layout switched = vt::layout::withSelfFillingMenu(before);
+    if (!editor_->editor().replaceLayout(switched, tr("Self-filling menu screens")))
+        return false;
+    // Shown: the first meal page that changed.
+    for (const vt::layout::Page &p : switched.pages) {
+        const vt::layout::Page *was = before.page(p.id);
+        if (p.kind == u"index" && was && !(was->zones == p.zones)) {
+            showPage(p.id);
+            break;
+        }
+    }
+    setStatus(tr("Your menu pages now fill themselves. Look them over, then Save (Undo puts them back)."));
+    return true;
+}
+
 bool LayoutController::openCategory(const QString &categoryId)
 {
     setMenuCategory(categoryId);
@@ -805,6 +834,7 @@ bool LayoutController::saveEdits()
         }
     }
     layout_ = draft;
+    emit menuScreensChanged();
     if (lookedLayout_)
         updateTerminalLook();
     editor_->editor().markClean();

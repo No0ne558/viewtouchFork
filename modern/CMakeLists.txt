@@ -41,6 +41,7 @@ if(Qt6_FOUND)
         layout/json_path.hh layout/json_path.cpp
         layout/schema.hh layout/schema.cpp
         layout/reflow.hh layout/reflow.cpp
+        layout/menu_screens.hh layout/menu_screens.cpp
         app/navigator.hh app/navigator.cpp
     )
     target_include_directories(vtm_layout PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

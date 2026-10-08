@@ -303,6 +303,8 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
         item.available = card.value(u"available"_s).toBool();
     if (card.contains(u"kioskHide"_s))
         item.kioskHide = card.value(u"kioskHide"_s).toBool();
+    if (card.contains(u"favorite"_s))
+        item.favorite = card.value(u"favorite"_s).toBool();
     if (card.contains(u"taxClass"_s))
         item.taxClass = taxClassFromString(ss(card.value(u"taxClass"_s).toString()));
     if (card.contains(u"printer"_s))

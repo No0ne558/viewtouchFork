@@ -56,6 +56,8 @@ struct MenuItem {
     // Its button color in the self-filling menu ("#a86a12"); empty: the panel's.
     std::string buttonColor;
     bool kioskHide = false;
+    // Always in the menu screen's Favorites (with today's best sellers).
+    bool favorite = false;
     // Prices by order type (0: the regular price), and who may not discount it.
     Money takeoutPrice;
     Money deliveryPrice;
