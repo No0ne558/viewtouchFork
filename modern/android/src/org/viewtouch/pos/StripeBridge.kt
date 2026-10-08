@@ -185,15 +185,16 @@ object StripeBridge {
 
     private fun approved(intent: PaymentIntent) {
         current = null
-        val card = intent.latestCharge?.paymentMethodDetails?.cardPresentDetails
-            ?: intent.paymentMethod?.cardPresentDetails
+        // The card, from the charge (or the payment method, when the charge isn't there).
+        val charged = intent.latestCharge?.paymentMethodDetails?.cardPresentDetails
+        val presented = intent.paymentMethod?.cardPresentDetails
         nativeResult(
             JSONObject()
                 .put("status", "approved")
                 .put("id", intent.id ?: "")
                 .put("amount", intent.amount)
-                .put("brand", card?.brand?.toString() ?: "")
-                .put("last4", card?.last4 ?: "")
+                .put("brand", (charged?.brand ?: presented?.brand)?.toString() ?: "")
+                .put("last4", charged?.last4 ?: presented?.last4 ?: "")
                 .toString()
         )
     }
