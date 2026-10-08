@@ -55,6 +55,8 @@ PosShared::PosShared(PosData data, PosSink *sink, QObject *parent)
     , drawers(std::move(data.drawers))
     , lastDrawerId(data.lastDrawerId)
     , pastDays(std::move(data.pastDays))
+    , refundsToday(std::move(data.refundsToday))
+    , lastRefundId(data.lastRefundId)
     , now_([] { return QDateTime::currentMSecsSinceEpoch(); })
 {
     for (Check &c : data.openChecks) {
@@ -1395,11 +1397,14 @@ bool PosService::removePayment()
     // The selected payment, else the most recent one.
     const auto chosen = std::ranges::find_if(c->payments, [&](const Payment &p) { return p.id == selectedPayment_; });
     const Payment removed = chosen != c->payments.end() ? *chosen : c->payments.back();
-    // A card taken on a Stripe reader: the money goes back first; it comes off when Stripe says so.
+    // A card taken on a Stripe reader: money back to the guest, a manager's
+    // call; it comes off when Stripe says so.
+    if (removed.processor == "stripe" && !c->training && !require(perm::Manager, tr("Refunding a card")))
+        return false;
     switch (refundCardPayment(*c, removed)) {
-    case Refund::Started: return true;
-    case Refund::CantNow: return false;
-    case Refund::NotNeeded: break;
+    case RefundStart::Started: return true;
+    case RefundStart::CantNow: return false;
+    case RefundStart::NotNeeded: break;
     }
     const Money discountsBefore = c->totals(s_->settings.tax).discounts;
     c->removePayment(removed.id);
@@ -2169,7 +2174,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"loginWithPin"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.loginWithPin(a.value(0).toString())); }},
         {u"logout"_s, [](PosService &p, const QVariantList &) { p.logout(); return QVariant(true); }},
         {u"clockIn"_s, [](PosService &p, const QVariantList &) { return QVariant(p.clockIn()); }},
-        {u"searchChecks"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.searchChecks(a.value(0).toString(), a.value(1, 365).toInt())); }},
+        {u"searchChecks"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.searchChecks(a.value(0).toString(), a.value(1, 365).toInt(), a.value(2, 0).toInt())); }},
         {u"selectFoundCheck"_s, [](PosService &p, const QVariantList &a) { p.selectFoundCheck(a.value(0).toLongLong()); return QVariant(true); }},
         {u"reprintCheck"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.reprintCheck(a.value(0).toLongLong())); }},
         {u"receiveDelivery"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.receiveDelivery(a.value(0).toMap())); }},
@@ -2219,6 +2224,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"refreshDay"_s, [](PosService &p, const QVariantList &) { emit p.shared()->dayChanged(); return QVariant(true); }},
         {u"cardCharge"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.cardCharge(a.value(0).toString())); }},
         {u"recordCardPayment"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.recordCardPayment(a.value(0).toMap())); }},
+        {u"refundPayment"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.refundPayment(a.value(0).toLongLong(), a.value(1).toLongLong(), a.value(2).toLongLong(), a.value(3).toString())); }},
         {u"startCounterCharge"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.startCounterCharge(a.value(0).toString())); }},
         {u"cancelCounterCharge"_s, [](PosService &p, const QVariantList &) { return QVariant(p.cancelCounterCharge()); }},
         {u"presentTestCard"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.presentTestCard(a.value(0).toBool())); }},

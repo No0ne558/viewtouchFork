@@ -76,7 +76,9 @@ std::map<std::string, TipShare> tipShares(const std::vector<Check> &closed, cons
                                           const PosSettings &settings, const std::vector<Employee> &employees,
                                           const std::map<std::string, double> &hours);
 
-Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx);
+// Refunds: the day's (given), else those on these checks (a range).
+Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx,
+                    const std::vector<Refund> *refunds = nullptr);
 Report itemSales(const std::vector<Check> &closed, const std::vector<MenuItem> &menu, const ReportContext &ctx);
 Report serverSales(const std::vector<Check> &closed, const ReportContext &ctx);
 // Deliveries by driver: how many, their sales, delivery fees, tips, and how
@@ -107,7 +109,8 @@ Report exceptionsReport(const std::vector<const Check *> &checks, const std::vec
 // drawer counted, less the starting cash kept for tomorrow), card payments
 // to settle, and whether what was collected matches what was sold.
 Report depositReport(const std::vector<DrawerSession> &drawers, const std::vector<Check> &closed,
-                     const std::vector<const Check *> &open, const ReportContext &ctx);
+                     const std::vector<const Check *> &open, const ReportContext &ctx,
+                     const std::vector<Refund> &refunds = {});
 // Gift cards sold and spent since `since`, what is still on cards (owed by
 // the store), and house account charges, payments and balances.
 Report accountsReport(const std::vector<GiftCard> &cards, const std::vector<CustomerRecord> &customers,

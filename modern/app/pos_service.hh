@@ -12,6 +12,7 @@
 #include "app/pos_session.hh"
 
 #include <QJsonObject>
+#include <QSet>
 #include <QTimer>
 
 #include <QObject>
@@ -51,6 +52,7 @@ public:
     virtual void deletePunch(std::int64_t id) { Q_UNUSED(id) }
     virtual void deleteShift(std::int64_t id) { Q_UNUSED(id) }
     virtual void saveDelivery(const core::Delivery &) {}
+    virtual void saveRefund(const core::Refund &) {}
     // The store's pictures (logo, buttons, backgrounds): name -> file bytes.
     virtual void saveImage(const std::string &name, const QByteArray &data) { Q_UNUSED(name) Q_UNUSED(data) }
     virtual void deleteImage(const std::string &name) { Q_UNUSED(name) }
@@ -110,6 +112,8 @@ struct PosData {
     std::vector<core::DrawerSession> drawers;     // today's, plus any still open
     std::int64_t lastDrawerId = 0;
     std::vector<PastDay> pastDays;                // newest first
+    std::vector<core::Refund> refundsToday;       // this business day's refunds (any check's)
+    std::int64_t lastRefundId = 0;
 };
 
 // State shared by every terminal of one store: open checks, today's closed
@@ -184,6 +188,17 @@ public:
     std::vector<core::DrawerSession> drawers;   // drawers and server banks; today's plus open ones
     std::int64_t lastDrawerId = 0;
     std::vector<PastDay> pastDays;
+    std::vector<core::Refund> refundsToday;
+    std::int64_t lastRefundId = 0;
+    // Closed checks back to the first one (Find a Check): the newest first,
+    // in [from, to) (to = 0: up to now), those whose saved record contains
+    // any of `words` (none: all), `limit` from `offset`. Set by main (storage).
+    struct CheckFind {
+        std::int64_t from = 0, to = 0;
+        QStringList words;
+        int limit = 50, offset = 0;
+    };
+    std::function<std::vector<core::Check>(const CheckFind &)> findChecks;
 
     // The terminal's open drawer / its most recent one today.
     core::DrawerSession *openDrawerFor(const std::string &terminal);
@@ -296,7 +311,9 @@ public:
     // Find checks, open or closed, from the last `days`: "#123", "17.62",
     // or text (table, customer, phone, server, item, gift card). Results
     // arrive in checkSearch (loading until then).
-    bool searchChecks(const QString &query, int days = 365);
+    // Closed checks back to the first: `query` (empty: all of them) in the
+    // last `days` (0: ever), a page from `offset` (checkSearch: nextOffset).
+    bool searchChecks(const QString &query, int days = 365, int offset = 0);
     void selectFoundCheck(qint64 id);
     bool reprintCheck(qint64 id);   // a copy of a found check's receipt
     QVariantMap checkSearch() const override;
@@ -664,6 +681,10 @@ public:
     bool notifyParty(qint64 id);       // "your table is ready" (texted when set up)
     // Seat them: opens their table's check for `serverId` (default: you).
     bool seatParty(qint64 id, const QString &table, const QString &serverId = {});
+    // Refunds on closed checks, today's or found (pos_refunds.cpp): a
+    // manager's; `cents` 0: all that's left of that payment.
+    bool refundPayment(qint64 checkId, qint64 paymentId, qint64 cents, const QString &reason);
+    const std::vector<core::Refund> &refundsToday() const { return s_->refundsToday; }
     // Cards on a reader (pos_cards.cpp).
     QString terminalCardReader() const override;
     QVariantMap readerToken() const override { return readerToken_; }
@@ -679,8 +700,8 @@ public:
     void pairCounterReader(const QVariantMap &record);
     QString counterReaderId() const;
     QString counterReaderLabel(const QString &id) const;
-    enum class Refund { NotNeeded, Started, CantNow };
-    Refund refundCardPayment(const core::Check &c, const core::Payment &p);
+    enum class RefundStart { NotNeeded, Started, CantNow };
+    RefundStart refundCardPayment(const core::Check &c, const core::Payment &p);
     // Phone orders and deliveries (pos_phone_orders.cpp).
     bool sameAsLastTime();
     bool sendOut(const QVariantList &checkIds, const QString &driverId);
@@ -896,6 +917,8 @@ private:
     QVariantMap readerToken_;          // the latest connection token for this terminal's reader
     int readerTokenSeq_ = 0;
     std::set<std::int64_t> refunding_; // card payments whose refund is on its way
+    QSet<QString> refundsUnderway_;    // "check/payment" refunds on their way (closed checks)
+    core::Check *closedCheckFor(qint64 checkId);
     // The card a countertop reader is taking: {status: starting | waiting,
     // reader, readerLabel, paymentIntent, amount, test...}; empty when none.
     QVariantMap counter_;

@@ -121,6 +121,26 @@ struct Payment {
     bool operator==(const Payment &) const = default;
 };
 
+// Money given back on a paid check (after it closed): through Stripe for a
+// card from a reader, out of the drawer for cash, or recorded only (a card
+// refunded on another terminal).
+struct Refund {
+    std::int64_t id = 0;
+    std::int64_t at = 0;
+    std::int64_t paymentId = 0;   // which payment it gives back
+    Money amount;
+    std::string reason;
+    std::string by;               // the manager who did it
+    std::string reference;        // Stripe's refund id (re_...)
+    std::string tenderName;
+    std::string method;           // "stripe", "cash" (out of a drawer), "recorded" (given back elsewhere)
+    std::int64_t day = 0;         // the business day it happened on (its reports)
+    std::int64_t checkId = 0;     // the check it was on, and its name then
+    std::string checkLabel;
+
+    bool operator==(const Refund &) const = default;
+};
+
 // Tab: a bar tab, opened under the guest's name and kept open all night.
 enum class CheckType { DineIn, Takeout, Quick, Delivery, Tab };
 
@@ -209,6 +229,16 @@ struct Check {
     std::int64_t dueAt = 0;
     // Course pacing: the next held course fires by itself at this time (0: when someone fires it).
     std::int64_t fireAt = 0;
+    // Money given back after it was paid (newest last).
+    std::vector<Refund> refunds;
+    Money refunded(std::int64_t paymentId) const
+    {
+        Money sum;
+        for (const Refund &r : refunds)
+            if (r.paymentId == paymentId)
+                sum += r.amount;
+        return sum;
+    }
     // Phone orders: the time the guest was told at the first Send (0: none).
     std::int64_t promisedAt = 0;
     // Deliveries: who took it out, when, and when they were back.

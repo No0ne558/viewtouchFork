@@ -18,7 +18,7 @@ class AsyncWriter;
 // service go through AsyncWriter via SqlPosSink.
 class PosStore {
 public:
-    static constexpr int DbSchemaVersion = 11;
+    static constexpr int DbSchemaVersion = 12;
 
     explicit PosStore(QString databasePath);
     ~PosStore();
@@ -65,6 +65,7 @@ public:
     void deleteIngredient(const std::string &id) override;
     void saveShift(const core::Shift &shift) override;
     void saveDelivery(const core::Delivery &delivery) override;
+    void saveRefund(const core::Refund &refund) override;
     void saveImage(const std::string &name, const QByteArray &data) override;
     void deleteImage(const std::string &name) override;
     void deleteShift(std::int64_t id) override;
@@ -78,6 +79,11 @@ private:
 // own: safe on a worker thread while the POS runs. For reports over a range.
 // Time punches clocked in between from and to (Manager -> Time Punches, older ones).
 std::vector<core::TimePunch> punchesBetween(const QString &dbPath, std::int64_t from, std::int64_t to);
+// Closed checks, the newest first: closed in [from, to) (to 0: no end),
+// whose saved record contains any of `words` (none: every one), `limit`
+// of them from `offset`. Its own connection: for a worker thread.
+std::vector<core::Check> findClosedChecks(const QString &dbPath, std::int64_t from, std::int64_t to,
+                                          const QStringList &words, int limit, int offset, QString *error = nullptr);
 std::vector<core::Check> closedChecksBetween(const QString &dbPath, std::int64_t from, std::int64_t to,
                                              QString *error = nullptr);
 

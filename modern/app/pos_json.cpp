@@ -28,6 +28,32 @@ Money money(const QJsonValue &v) { return Money::fromCents(v.toInteger()); }
 
 // --- checks --------------------------------------------------------------------
 
+QJsonObject toJson(const Refund &r)
+{
+    return {{u"id"_s, qint64(r.id)}, {u"at"_s, qint64(r.at)}, {u"paymentId"_s, qint64(r.paymentId)},
+            {u"amount"_s, qint64(r.amount.cents())}, {u"reason"_s, qs(r.reason)}, {u"by"_s, qs(r.by)},
+            {u"reference"_s, qs(r.reference)}, {u"tenderName"_s, qs(r.tenderName)}, {u"day"_s, qint64(r.day)},
+            {u"checkId"_s, qint64(r.checkId)}, {u"checkLabel"_s, qs(r.checkLabel)}, {u"method"_s, qs(r.method)}};
+}
+
+Refund refundFromJson(const QJsonObject &o)
+{
+    Refund r;
+    r.id = i64(o.value(u"id"));
+    r.at = i64(o.value(u"at"));
+    r.paymentId = i64(o.value(u"paymentId"));
+    r.amount = money(o.value(u"amount"));
+    r.reason = ss(o.value(u"reason").toString());
+    r.by = ss(o.value(u"by").toString());
+    r.reference = ss(o.value(u"reference").toString());
+    r.tenderName = ss(o.value(u"tenderName").toString());
+    r.day = i64(o.value(u"day"));
+    r.checkId = i64(o.value(u"checkId"));
+    r.checkLabel = ss(o.value(u"checkLabel").toString());
+    r.method = ss(o.value(u"method").toString());
+    return r;
+}
+
 QJsonObject toJson(const Check &c)
 {
     QJsonArray lines;
@@ -123,7 +149,13 @@ QJsonObject toJson(const Check &c)
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
         {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse}, {u"customerId"_s, qs(c.customerId)},
         {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"kiosk"_s, c.kiosk}, {u"dueAt"_s, qint64(c.dueAt)}, {u"fireAt"_s, qint64(c.fireAt)},
-        {u"promisedAt"_s, qint64(c.promisedAt)}, {u"driverId"_s, qs(c.driverId)}, {u"driverName"_s, qs(c.driverName)},
+        {u"promisedAt"_s, qint64(c.promisedAt)},
+        {u"refunds"_s, [&] {
+             QJsonArray a;
+             for (const Refund &r : c.refunds)
+                 a.append(toJson(r));
+             return a;
+         }()}, {u"driverId"_s, qs(c.driverId)}, {u"driverName"_s, qs(c.driverName)},
         {u"outAt"_s, qint64(c.outAt)}, {u"deliveredAt"_s, qint64(c.deliveredAt)}, {u"pointsEarned"_s, c.pointsEarned}, {u"training"_s, c.training},
     };
 }
@@ -214,6 +246,8 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     c.dueAt = o.value(u"dueAt").toInteger(0);
     c.fireAt = o.value(u"fireAt").toInteger(0);
     c.promisedAt = o.value(u"promisedAt").toInteger(0);
+    for (const QJsonValue &v : o.value(u"refunds").toArray())
+        c.refunds.push_back(refundFromJson(v.toObject()));
     c.driverId = ss(o.value(u"driverId").toString());
     c.driverName = ss(o.value(u"driverName").toString());
     c.outAt = o.value(u"outAt").toInteger(0);

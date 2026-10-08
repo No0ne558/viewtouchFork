@@ -228,6 +228,13 @@ bool PosStore::open(QString *error)
             || !run(q, u"UPDATE meta SET value = '11' WHERE key = 'pos_schema_version'"_s, error))
             return false;
     }
+    if (version < 12) {   // refunds on closed checks, by the day they happened
+        if (!run(q, u"CREATE TABLE IF NOT EXISTS refunds (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, "
+                     "day INTEGER NOT NULL, check_id INTEGER NOT NULL, json TEXT NOT NULL)"_s, error)
+            || !run(q, u"CREATE INDEX IF NOT EXISTS refunds_day ON refunds (day)"_s, error)
+            || !run(q, u"UPDATE meta SET value = '12' WHERE key = 'pos_schema_version'"_s, error))
+            return false;
+    }
     return true;
 }
 
@@ -379,6 +386,16 @@ std::optional<app::PosData> PosStore::load(QStringList *errors) const
             }
         }
     }
+    if (data.currentDay) {
+        q.prepare(u"SELECT json FROM refunds WHERE day = ? ORDER BY id"_s);
+        q.addBindValue(qint64(data.currentDay->id));
+        if (q.exec()) {
+            while (q.next())
+                data.refundsToday.push_back(app::refundFromJson(parse(q.value(0))));
+        }
+    }
+    if (q.exec(u"SELECT COALESCE(MAX(id), 0) FROM refunds"_s) && q.next())
+        data.lastRefundId = q.value(0).toLongLong();
     if (q.exec(u"SELECT id, opened_at, closed_at, reports FROM business_days WHERE closed_at != 0 "
                "ORDER BY id DESC LIMIT 60"_s)) {
         while (q.next()) {
@@ -525,6 +542,13 @@ void SqlPosSink::saveDelivery(const core::Delivery &d)
                    {{u"id"_s, qint64(d.id)}, {u"at"_s, qint64(d.at)}, {u"json"_s, compact(app::toJson(d))}});
 }
 
+void SqlPosSink::saveRefund(const core::Refund &r)
+{
+    writer_.upsert(u"refunds"_s, QString::number(r.id),
+                   {{u"id"_s, qint64(r.id)}, {u"at"_s, qint64(r.at)}, {u"day"_s, qint64(r.day)},
+                    {u"check_id"_s, qint64(r.checkId)}, {u"json"_s, compact(app::toJson(r))}});
+}
+
 void SqlPosSink::saveImage(const std::string &name, const QByteArray &data)
 {
     writer_.upsert(u"images"_s, QString::fromStdString(name),
@@ -559,6 +583,54 @@ void SqlPosSink::savePunch(const TimePunch &p)
         {u"breaks"_s, QString::fromUtf8(QJsonDocument(app::toJson(p).value(u"breaks").toArray()).toJson(QJsonDocument::Compact))},
         {u"job"_s, qs(p.job)}, {u"rate"_s, qint64(p.rate.cents())},
     });
+}
+
+std::vector<Check> findClosedChecks(const QString &dbPath, std::int64_t from, std::int64_t to,
+                                    const QStringList &words, int limit, int offset, QString *error)
+{
+    static QAtomicInt counter;
+    const QString name = u"vt-find-%1"_s.arg(counter.fetchAndAddRelaxed(1));
+    std::vector<Check> out;
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(u"QSQLITE"_s, name);
+        db.setDatabaseName(dbPath);
+        db.setConnectOptions(u"QSQLITE_BUSY_TIMEOUT=5000"_s);
+        if (!db.open()) {
+            if (error)
+                *error = db.lastError().text();
+        } else {
+            QString sql = u"SELECT json FROM checks WHERE status = 'closed' AND closed_at >= ?"_s;
+            if (to > 0)
+                sql += u" AND closed_at < ?"_s;
+            QStringList any;
+            for (int i = 0; i < words.size(); ++i)
+                any << u"json LIKE ? ESCAPE '\\'"_s;
+            if (!any.isEmpty())
+                sql += u" AND ("_s + any.join(u" OR "_s) + u')';
+            sql += u" ORDER BY closed_at DESC, id DESC LIMIT ? OFFSET ?"_s;
+            QSqlQuery q(db);
+            q.prepare(sql);
+            q.addBindValue(qint64(from));
+            if (to > 0)
+                q.addBindValue(qint64(to));
+            for (QString w : words) {
+                w.replace(u'\\', u"\\\\"_s).replace(u'%', u"\\%"_s).replace(u'_', u"\\_"_s);
+                q.addBindValue(u'%' + w + u'%');
+            }
+            q.addBindValue(limit);
+            q.addBindValue(offset);
+            if (q.exec()) {
+                while (q.next())
+                    if (auto c = app::checkFromJson(QJsonDocument::fromJson(q.value(0).toByteArray()).object()))
+                        out.push_back(std::move(*c));
+            } else if (error) {
+                *error = q.lastError().text();
+            }
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(name);
+    return out;
 }
 
 std::vector<Check> closedChecksBetween(const QString &dbPath, std::int64_t from, std::int64_t to, QString *error)

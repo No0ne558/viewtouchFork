@@ -950,6 +950,7 @@ bool PosService::endOfDay()
         s_->printer->printReport(s_->settings, buildReport(u"sales"_s), receiptPrinter());
 
     s_->closedToday.clear();
+    s_->refundsToday.clear();
     // Finished punches stay a week, for weekly overtime.
     for (const TimePunch &p : s_->punches) {
         if (!p.open())
@@ -1032,9 +1033,9 @@ Report PosService::buildReport(const QString &id) const
         for (const auto &[cid, c] : s_->open)
             if (!c.training)
                 open.push_back(&c);
-        return depositReport(s_->drawers, s_->closedToday, open, ctx);
+        return depositReport(s_->drawers, s_->closedToday, open, ctx, s_->refundsToday);
     }
-    return salesSummary(s_->closedToday, ctx);
+    return salesSummary(s_->closedToday, ctx, &s_->refundsToday);
 }
 
 // --- reports over a range ---------------------------------------------------------

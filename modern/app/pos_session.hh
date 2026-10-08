@@ -368,6 +368,8 @@ public:
     // Phone orders: a regular's last order again; deliveries out with a driver, and back.
     // A card reader's connection token (answered in readerToken).
     Q_INVOKABLE void requestReaderToken() { invoke(QStringLiteral("requestReaderToken"), {}); }
+    // A refund on a closed check (Find a Check): a manager's.
+    Q_INVOKABLE void refundPayment(qint64 checkId, qint64 paymentId, qint64 cents, const QString &reason) { invoke(QStringLiteral("refundPayment"), {checkId, paymentId, cents, reason}); }
     Q_INVOKABLE void cancelCounterCharge() { invoke(QStringLiteral("cancelCounterCharge"), {}); }
     Q_INVOKABLE void presentTestCard(bool decline) { invoke(QStringLiteral("presentTestCard"), {decline}); }
     Q_INVOKABLE void sameAsLastTime() { invoke(QStringLiteral("sameAsLastTime"), {}); }
@@ -396,7 +398,7 @@ public:
     Q_INVOKABLE void clockInAs(const QString &role) { invoke(QStringLiteral("clockInAs"), {role}); }
     Q_INVOKABLE void setExpenseCategory(const QString &category) { invoke(QStringLiteral("setExpenseCategory"), {category}); }
     Q_INVOKABLE void receiveDelivery(const QVariantMap &delivery) { invoke(QStringLiteral("receiveDelivery"), {delivery}); }
-    Q_INVOKABLE void searchChecks(const QString &query) { invoke(QStringLiteral("searchChecks"), {query}); }
+    Q_INVOKABLE void searchChecks(const QString &query, int days = 365, int offset = 0) { invoke(QStringLiteral("searchChecks"), {query, days, offset}); }
     // Orders for later: ready at this time (ms since 1970; 0 = as soon as possible).
     Q_INVOKABLE void setDueAt(double at) { invoke(QStringLiteral("setDueAt"), {qint64(at)}); }
     Q_INVOKABLE void setKitchenStation(const QString &id) { invoke(QStringLiteral("setKitchenStation"), {id}); }

@@ -4172,3 +4172,52 @@ TEST_CASE("Countertop reader: Pay, the reader waits, a test card is tapped", "[u
     CHECK(s.pos.payments()[0].toMap()[u"name"_s].toString().contains(u"Mastercard •••• 4444"_s));
     s.shot("counter-2-paid");
 }
+
+TEST_CASE("Find a Check: show all, a check's history, refund part of it", "[ui][refunds]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.entryKey(u"10000"_s);
+    REQUIRE(s.pos.openDrawerSession());
+    s.pos.shared()->settings.stripeSecretKey = "sk_test_x";
+    s.pos.shared()->stripeRefund = [](const QString &, std::int64_t, auto done) { done(u"re_ui"_s, {}); };
+    REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+    REQUIRE(s.pos.addItem(u"coffee"_s));
+    const qint64 id = s.pos.checkInfo()[u"id"_s].toLongLong();
+    REQUIRE(s.pos.recordCardPayment({{u"reference"_s, u"pi_ui"_s}, {u"brand"_s, u"visa"_s}, {u"last4"_s, u"4242"_s},
+                                     {u"amountCents"_s, 298}, {u"checkId"_s, id}, {u"tenderId"_s, u"credit"_s},
+                                     {u"processor"_s, u"stripe"_s}}));
+    REQUIRE(s.pos.closeCheck());
+
+    REQUIRE(s.c.jumpTo(u"find-check"_s));
+    QTest::qWait(60);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    s.tapItem(by(u"range-0"_s));                           // all time
+    s.tapItem(by(u"searchAll"_s));
+    for (int i = 0; i < 100 && s.pos.checkSearch()[u"loading"_s].toBool(); ++i)
+        QTest::qWait(20);
+    QTest::qWait(60);
+    s.tapItem(by(u"found-%1"_s.arg(id)));
+    QTest::qWait(60);
+    s.shot("find-1-check");
+    const qint64 payment = s.pos.checkSearch()[u"selected"_s].toMap()[u"payments"_s].toList()[0].toMap()[u"id"_s].toLongLong();
+    QMetaObject::invokeMethod(by(u"checkDetail"_s), "positionViewAtEnd");   // the payments, the history
+    QTest::qWait(40);
+    s.tapItem(by(u"refund-%1"_s.arg(payment)));
+    QTest::qWait(40);
+    REQUIRE(by(u"refundSheet"_s));
+    QQuickItem *amount = by(u"refundAmount"_s);
+    CHECK(amount->property("text") == u"2.98"_s);
+    amount->setProperty("text", u"1.00"_s);
+    by(u"refundReason"_s)->setProperty("text", u"Wrong item"_s);
+    QTest::qWait(30);
+    s.shot("find-2-refund");
+    s.tapItem(by(u"refundGo"_s));
+    QTest::qWait(60);
+    CHECK_FALSE(by(u"refundSheet"_s));
+    REQUIRE(s.pos.shared()->refundsToday.size() == 1);
+    CHECK(s.pos.shared()->refundsToday[0].amount.cents() == 100);
+    QTest::qWait(60);
+    s.shot("find-3-refunded");
+}

@@ -152,18 +152,18 @@ void PosService::requestReaderToken()
     });
 }
 
-PosService::Refund PosService::refundCardPayment(const Check &c, const Payment &p)
+PosService::RefundStart PosService::refundCardPayment(const Check &c, const Payment &p)
 {
     // Practice payments, and cards typed in by hand, just come off.
     if (p.processor != "stripe" || p.reference.empty() || c.training)
-        return Refund::NotNeeded;
+        return RefundStart::NotNeeded;
     if (!s_->stripeRefund || s_->settings.stripeSecretKey.empty()) {
         fail(tr("Refunding a card needs the store's Stripe key (Store Settings), or refund it in the Stripe Dashboard."));
-        return Refund::CantNow;
+        return RefundStart::CantNow;
     }
     if (refunding_.contains(p.id)) {
         fail(tr("That refund is on its way."));
-        return Refund::CantNow;
+        return RefundStart::CantNow;
     }
     refunding_.insert(p.id);
     emit notice(tr("Refunding %1…").arg(format(p.amount + p.tip)));
@@ -192,7 +192,7 @@ PosService::Refund PosService::refundCardPayment(const Check &c, const Payment &
         emit self->notice(tr("Refunded %1").arg(self->format(removed.amount + removed.tip)));
         self->changed(check);
     });
-    return Refund::Started;
+    return RefundStart::Started;
 }
 
 } // namespace vt::app

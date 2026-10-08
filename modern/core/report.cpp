@@ -82,7 +82,7 @@ Money tipsOwed(const std::string &employeeId, const std::vector<Check> &closed,
     return owed;
 }
 
-Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx)
+Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx, const std::vector<Refund> *given)
 {
     const TaxRates &rates = ctx.settings.tax;
     Report r;
@@ -160,6 +160,25 @@ Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx)
     r.total({"Collected", ctx.money(collected)});
     if (tips.cents() != 0)
         r.line({"Card tips (owed to staff)", ctx.money(tips)});
+
+    // Money given back: on the day it went back (or, over a range, on these checks).
+    std::vector<Refund> onChecks;
+    if (!given)
+        for (const Check &c : closed)
+            onChecks.insert(onChecks.end(), c.refunds.begin(), c.refunds.end());
+    const std::vector<Refund> &refunds = given ? *given : onChecks;
+    if (!refunds.empty()) {
+        r.section("Refunds");
+        Money back;
+        for (const Refund &x : refunds) {
+            r.line({"#" + std::to_string(x.checkId) + " " + x.checkLabel + " · " + x.tenderName + " · " + x.reason
+                        + (x.by.empty() ? std::string() : " (" + x.by + ")"),
+                    ctx.money(-x.amount)});
+            back += x.amount;
+        }
+        r.total({"Refunds", ctx.money(-back)});
+        r.total({"Collected after refunds", ctx.money(collected + tips - back)});
+    }
 
     r.section("Averages");
     const auto avg = [](Money m, std::int64_t n) { return n > 0 ? Money::fromCents(m.cents()).scaled(1, n) : Money(); };
@@ -695,7 +714,7 @@ Report exceptionsReport(const std::vector<const Check *> &checks, const std::vec
 }
 
 Report depositReport(const std::vector<DrawerSession> &drawers, const std::vector<Check> &closed,
-                     const std::vector<const Check *> &open, const ReportContext &ctx)
+                     const std::vector<const Check *> &open, const ReportContext &ctx, const std::vector<Refund> &refunds)
 {
     const TaxRates &rates = ctx.settings.tax;
     Report r;
@@ -748,7 +767,15 @@ Report depositReport(const std::vector<DrawerSession> &drawers, const std::vecto
     r.section("Cards to settle");
     r.line({"Card payments", ctx.money(cards)});
     r.line({"Card tips", ctx.money(cardTips)});
-    r.total({"Card batch", ctx.money(cards + cardTips)});
+    // Card refunds today (on any day's checks) come off the batch; cash
+    // refunds already came out of the drawers.
+    Money cardRefunds;
+    for (const Refund &x : refunds)
+        if (x.method != "cash")
+            cardRefunds += x.amount;
+    if (cardRefunds.cents() != 0)
+        r.line({"Card refunds", ctx.money(-cardRefunds)});
+    r.total({"Card batch", ctx.money(cards + cardTips - cardRefunds)});
 
     r.section("Book balance");
     r.line({"Sold (with tax)", ctx.money(due)});

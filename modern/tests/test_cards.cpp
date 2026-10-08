@@ -383,4 +383,18 @@ TEST_CASE("Stripe test mode, live: pair a simulated reader, approved, declined, 
     REQUIRE(pos.removePayment());
     REQUIRE(wait([&] { return pos.payments().isEmpty(); }));
     CHECK(notices.last().startsWith(u"Refunded"_s));
+
+    // Paid again and closed; then part of it refunded from the closed check.
+    REQUIRE(pos.startCounterCharge(u"credit"_s));
+    REQUIRE(wait([&] { return pos.counterCharge()[u"status"_s] == u"waiting"_s; }));
+    REQUIRE(pos.presentTestCard(false));
+    REQUIRE(wait([&] { return pos.counterCharge().isEmpty(); }));
+    const qint64 check = pos.checkInfo()[u"id"_s].toLongLong();
+    REQUIRE(pos.closeCheck());
+    const qint64 paid = pos.shared()->closedToday.back().payments.front().id;
+    REQUIRE(pos.refundPayment(check, paid, 100, u"Wrong item"_s));
+    REQUIRE(wait([&] { return !pos.shared()->refundsToday.empty(); }));
+    INFO("refund " << pos.shared()->refundsToday.back().reference);
+    CHECK(pos.shared()->refundsToday.back().reference.starts_with("re_"));
+    CHECK(pos.shared()->closedToday.back().refunded(paid).cents() == 100);
 }
