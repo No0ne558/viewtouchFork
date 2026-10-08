@@ -296,6 +296,8 @@ private:
     // Cards approved while the store couldn't be reached: sent when it can.
     QList<QVariantMap> unsentCards_;
     void sendUnsentCards();
+    void saveUnsentCards();
+    void loadUnsentCards();
     vt::app::PosSession *pos_ = nullptr;
     int pending_ = 0;
 };

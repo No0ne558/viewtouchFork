@@ -423,7 +423,8 @@ Item {
                     highlighted: true
                     readonly property int cents: Math.round(Number(refundAmount.text) * 100)
                     enabled: cents > 0 && w.refunding !== null && cents <= w.refunding.leftCents && refundReason.text.trim() !== ""
-                    text: enabled ? qsTr("Refund $%1").arg((cents / 100).toFixed(2)) : qsTr("Refund")
+                    text: enabled ? qsTr("Refund %1").arg((w.pos ? w.pos.currencySymbol : "") + (cents / 100).toFixed(2))
+                                  : qsTr("Refund")
                     onClicked: {
                         w.pos.refundPayment(w.check.id, w.refunding.id, cents, refundReason.text.trim())
                         w.refunding = null

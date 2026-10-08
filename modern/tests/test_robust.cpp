@@ -2,10 +2,13 @@
 
 #include "app/pos_json.hh"
 #include "fake_stripe.hh"
+#include "layoutcontroller.hh"
+#include "net/remote_session.hh"
 #include "pos_fixture.hh"
 #include "qt_catch.hh"
 
 #include <QDateTime>
+#include <QSettings>
 #include <QTest>
 
 using namespace Qt::StringLiterals;
@@ -217,4 +220,60 @@ TEST_CASE("Reports over a range: refunds by the day they were made", "[robust][r
     // Written down (as the database would have it): still this week's, once.
     written = pos.shared()->refundsToday;
     CHECK(range(u"week"_s) == u"-$20.00"_s);
+}
+
+TEST_CASE("Moving or merging a table's check leaves the old table to bus", "[robust][host]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    login(pos);
+    const auto table = [&](const char *t, int guests) {
+        REQUIRE(pos.selectTable(QString::fromLatin1(t)) == PosService::TableNeedsGuests);
+        pos.entryKey(QString::number(guests));
+        REQUIRE(pos.startCheck(core::CheckType::DineIn));
+        REQUIRE(pos.addItem(u"coffee"_s));
+        return pos.checkInfo()[u"id"_s].toLongLong();
+    };
+    const auto state = [&](const QString &t) { return pos.floor().value(t).toMap().value(u"state"_s).toString(); };
+    table("T1", 2);
+    REQUIRE(pos.moveCheck(u"T4"_s));
+    CHECK(state(u"T1"_s) == u"dirty"_s);
+    CHECK(state(u"T4"_s) == u"seated"_s);
+    pos.releaseCheck();
+    const qint64 t2 = table("T2", 2);
+    pos.releaseCheck();
+    REQUIRE(pos.selectTable(u"T4"_s) != PosService::TableNeedsGuests);
+    REQUIRE(pos.mergeCheck(t2));
+    CHECK(state(u"T2"_s) == u"dirty"_s);
+    CHECK(state(u"T4"_s) == u"seated"_s);
+}
+
+TEST_CASE("A card approved while the store is out of reach survives the app closing", "[robust][cards]")
+{
+    QSettings().remove(u"cards/unsent"_s);
+    auto l = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    REQUIRE(l);
+    const QVariantMap approved{{u"approved"_s, true}, {u"reference"_s, u"pi_offline"_s}, {u"brand"_s, u"visa"_s},
+                               {u"last4"_s, u"4242"_s}, {u"amountCents"_s, 298}, {u"tipCents"_s, 0},
+                               {u"checkId"_s, 1}, {u"tenderId"_s, u"credit"_s}, {u"processor"_s, u"stripe"_s}};
+    {
+        // A handheld whose store can't be reached: approved, kept on the device.
+        net::RemoteSession offline(u"Handheld"_s);
+        LayoutController c(*l);
+        c.setPos(&offline);
+        emit c.cardReader()->finished(approved);
+        CHECK(QSettings().value(u"cards/unsent"_s).toString().contains(u"pi_offline"_s));
+    }   // ...and the app closes
+    // Back, connected: it goes on its check, and is no longer kept.
+    PosService pos(test::seedPosData(), nullptr);
+    login(pos);
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    REQUIRE(pos.addItem(u"coffee"_s));
+    REQUIRE(pos.checkInfo()[u"id"_s].toLongLong() == 1);
+    LayoutController c(*l);
+    c.setPos(&pos);
+    for (int i = 0; i < 100 && pos.payments().isEmpty(); ++i)
+        QTest::qWait(10);
+    REQUIRE(pos.payments().size() == 1);
+    CHECK(pos.payments()[0].toMap()[u"name"_s].toString().contains(u"4242"_s));
+    CHECK_FALSE(QSettings().contains(u"cards/unsent"_s));
 }

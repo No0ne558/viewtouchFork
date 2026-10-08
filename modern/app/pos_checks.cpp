@@ -74,6 +74,8 @@ bool PosService::moveCheck(const QString &table)
     c->label = ss(to);
     emit notice(tr("Moved from %1 to %2").arg(from, to));
     changed(*c);
+    if (!c->training)
+        tableEmptied(ss(from));   // the table they left needs bussing (if no one else is there)
     return true;
 }
 
@@ -101,9 +103,13 @@ bool PosService::mergeCheck(qint64 otherId)
     other.closedAt = now();
     if (s_->sink)
         s_->sink->saveCheck(other);
+    const bool otherTable = other.type == CheckType::DineIn && !other.training && other.label != c->label;
+    const std::string left = other.label;
     s_->open.erase(it);
     emit notice(what);
     changed(*c);
+    if (otherTable)
+        tableEmptied(left);   // its guests joined this table: theirs needs bussing
     return true;
 }
 

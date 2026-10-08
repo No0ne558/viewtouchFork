@@ -21,7 +21,10 @@
 
 #include <QDir>
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLoggingCategory>
+#include <QSettings>
 
 using namespace Qt::StringLiterals;
 using vt::app::Navigator;
@@ -276,6 +279,8 @@ void LayoutController::setPos(PosSession *pos)
         });
     }
     cardReader_.setKind(pos_ ? pos_->terminalCardReader() : QString());
+    loadUnsentCards();   // left from before the app last closed
+    sendUnsentCards();
     updateMealPeriod();
     updateFormFactor();
     emit posChanged();
@@ -1111,7 +1116,30 @@ void LayoutController::cardTaken(const QVariantMap &result)
     // The money is taken: it must reach the check. Kept until it does (sent
     // again, it counts once).
     unsentCards_.append(result);
+    saveUnsentCards();
     sendUnsentCards();
+}
+
+// Cards approved but not on a check yet, kept on this device (they survive
+// the app closing): the money was taken.
+void LayoutController::saveUnsentCards()
+{
+    QJsonArray a;
+    for (const QVariantMap &c : unsentCards_)
+        a.append(QJsonObject::fromVariantMap(c));
+    QSettings settings;
+    if (a.isEmpty())
+        settings.remove(u"cards/unsent"_s);
+    else
+        settings.setValue(u"cards/unsent"_s, QString::fromUtf8(QJsonDocument(a).toJson(QJsonDocument::Compact)));
+}
+
+void LayoutController::loadUnsentCards()
+{
+    const QString kept = QSettings().value(u"cards/unsent"_s).toString();
+    for (const QJsonValue &v : QJsonDocument::fromJson(kept.toUtf8()).array())
+        if (!unsentCards_.contains(v.toObject().toVariantMap()))
+            unsentCards_.append(v.toObject().toVariantMap());
 }
 
 void LayoutController::sendUnsentCards()
@@ -1127,6 +1155,7 @@ void LayoutController::sendUnsentCards()
         if (!pos_ || !pos_->online())
             return;   // still offline: tried again when it's back
         unsentCards_.removeOne(result);
+        saveUnsentCards();
         if (!ok.toBool())
             setStatus(tr("The card was approved (%1) but isn't on the check: add it by hand or refund it in Stripe.")
                           .arg(result.value(u"reference"_s).toString()));
