@@ -98,7 +98,7 @@ std::set<std::string> permissionsForRole(const std::string &role)
     if (role == "admin" || role == "manager")
         return {perm::Order, perm::Settle, perm::Discount, perm::Void, perm::Manager, perm::EditLayout};
     // Discounts, comps and staff meals need a manager (or their PIN on the spot).
-    if (role == "cashier" || role == "server" || role == "bartender")
+    if (role == "cashier" || role == "server" || role == "bartender" || role == "driver")
         return {perm::Order, perm::Settle};
     if (role == "host" || role == "kiosk")
         return {perm::Order};   // the waitlist and seating; guests ordering on their own

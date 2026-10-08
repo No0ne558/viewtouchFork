@@ -121,7 +121,9 @@ QJsonObject toJson(const Check &c)
         {u"customer"_s, QJsonObject{{u"name"_s, qs(c.customer.name)}, {u"phone"_s, qs(c.customer.phone)},
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
         {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse}, {u"customerId"_s, qs(c.customerId)},
-        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"kiosk"_s, c.kiosk}, {u"dueAt"_s, qint64(c.dueAt)}, {u"fireAt"_s, qint64(c.fireAt)}, {u"pointsEarned"_s, c.pointsEarned}, {u"training"_s, c.training},
+        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"kiosk"_s, c.kiosk}, {u"dueAt"_s, qint64(c.dueAt)}, {u"fireAt"_s, qint64(c.fireAt)},
+        {u"promisedAt"_s, qint64(c.promisedAt)}, {u"driverId"_s, qs(c.driverId)}, {u"driverName"_s, qs(c.driverName)},
+        {u"outAt"_s, qint64(c.outAt)}, {u"deliveredAt"_s, qint64(c.deliveredAt)}, {u"pointsEarned"_s, c.pointsEarned}, {u"training"_s, c.training},
     };
 }
 
@@ -207,6 +209,11 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     c.kiosk = o.value(u"kiosk").toBool();
     c.dueAt = o.value(u"dueAt").toInteger(0);
     c.fireAt = o.value(u"fireAt").toInteger(0);
+    c.promisedAt = o.value(u"promisedAt").toInteger(0);
+    c.driverId = ss(o.value(u"driverId").toString());
+    c.driverName = ss(o.value(u"driverName").toString());
+    c.outAt = o.value(u"outAt").toInteger(0);
+    c.deliveredAt = o.value(u"deliveredAt").toInteger(0);
     c.vip = o.value(u"vip").toBool();
     c.pointsEarned = o.value(u"pointsEarned").toInt();
     c.training = o.value(u"training").toBool();
@@ -377,7 +384,7 @@ QJsonObject toJson(const Employee &e)
     return {
         {u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
         {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active}, {u"training"_s, e.training}, {u"sample"_s, e.sample},
-        {u"cashMode"_s, qs(e.cashMode)}, {u"checkout"_s, qs(e.checkout)}, {u"language"_s, qs(e.language)},
+        {u"cashMode"_s, qs(e.cashMode)}, {u"requireName"_s, qs(e.requireName)}, {u"checkout"_s, qs(e.checkout)}, {u"language"_s, qs(e.language)},
         {u"textSize"_s, e.textSize}, {u"leftHanded"_s, e.leftHanded}, {u"startPage"_s, qs(e.startPage)},
         {u"payRate"_s, e.payRate.cents() / 100.0}, {u"otherJobs"_s, [&] {
              QJsonArray jobs;
@@ -399,6 +406,7 @@ Employee employeeFromJson(const QJsonObject &o)
     e.training = o.value(u"training").toBool(false);
     e.sample = o.value(u"sample").toBool(false);
     e.cashMode = ss(o.value(u"cashMode").toString());
+    e.requireName = ss(o.value(u"requireName").toString());
     e.checkout = ss(o.value(u"checkout").toString());
     e.language = ss(o.value(u"language").toString());
     e.textSize = std::clamp(o.value(u"textSize").toInt(100), 80, 160);
@@ -655,7 +663,8 @@ QJsonObject toJson(const PosSettings &s)
         terminals.append(QJsonObject{{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)},
                                      {u"drawer"_s, qs(t.drawer)}, {u"id"_s, qs(t.id)}, {u"key"_s, qs(t.key)},
                                      {u"pairedAt"_s, qint64(t.pairedAt)}, {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)},
-                                     {u"station"_s, qs(t.station)}, {u"keyboard"_s, qs(t.keyboard)}});
+                                     {u"station"_s, qs(t.station)}, {u"keyboard"_s, qs(t.keyboard)},
+                                     {u"requireName"_s, qs(t.requireName)}});
     QJsonArray printers;
     for (const PrinterConfig &p : s.printers)
         printers.append(toJson(p));
@@ -818,6 +827,9 @@ QJsonObject toJson(const PosSettings &s)
          }()},
         {u"kitchenWarnMinutes"_s, s.kitchenWarnMinutes}, {u"kitchenLateMinutes"_s, s.kitchenLateMinutes},
         {u"laterLeadMinutes"_s, s.laterLeadMinutes},
+        {u"requireOrderName"_s, s.requireOrderName}, {u"takeoutMinutes"_s, s.takeoutMinutes},
+        {u"deliveryMinutes"_s, s.deliveryMinutes}, {u"minutesPerOrderWaiting"_s, s.minutesPerOrderWaiting},
+        {u"deliveryFee"_s, qint64(s.deliveryFee.cents())},
         {u"tipPercents"_s, [&] { QJsonArray a; for (int p : s.tipPercents) a.append(p); return a; }()}, {u"tableReadyText"_s, qs(s.tableReadyText)},
         {u"textWebhook"_s, qs(s.textWebhook)},
     };
@@ -849,7 +861,8 @@ PosSettings settingsFromJson(const QJsonObject &o)
                                ss(t.value(u"drawer").toString()), ss(t.value(u"id").toString()),
                                ss(t.value(u"key").toString()), i64(t.value(u"pairedAt")),
                                ss(t.value(u"screen").toString()), ss(t.value(u"station").toString()),
-                               ss(t.value(u"look").toString()), ss(t.value(u"keyboard").toString())});
+                               ss(t.value(u"look").toString()), ss(t.value(u"keyboard").toString()),
+                               ss(t.value(u"requireName").toString())});
     }
     s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));
     const QJsonObject labor = o.value(u"labor").toObject();
@@ -1002,6 +1015,11 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.kitchenWarnMinutes = std::clamp(o.value(u"kitchenWarnMinutes").toInt(8), 1, 120);
     s.kitchenLateMinutes = std::clamp(o.value(u"kitchenLateMinutes").toInt(15), s.kitchenWarnMinutes, 240);
     s.laterLeadMinutes = std::clamp(o.value(u"laterLeadMinutes").toInt(20), 0, 240);
+    s.requireOrderName = o.value(u"requireOrderName").toBool();
+    s.takeoutMinutes = std::clamp(o.value(u"takeoutMinutes").toInt(15), 0, 240);
+    s.deliveryMinutes = std::clamp(o.value(u"deliveryMinutes").toInt(35), 0, 240);
+    s.minutesPerOrderWaiting = std::clamp(o.value(u"minutesPerOrderWaiting").toInt(2), 0, 60);
+    s.deliveryFee = money(o.value(u"deliveryFee"));
     if (o.value(u"tipPercents").isArray()) {
         s.tipPercents.clear();
         for (const QJsonValue &v : o.value(u"tipPercents").toArray()) {
@@ -1078,6 +1096,12 @@ QJsonObject toJson(const CustomerRecord &c)
         {u"houseAccount"_s, c.houseAccount}, {u"accountLimit"_s, qint64(c.accountLimit.cents())},
         {u"accountBalance"_s, qint64(c.accountBalance.cents())}, {u"account"_s, ledgerJson(c.account)},
         {u"points"_s, c.points}, {u"lifetimePoints"_s, c.lifetimePoints},
+        {u"lastOrder"_s, [&] {
+             Check holder;
+             holder.lines = c.lastOrder;
+             return toJson(holder).value(u"lines"_s);
+         }()},
+        {u"lastOrderAt"_s, qint64(c.lastOrderAt)},
     };
 }
 
@@ -1100,6 +1124,10 @@ CustomerRecord customerFromJson(const QJsonObject &o)
     c.account = ledgerFromJson(o.value(u"account").toArray());
     c.points = o.value(u"points").toInt();
     c.lifetimePoints = o.value(u"lifetimePoints").toInt();
+    if (const QJsonArray last = o.value(u"lastOrder").toArray(); !last.isEmpty())
+        if (const std::optional<Check> holder = checkFromJson(QJsonObject{{u"id"_s, 0}, {u"lines"_s, last}}))
+            c.lastOrder = holder->lines;
+    c.lastOrderAt = i64(o.value(u"lastOrderAt"));
     return c;
 }
 

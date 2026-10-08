@@ -45,7 +45,7 @@
       "rect": {
         "x": 24,
         "y": 1640,
-        "w": 508,
+        "w": 333,
         "h": 190
       },
       "shape": "rect",
@@ -71,9 +71,9 @@
       "id": "checks",
       "kind": "button",
       "rect": {
-        "x": 548,
+        "x": 373,
         "y": 1640,
-        "w": 508,
+        "w": 333,
         "h": 190
       },
       "shape": "rect",
@@ -91,9 +91,9 @@
       "id": "takeout",
       "kind": "button",
       "rect": {
-        "x": 24,
-        "y": 1846,
-        "w": 508,
+        "x": 722,
+        "y": 1640,
+        "w": 333,
         "h": 190
       },
       "shape": "rect",
@@ -114,9 +114,9 @@
       "id": "delivery",
       "kind": "button",
       "rect": {
-        "x": 548,
+        "x": 24,
         "y": 1846,
-        "w": 508,
+        "w": 333,
         "h": 190
       },
       "shape": "rect",
@@ -134,12 +134,62 @@
       ]
     },
     {
+      "id": "deliveries",
+      "kind": "button",
+      "rect": {
+        "x": 373,
+        "y": 1846,
+        "w": 333,
+        "h": 190
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Deliveries",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "deliveries"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#2b62b0"
+        }
+      }
+    },
+    {
+      "id": "host",
+      "kind": "button",
+      "rect": {
+        "x": 722,
+        "y": 1846,
+        "w": 333,
+        "h": 190
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Host Stand",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "seating"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#1f6f73"
+        }
+      }
+    },
+    {
       "id": "manager",
       "kind": "button",
       "rect": {
         "x": 24,
         "y": 2052,
-        "w": 508,
+        "w": 333,
         "h": 190
       },
       "shape": "rect",
@@ -157,9 +207,9 @@
       "id": "logout",
       "kind": "button",
       "rect": {
-        "x": 548,
+        "x": 373,
         "y": 2052,
-        "w": 508,
+        "w": 333,
         "h": 190
       },
       "shape": "rect",

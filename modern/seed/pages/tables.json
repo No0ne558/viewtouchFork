@@ -254,7 +254,7 @@
       "rect": {
         "x": 1472,
         "y": 348,
-        "w": 432,
+        "w": 208,
         "h": 150
       },
       "shape": "rect",
@@ -267,6 +267,31 @@
           "role": "checkList"
         }
       ]
+    },
+    {
+      "id": "deliveries",
+      "kind": "button",
+      "rect": {
+        "x": 1696,
+        "y": 348,
+        "w": 208,
+        "h": 150
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Deliveries",
+      "actions": [
+        {
+          "type": "jump",
+          "mode": "push",
+          "page": "deliveries"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#2b62b0"
+        }
+      }
     },
     {
       "id": "host",

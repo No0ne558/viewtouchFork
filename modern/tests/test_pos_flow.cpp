@@ -3895,3 +3895,105 @@ TEST_CASE("On-screen keyboard: on by default, over the screen, lifts a covered f
     CHECK_FALSE(window->property("touchKeyboard").toBool());
     CHECK_FALSE(popup->property("visible").toBool());
 }
+
+TEST_CASE("Order screen: swipe a line, same as last time, deliveries board", "[ui][swipe][phoneorders]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.entryKey(u"10000"_s);
+    REQUIRE(s.pos.openDrawerSession());
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    // Drag across a line by dx (a swipe).
+    const auto swipe = [&](const QString &name, qreal dx) {
+        QQuickItem *text = Screen::findBy(root, "text", name);
+        REQUIRE(text);
+        const QPoint from = text->mapToScene(QPointF(text->width() / 2, text->height() / 2)).toPoint();
+        QTest::mousePress(s.window, Qt::LeftButton, {}, from);
+        for (int i = 1; i <= 10; ++i) {
+            QTest::mouseMove(s.window, from + QPoint(int(dx * i / 10), 0));
+            QTest::qWait(10);
+        }
+        if (dx < 0)
+            s.shot("phone-0-swipe");
+        QTest::mouseRelease(s.window, Qt::LeftButton, {}, from + QPoint(int(dx), 0));
+        QTest::qWait(50);
+    };
+
+    // A regular's takeout.
+    REQUIRE(s.pos.saveCustomer({{u"name"_s, u"Dana Ruiz"_s}, {u"phone"_s, u"555-0142"_s}}));
+    QString dana;
+    for (const core::CustomerRecord &c : s.pos.shared()->customers)
+        dana = QString::fromStdString(c.id);
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.activate(u"takeout"_s);
+    REQUIRE(s.pos.useCustomer(dana));
+    s.pos.addItem(u"coffee"_s);
+    s.pos.addItem(u"water"_s);
+    QTest::qWait(50);
+    CHECK(by(u"readyQuote"_s)->property("text").toString().startsWith(u"Ready in about"_s));
+
+    // Swipe right: one more. Swipe left: off.
+    swipe(u"Coffee"_s, 300);
+    CHECK(s.pos.lines()[0].toMap()[u"quantity"_s] == 2);
+    swipe(u"Water"_s, -160);
+    CHECK(s.pos.lines().size() == 1);
+    swipe(u"2 × Coffee"_s, 40);                                  // a short drag does nothing
+    CHECK(s.pos.lines()[0].toMap()[u"quantity"_s] == 2);
+    REQUIRE(s.pos.sendOrder());
+    REQUIRE(s.pos.tender(u"cash"_s));
+    REQUIRE(s.pos.closeCheck());
+
+    // Next time: Same as Last Time.
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.activate(u"takeout"_s);
+    REQUIRE(s.pos.useCustomer(dana));
+    QTest::qWait(50);
+    QQuickItem *same = by(u"sameAsLastTime"_s);
+    REQUIRE(same);
+    CHECK(same->property("text") == u"Same as Last Time: 2 × Coffee"_s);
+    s.shot("phone-1-same");
+    s.tapItem(same);
+    CHECK(s.pos.lines().size() == 1);
+    CHECK_FALSE(by(u"sameAsLastTime"_s));                       // gone once there's an order
+    s.pos.releaseCheck();
+
+    // Deliveries: one sent, one not.
+    QVariantMap e = s.pos.adminNewRecord(u"employees"_s);
+    e[u"name"_s] = u"Lou"_s;
+    e[u"role"_s] = u"driver"_s;
+    e[u"pin"_s] = u"7777"_s;
+    REQUIRE(s.pos.adminSave(u"employees"_s, -1, e));
+    for (const auto &[name, address] : {std::pair{u"Ana"_s, u"12 Oak St"_s}, std::pair{u"Bo"_s, u"3 Pine Ave, apt 2"_s}}) {
+        REQUIRE(s.pos.startCheck(core::CheckType::Delivery));
+        s.pos.addItem(u"coffee"_s);
+        REQUIRE(s.pos.setCustomer({{u"name"_s, name}, {u"address"_s, address}}));
+        if (name == u"Ana"_s)
+            REQUIRE(s.pos.sendOrder());
+        s.pos.releaseCheck();
+    }
+    REQUIRE(s.c.jumpTo(u"deliveries"_s));
+    QTest::qWait(80);
+    const auto row = [&](const QString &name) {
+        for (const QVariant &v : s.pos.deliveries())
+            if (v.toMap()[u"name"_s] == name)
+                return v.toMap();
+        return QVariantMap();
+    };
+    const qint64 ana = row(u"Ana"_s)[u"id"_s].toLongLong();
+    s.tapItem(by(u"delivery-"_s + QString::number(ana)));
+    s.tapItem(by(u"driver-Lou"_s));
+    s.shot("phone-2-deliveries");
+    s.tapItem(by(u"deliverySendOut"_s));
+    CHECK(row(u"Ana"_s)[u"state"_s] == u"out"_s);
+    CHECK(row(u"Bo"_s)[u"state"_s] == u"new"_s);
+    s.tapItem(by(u"delivery-"_s + QString::number(ana)));
+    s.tapItem(by(u"deliveryBack"_s));
+    CHECK(row(u"Ana"_s)[u"state"_s] == u"back"_s);
+    QTest::qWait(50);
+    s.shot("phone-3-back");
+    s.tapItem(by(u"delivery-"_s + QString::number(ana)));
+    s.tapItem(by(u"deliveryOpen"_s));
+    QTest::qWait(50);
+    CHECK(s.pos.checkInfo()[u"id"_s].toLongLong() == ana);
+}

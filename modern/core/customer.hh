@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/check.hh"
 #include "core/money.hh"
 
 #include <cstdint>
@@ -33,6 +34,9 @@ struct CustomerRecord {
     std::int64_t createdAt = 0;
 
     int visits = 0;            // closed checks
+    // What they had last time (for "Same as Last Time"), and when.
+    std::vector<OrderLine> lastOrder;
+    std::int64_t lastOrderAt = 0;
     Money spent;               // their totals, before tips
     std::int64_t lastVisit = 0;
 

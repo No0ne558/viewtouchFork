@@ -390,6 +390,51 @@ Report serverSales(const std::vector<Check> &closed, const ReportContext &ctx)
     return r;
 }
 
+Report driverReport(const std::vector<Check> &closed, const ReportContext &ctx)
+{
+    Report r;
+    r.id = "drivers";
+    r.title = "Drivers";
+    r.subtitle = ctx.period;
+    r.columns = {"Driver", "Deliveries", "Sales", "Fees", "Tips", "Avg out"};
+    struct Tally { std::int64_t runs = 0, outMs = 0, timed = 0; Money sales, fees, tips; };
+    std::map<std::string, Tally> drivers;
+    for (const Check &c : closed) {
+        if (c.type != CheckType::Delivery || c.training)
+            continue;
+        Tally &t = drivers[c.driverName.empty() ? "(not sent out)" : c.driverName];
+        ++t.runs;
+        const Totals totals = c.totals(ctx.settings.tax);
+        t.sales += totals.subtotal;
+        t.tips += totals.tips;
+        for (const OrderLine &l : c.lines)
+            if (l.isFee() && !l.voided)
+                t.fees += l.total();
+        if (c.outAt && c.deliveredAt > c.outAt) {
+            t.outMs += c.deliveredAt - c.outAt;
+            ++t.timed;
+        }
+    }
+    const auto minutes = [](const Tally &t) {
+        return t.timed ? std::to_string((t.outMs / t.timed + 30'000) / 60'000) + " min" : std::string("-");
+    };
+    Tally all;
+    for (const auto &[name, t] : drivers) {
+        r.line({name, count(t.runs), ctx.money(t.sales), ctx.money(t.fees), ctx.money(t.tips), minutes(t)});
+        all.runs += t.runs;
+        all.sales += t.sales;
+        all.fees += t.fees;
+        all.tips += t.tips;
+        all.outMs += t.outMs;
+        all.timed += t.timed;
+    }
+    if (drivers.empty())
+        r.note("No deliveries.");
+    else
+        r.total({"All drivers", count(all.runs), ctx.money(all.sales), ctx.money(all.fees), ctx.money(all.tips), minutes(all)});
+    return r;
+}
+
 Report laborReport(const std::vector<TimePunch> &punches, const std::vector<Employee> &employees,
                    const ReportContext &ctx, const std::vector<TimePunch> &earlier, Money netSales)
 {

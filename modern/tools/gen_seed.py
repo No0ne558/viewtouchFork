@@ -365,7 +365,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock", "dashboard", "checklist", "hostStand"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock", "dashboard", "checklist", "hostStand", "deliveryBoard"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -556,7 +556,8 @@ page("tables", "Tables", "tables", [
          style=fill(GREEN)),
     zone("takeout", 1472, 182, 208, 150, "Takeout", actions=[command("startTakeout"), jump(mode="index")]),
     zone("delivery", 1696, 182, 208, 150, "Delivery", actions=[command("startDelivery"), jump(mode="index")]),
-    zone("checks", 1472, 348, 432, 150, "Open Checks", actions=[jump(role="checkList")]),
+    zone("checks", 1472, 348, 208, 150, "Open Checks", actions=[jump(role="checkList")]),
+    zone("deliveries", 1696, 348, 208, 150, "Deliveries", actions=[jump(page="deliveries")], style=fill(BLUE)),
     zone("host", 1056, 914, 400, 150, "Host Stand", actions=[jump(page="seating")], style=fill(TEAL)),
     zone("tabs", 1056, 748, 400, 150, "Bar Tabs", actions=[jump(page="tabs")], style=fill(AMBER)),
     zone("status", 1472, 514, 432, 140, kind="logoutPanel"),
@@ -627,6 +628,15 @@ page("host", "Host Stand", "custom", [
     zone("back", 16, 944, 432, 120, "‹ Tables", actions=[jump(role="tables")]),
     zone("seating", 744, 944, 432, 120, "Seating…", actions=[jump(page="seating")], style=fill(TEAL)),
     zone("customers", 1472, 944, 432, 120, "Customers…", actions=[jump(page="customers")]),
+], permission="order")
+
+# Deliveries: open ones by where they are; send them out with a driver.
+page("deliveries", "Deliveries", "custom", [
+    label("title", 16, 16, 1888, 80, "Deliveries"),
+    zone("board", 16, 112, 1888, 816, kind="deliveryBoard"),
+    zone("back", 16, 944, 432, 120, "‹ Tables", actions=[jump(role="tables")]),
+    zone("new", 1472, 944, 432, 120, "New Delivery", actions=[command("startDelivery"), jump(mode="index")],
+         style=fill(GREEN)),
 ], permission="order")
 
 # The host stand: every table by state (available, seated, dirty, held),
@@ -982,9 +992,11 @@ tables_buttons, _ = grid_buttons([
     ("checks", "Open Checks", [jump(role="checkList")], {}),
     ("takeout", "Takeout", [command("startTakeout"), jump(mode="index")], {}),
     ("delivery", "Delivery", [command("startDelivery"), jump(mode="index")], {}),
+    ("deliveries", "Deliveries", [jump(page="deliveries")], {"style": fill(BLUE)}),
+    ("host", "Host Stand", [jump(page="seating")], {"style": fill(TEAL)}),
     ("manager", "Manager", [jump(role="manager")], {}),
     ("logout", "Log Out", [jump(role="logout")], {"style": fill(RED)}),
-], 1640, 2, 190)
+], 1640, 3, 190)
 phone_page("tables", "Tables", "tables", [
     label("title", 24, 24, 1032, 100, "Tables"),
     zone("tables", 24, 140, 1032, 1480, kind="tableGrid"),

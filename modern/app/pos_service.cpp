@@ -386,6 +386,7 @@ QString PosService::format(Money amount) const
 
 void PosService::changed(Check &check)
 {
+    applyDeliveryFee(check);
     applyPromotions(check);
     if (s_->sink)
         s_->sink->saveCheck(check);
@@ -1215,6 +1216,8 @@ bool PosService::sendOrder()
     Check *c = current();
     if (!c)
         return fail(tr("No check is open."));
+    if (const QString who = missingWho(*c); !who.isEmpty() && c->unsentCount() > 0)
+        return fail(who);
     if (waitingForLater(*c) && c->unsentCount() > 0) {   // the kitchen gets it in time, by itself
         if (const QString missing = missingChoice(c->sendable(true)); !missing.isEmpty())
             return fail(missing);
@@ -1237,6 +1240,9 @@ bool PosService::sendOrder()
         changed(*c);
         return true;
     }
+    // A phone order: the time they were told, from how busy the kitchen is now.
+    if ((c->type == CheckType::Takeout || c->type == CheckType::Delivery) && !c->promisedAt && !c->dueAt)
+        c->promisedAt = now() + std::int64_t(readyQuote(*c)) * 60'000;
     if (s_->printer)
         s_->printer->printKitchen(s_->settings, *c, fresh, false);
     const QString sent = n == 1 ? tr("Sent 1 item to the kitchen") : tr("Sent %1 items to the kitchen").arg(n);
@@ -1426,6 +1432,8 @@ bool PosService::closeCheck()
     if (c->type == CheckType::Takeout || c->type == CheckType::Delivery)
         rememberCustomer(*c);   // on file for next time
     c->status = CheckStatus::Closed;
+    if (c->outAt && !c->deliveredAt)
+        c->deliveredAt = now();   // paid: the driver is back
     c->closedAt = now();
     c->businessDay = s_->day.id;
     applyCloseEffects(*c);
@@ -1567,6 +1575,13 @@ QVariantMap PosService::checkInfo() const
         {u"dueAt"_s, qint64(c->dueAt)}, {u"due"_s, c->dueAt ? dueText(c->dueAt) : QString()},
         {u"customer"_s, QVariantMap{{u"name"_s, qs(c->customer.name)}, {u"phone"_s, qs(c->customer.phone)},
                                     {u"address"_s, qs(c->customer.address)}, {u"note"_s, qs(c->customer.note)}}},
+        // Phone orders: their last order, the ready time (quoted, or what was promised), the driver.
+        {u"lastOrder"_s, lastOrderText(*c)},
+        {u"quote"_s, (c->type == CheckType::Takeout || c->type == CheckType::Delivery) && !c->dueAt && !c->promisedAt
+                         ? readyQuote(*c) : 0},
+        {u"promised"_s, c->promisedAt ? timeOfDay(c->promisedAt) : QString()},
+        {u"needsWho"_s, !missingWho(*c).isEmpty()},
+        {u"driver"_s, qs(c->driverName)},
     };
 }
 
@@ -1587,7 +1602,8 @@ QVariantList PosService::lines() const
             {u"price"_s, l.isComment() ? QString() : format(l.total())}, {u"comment"_s, l.isComment()},
             {u"sent"_s, l.sent}, {u"voided"_s, l.voided}, {u"modifiers"_s, mods},
             // − / + / Again apply (not a comment, gift card or weighed item).
-            {u"countable"_s, !l.isComment() && !l.isGiftCard() && !l.voided && l.weight == 0},
+            {u"countable"_s, !l.isComment() && !l.isGiftCard() && !l.isFee() && !l.voided && l.weight == 0},
+            {u"fee"_s, l.isFee()},
             {u"selected"_s, qint64(l.id) == selectedLine_},
             {u"seat"_s, l.seat}, {u"course"_s, l.course}, {u"held"_s, c->held(l)},
             // Its modifier groups can still be changed / a required one is missing.
@@ -2171,6 +2187,9 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"moveMenuItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.moveMenuItem(a.value(0).toString(), a.value(1).toInt())); }},
         {u"setMenuItemColor"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setMenuItemColor(a.value(0).toString(), a.value(1).toString())); }},
         {u"refreshDay"_s, [](PosService &p, const QVariantList &) { emit p.shared()->dayChanged(); return QVariant(true); }},
+        {u"sameAsLastTime"_s, [](PosService &p, const QVariantList &) { return QVariant(p.sameAsLastTime()); }},
+        {u"sendOut"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.sendOut(a.value(0).toList(), a.value(1).toString())); }},
+        {u"deliveryBack"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.deliveryBack(a.value(0).toLongLong())); }},
         {u"seatPartyAt"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.seatPartyAt(a.value(0).toLongLong(), a.value(1).toStringList(), a.value(2).toString())); }},
         {u"seatWalkIn"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.seatWalkIn(a.value(0).toInt(), a.value(1).toStringList(), a.value(2).toString())); }},
         {u"reserveTables"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.reserveTables(a.value(0).toLongLong(), a.value(1).toStringList())); }},

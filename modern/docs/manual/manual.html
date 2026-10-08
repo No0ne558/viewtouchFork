@@ -234,6 +234,19 @@
 <li>Something already sent to the kitchen only has <b>Again</b>; to take one off, use <b>Void</b>.</li>
 </ul>
 <p class="shot"><img src="shots/m103-quantity.png" width="560" height="315"></p>
+<p><b>Swipe</b> an item on the check: <b>left</b> takes it off (a void once it's sent, which needs a manager as usual), <b>right</b> adds one more. While you slide, the line shows <i>Remove</i>, <i>Void</i> or <i>+1</i>, and turns bright once letting go will do it. A short slide does nothing.</p>
+<p class="shot"><img src="shots/m124-swipe.jpg" width="560" height="315"></p>
+
+<h2>Deliveries and drivers</h2>
+<p><b>Deliveries</b> on the Tables page shows every open delivery, the oldest promise first, colored by where it is: gray <i>not sent to the kitchen</i>, amber <i>cooking</i>, green <i>ready to go</i>, blue <i>out with the driver</i> (and for how long), teal <i>back</i>. Late promises are in red.</p>
+<p class="shot"><img src="shots/m124-deliveries.jpg" width="560" height="315"></p>
+<ul>
+<li><b>Send it out:</b> touch the orders going together, touch the driver, <b>Send Out</b>. The check becomes the driver's: they collect for it and its tips are theirs.</li>
+<li><b>Back:</b> touch the orders, <b>Delivered</b>. The driver logs in, <b>Open Check</b>, and takes the payment. Paying a check that's out counts as delivered too.</li>
+<li><b>Drivers:</b> give someone the <i>Delivery driver</i> role (or <i>driver</i> as another job) in Manager → Employees. Drivers carry their own bank (the cash they collect, their change and tips) unless their <i>Cash handling</i> says otherwise, and check out like a server.</li>
+<li><b>Delivery fee:</b> Store Settings → <i>Delivery fee</i> adds it to every delivery once something is ordered (not for food; no tax; no discounts). Taking it off is a void, so it needs a manager.</li>
+<li><b>Report:</b> Reports → <b>Drivers</b>: deliveries, sales, fees, tips and the average time out, per driver.</li>
+</ul>
 
 <h2>Separate checks at one table</h2>
 <p>A party of six, each paying on their own? Open the table as usual and take the first guest's order. Then touch <b>+ Check</b> at the top of the check: a new check opens for the same table, without leaving the menu. Touch a number to go back to any of them. With many checks (a party of 20), the row stays on one line: <b>‹</b> and <b>›</b> show the others. The top of the check says which one you're on, like <i>T5 · Check 3</i>.</p>
@@ -309,7 +322,13 @@
 <ul>
 <li><b>A table:</b> touch it to start a check there, or to open its check if it has one. The table shows the check's total once it's open.</li>
 <li><b>Quick Order:</b> a counter sale with no table.</li>
-<li><b>Takeout / Delivery:</b> opens the menu right away. The check has <b>+ Name</b>, <b>+ Phone</b> (and <b>+ Address</b> for a delivery) and <b>Ready Later…</b> at the top: touch one, type, <b>Save</b>. Typing three digits of a phone number (or letters of a name) shows regulars who match; touch one and their name, phone and address fill in. Name and address stay amber until they're filled.</li>
+<li><b>Takeout / Delivery:</b> opens the menu right away. The check has <b>+ Name</b>, <b>+ Phone</b> (and <b>+ Address</b> for a delivery) and <b>Ready Later…</b> at the top: touch one, type, <b>Save</b>. Typing three digits of a phone number (or letters of a name) shows regulars who match; touch one and their name, phone and address fill in. Name and address stay amber until they're filled.
+<ul>
+<li><b>Same as Last Time:</b> when the customer is a regular (picked from the list), a button shows their last order, like <i>Same as Last Time: 2 × Coffee, Water</i>. One touch puts it on the check, at today's prices; anything sold out is left off, and it says so.</li>
+<li><b>Ready in about 20 min:</b> under the name, what to tell the caller. It starts from the usual time (Store Settings → <i>Takeout is usually ready in</i>, <i>Deliveries usually arrive in</i>) and adds a few minutes for each order the kitchen is still making. At <b>Send</b> it becomes the promise, <i>Promised for 6:45 PM</i>, which the Deliveries screen shows too.</li>
+<li><b>A name before Send:</b> Store Settings → <i>Phone orders need a name before Send</i> stops a takeout without a name (or a delivery without an address) from going to the kitchen. Each person (Employees) and each screen (Terminals) can say otherwise; the screen's setting wins, then the person's, then the store's.</li>
+</ul>
+<p class="shot"><img src="shots/m124-same.jpg" width="560" height="315"></p></li>
 <li><b>Open Checks:</b> every open check; touch one to open it.</li>
 <li><b>Host Stand:</b> seating, table states, the waitlist and reservations (chapter 8).</li>
 </ul>

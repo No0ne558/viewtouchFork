@@ -81,6 +81,8 @@ public:
     qint64 selectedPayment() const override { return v(u"selectedPayment").toLongLong(); }
     QVariantList openChecks() const override { return v(u"openChecks").toList(); }
     QVariantMap floor() const override { return v(u"floor").toMap(); }
+    QVariantList deliveries() const override { return v(u"deliveries").toList(); }
+    QVariantList drivers() const override { return v(u"drivers").toList(); }
     QStringList popularItems() const override { return v(u"popularItems").toStringList(); }
     QVariantMap stockLeft() const override { return v(u"stockLeft").toMap(); }
     QVariantMap dashboard() const override { return v(u"dashboard").toMap(); }

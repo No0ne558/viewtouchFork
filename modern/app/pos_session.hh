@@ -56,6 +56,11 @@ class PosSession : public QObject {
     // The host stand's floor: table -> {state: seated | dirty | reserved, ...}
     // (tables not in it are available).
     Q_PROPERTY(QVariantMap floor READ floor NOTIFY openChecksChanged)
+    // Open deliveries, the oldest promise first: {id, label, state: new | cooking |
+    // ready | out | back, name, address, total, driver, promised, outMinutes...}.
+    Q_PROPERTY(QVariantList deliveries READ deliveries NOTIFY openChecksChanged)
+    // Staff who drive (their role or another job): {id, name, clockedIn, out}.
+    Q_PROPERTY(QVariantList drivers READ drivers NOTIFY openChecksChanged)
     // Today's best sellers so far (item ids, most sold first): the Popular page.
     Q_PROPERTY(QStringList popularItems READ popularItems NOTIFY openChecksChanged)
     // Checks closed today, newest first (managers, to reopen one).
@@ -199,6 +204,8 @@ public:
     virtual QVariantList payments() const = 0;
     virtual qint64 selectedLine() const = 0;
     virtual qint64 selectedPayment() const = 0;
+    virtual QVariantList deliveries() const = 0;
+    virtual QVariantList drivers() const = 0;
     virtual QVariantMap floor() const = 0;
     virtual QVariantList openChecks() const = 0;
     virtual QStringList popularItems() const = 0;
@@ -327,6 +334,8 @@ public:
     Q_INVOKABLE void lineMore(qint64 lineId = 0) { invoke(QStringLiteral("lineMore"), {lineId}); }
     Q_INVOKABLE void lineLess(qint64 lineId = 0) { invoke(QStringLiteral("lineLess"), {lineId}); }
     Q_INVOKABLE void repeatLine(qint64 lineId = 0) { invoke(QStringLiteral("repeatLine"), {lineId}); }
+    // The touched item off the check (sent: a void, which may need a manager).
+    Q_INVOKABLE void voidItem() { invoke(QStringLiteral("voidItem"), {}); }
     Q_INVOKABLE void splitBySeat() { invoke(QStringLiteral("splitBySeat"), {}); }
     Q_INVOKABLE void printTableChecks() { invoke(QStringLiteral("printTableChecks"), {}); }
     Q_INVOKABLE void testPrinter(const QString &printerId, bool kickDrawer = false) { invoke(QStringLiteral("testPrinter"), {printerId, kickDrawer}); }
@@ -346,6 +355,10 @@ public:
     Q_INVOKABLE void setMenuItemColor(const QString &id, const QString &color) { invoke(QStringLiteral("setMenuItemColor"), {id, color}); }
     // The day's figures again (the dashboard, once a minute: labor keeps adding up).
     Q_INVOKABLE void refreshDay() { invoke(QStringLiteral("refreshDay"), {}); }
+    // Phone orders: a regular's last order again; deliveries out with a driver, and back.
+    Q_INVOKABLE void sameAsLastTime() { invoke(QStringLiteral("sameAsLastTime"), {}); }
+    Q_INVOKABLE void sendOut(const QVariantList &checkIds, const QString &driverId) { invoke(QStringLiteral("sendOut"), {checkIds, driverId}); }
+    Q_INVOKABLE void deliveryBack(qint64 checkId) { invoke(QStringLiteral("deliveryBack"), {checkId}); }
     // The host stand: seat a party (or walk-ins) at one or more tables, reserve
     // tables for a party, and mark tables clean or dirty.
     Q_INVOKABLE void seatPartyAt(qint64 partyId, const QStringList &tables, const QString &serverId = {}) { invoke(QStringLiteral("seatPartyAt"), {partyId, tables, serverId}); }

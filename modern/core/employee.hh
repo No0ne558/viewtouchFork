@@ -59,6 +59,8 @@ struct Employee {
     Money payRate;
     std::vector<Job> otherJobs;
     std::string cashMode;
+    // Phone orders need a name before Send: "yes", "no", or empty = the store's.
+    std::string requireName;
     // Checking out with checks still open: "closeChecks" (not allowed),
     // "anyTime" (allowed), or empty for the store's setting.
     std::string checkout;

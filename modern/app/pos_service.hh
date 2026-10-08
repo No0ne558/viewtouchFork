@@ -513,6 +513,8 @@ public:
     qint64 selectedPayment() const override { return selectedPayment_; }
     QVariantList openChecks() const override;
     QVariantMap floor() const override;
+    QVariantList deliveries() const override;
+    QVariantList drivers() const override;
     QStringList popularItems() const override;
     // Arranging the self-filling menu by touch (managers): one place earlier
     // or later within its family, and its button color.
@@ -648,6 +650,16 @@ public:
     bool notifyParty(qint64 id);       // "your table is ready" (texted when set up)
     // Seat them: opens their table's check for `serverId` (default: you).
     bool seatParty(qint64 id, const QString &table, const QString &serverId = {});
+    // Phone orders and deliveries (pos_phone_orders.cpp).
+    bool sameAsLastTime();
+    bool sendOut(const QVariantList &checkIds, const QString &driverId);
+    bool deliveryBack(qint64 checkId);
+    bool nameRequired() const;
+    QString missingWho(const core::Check &c) const;   // empty: it may go to the kitchen
+    int readyQuote(const core::Check &c) const;        // minutes, from how busy the kitchen is
+    void applyDeliveryFee(core::Check &c);
+    void rememberOrder(core::CustomerRecord &r, const core::Check &c);
+    QString lastOrderText(const core::Check &c) const;
     // The host stand (pos_waitlist.cpp).
     bool seatPartyAt(qint64 partyId, const QStringList &tables, const QString &serverId);
     bool seatWalkIn(int size, const QStringList &tables, const QString &serverId);

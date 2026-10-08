@@ -475,6 +475,7 @@ void PosService::applyCloseEffects(Check &c)
         ++r->visits;
         r->spent += c.totals(s_->settings.tax).total;
         r->lastVisit = c.closedAt;
+        rememberOrder(*r, c);
         saveCustomerRecord(*r);
     }
 }

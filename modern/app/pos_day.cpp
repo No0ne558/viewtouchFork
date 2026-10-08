@@ -43,7 +43,7 @@ QVariantMap toVariant(const Report &r)
 const QStringList kReportIds = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s, u"tips"_s,
                                 u"labor"_s, u"drawer"_s, u"expenses"_s, u"purchases"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s,
                                 u"exceptions"_s, u"deposit"_s, u"customers"_s,
-                                u"royalty"_s, u"accounting"_s, u"checklists"_s};
+                                u"royalty"_s, u"accounting"_s, u"checklists"_s, u"drivers"_s};
 
 } // namespace
 
@@ -349,6 +349,8 @@ bool PosService::serverBank() const
 {
     if (const Employee *e = user(); e && !e->cashMode.empty())
         return e->cashMode == "serverBank";
+    if (const Employee *e = user(); e && e->role == "driver")
+        return true;   // drivers carry their own bank (the cash they collect, change, tips)
     return s_->settings.cashMode == CashMode::ServerBank;
 }
 
@@ -976,6 +978,8 @@ Report PosService::buildReport(const QString &id) const
         return checklistReport(ctx);
     if (id == u"servers")
         return serverSales(s_->closedToday, ctx);
+    if (id == u"drivers")
+        return driverReport(s_->closedToday, ctx);
     if (id == u"labor") {
         Money net;
         for (const Check &c : s_->closedToday)
@@ -1054,6 +1058,8 @@ Report PosService::rangeCapableReport(const QString &id, const std::vector<Check
         return hourlySales(closed, ctx);
     if (id == u"servers")
         return serverSales(closed, ctx);
+    if (id == u"drivers")
+        return driverReport(closed, ctx);
     if (id == u"kitchen")
         return kitchenReport(ptrs, s_->settings.kitchenLateMinutes, ctx);
     if (id == u"audit")

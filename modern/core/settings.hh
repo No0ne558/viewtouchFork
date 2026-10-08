@@ -56,6 +56,8 @@ struct TerminalConfig {
     // The on-screen keyboard for typing: "on", "off", or empty = on (but the
     // phone's or tablet's own keyboard on Android).
     std::string keyboard;
+    // Phone orders need a name before Send here: "yes", "no", or empty = the person's / the store's.
+    std::string requireName;
 
     bool operator==(const TerminalConfig &) const = default;
 };
@@ -256,6 +258,15 @@ struct PosSettings {
     int kitchenLateMinutes = 15;
     // Orders for later go to the kitchen this long before they're due.
     int laterLeadMinutes = 20;
+    // Phone orders: a name before Send (and an address for deliveries);
+    // employees and terminals can say otherwise.
+    bool requireOrderName = false;
+    // The ready time quoted on takeouts and deliveries: the usual minutes, plus
+    // this much for each order the kitchen is still working on.
+    int takeoutMinutes = 15;
+    int deliveryMinutes = 35;
+    int minutesPerOrderWaiting = 2;
+    Money deliveryFee;   // added to deliveries when sent (0: none)
     // Messages posted until a time (the original's Expire Messages): every
     // screen shows them, to each person, until then.
     struct Notice {

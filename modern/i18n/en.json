@@ -58,5 +58,21 @@
  "%1 for %n guest(s)": {
   "one": "%1 for %n guest",
   "other": "%1 for %n guests"
+ },
+ "%n order(s) picked": {
+  "one": "%n order picked",
+  "other": "%n orders picked"
+ },
+ "Same as last time: %n item(s)": {
+  "one": "Same as last time: %n item",
+  "other": "Same as last time: %n items"
+ },
+ "Same as last time: %n item(s) (sold out: %1)": {
+  "one": "Same as last time: %n item (sold out: %1)",
+  "other": "Same as last time: %n items (sold out: %1)"
+ },
+ "%n order(s) out with %1": {
+  "one": "%n order out with %1",
+  "other": "%n orders out with %1"
  }
 }

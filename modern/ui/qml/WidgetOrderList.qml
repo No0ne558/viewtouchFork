@@ -14,6 +14,15 @@ Item {
     readonly property string face: zone.st.font ?? "DejaVu Sans"
     readonly property real unit: Math.max(12, Math.min((zone.st.fontSize ?? 28) * zone.textScale, w.width * 0.05 * zone.textScale))
     readonly property var check: pos ? pos.check : ({})
+    // A swiped line: from here, since selecting it rebuilds the lines (and the row).
+    function swipeOff(lineId) {
+        pos.selectedLine = lineId
+        pos.voidItem()
+    }
+    function swipeMore(lineId, sent) {
+        if (sent) pos.repeatLine(lineId)
+        else pos.lineMore(lineId)
+    }
     readonly property var totals: pos ? pos.totals : ({})
     readonly property bool paid: pos !== null && pos.payments.length > 0
     readonly property bool controls: !(zone && zone.props && zone.props.controls === false)
@@ -204,6 +213,31 @@ Item {
                 onClicked: w.zone.controller.jumpTo("order-later")
             }
         }
+        // When it'll be ready: quoted from how busy the kitchen is, or what they were told.
+        Text {
+            objectName: "readyQuote"
+            visible: who.visible && !w.check.due && ((w.check.quote ?? 0) > 0 || !!w.check.promised)
+            text: w.check.promised
+                  ? (who.delivery ? qsTr("Promised by %1") : qsTr("Promised for %1")).arg(w.check.promised)
+                  : (who.delivery ? qsTr("Arrives in about %1 min") : qsTr("Ready in about %1 min")).arg(w.check.quote ?? 0)
+            color: "#7ec8ff"
+            font.family: w.face
+            font.pixelSize: w.unit * 0.7
+            Layout.fillWidth: true
+            elide: Text.ElideRight
+        }
+        // A regular: their last order again, in one touch (before anything else is on).
+        WidgetKey {
+            objectName: "sameAsLastTime"
+            visible: w.controls && w.pos && w.pos.hasCheck && !!w.check.lastOrder
+                     && !(w.pos.lines ?? []).some(l => !l.comment && !l.fee)
+            Layout.fillWidth: true
+            Layout.preferredHeight: w.unit * 1.9
+            fontScale: 0.4
+            text: qsTr("Same as Last Time: %1").arg(w.check.lastOrder ?? "")
+            baseColor: "#1f6f78"
+            onClicked: w.pos.sameAsLastTime()
+        }
         Text {
             readonly property var customer: w.check.customer ?? ({})
             visible: w.pos && w.pos.hasCheck && !who.visible && !!(customer.name || customer.phone)
@@ -329,9 +363,51 @@ Item {
                 color: modelData.selected ? "#2f6fd6" : "transparent"
 
                 TapHandler { onTapped: w.pos.selectedLine = row.modelData.id }
+                // Swipe left: off the check (a void once sent). Swipe right: one more.
+                readonly property real swipeAt: width * 0.28
+                DragHandler {
+                    id: swipe
+                    objectName: "lineSwipe"
+                    target: null
+                    yAxis.enabled: false
+                    enabled: w.controls && !row.modelData.voided && !w.paid
+                    onActiveChanged: {
+                        if (active)
+                            return
+                        const dx = row.slide
+                        const line = row.modelData
+                        row.slide = 0
+                        if (dx <= -row.swipeAt)
+                            w.swipeOff(line.id)
+                        else if (dx >= row.swipeAt && !line.comment && !line.fee)
+                            w.swipeMore(line.id, line.sent)
+                    }
+                    onTranslationChanged: if (active) row.slide = translation.x
+                }
+                property real slide: 0
+                // What letting go does, under the line as it slides.
+                Rectangle {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    visible: row.slide !== 0
+                    color: row.slide < 0 ? (row.slide <= -row.swipeAt ? "#c0393f" : "#5a2a2d")
+                                         : (row.slide >= row.swipeAt ? "#1f8a4c" : "#22402f")
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.right: row.slide < 0 ? parent.right : undefined
+                        anchors.left: row.slide > 0 ? parent.left : undefined
+                        anchors.margins: w.unit * 0.5
+                        text: row.slide < 0 ? (row.modelData.sent ? qsTr("Void") : qsTr("Remove")) : qsTr("+1")
+                        color: "white"
+                        font.family: w.face
+                        font.pixelSize: w.unit * 0.8
+                        font.bold: true
+                    }
+                }
 
                 ColumnLayout {
                     id: col
+                    transform: Translate { x: row.slide }
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter

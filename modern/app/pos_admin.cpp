@@ -221,12 +221,12 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
             with(field(u"role"_s, tr("Role"), u"enum"_s), u"options"_s,
                  options({{"server", "Server"}, {"bartender", "Bartender"}, {"cashier", "Cashier"}, {"host", "Host"},
-                          {"busser", "Busser"}, {"manager", "Manager"}, {"admin", "Admin"}})),
+                          {"busser", "Busser"}, {"driver", "Delivery driver"}, {"manager", "Manager"}, {"admin", "Admin"}})),
             field(u"pin"_s, tr("New PIN"), u"pin"_s, tr("4 to 8 digits. Leave empty to keep the current PIN.")),
             field(u"payRate"_s, tr("Pay rate ($ an hour)"), u"money"_s, tr("For their role, before tips. For the Labor report.")),
             field(u"otherJobs"_s, tr("Other jobs"), u"text"_s,
                   tr("Other jobs they work, one per line with its pay, e.g. \"bartender 9.00\". "
-                     "They choose the job when they clock in. Jobs: server, bartender, cashier, host, busser, manager.")),
+                     "They choose the job when they clock in. Jobs: server, bartender, cashier, host, busser, driver, manager.")),
             with(field(u"language"_s, tr("Language"), u"enum"_s, tr("The screens switch to it when this person logs in.")),
                  u"options"_s, languageOptions(true)),
             with(field(u"textSize"_s, tr("Text size"), u"enum"_s, tr("Bigger button and check text, for them only.")),
@@ -250,6 +250,9 @@ QVariantList PosService::adminFields(const QString &panel)
             permField(perm::Void, tr("Void items already sent")),
             permField(perm::Manager, tr("Manager screens (reports, settings, staff…)")),
             permField(perm::EditLayout, tr("Edit pages")),
+            with(field(u"requireName"_s, tr("Phone orders need a name before Send"), u"enum"_s,
+                       tr("Store setting: %1.").arg(s_->settings.requireOrderName ? tr("yes") : tr("no"))),
+                 u"options"_s, options({{"", "Store setting"}, {"yes", "Yes"}, {"no", "No"}})),
             with(field(u"checkout"_s, tr("Checking out with open checks"), u"enum"_s,
                        tr("Store setting: %1.").arg(s_->settings.checkoutNeedsClosedChecks
                                                          ? tr("close all checks first") : tr("allowed"))),
@@ -345,6 +348,17 @@ QVariantList PosService::adminFields(const QString &panel)
                             tr("Late tickets are counted in the Kitchen report.")), u"min"_s, 1), u"max"_s, 240),
             with(with(field(u"laterLeadMinutes"_s, tr("Orders for later go to the kitchen (minutes before)"), u"int"_s,
                             tr("An order for 6:30 with 20 here reaches the kitchen at 6:10.")), u"min"_s, 0), u"max"_s, 240),
+            field(u"requireOrderName"_s, tr("Phone orders need a name before Send"), u"bool"_s,
+                  tr("Takeout and delivery: a name (and an address for deliveries) before the kitchen gets it. "
+                     "Each person and each screen can say otherwise (Employees, Terminals).")),
+            with(with(field(u"takeoutMinutes"_s, tr("Takeout is usually ready in (minutes)"), u"int"_s,
+                            tr("The quote on a takeout check, when the kitchen isn't busy.")), u"min"_s, 0), u"max"_s, 240),
+            with(with(field(u"deliveryMinutes"_s, tr("Deliveries usually arrive in (minutes)"), u"int"_s),
+                      u"min"_s, 0), u"max"_s, 240),
+            with(with(field(u"minutesPerOrderWaiting"_s, tr("Add to the quote for each order cooking (minutes)"), u"int"_s,
+                            tr("With 15 and 2 here, 5 orders in the kitchen make it 25.")), u"min"_s, 0), u"max"_s, 60),
+            field(u"deliveryFee"_s, tr("Delivery fee"), u"money"_s,
+                  tr("Added to every delivery (0 = none). Taking it off is a void (a manager).")),
             with(with(field(u"screenSaverMinutes"_s, tr("Dim the screen after (minutes)"), u"int"_s,
                             tr("Untouched screens dim; a touch wakes them (and does nothing else). 0 = never. "
                                "Kitchen, bar and expo screens stay on.")), u"min"_s, 0), u"max"_s, 240),
@@ -475,6 +489,9 @@ QVariantList PosService::adminFields(const QString &panel)
                        tr("For typing names, notes and numbers on a touch screen. Phones and tablets use their own.")),
                  u"options"_s, options({{"", "Automatic (on; phones and tablets use their own)"}, {"on", "On"},
                                         {"off", "Off (this screen has a keyboard)"}})),
+            with(field(u"requireName"_s, tr("Phone orders need a name before Send"), u"enum"_s,
+                       tr("At this screen, whoever is taking the order. Empty: the person's setting, else the store's.")),
+                 u"options"_s, options({{"", "The person's / store setting"}, {"yes", "Yes"}, {"no", "No"}})),
         };
     }
     return {};
@@ -504,7 +521,7 @@ QVariantList PosService::adminRecords(const QString &panel)
     } else if (panel == u"employees") {
         for (const Employee &e : s_->employees) {
             QVariantMap r{{u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
-                          {u"active"_s, e.active}, {u"training"_s, e.training}, {u"pin"_s, QString()}, {u"cashMode"_s, qs(e.cashMode)}, {u"language"_s, qs(e.language)},
+                          {u"active"_s, e.active}, {u"training"_s, e.training}, {u"pin"_s, QString()}, {u"cashMode"_s, qs(e.cashMode)}, {u"requireName"_s, qs(e.requireName)}, {u"language"_s, qs(e.language)},
                           {u"textSize"_s, QString::number(e.textSize)}, {u"leftHanded"_s, e.leftHanded}, {u"startPage"_s, qs(e.startPage)},
                           {u"payRate"_s, e.payRate.cents() / 100.0}, {u"otherJobs"_s, [&] {
                                QStringList lines;
@@ -613,6 +630,10 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"kitchenWarnMinutes"_s, s_->settings.kitchenWarnMinutes},
              {u"kitchenLateMinutes"_s, s_->settings.kitchenLateMinutes},
              {u"laterLeadMinutes"_s, s_->settings.laterLeadMinutes},
+             {u"requireOrderName"_s, s_->settings.requireOrderName}, {u"takeoutMinutes"_s, s_->settings.takeoutMinutes},
+             {u"deliveryMinutes"_s, s_->settings.deliveryMinutes},
+             {u"minutesPerOrderWaiting"_s, s_->settings.minutesPerOrderWaiting},
+             {u"deliveryFee"_s, double(s_->settings.deliveryFee.cents()) / 100.0},
              {u"tipPercents"_s, [&] { QStringList l; for (int p : s_->settings.tipPercents) l << QString::number(p); return l.join(u", "_s); }()},
              {u"tableReadyText"_s, qs(s_->settings.tableReadyText)}, {u"textWebhook"_s, qs(s_->settings.textWebhook)},
              {u"paidBreaks"_s, s_->settings.paidBreaks}, {u"overtimeDailyHours"_s, s_->settings.overtimeDailyHours},
@@ -665,7 +686,8 @@ QVariantList PosService::adminRecords(const QString &panel)
         for (const TerminalConfig &t : s_->settings.terminals) {
             const PrinterConfig *p = s_->settings.printer(t.receiptPrinter);
             add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}, {u"drawer"_s, qs(t.drawer)},
-                 {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)}, {u"keyboard"_s, qs(t.keyboard)}},
+                 {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)}, {u"keyboard"_s, qs(t.keyboard)},
+                 {u"requireName"_s, qs(t.requireName)}},
                 qs(t.name), (p ? qs(p->name) : tr("Receipt (default)"))
                                 + (s_->settings.hasDrawer(t.name) ? QString() : tr(" · no drawer"))
                                 + (t.key.empty() ? QString() : tr(" · paired device")));
@@ -685,7 +707,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"takeoutPrice"_s, 0.0}, {u"deliveryPrice"_s, 0.0}, {u"noDiscount"_s, false}, {u"noStaffDiscount"_s, false}};
     if (panel == u"employees")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
-                {u"active"_s, true}, {u"training"_s, false}, {u"cashMode"_s, QString()}, {u"checkout"_s, QString()},
+                {u"active"_s, true}, {u"training"_s, false}, {u"cashMode"_s, QString()}, {u"requireName"_s, QString()}, {u"checkout"_s, QString()},
                 {u"payRate"_s, 0.0}, {u"otherJobs"_s, QString()}, {u"language"_s, QString()},
                 {u"textSize"_s, u"100"_s}, {u"leftHanded"_s, false}, {u"startPage"_s, QString()},
                 {u"perm:order"_s, QString()}, {u"perm:check.settle"_s, QString()}, {u"perm:check.discount"_s, QString()},
@@ -695,7 +717,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"staffMeal"_s, false}};
     if (panel == u"terminals")
         return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}, {u"drawer"_s, QString()},
-                {u"screen"_s, QString()}, {u"look"_s, QString()}, {u"keyboard"_s, QString()}};
+                {u"screen"_s, QString()}, {u"look"_s, QString()}, {u"keyboard"_s, QString()}, {u"requireName"_s, QString()}};
     if (panel == u"mealPeriods")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"modifierGroups")
@@ -814,6 +836,10 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         if (!QStringList{QString(), u"on"_s, u"off"_s}.contains(keyboard))
             return fail(tr("Choose whether the screen shows a keyboard."));
         t.keyboard = ss(keyboard);
+        const QString requireName = record.value(u"requireName"_s).toString();
+        if (!QStringList{QString(), u"yes"_s, u"no"_s}.contains(requireName))
+            return fail(tr("Choose whether phone orders need a name at this screen."));
+        t.requireName = ss(requireName);
         if (index >= 0 && index < int(list.size()))
             list[index] = t;
         else
@@ -956,6 +982,20 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.kitchenWarnMinutes = std::clamp(record.value(u"kitchenWarnMinutes"_s).toInt(), 1, 120);
         if (record.contains(u"laterLeadMinutes"_s))
             s_->settings.laterLeadMinutes = std::clamp(record.value(u"laterLeadMinutes"_s).toInt(), 0, 240);
+        if (record.contains(u"requireOrderName"_s))
+            s_->settings.requireOrderName = record.value(u"requireOrderName"_s).toBool();
+        if (record.contains(u"takeoutMinutes"_s))
+            s_->settings.takeoutMinutes = std::clamp(record.value(u"takeoutMinutes"_s).toInt(), 0, 240);
+        if (record.contains(u"deliveryMinutes"_s))
+            s_->settings.deliveryMinutes = std::clamp(record.value(u"deliveryMinutes"_s).toInt(), 0, 240);
+        if (record.contains(u"minutesPerOrderWaiting"_s))
+            s_->settings.minutesPerOrderWaiting = std::clamp(record.value(u"minutesPerOrderWaiting"_s).toInt(), 0, 60);
+        if (record.contains(u"deliveryFee"_s)) {
+            const double fee = record.value(u"deliveryFee"_s).toDouble();
+            if (fee < 0 || fee > 1000)
+                return fail(tr("Write the delivery fee in dollars."));
+            s_->settings.deliveryFee = Money::fromCents(std::llround(fee * 100));
+        }
         if (record.contains(u"kitchenLateMinutes"_s))
             s_->settings.kitchenLateMinutes =
                 std::clamp(record.value(u"kitchenLateMinutes"_s).toInt(), s_->settings.kitchenWarnMinutes, 240);
@@ -1191,7 +1231,7 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     const bool active = record.value(u"active"_s, true).toBool();
     if (name.isEmpty())
         return fail(tr("The employee needs a name."));
-    if (!QStringList{u"server"_s, u"bartender"_s, u"cashier"_s, u"host"_s, u"busser"_s, u"manager"_s, u"admin"_s}
+    if (!QStringList{u"server"_s, u"bartender"_s, u"cashier"_s, u"host"_s, u"busser"_s, u"driver"_s, u"manager"_s, u"admin"_s}
              .contains(role))
         return fail(tr("Choose a role."));
     if (index < 0 && pin.isEmpty())
@@ -1224,6 +1264,9 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     const QString cashMode = record.value(u"cashMode"_s).toString();
     if (!QStringList{QString(), u"serverBank"_s, u"drawer"_s}.contains(cashMode))
         return fail(tr("Choose how this person handles cash."));
+    const QString requireName = record.value(u"requireName"_s).toString();
+    if (!QStringList{QString(), u"yes"_s, u"no"_s}.contains(requireName))
+        return fail(tr("Choose whether this person's phone orders need a name."));
     const QString checkout = record.value(u"checkout"_s).toString();
     if (!QStringList{QString(), u"closeChecks"_s, u"anyTime"_s}.contains(checkout))
         return fail(tr("Choose whether this person may check out with open checks."));
@@ -1236,7 +1279,7 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     if (rate < 0 || rate > 1000)
         return fail(tr("Write the pay rate in dollars an hour."));
     std::vector<Job> otherJobs;
-    static const QStringList jobRoles{u"server"_s, u"bartender"_s, u"cashier"_s, u"host"_s, u"busser"_s, u"manager"_s, u"admin"_s};
+    static const QStringList jobRoles{u"server"_s, u"bartender"_s, u"cashier"_s, u"host"_s, u"busser"_s, u"driver"_s, u"manager"_s, u"admin"_s};
     for (const QString &line : record.value(u"otherJobs"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
         const QStringList parts = line.simplified().split(u' ');
         bool ok = parts.size() == 2;
@@ -1254,6 +1297,7 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     e.leftHanded = record.value(u"leftHanded"_s, e.leftHanded).toBool();
     e.startPage = ss(record.value(u"startPage"_s, qs(e.startPage)).toString());
     e.cashMode = ss(cashMode);
+    e.requireName = ss(requireName);
     e.checkout = ss(checkout);
     e.allow = allow;
     e.deny = deny;

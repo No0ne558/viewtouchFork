@@ -75,6 +75,8 @@ struct OrderLine {
     bool forKitchen() const { return !kitchenHide && !itemId.starts_with("giftcard:"); }
     // Selling or reloading gift card <number>: no kitchen, no tax.
     bool isGiftCard() const { return itemId.starts_with("giftcard:"); }
+    // A charge, not food: the delivery fee ("fee:delivery").
+    bool isFee() const { return itemId.starts_with("fee:"); }
     std::string giftCardNumber() const { return isGiftCard() ? itemId.substr(9) : std::string(); }
     std::string displayName() const { return qualifierPrefix(qualifier) + name + weightText(); }
     // " 1.25 lb" for an item sold by weight, else empty.
@@ -202,6 +204,13 @@ struct Check {
     std::int64_t dueAt = 0;
     // Course pacing: the next held course fires by itself at this time (0: when someone fires it).
     std::int64_t fireAt = 0;
+    // Phone orders: the time the guest was told at the first Send (0: none).
+    std::int64_t promisedAt = 0;
+    // Deliveries: who took it out, when, and when they were back.
+    std::string driverId;
+    std::string driverName;
+    std::int64_t outAt = 0;
+    std::int64_t deliveredAt = 0;
 
     void note(std::int64_t at, const std::string &who, const std::string &what, const std::string &kind = {},
               Money amount = {})

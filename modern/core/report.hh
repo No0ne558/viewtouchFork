@@ -79,6 +79,9 @@ std::map<std::string, TipShare> tipShares(const std::vector<Check> &closed, cons
 Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx);
 Report itemSales(const std::vector<Check> &closed, const std::vector<MenuItem> &menu, const ReportContext &ctx);
 Report serverSales(const std::vector<Check> &closed, const ReportContext &ctx);
+// Deliveries by driver: how many, their sales, delivery fees, tips, and how
+// long they were out on average.
+Report driverReport(const std::vector<Check> &closed, const ReportContext &ctx);
 // Today's punches with breaks and worked hours, then each person's hours
 // today and this pay week with overtime (`earlier`: this week's punches
 // from earlier days), then what today's labor costs (each shift at the pay
