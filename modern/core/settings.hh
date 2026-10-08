@@ -23,6 +23,8 @@ struct PrinterConfig {
     bool cutter = true;
     bool drawerKick = false;     // cash drawer is wired to this printer
     bool receipts = false;       // offered when a screen asks where a receipt goes
+    // ESC/POS letters: empty = PC858 (accents, ñ, £ €; Epson and most), "ascii" = plain letters.
+    std::string charset;
 
     std::string effectiveFormat() const { return !format.empty() ? format : type == "network" ? "escpos" : "text"; }
     bool operator==(const PrinterConfig &) const = default;
@@ -123,6 +125,9 @@ struct PosSettings {
     std::vector<Tender> tenders;
     std::vector<PrinterConfig> printers;
     std::string receiptHeader;   // lines under the store name
+    // Choices that cost nothing (No onion, Medium rare) on the guest's
+    // receipt; off: only those that change the price (the kitchen gets all).
+    bool receiptFreeChoices = false;
     std::string receiptFooter;
     // Auto-gratuity: added to dine-in checks with at least this many guests.
     std::int64_t gratuityBp = 0;   // 0 = off; 1800 = 18%

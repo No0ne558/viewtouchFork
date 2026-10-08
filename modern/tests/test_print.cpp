@@ -81,18 +81,23 @@ TEST_CASE("Text rendering: columns, wrapping, centering", "[print]")
         CHECK(displayWidth(row) <= 24);
 }
 
-TEST_CASE("ESC/POS: init, emphasis, cut, drawer kick, ASCII only", "[print]")
+TEST_CASE("ESC/POS: init, emphasis, cut, drawer kick, letters", "[print]")
 {
     Document d;
     d.text("Crème brûlée", Document::Align::Left, true);
     d.kickDrawer = true;
+    // Accented letters: the PC858 character set.
     const std::string bytes = renderEscPos(d, 42);
-    CHECK(bytes.rfind("\x1b@", 0) == 0);                      // ESC @ first
+    CHECK(bytes.rfind("\x1b@\x1bt\x13", 0) == 0);              // ESC @, then ESC t 19
     CHECK(contains(bytes, std::string("\x1b" "E" "\x01", 3)));  // bold on
-    CHECK(contains(bytes, "Creme brulee"));                   // transliterated
+    CHECK(contains(bytes, "Cr\x8A" "me br\x96" "l\x82" "e"));     // è û é in PC858
     CHECK(contains(bytes, std::string("\x1bp\x00\x19\xfa", 5)));
     CHECK(contains(bytes, std::string("\x1dV\x42\x00", 4)));   // partial cut
-    CHECK(std::ranges::none_of(bytes, [](char c) { return static_cast<unsigned char>(c) >= 0x80 && c != '\xfa'; }));
+    // Plain letters: no character set, ASCII only.
+    const std::string plain = renderEscPos(d, 42, false);
+    CHECK_FALSE(contains(plain, "\x1bt"));
+    CHECK(contains(plain, "Creme brulee"));
+    CHECK(std::ranges::none_of(plain, [](char c) { return static_cast<unsigned char>(c) >= 0x80 && c != '\xfa'; }));
 }
 
 TEST_CASE("Receipt and kitchen ticket contents", "[print]")
@@ -370,4 +375,157 @@ TEST_CASE("A network printer, live: the Test Print page", "[.][printerlive]")
         QTest::qWait(50);
     INFO(result.toStdString());
     CHECK(result == u"printed"_s);
+}
+
+namespace {
+
+// The text rows of ESC/POS bytes: commands taken out, one entry a line.
+std::vector<std::string> escPosRows(const std::string &bytes)
+{
+    std::vector<std::string> rows;
+    std::string row;
+    for (std::size_t i = 0; i < bytes.size(); ++i) {
+        const char c = bytes[i];
+        if (c == '\x1b' || c == '\x1d') {
+            const char cmd = i + 1 < bytes.size() ? bytes[i + 1] : 0;
+            if (cmd == '@') { i += 1; continue; }
+            if (c == '\x1d' && cmd == 'v') {   // a picture: GS v 0 m xL xH yL yH data
+                const std::size_t w = std::size_t((unsigned char)bytes[i + 4] | (unsigned char)bytes[i + 5] << 8);
+                const std::size_t h = std::size_t((unsigned char)bytes[i + 6] | (unsigned char)bytes[i + 7] << 8);
+                i += 7 + w * h;
+                continue;
+            }
+            if (cmd == 'p') { i += 4; continue; }
+            if (cmd == 'V') { i += 3; continue; }
+            i += 2;   // ESC/GS x n
+            continue;
+        }
+        if (c == '\n') {
+            rows.push_back(row);
+            row.clear();
+        } else {
+            row += c;
+        }
+    }
+    return rows;
+}
+
+core::Check awkwardCheck()
+{
+    core::Check c;
+    c.id = 3465;
+    c.label = "Patio 12 — the long table by the fountain";
+    c.serverName = "Maria-José Fernández de la Peña";
+    c.guests = 12;
+    c.customer.name = "Ñoño “The Regular” O’Brien";
+    c.customer.phone = "(555) 123-4567";
+    c.customer.address = "1234 Avenida de los Insurgentes Sur\nApt 5B\tGate code #4321\x1b@";
+    c.customer.note = "Leave at the door 🍕🚪 — ring twice…";
+    core::OrderLine l;
+    l.id = 1;
+    l.itemId = "burger";
+    l.name = "Super Deluxe Triple Bacon Cheeseburger with Jalapeños and Extra Everything";
+    l.unitPrice = Money::fromCents(123456);
+    l.quantity = 12;
+    core::Modifier free;
+    free.name = "No onion";
+    core::Modifier extra;
+    extra.name = "Extra bacon";
+    extra.unitPrice = Money::fromCents(250);
+    core::Modifier temp;
+    temp.name = "Medium rare";
+    l.modifiers = {free, extra, temp};
+    c.lines.push_back(l);
+    core::OrderLine crepe;
+    crepe.id = 2;
+    crepe.itemId = "creme";
+    crepe.name = "Crème brûlée ½ · café";
+    crepe.unitPrice = Money::fromCents(899);
+    crepe.quantity = 1;
+    c.lines.push_back(crepe);
+    core::Payment pay;
+    pay.id = 1;
+    pay.kind = core::TenderKind::Card;
+    pay.tenderName = "Credit Card";
+    pay.amount = Money::fromCents(1600000);
+    pay.tip = Money::fromCents(250000);
+    pay.cardBrand = "mastercard";
+    pay.last4 = "4242";
+    pay.processor = "stripe";
+    pay.reference = "pi_3PqLongStripeReferenceThatIsLongerThanAnyPaperWidth";
+    c.payments.push_back(pay);
+    return c;
+}
+
+} // namespace
+
+TEST_CASE("Every printout fits the paper and stays readable", "[print][fit]")
+{
+    auto seed = test::seedPosData();
+    seed.settings.storeName = "La Taquería del Barrio — Since 1987";
+    seed.settings.receiptHeader = "123 Main St\nSpringfield ☎ 555-0100";
+    seed.settings.receiptFooter = "¡Gracias! Vuelva pronto 😊";
+    const core::Check c = awkwardCheck();
+    core::Report report;
+    report.title = "Server Sales (comparison)";
+    report.subtitle = "This week vs. last week";
+    report.rows.push_back({core::ReportRow::Kind::Section, {"Servers"}});
+    report.rows.push_back({core::ReportRow::Kind::Line, {"Maria-José Fernández", "$12,345.67", "$11,000.00", "+12.2%", "142"}});
+    report.rows.push_back({core::ReportRow::Kind::Total, {"Total", "$123,456.78", "$110,000.00", "+12.2%"}});
+    report.rows.push_back({core::ReportRow::Kind::Note, {"A note that is longer than any paper is wide, so it must wrap neatly."}});
+    for (const char *currency : {"$", "€", "£"}) {
+        seed.settings.currencySymbol = currency;
+        for (const int width : {32, 42, 48}) {
+            const auto context = ctx(seed.settings);
+            const std::vector<Document> docs = {receipt(c, context), kitchenTicket(c, c.lines, "Kitchen", false, context),
+                                                kitchenTicket(c, c.lines, "Bar", true, context), reportTicket(report, context)};
+            for (const Document &d : docs) {
+                const std::string text = renderText(d, width);
+                std::istringstream in(text);
+                for (std::string row; std::getline(in, row);) {
+                    INFO(width << " text: " << row);
+                    CHECK(displayWidth(row) <= std::size_t(width));
+                    CHECK(row.find('\x1b') == std::string::npos);
+                    CHECK(row.find('\t') == std::string::npos);
+                    CHECK(row.find('?') == std::string::npos);
+                }
+                for (const bool accents : {true, false}) {
+                    for (const std::string &row : escPosRows(renderEscPos(d, width, accents))) {
+                        INFO(width << (accents ? " PC858: " : " plain: ") << row);
+                        CHECK(row.size() <= std::size_t(width));   // one byte, one column
+                        CHECK(row.find('?') == std::string::npos);
+                        if (!accents)
+                            CHECK(std::ranges::none_of(row, [](char ch) { return static_cast<unsigned char>(ch) >= 0x80; }));
+                    }
+                }
+            }
+        }
+    }
+    // Readable: the currency and the accents survive, the address keeps its lines.
+    seed.settings.currencySymbol = "€";
+    const std::string r = renderText(receipt(c, ctx(seed.settings)), 42);
+    CHECK(contains(r, "€"));
+    CHECK(contains(r, "Crème brûlée ½ · café"));
+    CHECK(contains(r, "\nApt 5B Gate code #4321"));   // its own row; the tab and ESC gone
+    CHECK_FALSE(contains(r, "\n \n"));                // no row left with only an indent
+    CHECK(contains(r, "Ñoño \"The Regular\" O'Brien"));
+    CHECK(contains(renderEscPos(receipt(c, ctx(seed.settings)), 42, false), "EUR"));
+}
+
+TEST_CASE("Receipts leave out free choices; the kitchen gets them all", "[print][fit]")
+{
+    auto seed = test::seedPosData();
+    const core::Check c = awkwardCheck();
+    std::string r = renderText(receipt(c, ctx(seed.settings)), 42);
+    CHECK(contains(r, "Extra bacon"));
+    CHECK_FALSE(contains(r, "No onion"));
+    CHECK_FALSE(contains(r, "Medium rare"));
+    const std::string k = renderText(kitchenTicket(c, c.lines, "Kitchen", false, ctx(seed.settings)), 42);
+    CHECK(contains(k, "No onion"));
+    CHECK(contains(k, "Medium rare"));
+    CHECK(contains(k, "Extra bacon"));
+    seed.settings.receiptFreeChoices = true;   // Store Settings: shown
+    r = renderText(receipt(c, ctx(seed.settings)), 42);
+    CHECK(contains(r, "No onion"));
+    CHECK(contains(r, "Medium rare"));
 }

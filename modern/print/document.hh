@@ -48,9 +48,13 @@ struct Document {
 // Number of characters (UTF-8 code points) in s.
 std::size_t displayWidth(const std::string &s);
 
+// Every row fits `width` (a line too wide for its columns is split onto
+// rows of its own); line breaks and control characters in the text don't
+// reach the printer; typographic marks become plain ones.
 std::string renderText(const Document &doc, int width);
-// ESC/POS for Epson-compatible printers. Non-ASCII text is transliterated
-// (é -> e) since printer code pages vary.
-std::string renderEscPos(const Document &doc, int width);
+// ESC/POS for Epson-compatible printers. `accents`: the PC858 character set
+// (accented letters, ñ ¿ ¡, £ €); else plain letters (é -> e, € -> EUR) for
+// printers without it.
+std::string renderEscPos(const Document &doc, int width, bool accents = true);
 
 } // namespace vt::print

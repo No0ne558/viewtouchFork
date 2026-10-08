@@ -303,6 +303,9 @@ QVariantList PosService::adminFields(const QString &panel)
             with(with(field(u"width"_s, tr("Characters per line"), u"int"_s), u"min"_s, 16), u"max"_s, 80),
             field(u"cutter"_s, tr("Cut paper after each ticket"), u"bool"_s),
             field(u"drawerKick"_s, tr("Cash drawer is connected to this printer"), u"bool"_s),
+            with(field(u"charset"_s, tr("Letters"), u"enum"_s,
+                       tr("Accented letters (ñ, é), ¿ ¡, £ and € on Epson and most receipt printers; plain letters for a printer that shows them wrong.")),
+                 u"options"_s, options({{"", "Accented letters (PC858)"}, {"ascii", "Plain letters only"}})),
             field(u"receipts"_s, tr("Prints receipts"), u"bool"_s,
                   tr("Offered when a screen asks where to print a receipt (handhelds: Terminals -> Ask each time).")),
         };
@@ -336,6 +339,8 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"currencySymbol"_s, tr("Currency symbol"), u"string"_s),
             field(u"receiptHeader"_s, tr("Receipt header"), u"text"_s, tr("Address, phone… one per line")),
             field(u"receiptFooter"_s, tr("Receipt footer"), u"text"_s),
+            field(u"receiptFreeChoices"_s, tr("Free choices on receipts"), u"bool"_s,
+                  tr("Off: the guest's receipt shows only choices that change the price (Extra bacon), not No onion or Medium rare. Kitchen tickets show them all.")),
             with(field(u"cashMode"_s, tr("Cash handling"), u"enum"_s,
                        tr("Server bank: whoever takes cash keeps it and turns it in at check out, so anyone can "
                           "use any terminal. Drawer: each terminal has a cash drawer.")),
@@ -593,7 +598,7 @@ QVariantList PosService::adminRecords(const QString &panel)
     } else if (panel == u"printers") {
         for (const PrinterConfig &p : s_->settings.printers) {
             QVariantMap r = toJson(p).toVariantMap();
-            for (const char16_t *k : {u"host", u"path", u"format"}) {
+            for (const char16_t *k : {u"host", u"path", u"format", u"charset"}) {
                 if (!r.contains(QString::fromUtf16(k)))
                     r.insert(QString::fromUtf16(k), QString());
             }
@@ -609,6 +614,7 @@ QVariantList PosService::adminRecords(const QString &panel)
     } else if (panel == u"store") {
         add({{u"storeName"_s, qs(s_->settings.storeName)}, {u"language"_s, qs(s_->settings.language)}, {u"currencySymbol"_s, qs(s_->settings.currencySymbol)},
              {u"receiptHeader"_s, qs(s_->settings.receiptHeader)}, {u"receiptFooter"_s, qs(s_->settings.receiptFooter)},
+             {u"receiptFreeChoices"_s, s_->settings.receiptFreeChoices},
              {u"gratuityPercent"_s, double(s_->settings.gratuityBp) / 100.0},
              {u"gratuityMinGuests"_s, s_->settings.gratuityMinGuests},
              {u"cashMode"_s, qs(toString(s_->settings.cashMode))},
@@ -810,7 +816,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"printers")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"type"_s, u"network"_s}, {u"host"_s, QString()},
                 {u"port"_s, 9100}, {u"path"_s, QString()}, {u"format"_s, QString()}, {u"width"_s, 42},
-                {u"cutter"_s, true}, {u"drawerKick"_s, false}, {u"receipts"_s, true}};
+                {u"cutter"_s, true}, {u"drawerKick"_s, false}, {u"receipts"_s, true}, {u"charset"_s, QString()}};
     return {};
 }
 
@@ -976,6 +982,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         s_->settings.currencySymbol = ss(record.value(u"currencySymbol"_s).toString());
         s_->settings.receiptHeader = ss(record.value(u"receiptHeader"_s).toString());
         s_->settings.receiptFooter = ss(record.value(u"receiptFooter"_s).toString());
+        if (record.contains(u"receiptFreeChoices"_s))
+            s_->settings.receiptFreeChoices = record.value(u"receiptFreeChoices"_s).toBool();
         const double gratuity = number(record, u"gratuityPercent");
         if (gratuity < 0 || gratuity > 100)
             return fail(tr("Gratuity is between 0 and 100%."));

@@ -611,6 +611,8 @@ QJsonObject toJson(const PrinterConfig &p)
     QJsonObject o{{u"id"_s, qs(p.id)}, {u"name"_s, qs(p.name)}, {u"type"_s, qs(p.type)},
                   {u"width"_s, p.width}, {u"cutter"_s, p.cutter}, {u"drawerKick"_s, p.drawerKick},
                   {u"receipts"_s, p.receipts}};
+    if (!p.charset.empty())
+        o.insert(u"charset"_s, qs(p.charset));
     if (!p.host.empty()) o.insert(u"host"_s, qs(p.host));
     if (p.port != 9100) o.insert(u"port"_s, p.port);
     if (!p.path.empty()) o.insert(u"path"_s, qs(p.path));
@@ -635,6 +637,7 @@ PrinterConfig printerFromJson(const QJsonObject &o)
     p.drawerKick = o.value(u"drawerKick").toBool(false);
     // Saved before this setting: the receipt printer, and those with a drawer, print receipts.
     p.receipts = o.value(u"receipts").toBool(p.id == "receipt" || p.drawerKick);
+    p.charset = ss(o.value(u"charset").toString());
     return p;
 }
 
@@ -733,6 +736,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"tenders"_s, tenders}, {u"tendersV2"_s, true},
         {u"printers"_s, printers},
         {u"receiptHeader"_s, qs(s.receiptHeader)}, {u"receiptLogo"_s, s.receiptLogo},
+        {u"receiptFreeChoices"_s, s.receiptFreeChoices},
         {u"receiptFooter"_s, qs(s.receiptFooter)},
         {u"gratuity"_s, QJsonObject{{u"percent"_s, double(s.gratuityBp) / 100.0}, {u"minGuests"_s, s.gratuityMinGuests}}},
         {u"terminals"_s, terminals},
@@ -981,6 +985,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
     const QJsonObject display = o.value(u"display").toObject();
     s.displayLogo = ss(display.value(u"logo").toString());
     s.receiptLogo = o.value(u"receiptLogo").toBool();
+    s.receiptFreeChoices = o.value(u"receiptFreeChoices").toBool(false);
     s.displayAccent = ss(display.value(u"accent").toString(u"#2f6fd6"_s));
     for (const QJsonValue &v : display.value(u"slides").toArray())
         if (!v.toString().trimmed().isEmpty()) s.displaySlides.push_back(ss(v.toString().trimmed()));

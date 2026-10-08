@@ -68,8 +68,11 @@ Document receipt(const Check &check, const TicketContext &ctx)
             continue;   // kitchen notes are not for the guest
         const std::string qty = l.quantity > 1 ? std::to_string(l.quantity) + " x " : "";
         d.columns(qty + l.displayName(), ctx.money(qualifiedPrice(l.unitPrice, l.qualifier) * l.quantity));
-        for (const Modifier &m : l.modifiers)
+        for (const Modifier &m : l.modifiers) {
+            if (m.price().cents() == 0 && !ctx.settings.receiptFreeChoices)
+                continue;   // No onion, Medium rare: the kitchen's, not the guest's
             d.columns("  " + m.displayName(), m.price().cents() ? ctx.money(m.price() * l.quantity) : "");
+        }
     }
     d.rule();
     d.columns("Subtotal", ctx.money(t.items));

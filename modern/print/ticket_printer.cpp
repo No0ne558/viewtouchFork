@@ -44,8 +44,9 @@ void TicketPrinter::send(const PosSettings &, const PrinterConfig &printer, cons
         target.path = QDir(outputDir_).filePath(QString::fromStdString(target.path)).toStdString();
     Document d = doc;
     d.cut = d.cut && printer.cutter;
-    const std::string bytes = printer.effectiveFormat() == "escpos" ? renderEscPos(d, printer.width)
-                                                                   : renderText(d, printer.width);
+    const std::string bytes = printer.effectiveFormat() == "escpos"
+                                  ? renderEscPos(d, printer.width, printer.charset != "ascii")
+                                  : renderText(d, printer.width);
     spooler_.submit(target, QByteArray::fromStdString(bytes), description);
 }
 
@@ -165,7 +166,8 @@ bool TicketPrinter::printTestPage(const PosSettings &settings, const std::string
         ruler += char('0' + i % 10);
     d.text(ruler);
     d.text(std::to_string(width) + " characters per line: the row above should fill exactly one line.");
-    d.text("Café, niño, señor");   // accents: printed as plain letters on thermal printers
+    // Accents (Letters: accented, PC858), else plain letters.
+    d.text(p.charset == "ascii" ? "Cafe, nino, senor (plain letters)" : "Café, niño, señor, ¿Qué tal? £5 €5");
     d.blank();
     d.cut = p.cutter;
     d.kickDrawer = kickDrawer && p.drawerKick;
