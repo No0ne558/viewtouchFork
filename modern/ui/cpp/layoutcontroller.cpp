@@ -71,6 +71,14 @@ LayoutController::LayoutController(Layout layout, QObject *parent)
     , layout_(std::move(layout))
     , nav_(layout_)
 {
+    // The card reader asks the store for its connection token, and says how a card went.
+    connect(&cardReader_, &CardReader::needToken, this, [this] {
+        if (pos_)
+            pos_->requestReaderToken();
+        else
+            cardReader_.provideToken({}, tr("Not connected to the store."));
+    });
+    connect(&cardReader_, &CardReader::finished, this, &LayoutController::cardTaken);
     updateMealPeriod();
     mealTimer_.setInterval(60 * 1000);
     connect(&mealTimer_, &QTimer::timeout, this, &LayoutController::updateMealPeriod);
@@ -231,6 +239,7 @@ void LayoutController::setPos(PosSession *pos)
         connect(pos_, &PosSession::checkClosed, this, [this] { navigate(Navigator::Mode::Home); });
         connect(pos_, &PosSession::qualifierChanged, this, &LayoutController::refresh);
         connect(pos_, &PosSession::adminChanged, this, [this] {
+            cardReader_.setKind(pos_->terminalCardReader());   // Manager -> Terminals: this screen's reader
             if (pos_->terminalLook() != lookedId_)
                 updateTerminalLook();   // Manager -> Terminals: this screen's look
             restAtLoginPage();      // a terminal just set to (or from) Time Clock
@@ -247,12 +256,19 @@ void LayoutController::setPos(PosSession *pos)
         // deactivated or losing the role closes the editor (unsaved edits
         // are dropped, as in the legacy system).
         connect(pos_, &PosSession::sessionChanged, this, [this] {
+            // The connection token the reader asked for.
+            const QVariantMap token = pos_->readerToken();
+            if (const int seq = token.value(u"seq"_s).toInt(); seq > readerTokenSeq_) {
+                readerTokenSeq_ = seq;
+                cardReader_.provideToken(token.value(u"token"_s).toString(), token.value(u"error"_s).toString());
+            }
             if (editing_ && !pos_->can(QString::fromLatin1(vt::core::perm::EditLayout))) {
                 leaveEditMode(false);
                 setStatus(tr("Edit mode closed: the page editor needs a manager logged in."));
             }
         });
     }
+    cardReader_.setKind(pos_ ? pos_->terminalCardReader() : QString());
     updateMealPeriod();
     updateFormFactor();
     emit posChanged();
@@ -1046,6 +1062,9 @@ void LayoutController::runAction(const Action &a, Done done)
             return done(true);
         }
         const QJsonValue amount = a.data.value(u"amount");
+        // A card, on a screen with a card reader: the reader takes it.
+        if (!cardReader_.kind().isEmpty() && !amount.isDouble())
+            return takeCard(a.str(u"tender"), std::move(done));
         return call(u"tender"_s, {a.str(u"tender"), amount.isDouble() ? QVariant(amount.toInteger()) : QVariant()},
                     [done](const QVariant &ok) { done(ok.toBool()); });
     }
@@ -1055,6 +1074,40 @@ void LayoutController::runAction(const Action &a, Done done)
 
     setStatus(tr("Action '%1' is not supported yet").arg(type));
     done(false);
+}
+
+void LayoutController::takeCard(const QString &tenderId, Done done)
+{
+    // The store prepares the charge (amount, tip, which check); not a card
+    // payment type: paid as usual.
+    call(u"cardCharge"_s, {tenderId}, [this, tenderId, done](const QVariant &v) {
+        const QVariantMap charge = v.toMap();
+        if (charge.value(u"notCard"_s).toBool())
+            return call(u"tender"_s, {tenderId, QVariant()}, [done](const QVariant &ok) { done(ok.toBool()); });
+        if (!charge.value(u"ok"_s).toBool())
+            return done(false);
+        cardReader_.charge(charge);
+        done(true);
+    });
+}
+
+void LayoutController::cardTaken(const QVariantMap &result)
+{
+    if (!result.value(u"approved"_s).toBool()) {
+        setStatus(result.value(u"message"_s).toString().isEmpty() ? tr("The card didn't go through.")
+                                                                  : result.value(u"message"_s).toString());
+        return;
+    }
+    if (!pos_) {
+        setStatus(tr("A card was approved, but the store isn't connected: check Stripe for it."));
+        return;
+    }
+    // On the check (sent again after a dropped connection, it counts once).
+    call(u"recordCardPayment"_s, {result}, [this, result](const QVariant &ok) {
+        if (!ok.toBool())
+            setStatus(tr("The card was approved (%1) but isn't on the check: add it by hand or refund it in Stripe.")
+                          .arg(result.value(u"reference"_s).toString()));
+    });
 }
 
 void LayoutController::runCommand(const QString &name, const QVariantMap &args, Done done)

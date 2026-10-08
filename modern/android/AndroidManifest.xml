@@ -13,13 +13,17 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- The Stripe Terminal SDK needs location to start (a Stripe reader
+         grants it by itself; other devices only use it with a card reader). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
     <supports-screens android:anyDensity="true" android:largeScreens="true"
         android:normalScreens="true" android:smallScreens="true" android:xlargeScreens="true"/>
 
     <!-- allowBackup="false": the device's pairing key must not leave it. -->
     <application
-        android:name="org.qtproject.qt.android.bindings.QtApplication"
+        android:name="org.viewtouch.pos.ViewTouchApplication"
         android:hardwareAccelerated="true"
         android:label="ViewTouch"
         android:icon="@mipmap/ic_launcher"

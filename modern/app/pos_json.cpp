@@ -99,6 +99,7 @@ QJsonObject toJson(const Check &c)
             {u"id"_s, qint64(p.id)}, {u"tenderId"_s, qs(p.tenderId)}, {u"tenderName"_s, qs(p.tenderName)},
             {u"kind"_s, qs(toString(p.kind))}, {u"amount"_s, qint64(p.amount.cents())}, {u"percentBp"_s, qint64(p.percentBp)},
             {u"tip"_s, qint64(p.tip.cents())}, {u"reference"_s, qs(p.reference)}, {u"staffMeal"_s, p.staffMeal},
+            {u"processor"_s, qs(p.processor)}, {u"cardBrand"_s, qs(p.cardBrand)}, {u"last4"_s, qs(p.last4)},
         });
     }
     QJsonArray events;
@@ -192,6 +193,9 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
         p.tip = money(po.value(u"tip"));
         p.reference = ss(po.value(u"reference").toString());
         p.staffMeal = po.value(u"staffMeal").toBool();
+        p.processor = ss(po.value(u"processor").toString());
+        p.cardBrand = ss(po.value(u"cardBrand").toString());
+        p.last4 = ss(po.value(u"last4").toString());
         c.payments.push_back(p);
     }
     c.nextLineId = std::max<std::int64_t>(i64(o.value(u"nextLineId")), 1);
@@ -664,7 +668,7 @@ QJsonObject toJson(const PosSettings &s)
                                      {u"drawer"_s, qs(t.drawer)}, {u"id"_s, qs(t.id)}, {u"key"_s, qs(t.key)},
                                      {u"pairedAt"_s, qint64(t.pairedAt)}, {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)},
                                      {u"station"_s, qs(t.station)}, {u"keyboard"_s, qs(t.keyboard)},
-                                     {u"requireName"_s, qs(t.requireName)}});
+                                     {u"requireName"_s, qs(t.requireName)}, {u"cardReader"_s, qs(t.cardReader)}});
     QJsonArray printers;
     for (const PrinterConfig &p : s.printers)
         printers.append(toJson(p));
@@ -830,6 +834,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"requireOrderName"_s, s.requireOrderName}, {u"takeoutMinutes"_s, s.takeoutMinutes},
         {u"deliveryMinutes"_s, s.deliveryMinutes}, {u"minutesPerOrderWaiting"_s, s.minutesPerOrderWaiting},
         {u"deliveryFee"_s, qint64(s.deliveryFee.cents())},
+        {u"stripeSecretKey"_s, qs(s.stripeSecretKey)}, {u"cardCurrency"_s, qs(s.cardCurrency)},
         {u"tipPercents"_s, [&] { QJsonArray a; for (int p : s.tipPercents) a.append(p); return a; }()}, {u"tableReadyText"_s, qs(s.tableReadyText)},
         {u"textWebhook"_s, qs(s.textWebhook)},
     };
@@ -862,7 +867,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
                                ss(t.value(u"key").toString()), i64(t.value(u"pairedAt")),
                                ss(t.value(u"screen").toString()), ss(t.value(u"station").toString()),
                                ss(t.value(u"look").toString()), ss(t.value(u"keyboard").toString()),
-                               ss(t.value(u"requireName").toString())});
+                               ss(t.value(u"requireName").toString()), ss(t.value(u"cardReader").toString())});
     }
     s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));
     const QJsonObject labor = o.value(u"labor").toObject();
@@ -1020,6 +1025,10 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.deliveryMinutes = std::clamp(o.value(u"deliveryMinutes").toInt(35), 0, 240);
     s.minutesPerOrderWaiting = std::clamp(o.value(u"minutesPerOrderWaiting").toInt(2), 0, 60);
     s.deliveryFee = money(o.value(u"deliveryFee"));
+    s.stripeSecretKey = ss(o.value(u"stripeSecretKey").toString());
+    s.cardCurrency = ss(o.value(u"cardCurrency").toString(u"usd"_s));
+    if (s.cardCurrency.empty())
+        s.cardCurrency = "usd";
     if (o.value(u"tipPercents").isArray()) {
         s.tipPercents.clear();
         for (const QJsonValue &v : o.value(u"tipPercents").toArray()) {

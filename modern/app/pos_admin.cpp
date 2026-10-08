@@ -359,6 +359,14 @@ QVariantList PosService::adminFields(const QString &panel)
                             tr("With 15 and 2 here, 5 orders in the kitchen make it 25.")), u"min"_s, 0), u"max"_s, 60),
             field(u"deliveryFee"_s, tr("Delivery fee"), u"money"_s,
                   tr("Added to every delivery (0 = none). Taking it off is a void (a manager).")),
+            // Never shown again once saved: only its last four.
+            field(u"stripeSecretKey"_s, tr("Stripe secret key (card readers)"), u"password"_s,
+                  s_->settings.stripeSecretKey.empty()
+                      ? tr("From the Stripe Dashboard (Developers -> API keys): sk_live_... or a restricted rk_... key. "
+                           "It stays on this computer; readers get short-lived tokens from it.")
+                      : tr("Set (ends in %1). Type a new key to change it, or \"none\" to remove it.")
+                            .arg(qs(s_->settings.stripeSecretKey.substr(s_->settings.stripeSecretKey.size() - 4)))),
+            field(u"cardCurrency"_s, tr("Card currency"), u"string"_s, tr("usd, cad, eur...: what cards are charged in.")),
             with(with(field(u"screenSaverMinutes"_s, tr("Dim the screen after (minutes)"), u"int"_s,
                             tr("Untouched screens dim; a touch wakes them (and does nothing else). 0 = never. "
                                "Kitchen, bar and expo screens stay on.")), u"min"_s, 0), u"max"_s, 240),
@@ -492,6 +500,12 @@ QVariantList PosService::adminFields(const QString &panel)
             with(field(u"requireName"_s, tr("Phone orders need a name before Send"), u"enum"_s,
                        tr("At this screen, whoever is taking the order. Empty: the person's setting, else the store's.")),
                  u"options"_s, options({{"", "The person's / store setting"}, {"yes", "Yes"}, {"no", "No"}})),
+            with(field(u"cardReader"_s, tr("Card reader"), u"enum"_s,
+                       tr("Stripe: this app runs on a Stripe Reader S700 (Apps on Devices) and takes cards on it; "
+                          "the store needs its Stripe secret key (Store Settings). Simulated: approves after a moment, "
+                          "for practice (cents ending in 05 are declined).")),
+                 u"options"_s, options({{"", "None (card payments are typed in)"}, {"stripe", "Stripe smart reader (this device)"},
+                                        {"simulated", "Simulated (practice)"}})),
         };
     }
     return {};
@@ -634,6 +648,7 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"deliveryMinutes"_s, s_->settings.deliveryMinutes},
              {u"minutesPerOrderWaiting"_s, s_->settings.minutesPerOrderWaiting},
              {u"deliveryFee"_s, double(s_->settings.deliveryFee.cents()) / 100.0},
+             {u"stripeSecretKey"_s, QString()}, {u"cardCurrency"_s, qs(s_->settings.cardCurrency)},
              {u"tipPercents"_s, [&] { QStringList l; for (int p : s_->settings.tipPercents) l << QString::number(p); return l.join(u", "_s); }()},
              {u"tableReadyText"_s, qs(s_->settings.tableReadyText)}, {u"textWebhook"_s, qs(s_->settings.textWebhook)},
              {u"paidBreaks"_s, s_->settings.paidBreaks}, {u"overtimeDailyHours"_s, s_->settings.overtimeDailyHours},
@@ -687,7 +702,7 @@ QVariantList PosService::adminRecords(const QString &panel)
             const PrinterConfig *p = s_->settings.printer(t.receiptPrinter);
             add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}, {u"drawer"_s, qs(t.drawer)},
                  {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)}, {u"keyboard"_s, qs(t.keyboard)},
-                 {u"requireName"_s, qs(t.requireName)}},
+                 {u"requireName"_s, qs(t.requireName)}, {u"cardReader"_s, qs(t.cardReader)}},
                 qs(t.name), (p ? qs(p->name) : tr("Receipt (default)"))
                                 + (s_->settings.hasDrawer(t.name) ? QString() : tr(" · no drawer"))
                                 + (t.key.empty() ? QString() : tr(" · paired device")));
@@ -717,7 +732,8 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"staffMeal"_s, false}};
     if (panel == u"terminals")
         return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}, {u"drawer"_s, QString()},
-                {u"screen"_s, QString()}, {u"look"_s, QString()}, {u"keyboard"_s, QString()}, {u"requireName"_s, QString()}};
+                {u"screen"_s, QString()}, {u"look"_s, QString()}, {u"keyboard"_s, QString()}, {u"requireName"_s, QString()},
+                {u"cardReader"_s, QString()}};
     if (panel == u"mealPeriods")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"modifierGroups")
@@ -840,6 +856,10 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         if (!QStringList{QString(), u"yes"_s, u"no"_s}.contains(requireName))
             return fail(tr("Choose whether phone orders need a name at this screen."));
         t.requireName = ss(requireName);
+        const QString reader = record.value(u"cardReader"_s).toString();
+        if (!QStringList{QString(), u"stripe"_s, u"simulated"_s}.contains(reader))
+            return fail(tr("Choose the screen's card reader."));
+        t.cardReader = ss(reader);
         if (index >= 0 && index < int(list.size()))
             list[index] = t;
         else
@@ -990,6 +1010,20 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.deliveryMinutes = std::clamp(record.value(u"deliveryMinutes"_s).toInt(), 0, 240);
         if (record.contains(u"minutesPerOrderWaiting"_s))
             s_->settings.minutesPerOrderWaiting = std::clamp(record.value(u"minutesPerOrderWaiting"_s).toInt(), 0, 60);
+        if (const QString key = record.value(u"stripeSecretKey"_s).toString().trimmed(); !key.isEmpty()) {
+            if (key.compare(u"none"_s, Qt::CaseInsensitive) == 0)
+                s_->settings.stripeSecretKey.clear();
+            else if (!key.startsWith(u"sk_"_s) && !key.startsWith(u"rk_"_s))
+                return fail(tr("A Stripe secret key starts with sk_ (or rk_ for a restricted key)."));
+            else
+                s_->settings.stripeSecretKey = ss(key);
+        }
+        if (record.contains(u"cardCurrency"_s)) {
+            const QString currency = record.value(u"cardCurrency"_s).toString().trimmed().toLower();
+            if (currency.size() != 3 || !std::ranges::all_of(currency, [](QChar ch) { return ch.isLetter(); }))
+                return fail(tr("Write the currency as three letters, like usd."));
+            s_->settings.cardCurrency = ss(currency);
+        }
         if (record.contains(u"deliveryFee"_s)) {
             const double fee = record.value(u"deliveryFee"_s).toDouble();
             if (fee < 0 || fee > 1000)

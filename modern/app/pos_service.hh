@@ -19,6 +19,7 @@
 #include <QVariantMap>
 
 #include <functional>
+#include <set>
 #include <map>
 #include <memory>
 #include <optional>
@@ -159,6 +160,12 @@ public:
     QString imageFile(const QString &ref);
     // Texts a guest (set up by main when a texting service is configured).
     std::function<void(const QString &phone, const QString &message)> sendText;
+    // Stripe, on the store's computer (net/stripe_api.cpp, set by main): a
+    // card reader's connection token, and refunds. Each answers once,
+    // with an error text when it didn't work.
+    std::function<void(std::function<void(const QString &token, const QString &error)>)> stripeConnectionToken;
+    std::function<void(const QString &paymentId, std::int64_t cents,
+                       std::function<void(const QString &refundId, const QString &error)>)> stripeRefund;
     core::CustomerRecord *customer(const std::string &id);
     core::GiftCard *giftCard(const std::string &number);
     std::int64_t lastCheckId = 0;
@@ -652,6 +659,14 @@ public:
     bool notifyParty(qint64 id);       // "your table is ready" (texted when set up)
     // Seat them: opens their table's check for `serverId` (default: you).
     bool seatParty(qint64 id, const QString &table, const QString &serverId = {});
+    // Cards on a reader (pos_cards.cpp).
+    QString terminalCardReader() const override;
+    QVariantMap readerToken() const override { return readerToken_; }
+    QVariantMap cardCharge(const QString &tenderId);   // {ok, amountCents, tipCents, currency...} or {ok: false}
+    bool recordCardPayment(const QVariantMap &result);
+    void requestReaderToken();
+    enum class Refund { NotNeeded, Started, CantNow };
+    Refund refundCardPayment(const core::Check &c, const core::Payment &p);
     // Phone orders and deliveries (pos_phone_orders.cpp).
     bool sameAsLastTime();
     bool sendOut(const QVariantList &checkIds, const QString &driverId);
@@ -864,6 +879,9 @@ private:
     QString weighing_;                // an item sold by weight, waiting for its weight
     bool retireMeAtFinish_ = false;   // setup guide: this sample manager goes off at Finish
     qint64 selectedLine_ = 0;
+    QVariantMap readerToken_;          // the latest connection token for this terminal's reader
+    int readerTokenSeq_ = 0;
+    std::set<std::int64_t> refunding_; // card payments whose refund is on its way
     // The last item taken off (or made fewer) on this terminal's check, for Undo.
     struct LastChange {
         std::int64_t checkId = 0;

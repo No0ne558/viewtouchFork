@@ -58,6 +58,9 @@ struct TerminalConfig {
     std::string keyboard;
     // Phone orders need a name before Send here: "yes", "no", or empty = the person's / the store's.
     std::string requireName;
+    // Its card reader: "stripe" (a Stripe smart reader this app runs on),
+    // "simulated" (approves after a moment: for practice), or none.
+    std::string cardReader;
 
     bool operator==(const TerminalConfig &) const = default;
 };
@@ -267,6 +270,11 @@ struct PosSettings {
     int deliveryMinutes = 35;
     int minutesPerOrderWaiting = 2;
     Money deliveryFee;   // added to deliveries when sent (0: none)
+    // Card readers: the store's Stripe secret key (stays on the store's
+    // computer: it gets the readers' connection tokens and makes refunds),
+    // and the currency cards are charged in.
+    std::string stripeSecretKey;
+    std::string cardCurrency = "usd";
     // Messages posted until a time (the original's Expire Messages): every
     // screen shows them, to each person, until then.
     struct Notice {

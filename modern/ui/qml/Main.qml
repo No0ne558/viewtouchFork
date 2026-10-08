@@ -446,6 +446,55 @@ ApplicationWindow {
         MouseArea { anchors.fill: parent; onReleased: root.controller.wake() }
     }
 
+    // Taking a card on this screen's reader: the amount and Cancel, over
+    // everything. (On a Stripe reader, Stripe's own screen covers this.)
+    Rectangle {
+        id: cardWait
+        objectName: "cardWait"
+        readonly property CardReader reader: root.controller.cardReader
+        anchors.fill: parent
+        z: 75
+        visible: reader.busy
+        color: Qt.rgba(0.04, 0.05, 0.07, 0.92)
+        readonly property real u: Math.max(14, Math.min(root.width, root.height) / 28)
+        MouseArea { anchors.fill: parent }   // nothing behind it while the card is taken
+        Column {
+            anchors.centerIn: parent
+            width: Math.min(parent.width * 0.86, cardWait.u * 30)
+            spacing: cardWait.u
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: "💳"
+                font.pixelSize: cardWait.u * 4
+            }
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: cardWait.reader.amount
+                color: "white"
+                font.pixelSize: cardWait.u * 2.6
+                font.bold: true
+            }
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: cardWait.reader.status
+                color: "#c8cfda"
+                font.pixelSize: cardWait.u
+            }
+            WidgetKey {
+                objectName: "cardCancel"
+                width: parent.width
+                height: cardWait.u * 3
+                fontScale: 0.36
+                text: qsTr("Cancel")
+                onClicked: cardWait.reader.cancel()
+            }
+        }
+    }
+
     // A new store's setup guide (managers; Manager -> Setup Guide…).
     Loader {
         id: setupLoader

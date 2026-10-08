@@ -91,6 +91,15 @@ Document receipt(const Check &check, const TicketContext &ctx)
             paid = true;
         }
         d.columns(p.tenderName, ctx.money(p.amount));
+        // A card from a reader: which one, and its payment id for disputes.
+        if (!p.last4.empty()) {
+            std::string brand = p.cardBrand;
+            for (char &ch : brand)
+                ch = char(std::toupper(static_cast<unsigned char>(ch)));
+            d.text("  " + (brand.empty() ? std::string() : brand + " ") + "**** " + p.last4);
+        }
+        if (p.processor == "stripe" && !p.reference.empty())
+            d.text("  " + p.reference);
         if (p.tip.cents() != 0)
             d.columns("  Tip", ctx.money(p.tip));
     }

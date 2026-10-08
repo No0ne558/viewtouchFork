@@ -2,6 +2,7 @@
 
 #include "app/navigator.hh"
 #include "app/pos_session.hh"
+#include "cardreader.hh"
 #include "editorcontroller.hh"
 #include "layout/layout.hh"
 #include "zonemodel.hh"
@@ -48,6 +49,8 @@ class LayoutController : public QObject {
     Q_PROPERTY(bool asleep READ asleep NOTIFY asleepChanged)
     Q_PROPERTY(EditorController *editor READ editor NOTIFY editorChanged)
     Q_PROPERTY(vt::app::PosSession *pos READ pos NOTIFY posChanged)
+    // This terminal's card reader (Manager -> Terminals -> Card reader).
+    Q_PROPERTY(CardReader *cardReader READ cardReader CONSTANT)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     // "phone": phone versions of pages (and phone-sized layouts) are shown;
     // "standard": pages as designed.
@@ -82,6 +85,7 @@ public:
     // The POS session that zone actions and widgets operate on. Not owned.
     // Without one, POS actions only show a status message (layout-only use).
     void setPos(vt::app::PosSession *pos);
+    CardReader *cardReader() { return &cardReader_; }
     vt::app::PosSession *pos() const { return pos_; }
 
     QString pageId() const { return nav_.current(); }
@@ -285,6 +289,10 @@ private:
     bool mealPeriodFixed_ = false;
     void updateMealPeriod();
     Saver saver_;
+    CardReader cardReader_;
+    int readerTokenSeq_ = 0;   // the last connection token handed to the reader
+    void takeCard(const QString &tenderId, Done done);
+    void cardTaken(const QVariantMap &result);
     vt::app::PosSession *pos_ = nullptr;
     int pending_ = 0;
 };

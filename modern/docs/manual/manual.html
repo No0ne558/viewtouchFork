@@ -447,6 +447,23 @@
 <li>The logo, color and messages are set in Manager → Settings. Start the display with <code>customer-display = auto</code> in the screen's settings file.</li>
 </ul>
 
+<h2>Card readers (Stripe)</h2>
+<p>ViewTouch can take cards itself on a <b>Stripe Reader S700</b>: the ViewTouch app runs on the reader (Stripe calls this <i>Apps on Devices</i>), and when you touch <b>Credit Card</b> on the Pay screen, Stripe's own payment screen asks the guest to tap, insert or swipe. The amount (with the tip the guest chose) goes to the reader; when the card is approved, the check shows it, like <i>Credit Card · Visa •••• 4242</i>, and so does the receipt with Stripe's payment number. ViewTouch never sees the card number.</p>
+<p class="shot"><img src="shots/m126-card-reader.jpg" width="560" height="315"></p>
+<p class="caption">Taking a card (here the simulated reader, for practice): the amount, and Cancel.</p>
+<ul>
+<li><b>Declined or canceled:</b> nothing goes on the check; it says why. Try again or take another payment.</li>
+<li><b>Undo Payment</b> on a card from the reader refunds it through Stripe first; the payment comes off the check when Stripe confirms ("refunding…" until then).</li>
+<li><b>Setting it up:</b>
+<ol>
+<li>Ask Stripe to turn on <i>Apps on Devices</i> for your account (Stripe support, or your sales contact).</li>
+<li>Manager → Store Settings → <i>Stripe secret key</i>: paste your secret key from the Stripe Dashboard (Developers → API keys). It stays on the store's computer; it's never shown again (only its last four), and readers only get short-lived tokens from it.</li>
+<li>Install ViewTouch on the reader (through Stripe: a DevKit for testing, then Stripe's app review and deployment for your readers) and pair it with the store like any tablet.</li>
+<li>Manager → Terminals → that reader → <i>Card reader: Stripe smart reader (this device)</i>.</li>
+</ol></li>
+<li><b>Practice:</b> <i>Card reader: Simulated</i> on any screen approves cards after a moment (amounts ending in 05 cents are declined), to train staff without a reader.</li>
+</ul>
+
 <!-- ======================================================================= -->
 <h1>7. Customers, gift cards, house accounts and rewards</h1>
 <h2>Customers</h2>

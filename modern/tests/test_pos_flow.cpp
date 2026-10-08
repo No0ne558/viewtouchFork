@@ -4085,3 +4085,56 @@ TEST_CASE("Phone audit: typing on a phone", "[.][phonekeys]")
         s.shot("pk-3-lifted");
     }
 }
+
+TEST_CASE("Card reader (simulated): Pay with a card, declined, canceled", "[ui][cards]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.entryKey(u"10000"_s);
+    REQUIRE(s.pos.openDrawerSession());
+    // This screen has a (simulated) card reader.
+    REQUIRE(s.pos.adminSave(u"terminals"_s, -1, {{u"name"_s, s.pos.terminalName()}, {u"cardReader"_s, u"simulated"_s}}));
+    CardReader *reader = s.c.cardReader();
+    CHECK(reader->kind() == u"simulated"_s);
+    reader->setSimulatedDelay(300);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+
+    REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+    REQUIRE(s.pos.addItem(u"coffee"_s));                       // $2.98
+    REQUIRE(s.c.jumpTo(u"settle"_s));
+    QTest::qWait(50);
+
+    // Declined: cents ending in 05.
+    for (const char *k : {"1", "0", "5"})
+        s.pos.entryKey(QString::fromLatin1(k));
+    s.c.activate(u"tender-credit"_s);
+    QTest::qWait(60);
+    REQUIRE(by(u"cardWait"_s));
+    s.shot("card-1-waiting");
+    QTest::qWait(500);
+    CHECK_FALSE(by(u"cardWait"_s));
+    CHECK(s.pos.payments().isEmpty());
+    CHECK(s.c.statusText().contains(u"declined"_s));
+
+    // Canceled.
+    s.c.activate(u"tender-credit"_s);
+    QTest::qWait(60);
+    s.tapItem(by(u"cardCancel"_s));
+    QTest::qWait(50);
+    CHECK_FALSE(by(u"cardWait"_s));
+    CHECK(s.pos.payments().isEmpty());
+
+    // Approved: the whole balance, on the check with the card.
+    s.pos.entryKey(u"clear"_s);                                // the $1.05 stays typed after a decline
+    s.c.activate(u"tender-credit"_s);
+    QTest::qWait(500);
+    REQUIRE(s.pos.payments().size() == 1);
+    CHECK(s.pos.payments()[0].toMap()[u"name"_s].toString().contains(u"Visa •••• 4242"_s));
+    CHECK(s.pos.totals()[u"balanceCents"_s].toLongLong() == 0);
+    s.shot("card-2-approved");
+
+    // No reader: Credit Card is typed in as before.
+    REQUIRE(s.pos.adminSave(u"terminals"_s, 0, {{u"name"_s, s.pos.terminalName()}, {u"cardReader"_s, u""_s}}));
+    CHECK(reader->kind().isEmpty());
+}

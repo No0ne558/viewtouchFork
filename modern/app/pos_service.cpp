@@ -1395,6 +1395,12 @@ bool PosService::removePayment()
     // The selected payment, else the most recent one.
     const auto chosen = std::ranges::find_if(c->payments, [&](const Payment &p) { return p.id == selectedPayment_; });
     const Payment removed = chosen != c->payments.end() ? *chosen : c->payments.back();
+    // A card taken on a Stripe reader: the money goes back first; it comes off when Stripe says so.
+    switch (refundCardPayment(*c, removed)) {
+    case Refund::Started: return true;
+    case Refund::CantNow: return false;
+    case Refund::NotNeeded: break;
+    }
     const Money discountsBefore = c->totals(s_->settings.tax).discounts;
     c->removePayment(removed.id);
     returnPayment(*c, removed);
@@ -1711,7 +1717,17 @@ QVariantList PosService::payments() const
         const QString amount = p.kind != TenderKind::Discount ? format(p.amount)
             : p.percentBp == 0 ? format(-p.amount)   // a fixed amount off (reward, promotion)
             : u"%1 (%2%)"_s.arg(format(-items.percent(p.percentBp))).arg(double(p.percentBp) / 100.0);
-        out.append(QVariantMap{{u"id"_s, qint64(p.id)}, {u"name"_s, qs(p.tenderName)}, {u"amount"_s, amount},
+        // A card from a reader: which one ("Credit Card · Visa •••• 4242").
+        QString name = qs(p.tenderName);
+        if (!p.last4.empty()) {
+            QString brand = qs(p.cardBrand);
+            if (!brand.isEmpty())
+                brand[0] = brand[0].toUpper();
+            name += u"  ·  "_s + (brand.isEmpty() ? QString() : brand + u' ') + u"•••• "_s + qs(p.last4);
+        }
+        if (refunding_.contains(p.id))
+            name += u"  ·  "_s + tr("refunding…");
+        out.append(QVariantMap{{u"id"_s, qint64(p.id)}, {u"name"_s, name}, {u"amount"_s, amount},
                                {u"tip"_s, p.tip.cents() ? format(p.tip) : QString()},
                                {u"card"_s, p.kind == TenderKind::Card},
                                {u"selected"_s, qint64(p.id) == selectedPayment_}});
@@ -2201,6 +2217,9 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"moveMenuItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.moveMenuItem(a.value(0).toString(), a.value(1).toInt())); }},
         {u"setMenuItemColor"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setMenuItemColor(a.value(0).toString(), a.value(1).toString())); }},
         {u"refreshDay"_s, [](PosService &p, const QVariantList &) { emit p.shared()->dayChanged(); return QVariant(true); }},
+        {u"cardCharge"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.cardCharge(a.value(0).toString())); }},
+        {u"recordCardPayment"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.recordCardPayment(a.value(0).toMap())); }},
+        {u"requestReaderToken"_s, [](PosService &p, const QVariantList &) { p.requestReaderToken(); return QVariant(true); }},
         {u"sameAsLastTime"_s, [](PosService &p, const QVariantList &) { return QVariant(p.sameAsLastTime()); }},
         {u"sendOut"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.sendOut(a.value(0).toList(), a.value(1).toString())); }},
         {u"deliveryBack"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.deliveryBack(a.value(0).toLongLong())); }},

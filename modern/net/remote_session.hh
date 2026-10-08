@@ -99,6 +99,8 @@ public:
     QString screenMode() const override { return v(u"screenMode").toString(); }
     QString terminalLook() const override { return v(u"terminalLook").toString(); }
     QString terminalKeyboard() const override { return v(u"terminalKeyboard").toString(); }
+    QString terminalCardReader() const override { return v(u"cardReader").toString(); }
+    QVariantMap readerToken() const override { return v(u"readerToken").toMap(); }
     QVariantList closedChecks() const override { return v(u"closedChecks").toList(); }
     QVariantList staff() const override { return v(u"staff").toList(); }
     QVariantList checkHistory() const override { return v(u"checkHistory").toList(); }

@@ -110,8 +110,13 @@ struct Payment {
     Money amount;                 // Cash/Card: what it pays toward the check; Discount: a fixed amount off
     std::int64_t percentBp = 0;   // Discount, applied to the current items total
     Money tip;                    // Card: tip on top of the amount (owed to the server)
-    std::string reference;        // GiftCard: the card number; HouseAccount: the customer id; staff meal: who ate
+    std::string reference;        // GiftCard: the card number; HouseAccount: the customer id; staff meal: who ate;
+                                  // a card through a reader: the processor's payment id (Stripe's pi_...)
     bool staffMeal = false;
+    // A card taken on a reader: whose ("stripe", "simulated"), and which card.
+    std::string processor;
+    std::string cardBrand;        // "visa", "mastercard"...
+    std::string last4;
 
     bool operator==(const Payment &) const = default;
 };

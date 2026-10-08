@@ -161,6 +161,10 @@ class PosSession : public QObject {
     Q_PROPERTY(QString terminalLook READ terminalLook NOTIFY adminChanged)
     // This terminal's on-screen keyboard: "on", "off" or "" (automatic).
     Q_PROPERTY(QString terminalKeyboard READ terminalKeyboard NOTIFY adminChanged)
+    // This terminal's card reader: "stripe", "simulated" or "" (none).
+    Q_PROPERTY(QString cardReader READ terminalCardReader NOTIFY adminChanged)
+    // The reader's connection token, when asked for: {seq, token, error}.
+    Q_PROPERTY(QVariantMap readerToken READ readerToken NOTIFY sessionChanged)
     // A device pairing in progress (managers only): {active, code, until}.
     Q_PROPERTY(QVariantMap pairing READ pairingInfo NOTIFY adminChanged)
     // The store's meal periods: [{id, name, start (minutes after midnight)}].
@@ -275,6 +279,8 @@ public:
     virtual QString screenMode() const = 0;
     virtual QString terminalLook() const = 0;
     virtual QString terminalKeyboard() const = 0;
+    virtual QString terminalCardReader() const = 0;
+    virtual QVariantMap readerToken() const = 0;
     virtual int queryRevision() const { return 0; }
 
     virtual void selectLine(qint64 lineId) { invoke(QStringLiteral("selectLine"), {lineId}); }
@@ -356,6 +362,8 @@ public:
     // The day's figures again (the dashboard, once a minute: labor keeps adding up).
     Q_INVOKABLE void refreshDay() { invoke(QStringLiteral("refreshDay"), {}); }
     // Phone orders: a regular's last order again; deliveries out with a driver, and back.
+    // A card reader's connection token (answered in readerToken).
+    Q_INVOKABLE void requestReaderToken() { invoke(QStringLiteral("requestReaderToken"), {}); }
     Q_INVOKABLE void sameAsLastTime() { invoke(QStringLiteral("sameAsLastTime"), {}); }
     Q_INVOKABLE void sendOut(const QVariantList &checkIds, const QString &driverId) { invoke(QStringLiteral("sendOut"), {checkIds, driverId}); }
     Q_INVOKABLE void deliveryBack(qint64 checkId) { invoke(QStringLiteral("deliveryBack"), {checkId}); }

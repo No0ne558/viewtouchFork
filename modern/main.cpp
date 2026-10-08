@@ -3,6 +3,7 @@
 #include "language.hh"
 #include "layoutcontroller.hh"
 #include "app/i18n.hh"
+#include "net/stripe_api.hh"
 #include "net/discovery.hh"
 #include "net/layout_hub.hh"
 #include "net/pos_server.hh"
@@ -929,6 +930,17 @@ int runStore(const Args &cli, const Options &o)
         });
         backups->start();
     }
+
+    // Card readers: Stripe, with the store's secret key, from this computer
+    // only (connection tokens for the readers, and refunds).
+    vt::net::StripeApi stripe([shared] { return QString::fromStdString(shared->settings.stripeSecretKey); });
+    shared->stripeConnectionToken = [&stripe](std::function<void(const QString &, const QString &)> done) {
+        stripe.connectionToken(std::move(done));
+    };
+    shared->stripeRefund = [&stripe](const QString &paymentId, std::int64_t cents,
+                                     std::function<void(const QString &, const QString &)> done) {
+        stripe.refund(paymentId, cents, std::move(done));
+    };
 
     // Texts to guests ("your table is ready") go to the store's texting
     // service: a JSON POST of {to, message}, never blocking the screen.

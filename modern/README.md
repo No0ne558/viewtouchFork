@@ -366,6 +366,15 @@ Run the main server and the standby as headless services on two computers, both 
 
 Where pennies are gone (Canada, and elsewhere): Manager → Taxes → *Cash rounding* → nearest 5 or 10 cents. A check paid in cash is rounded (what is owed when the cash comes: $17.62 → $17.60, $17.63 → $17.65); touching **Cash** with no amount typed takes the rounded balance. The check, the receipt and the Sales report show a *Cash rounding* line. Card payments are exact; a check paid partly by card rounds only what cash pays.
 
+## Card readers (Stripe)
+
+Cards can be taken on a **Stripe Reader S700** running ViewTouch itself (Stripe *Apps on Devices*). Manager → Terminals → *Card reader*: **Stripe smart reader (this device)**, **Simulated** (approves after `setSimulatedDelay` ms; totals whose cents end in 05 are declined, like Stripe's test cards) or none.
+
+- **The flow.** A `tender` action of a card payment type on a screen with a reader calls `cardCharge(tenderId)` on the store (amount: what's typed or the balance, plus the tip chosen on the customer display; the check, currency and a description), hands it to the `CardReader` (ui/cpp/cardreader.cpp), and on approval calls `recordCardPayment` with Stripe's PaymentIntent id, the card's brand and last four. A payment id is recorded once (a resend after a dropped connection is ignored). The payment shows the card on the check and the receipt (with the `pi_…` id).
+- **On the S700** (`android/src/org/viewtouch/pos/StripeBridge.kt`, Stripe Terminal Android SDK 6, `android/build.gradle`): the app connects to the reader it runs on (`AppsOnDevicesDiscoveryConfiguration`), creates a PaymentIntent (automatic capture, `viewtouch_check` metadata), collects (no tipping on the reader: ViewTouch asked) and confirms; Stripe's own app shows the payment screens and hands back. `ViewTouchApplication` calls `TerminalApplicationDelegate.onCreate`. It reconnects by itself (the reader restarts nightly).
+- **The secret key stays on the store's computer** (Store Settings → *Stripe secret key*, `sk_…` or a restricted `rk_…`; shown again only as its last four). The store's computer (`net/stripe_api.cpp`) gets the readers' connection tokens (`requestReaderToken` → `readerToken`) and makes refunds: **Undo Payment** on a Stripe card refunds it (`POST /v1/refunds`) and takes the payment off when Stripe confirms. *Card currency* (default `usd`).
+- **Getting it on a reader** needs Stripe to enable Apps on Devices, a DevKit for testing (sandbox only), then Stripe's app review and deployment from the Stripe Dashboard.
+
 ## Tips and cash handling
 
 - **Tips** go on card payments. On the settle page, touch 15%, 18% or 20%, or type an amount and touch Amount. The receipt, the Tips report and the server's "tips owed" show them.
