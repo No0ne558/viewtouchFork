@@ -415,6 +415,10 @@ public:
     Q_INVOKABLE void deleteCategory(const QString &id) { invoke(QStringLiteral("deleteCategory"), {id}); }
     Q_INVOKABLE void saveMenuItemCard(const QVariantMap &card) { invoke(QStringLiteral("saveMenuItemCard"), {card}); }
     Q_INVOKABLE void deleteMenuItemCard(const QString &id) { invoke(QStringLiteral("deleteMenuItemCard"), {id}); }
+    Q_INVOKABLE void saveChoiceGroup(const QVariantMap &record) { invoke(QStringLiteral("saveChoiceGroup"), {record}); }
+    Q_INVOKABLE void duplicateMenuItem(const QString &id) { invoke(QStringLiteral("duplicateMenuItem"), {id}); }
+    Q_INVOKABLE void addMenuItemsFromText(const QString &categoryId, const QString &text) { invoke(QStringLiteral("addMenuItemsFromText"), {categoryId, text}); }
+    Q_INVOKABLE void deleteChoiceGroup(const QString &id) { invoke(QStringLiteral("deleteChoiceGroup"), {id}); }
     Q_INVOKABLE void finishChoosing() { invoke(QStringLiteral("finishChoosing")); }
     Q_INVOKABLE void cancelChoosing() { invoke(QStringLiteral("cancelChoosing")); }
     Q_INVOKABLE void backupNow() { invoke(QStringLiteral("backupNow")); }

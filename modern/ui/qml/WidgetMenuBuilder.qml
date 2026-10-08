@@ -37,6 +37,9 @@ Item {
     property string itemId: ""        // "" + editingItem: a new one
     property bool editingItem: false
     property bool editingCategory: false
+    property bool editingGroup: false
+    property string mode: "menu"          // menu | choices (Choice Groups)
+    readonly property var editedGroup: editingGroup && draft.id ? (pos ? pos.choiceGroups.find(g => g.id === draft.id) : null) : null
     property var draft: ({})
     property string stage: "categories"   // a phone: categories | items | card
 
@@ -49,6 +52,7 @@ Item {
         if (added) {
             waitingForCategory = ""
             pickCategory(added.id)
+            Qt.callLater(() => categoryList.positionViewAtIndex(categories.findIndex(c => c.id === added.id), ListView.Contain))
         } else if (!category && categories.length) {
             categoryId = categories[0].id
         }
@@ -81,6 +85,50 @@ Item {
         editingCategory = false
         stage = "card"
     }
+    // A choice group: its rule in words (how many; required), its options as rows.
+    function editGroup(g) {
+        const kind = !g ? "one" : g.max === 1 ? "one" : g.max === 0 ? "any" : "upTo"
+        draft = g ? { id: g.id, name: g.name, kind: kind, upTo: g.max > 1 ? g.max : 3, required: g.min > 0,
+                      atLeast: Math.max(1, g.min), askHow: g.askHow, options: g.options.map(o => ({ name: o.name,
+                      price: o.price ? o.price.toFixed(2) : "", included: o.included, kitchenName: o.kitchenName })) }
+                  : { id: "", name: "", kind: "one", upTo: 3, required: true, atLeast: 1, askHow: false,
+                      options: [{ name: "", price: "", included: false }, { name: "", price: "", included: false }] }
+        mode = "choices"
+        editingGroup = true
+        editingItem = false
+        editingCategory = false
+        stage = "card"
+    }
+    function setOption(i, key, value) {
+        const d = copy(draft)
+        d.options[i][key] = value
+        draft = d
+    }
+    function moveOption(i, by) {
+        const d = copy(draft)
+        const j = i + by
+        if (j < 0 || j >= d.options.length) return
+        const t = d.options[i]; d.options[i] = d.options[j]; d.options[j] = t
+        draft = d
+    }
+    function groupRecord() {
+        const d = draft
+        const max = d.kind === "one" ? 1 : d.kind === "upTo" ? Math.max(2, Number(d.upTo) || 2) : 0
+        const min = !d.required ? 0 : d.kind === "any" ? Math.max(1, Number(d.atLeast) || 1) : 1
+        return { id: d.id, name: d.name, min: min, max: max, askHow: d.askHow, options: d.options }
+    }
+    property string waitingForGroup: ""
+    readonly property var allGroups: pos ? pos.choiceGroups : []
+    onAllGroupsChanged: {
+        if (waitingForGroup === "")
+            return
+        const added = allGroups.find(g => g.name.toLowerCase() === waitingForGroup.toLowerCase())
+        if (added) {
+            waitingForGroup = ""
+            editGroup(added)
+            Qt.callLater(() => groupList.positionViewAtIndex(groups.findIndex(g => g.id === added.id), ListView.Contain))
+        }
+    }
     function set(key, value) {
         const d = copy(draft)
         d[key] = value
@@ -94,7 +142,18 @@ Item {
     }
     // A new item, once saved, is the one shown.
     property string waitingFor: ""
+    // Duplicate: the item that wasn't there before is the one shown.
+    property var idsBefore: null
     onAllItemsChanged: {
+        if (idsBefore) {
+            const copy = allItems.find(i => !idsBefore.includes(i.id))
+            if (copy) {
+                idsBefore = null
+                categoryId = copy.family
+                editItem(copy)
+            }
+            return
+        }
         if (waitingFor === "")
             return
         const added = allItems.find(i => i.name.toLowerCase() === waitingFor.toLowerCase())
@@ -133,9 +192,68 @@ Item {
                 Layout.fillWidth: w.narrow
                 Layout.fillHeight: true
                 spacing: 8
-                Label { text: qsTr("Categories"); font.pixelSize: 22; font.bold: true }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    TouchButton {
+                        objectName: "builderModeMenu"
+                        Layout.fillWidth: true
+                        text: qsTr("Menu")
+                        highlighted: w.mode === "menu"
+                        onClicked: { w.mode = "menu"; w.editingGroup = false }
+                    }
+                    TouchButton {
+                        objectName: "builderModeChoices"
+                        Layout.fillWidth: true
+                        text: qsTr("Choice Groups")
+                        highlighted: w.mode === "choices"
+                        onClicked: { w.mode = "choices"; w.editingItem = false; w.editingCategory = false }
+                    }
+                }
+                Label { visible: w.mode === "menu"; text: qsTr("Categories"); font.pixelSize: 22; font.bold: true }
+                // Choice groups: every one, its rule and who uses it.
+                ListView {
+                    id: groupList
+                    visible: w.mode === "choices"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    spacing: 6
+                    model: w.groups
+                    delegate: Rectangle {
+                        required property var modelData
+                        objectName: "builderGroupRow-" + modelData.id
+                        width: groupList.width
+                        height: 64
+                        radius: 8
+                        color: w.editingGroup && w.draft.id === modelData.id ? "#2b3a52" : "#232933"
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 0
+                            Label { text: modelData.name; font.pixelSize: 18; font.bold: true; elide: Text.ElideRight; Layout.fillWidth: true }
+                            Label {
+                                text: modelData.rule + "  ·  " + qsTr("%n option(s)", "", modelData.options.length)
+                                      + "  ·  " + qsTr("used by %n", "", modelData.usedBy.length)
+                                font.pixelSize: 13
+                                opacity: 0.7
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                        }
+                        MouseArea { anchors.fill: parent; onClicked: w.editGroup(modelData) }
+                    }
+                }
+                TouchButton {
+                    objectName: "builderAddGroup"
+                    visible: w.mode === "choices"
+                    Layout.fillWidth: true
+                    text: qsTr("+ Choice Group")
+                    onClicked: w.editGroup(null)
+                }
                 ListView {
                     id: categoryList
+                    visible: w.mode === "menu"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
@@ -174,6 +292,7 @@ Item {
                     }
                 }
                 RowLayout {
+                    visible: w.mode === "menu"
                     Layout.fillWidth: true
                     spacing: 6
                     TouchButton {
@@ -189,7 +308,7 @@ Item {
 
             // --- the category's items ---
             ColumnLayout {
-                visible: !w.narrow || w.stage === "items"
+                visible: (!w.narrow || w.stage === "items") && w.mode === "menu"
                 Layout.preferredWidth: w.narrow ? -1 : 430
                 Layout.fillWidth: w.narrow
                 Layout.fillHeight: true
@@ -203,6 +322,12 @@ Item {
                         font.pixelSize: 22
                         font.bold: true
                         elide: Text.ElideRight
+                    }
+                    TouchButton {
+                        objectName: "builderAddSeveral"
+                        visible: !!w.category
+                        text: qsTr("Add Several…")
+                        onClicked: severalDialog.open()
                     }
                     TouchButton {
                         objectName: "builderEditCategory"
@@ -275,11 +400,12 @@ Item {
                 color: "#1c2129"
                 Label {
                     anchors.centerIn: parent
-                    visible: !w.editingItem && !w.editingCategory
+                    visible: !w.editingItem && !w.editingCategory && !w.editingGroup
                     width: parent.width - 40
                     wrapMode: Text.WordWrap
                     horizontalAlignment: Text.AlignHCenter
-                    text: qsTr("Touch an item to change it, or + Add Item.")
+                    text: w.mode === "choices" ? qsTr("Touch a choice group to change it, or + Choice Group.")
+                                               : qsTr("Touch an item to change it, or + Add Item.")
                     opacity: 0.6
                     font.pixelSize: 18
                 }
@@ -287,7 +413,7 @@ Item {
                 Flickable {
                     id: cardFlick
                     anchors { left: parent.left; right: parent.right; top: parent.top; bottom: cardButtons.top; margins: 14 }
-                    visible: w.editingItem || w.editingCategory
+                    visible: w.editingItem || w.editingCategory || w.editingGroup
                     clip: true
                     contentHeight: cardColumn.implicitHeight
                     boundsBehavior: Flickable.StopAtBounds
@@ -298,7 +424,7 @@ Item {
                         width: cardFlick.width - cardBar.room
                         spacing: 10
 
-                        TouchButton { visible: w.narrow; text: qsTr("‹ Back"); onClicked: w.stage = "items" }
+                        TouchButton { visible: w.narrow; text: qsTr("‹ Back"); onClicked: w.stage = w.mode === "choices" ? "categories" : "items" }
 
                         // --- an item ---
                         ColumnLayout {
@@ -393,11 +519,149 @@ Item {
                                 TouchButton {
                                     objectName: "builderNewGroup"
                                     text: qsTr("+ New Choice Group…")
-                                    onClicked: w.zone.controller.jumpTo("admin-modifier-groups")
+                                    onClicked: w.editGroup(null)
                                 }
                             }
 
 
+                        }
+
+                        // --- a choice group ---
+                        ColumnLayout {
+                            visible: w.editingGroup
+                            Layout.fillWidth: true
+                            spacing: 10
+                            Label { text: w.draft.id ? qsTr("Choice group") : qsTr("New choice group"); font.pixelSize: 22; font.bold: true }
+                            GridLayout {
+                                Layout.fillWidth: true
+                                columns: 2
+                                columnSpacing: 10
+                                rowSpacing: 8
+                                Label { text: qsTr("Name") }
+                                TextField {
+                                    objectName: "builderGroupName"
+                                    Layout.fillWidth: true
+                                    text: w.draft.name ?? ""
+                                    placeholderText: qsTr("e.g. Salsa, Size, Toppings")
+                                    onTextEdited: w.set("name", text)
+                                }
+                                Label { text: qsTr("Guests pick") }
+                                Flow {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+                                    Repeater {
+                                        model: [{ kind: "one", text: qsTr("One") }, { kind: "upTo", text: qsTr("Up to…") },
+                                                { kind: "any", text: qsTr("Any number") }]
+                                        delegate: TouchButton {
+                                            required property var modelData
+                                            objectName: "builderKind-" + modelData.kind
+                                            text: modelData.text
+                                            highlighted: w.draft.kind === modelData.kind
+                                            onClicked: w.set("kind", modelData.kind)
+                                        }
+                                    }
+                                    SpinBox {
+                                        visible: w.draft.kind === "upTo"
+                                        from: 2; to: 20
+                                        value: Number(w.draft.upTo) || 3
+                                        onValueModified: w.set("upTo", value)
+                                    }
+                                }
+                                Label { text: qsTr("Required") }
+                                Switch {
+                                    objectName: "builderRequired"
+                                    checked: w.draft.required ?? false
+                                    onToggled: w.set("required", checked)
+                                }
+                                Label { text: qsTr("Light, Extra, On the side") }
+                                Switch {
+                                    checked: w.draft.askHow ?? false
+                                    onToggled: w.set("askHow", checked)
+                                }
+                            }
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                opacity: 0.7
+                                font.pixelSize: 14
+                                text: qsTr("Required: the order can't go without a choice. Light, Extra, On the side: guests can ask for a choice that way (dressing on the side), not for temperatures or sizes.")
+                            }
+                            Label { text: qsTr("Options"); font.pixelSize: 18; font.bold: true }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                Label { Layout.fillWidth: true; text: qsTr("Name"); opacity: 0.7; font.pixelSize: 13 }
+                                Label { Layout.preferredWidth: 90; text: qsTr("Adds"); opacity: 0.7; font.pixelSize: 13 }
+                                Label { Layout.preferredWidth: 110; text: qsTr("Comes on it"); opacity: 0.7; font.pixelSize: 13 }
+                                Item { Layout.preferredWidth: 3 * 52 + 12 }
+                            }
+                            // Counted: typing changes the draft, not the rows.
+                            Repeater {
+                                model: (w.draft.options ?? []).length
+                                delegate: RowLayout {
+                                    id: optionRow
+                                    required property int index
+                                    readonly property var option: (w.draft.options ?? [])[index] ?? ({})
+                                    Layout.fillWidth: true
+                                    spacing: 6
+                                    TextField {
+                                        objectName: "builderOption-" + optionRow.index
+                                        Layout.fillWidth: true
+                                        text: optionRow.option.name ?? ""
+                                        placeholderText: qsTr("e.g. Pico de gallo")
+                                        onTextEdited: w.setOption(optionRow.index, "name", text)
+                                    }
+                                    TextField {
+                                        objectName: "builderOptionPrice-" + optionRow.index
+                                        Layout.preferredWidth: 90
+                                        text: optionRow.option.price ?? ""
+                                        placeholderText: "0.00"
+                                        inputMethodHints: Qt.ImhFormattedNumbersOnly
+                                        onTextEdited: w.setOption(optionRow.index, "price", text)
+                                    }
+                                    Switch {
+                                        Layout.preferredWidth: 110
+                                        checked: optionRow.option.included ?? false
+                                        onToggled: w.setOption(optionRow.index, "included", checked)
+                                    }
+                                    TouchButton { Layout.preferredWidth: 52; text: "▲"; enabled: optionRow.index > 0; onClicked: w.moveOption(optionRow.index, -1) }
+                                    TouchButton {
+                                        Layout.preferredWidth: 52
+                                        text: "▼"
+                                        enabled: optionRow.index < (w.draft.options ?? []).length - 1
+                                        onClicked: w.moveOption(optionRow.index, 1)
+                                    }
+                                    TouchButton {
+                                        Layout.preferredWidth: 52
+                                        text: "✕"
+                                        onClicked: {
+                                            const d = w.copy(w.draft)
+                                            d.options.splice(optionRow.index, 1)
+                                            w.draft = d
+                                        }
+                                    }
+                                }
+                            }
+                            TouchButton {
+                                objectName: "builderAddOption"
+                                text: qsTr("+ Option")
+                                onClicked: {
+                                    const d = w.copy(w.draft)
+                                    d.options.push({ name: "", price: "", included: false })
+                                    w.draft = d
+                                }
+                            }
+                            Label {
+                                visible: !!w.editedGroup
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                opacity: 0.7
+                                font.pixelSize: 14
+                                text: w.editedGroup ? (w.editedGroup.usedBy.length
+                                                       ? qsTr("Asked for by: %1").arg(w.editedGroup.usedBy.join(", "))
+                                                       : qsTr("No item asks for it yet: choose it on an item's card."))
+                                                    : ""
+                            }
                         }
 
                         // --- a category ---
@@ -496,8 +760,31 @@ Item {
                 ColumnLayout {
                     id: cardButtons
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 14 }
-                    visible: w.editingItem || w.editingCategory
+                    visible: w.editingItem || w.editingCategory || w.editingGroup
                     height: visible ? implicitHeight : 0
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: w.editingGroup
+                        spacing: 8
+                        TouchButton {
+                            objectName: "builderSaveGroup"
+                            Layout.fillWidth: true
+                            highlighted: true
+                            text: w.draft.id ? qsTr("Save") : qsTr("Add Choice Group")
+                            enabled: (w.draft.name ?? "").trim() !== ""
+                            onClicked: {
+                                const g = w.groupRecord()
+                                if (!g.id)
+                                    w.waitingForGroup = g.name.trim()
+                                w.pos.saveChoiceGroup(g)
+                            }
+                        }
+                        TouchButton {
+                            visible: !!w.draft.id
+                            text: qsTr("Remove…")
+                            onClicked: removeGroupDialog.open()
+                        }
+                    }
                     RowLayout {
                         Layout.fillWidth: true
                         visible: w.editingItem
@@ -509,6 +796,15 @@ Item {
                             text: w.draft.id ? qsTr("Save") : qsTr("Add to the Menu")
                             enabled: (w.draft.name ?? "").trim() !== ""
                             onClicked: w.saveItem()
+                        }
+                        TouchButton {
+                            objectName: "builderDuplicate"
+                            visible: !!w.draft.id
+                            text: qsTr("Duplicate")
+                            onClicked: {
+                                w.idsBefore = w.allItems.map(i => i.id)
+                                w.pos.duplicateMenuItem(w.draft.id)
+                            }
                         }
                         TouchButton {
                             objectName: "builderRemove"
@@ -557,6 +853,107 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    // Many at once: "Carne Asada 3.50" a line, or "Tacos: Carne Asada 3.50, Al Pastor 3.25".
+    Dialog {
+        id: severalDialog
+        objectName: "builderSeveral"
+        title: qsTr("Add several to %1").arg(w.category ? w.category.name : "")
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 760)
+        modal: true
+        onOpened: severalText.text = ""
+        // What will be added (the store reads it the same way).
+        readonly property var preview: {
+            const out = []
+            let category = w.category ? w.category.name : ""
+            for (let line of severalText.text.split("\n")) {
+                line = line.trim()
+                if (!line) continue
+                const colon = line.indexOf(":")
+                if (colon > 0 && !/\d/.test(line.slice(0, colon))) {
+                    category = line.slice(0, colon).trim()
+                    line = line.slice(colon + 1).trim()
+                }
+                for (let part of line.split(/,(?!\d{1,2}\s*(?:,|$))/)) {
+                    part = part.trim()
+                    if (!part) continue
+                    const m = part.match(/^(.*?)[\s\-–:]*\$?\s*(\d+(?:[.,]\d{1,2})?)\s*$/)
+                    out.push(m && m[1].trim() ? { name: m[1].trim(), price: Number(m[2].replace(",", ".")).toFixed(2), category: category }
+                                              : { name: part, price: "", category: category })
+                }
+            }
+            return out
+        }
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 8
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                opacity: 0.8
+                text: qsTr("One per line, or separated by commas, each with its price: \"Carne Asada 3.50\". Start a line with another category's name and a colon to put what follows there (made if it's new): \"Drinks: Horchata 2.75\".")
+            }
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 200
+                TextArea {
+                    id: severalText
+                    objectName: "builderSeveralText"
+                    placeholderText: qsTr("Carne Asada 3.50\nAl Pastor 3.25\nDrinks: Horchata 2.75")
+                    wrapMode: TextEdit.Wrap
+                }
+            }
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                visible: severalDialog.preview.length > 0
+                text: severalDialog.preview.map(e => e.price ? e.name + " " + w.pos.currencySymbol + e.price + (e.category !== (w.category ? w.category.name : "") ? " (" + e.category + ")" : "")
+                                                             : "⚠ " + e.name + " " + qsTr("(no price)")).join("  ·  ")
+                font.pixelSize: 14
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                TouchButton {
+                    objectName: "builderSeveralAdd"
+                    Layout.fillWidth: true
+                    highlighted: true
+                    enabled: severalDialog.preview.length > 0 && severalDialog.preview.every(e => e.price !== "")
+                    text: qsTr("Add %n item(s)", "", severalDialog.preview.length)
+                    onClicked: {
+                        w.pos.addMenuItemsFromText(w.categoryId, severalText.text)
+                        severalDialog.close()
+                    }
+                }
+                TouchButton {
+                    Layout.preferredWidth: 160
+                    text: qsTr("Cancel")
+                    onClicked: severalDialog.close()
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: removeGroupDialog
+        title: qsTr("Remove %1?").arg(w.draft.name ?? "")
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        modal: true
+        standardButtons: Dialog.Yes | Dialog.Cancel
+        Label {
+            text: w.editedGroup && w.editedGroup.usedBy.length
+                  ? qsTr("%1 stop asking for it.").arg(w.editedGroup.usedBy.join(", ")) : qsTr("No item asks for it.")
+            wrapMode: Text.WordWrap
+            width: 420
+        }
+        onAccepted: {
+            w.pos.deleteChoiceGroup(w.draft.id)
+            w.editingGroup = false
         }
     }
 

@@ -115,3 +115,102 @@ TEST_CASE("Menu Builder: categories in order; moving an item takes its kitchen a
     REQUIRE(pos.loginWithPin(u"1111"_s));
     CHECK_FALSE(pos.saveCategory({{u"name"_s, u"Pies"_s}}));
 }
+
+TEST_CASE("Menu Builder: a choice group made, used, changed, removed", "[menubuilder][choices]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const auto group = [&](const QString &name) {
+        for (const QVariant &g : pos.choiceGroups())
+            if (g.toMap()[u"name"_s] == name)
+                return g.toMap();
+        return QVariantMap{};
+    };
+    const QVariantList options{QVariantMap{{u"name"_s, u"Pico de gallo"_s}, {u"price"_s, u""_s}},
+                               QVariantMap{{u"name"_s, u"Salsa Verde"_s}, {u"price"_s, u"0.50"_s}},
+                               QVariantMap{{u"name"_s, u""_s}},   // a row left empty
+                               QVariantMap{{u"name"_s, u"Onion"_s}, {u"included"_s, true}}};
+    REQUIRE(pos.saveChoiceGroup({{u"name"_s, u"Salsa"_s}, {u"min"_s, 1}, {u"max"_s, 1}, {u"askHow"_s, true},
+                                 {u"options"_s, options}}));
+    QVariantMap salsa = group(u"Salsa"_s);
+    REQUIRE_FALSE(salsa.isEmpty());
+    CHECK(salsa[u"rule"_s] == u"Pick 1"_s);
+    CHECK(salsa[u"options"_s].toList().size() == 3);
+    CHECK(salsa[u"options"_s].toList()[1].toMap()[u"price"_s].toDouble() == 0.5);
+    CHECK(salsa[u"options"_s].toList()[2].toMap()[u"included"_s].toBool());
+    CHECK_FALSE(pos.saveChoiceGroup({{u"name"_s, u"Bad"_s}, {u"options"_s, QVariantList{QVariantMap{{u"name"_s, u"A"_s}, {u"price"_s, u"x"_s}}}}}));
+    CHECK_FALSE(pos.saveChoiceGroup({{u"name"_s, u"Empty"_s}, {u"options"_s, QVariantList{}}}));
+    CHECK_FALSE(pos.saveChoiceGroup({{u"name"_s, u"Twice"_s},
+                                     {u"options"_s, QVariantList{QVariantMap{{u"name"_s, u"A"_s}}, QVariantMap{{u"name"_s, u"a"_s}}}}}));
+
+    // On an item's card; changed to "up to 2"; removed: the item stops asking.
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, u"classic-burger"_s}, {u"name"_s, u"Classic Burger"_s},
+                                  {u"groups"_s, QStringList{u"temperature"_s, salsa[u"id"_s].toString()}}}));
+    CHECK(group(u"Salsa"_s)[u"usedBy"_s].toStringList() == QStringList{u"Classic Burger"_s});
+    REQUIRE(pos.saveChoiceGroup({{u"id"_s, salsa[u"id"_s]}, {u"name"_s, u"Salsa"_s}, {u"min"_s, 0}, {u"max"_s, 2},
+                                 {u"options"_s, options}}));
+    CHECK(group(u"Salsa"_s)[u"rule"_s] == u"Up to 2"_s);
+    REQUIRE(pos.deleteChoiceGroup(salsa[u"id"_s].toString()));
+    CHECK(group(u"Salsa"_s).isEmpty());
+    for (const core::MenuItem &m : pos.shared()->menu)
+        if (m.id == "classic-burger")
+            CHECK(std::ranges::find(m.modifierGroups, salsa[u"id"_s].toString().toStdString()) == m.modifierGroups.end());
+}
+
+TEST_CASE("Menu Builder: many items typed at once, in any of the usual ways", "[menubuilder][fast]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    // A new category, then items several ways; another category's line.
+    const int added = pos.addMenuItemsFromText(u"burgers"_s,
+        u"Tacos: Carne Asada 3.50, Al Pastor $3.25, Pollo - 3\n"
+        u"Lengua 4,25\n"
+        u"\n"
+        u"Drinks: Horchata 2.75\n"
+        u"Agua Fresca 2.50"_s);
+    CHECK(added == 6);
+    const auto priceOf = [&](const QString &name) {
+        for (const QVariant &m : pos.menuItems())
+            if (m.toMap()[u"name"_s] == name)
+                return m.toMap()[u"family"_s].toString() + u' ' + m.toMap()[u"price"_s].toString();
+        return QString();
+    };
+    CHECK(priceOf(u"Carne Asada"_s) == u"tacos $3.50"_s);
+    CHECK(priceOf(u"Al Pastor"_s) == u"tacos $3.25"_s);
+    CHECK(priceOf(u"Pollo"_s) == u"tacos $3.00"_s);
+    CHECK(priceOf(u"Lengua"_s) == u"tacos $4.25"_s);   // a comma for the cents
+    CHECK(priceOf(u"Horchata"_s) == u"drinks $2.75"_s);
+    CHECK(priceOf(u"Agua Fresca"_s) == u"drinks $2.50"_s);
+
+    // In the category chosen; one without a price says which; already there: skipped.
+    CHECK(pos.addMenuItemsFromText(u"tacos"_s, u"Barbacoa 3.75\nCarne Asada 3.50"_s) == 1);
+    CHECK(pos.addMenuItemsFromText(u"tacos"_s, u"Suadero\nChorizo 3"_s) == 0);   // nothing added: Suadero has no price
+    CHECK(priceOf(u"Chorizo"_s).isEmpty());
+    CHECK(pos.addMenuItemsFromText({}, u"Mole 9"_s) == 0);                        // which category?
+}
+
+TEST_CASE("Menu Builder: Duplicate copies an item with its choices and what's on it", "[menubuilder][fast]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.saveMenuItemCard({{u"name"_s, u"Fish Tacos"_s}, {u"price"_s, u"13.50"_s}, {u"family"_s, u"plates"_s},
+                                  {u"onIt"_s, u"cabbage, crema"_s}, {u"groups"_s, QStringList{u"dressing"_s}}}));
+    QString id;
+    for (const QVariant &m : pos.menuItems())
+        if (m.toMap()[u"name"_s] == u"Fish Tacos"_s)
+            id = m.toMap()[u"id"_s].toString();
+    REQUIRE(pos.duplicateMenuItem(id));
+    QVariantMap copy;
+    for (const QVariant &m : pos.menuItems())
+        if (m.toMap()[u"name"_s] == u"Fish Tacos 2"_s)
+            copy = m.toMap();
+    REQUIRE_FALSE(copy.isEmpty());
+    CHECK(copy[u"price"_s] == u"$13.50"_s);
+    CHECK(copy[u"onIt"_s].toStringList() == QStringList{u"cabbage"_s, u"crema"_s});
+    CHECK(copy[u"groups"_s].toStringList() == QStringList{u"dressing"_s});
+    // Its own What's on it: changing it doesn't change the original's.
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, copy[u"id"_s]}, {u"name"_s, u"Shrimp Tacos"_s}, {u"onIt"_s, u"slaw"_s}}));
+    for (const QVariant &m : pos.menuItems())
+        if (m.toMap()[u"name"_s] == u"Fish Tacos"_s)
+            CHECK(m.toMap()[u"onIt"_s].toStringList() == QStringList{u"cabbage"_s, u"crema"_s});
+}

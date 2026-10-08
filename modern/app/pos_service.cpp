@@ -2416,6 +2416,11 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"deleteCategory"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.deleteCategory(a.value(0).toString())); }},
         {u"saveMenuItemCard"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.saveMenuItemCard(a.value(0).toMap())); }},
         {u"deleteMenuItemCard"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.deleteMenuItemCard(a.value(0).toString())); }},
+        {u"saveChoiceGroup"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.saveChoiceGroup(a.value(0).toMap())); }},
+        {u"duplicateMenuItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.duplicateMenuItem(a.value(0).toString())); }},
+        {u"addMenuItemsFromText"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.addMenuItemsFromText(a.value(0).toString(), a.value(1).toString()) > 0); }},
+        {u"deleteChoiceGroup"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.deleteChoiceGroup(a.value(0).toString())); }},
         {u"setChoice"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.setChoice(a.value(0).toString(), a.value(1).toInt(), a.value(2).toString())); }},
         {u"chooseOptionAs"_s, [](PosService &p, const QVariantList &a) {

@@ -158,6 +158,89 @@ bool PosService::deleteCategory(const QString &id)
     return true;
 }
 
+// --- choice groups ---------------------------------------------------------------------
+
+bool PosService::saveChoiceGroup(const QVariantMap &record)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    const QString name = record.value(u"name"_s).toString().trimmed();
+    if (name.isEmpty())
+        return fail(tr("The choice group needs a name."));
+    auto &list = s_->settings.modifierGroups;
+    const std::string id = ss(record.value(u"id"_s).toString());
+    auto it = std::ranges::find_if(list, [&](const ModifierGroup &g) { return !id.empty() && g.id == id; });
+    ModifierGroup g = it != list.end() ? *it : ModifierGroup{};
+    g.name = ss(name);
+    g.min = std::max(0, record.value(u"min"_s).toInt());
+    g.max = std::max(0, record.value(u"max"_s).toInt());
+    if (g.max > 0 && g.min > g.max)
+        return fail(tr("It can't require more choices than it allows."));
+    g.askHow = record.value(u"askHow"_s).toBool();
+    std::vector<ModifierOption> options;
+    for (const QVariant &v : record.value(u"options"_s).toList()) {
+        const QVariantMap o = v.toMap();
+        const QString optName = o.value(u"name"_s).toString().trimmed();
+        if (optName.isEmpty())
+            continue;   // a row left empty
+        bool ok = true;
+        const QString priceText = o.value(u"price"_s).toString().remove(qs(s_->settings.currencySymbol)).trimmed();
+        const double price = priceText.isEmpty() ? 0 : priceText.toDouble(&ok);
+        if (!ok || price < 0)
+            return fail(tr("%1: type its price, like 1.50 (or leave it empty).").arg(optName));
+        if (std::ranges::any_of(options, [&](const ModifierOption &x) { return QString::compare(qs(x.name), optName, Qt::CaseInsensitive) == 0; }))
+            return fail(tr("%1 is in it twice.").arg(optName));
+        // Kept: what the Menu Builder doesn't show (a combo's menu item).
+        ModifierOption opt;
+        if (it != list.end())
+            if (const auto old = std::ranges::find_if(it->options, [&](const ModifierOption &x) { return qs(x.name) == optName; });
+                old != it->options.end())
+                opt = *old;
+        opt.name = ss(optName);
+        opt.price = Money::fromCents(std::llround(price * 100.0));
+        opt.included = o.value(u"included"_s).toBool();
+        if (o.contains(u"kitchenName"_s))
+            opt.kitchenName = ss(o.value(u"kitchenName"_s).toString().trimmed());
+        options.push_back(std::move(opt));
+    }
+    if (options.empty())
+        return fail(tr("Add its options."));
+    if (g.min > int(options.size()))
+        return fail(tr("It requires more choices than it has options."));
+    g.options = std::move(options);
+    if (it != list.end()) {
+        *it = g;
+    } else {
+        g.id = freeId(name, [&](const std::string &x) {
+            return std::ranges::any_of(list, [&](const ModifierGroup &o) { return o.id == x; });
+        });
+        list.push_back(g);
+    }
+    settingsChanged();
+    menuChanged();
+    emit notice(tr("Saved"));
+    return true;
+}
+
+bool PosService::deleteChoiceGroup(const QString &id)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    auto &list = s_->settings.modifierGroups;
+    if (std::erase_if(list, [&](const ModifierGroup &g) { return qs(g.id) == id; }) == 0)
+        return fail(tr("That choice group is gone."));
+    // Items stop asking for it.
+    for (int i = 0; i < int(s_->menu.size()); ++i) {
+        MenuItem &m = s_->menu[i];
+        if (std::erase(m.modifierGroups, ss(id)) > 0 && s_->sink)
+            s_->sink->saveMenuItem(m, i);
+    }
+    settingsChanged();
+    menuChanged();
+    emit notice(tr("Choice group removed"));
+    return true;
+}
+
 // --- an item's card ------------------------------------------------------------------
 
 bool PosService::saveMenuItemCard(const QVariantMap &card)
@@ -286,6 +369,120 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
     menuChanged();
     emit notice(adding ? tr("%1 added").arg(name) : tr("Saved"));
     return true;
+}
+
+bool PosService::duplicateMenuItem(const QString &id)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    auto &menu = s_->menu;
+    const auto it = std::ranges::find_if(menu, [&](const MenuItem &m) { return qs(m.id) == id; });
+    if (it == menu.end())
+        return fail(tr("'%1' is not on the menu.").arg(id));
+    MenuItem copy = *it;
+    // "Fish Tacos 2": a name of its own, to change.
+    QString name;
+    for (int n = 2;; ++n) {
+        name = u"%1 %2"_s.arg(qs(it->name)).arg(n);
+        if (std::ranges::none_of(menu, [&](const MenuItem &m) { return QString::compare(qs(m.name), name, Qt::CaseInsensitive) == 0; }))
+            break;
+    }
+    copy.name = ss(name);
+    copy.number.clear();   // numbers are one item's
+    copy.ticketsSoldBefore = 0;
+    copy.id = freeId(name, [&](const std::string &x) { return std::ranges::any_of(menu, [&](const MenuItem &m) { return m.id == x; }); });
+    // Its own What's on it, copied too.
+    const std::string oldOnIt = onItGroupId(it->id), newOnIt = onItGroupId(copy.id);
+    for (std::string &g : copy.modifierGroups)
+        if (g == oldOnIt)
+            g = newOnIt;
+    if (const ModifierGroup *g = s_->settings.modifierGroup(oldOnIt)) {
+        ModifierGroup own = *g;
+        own.id = newOnIt;
+        s_->settings.modifierGroups.push_back(std::move(own));
+        settingsChanged();
+    }
+    const int at = int(it - menu.begin()) + 1;
+    menu.insert(menu.begin() + at, copy);
+    if (s_->sink)
+        for (int i = at; i < int(menu.size()); ++i)
+            s_->sink->saveMenuItem(menu[i], i);
+    menuChanged();
+    emit notice(tr("%1 added: change its name and price").arg(name));
+    return true;
+}
+
+// "Tacos: Carne Asada 3.50, Al Pastor 3.25" or one per line ("Horchata 2.75"):
+// before a colon, the category (made if there's none); each item's price last.
+int PosService::addMenuItemsFromText(const QString &categoryId, const QString &text)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return 0;
+    static const QRegularExpression priced(uR"(^(.*?)[\s\-–:]*\$?\s*(\d+(?:[.,]\d{1,2})?)\s*$)"_s);
+    QString category = categoryId;
+    struct Entry { QString category, name; double price; };
+    std::vector<Entry> entries;
+    QStringList problems;
+    for (QString line : text.split(u'\n')) {
+        line = line.trimmed();
+        if (line.isEmpty())
+            continue;
+        // "Tacos:" (or "Tacos: ..."): what follows goes in it.
+        if (const qsizetype colon = line.indexOf(u':'); colon > 0 && !line.left(colon).contains(QRegularExpression(u"\\d"_s))) {
+            const QString name = line.left(colon).trimmed();
+            line = line.mid(colon + 1).trimmed();
+            const auto cats = s_->categories();
+            const auto c = std::ranges::find_if(cats, [&](const MenuCategory &x) {
+                return QString::compare(qs(x.name), name, Qt::CaseInsensitive) == 0 || qs(x.id) == name;
+            });
+            if (c != cats.end()) {
+                category = qs(c->id);
+            } else {
+                if (!saveCategory({{u"name"_s, name}}))
+                    return 0;
+                for (const MenuCategory &x : s_->categories())
+                    if (qs(x.name) == name)
+                        category = qs(x.id);
+            }
+            if (line.isEmpty())
+                continue;
+        }
+        // Commas between items; "4,25" is a price (a comma then cents).
+        static const QRegularExpression between(uR"(,(?!\d{1,2}\s*(?:,|$)))"_s);
+        for (QString part : line.split(between, Qt::SkipEmptyParts)) {
+            part = part.trimmed();
+            if (part.isEmpty())
+                continue;
+            const auto m = priced.match(part);
+            if (!m.hasMatch() || m.captured(1).trimmed().isEmpty()) {
+                problems << part;
+                continue;
+            }
+            entries.push_back({category, m.captured(1).trimmed(), m.captured(2).replace(u',', u'.').toDouble()});
+        }
+    }
+    if (!problems.isEmpty()) {
+        fail(tr("Give each its price, like \"Al Pastor 3.25\": %1").arg(problems.join(u", "_s)));
+        return 0;
+    }
+    if (category.isEmpty() && !entries.empty() && entries.front().category.isEmpty()) {
+        fail(tr("Choose a category first, or start with one: \"Tacos: Carne Asada 3.50, ...\"."));
+        return 0;
+    }
+    int added = 0;
+    QStringList skipped;
+    for (const Entry &e : entries) {
+        if (std::ranges::any_of(s_->menu, [&](const MenuItem &x) { return QString::compare(qs(x.name), e.name, Qt::CaseInsensitive) == 0; })) {
+            skipped << e.name;
+            continue;
+        }
+        if (!saveMenuItemCard({{u"name"_s, e.name}, {u"price"_s, QString::number(e.price, 'f', 2)}, {u"family"_s, e.category}}))
+            return added;
+        ++added;
+    }
+    emit notice(skipped.isEmpty() ? tr("Added %n item(s)", nullptr, added)
+                                  : tr("Added %n item(s); already on the menu: %1", nullptr, added).arg(skipped.join(u", "_s)));
+    return added;
 }
 
 bool PosService::deleteMenuItemCard(const QString &id)

@@ -78,5 +78,25 @@
  "Move or remove its %n item(s) first.": {
   "one": "Move or remove its item first.",
   "other": "Move or remove its %n items first."
+ },
+ "%n option(s)": {
+  "one": "%n option",
+  "other": "%n options"
+ },
+ "used by %n": {
+  "one": "used by %n item",
+  "other": "used by %n items"
+ },
+ "Added %n item(s)": {
+  "one": "Added %n item",
+  "other": "Added %n items"
+ },
+ "Added %n item(s); already on the menu: %1": {
+  "one": "Added %n item; already on the menu: %1",
+  "other": "Added %n items; already on the menu: %1"
+ },
+ "Add %n item(s)": {
+  "one": "Add %n item",
+  "other": "Add %n items"
  }
 }

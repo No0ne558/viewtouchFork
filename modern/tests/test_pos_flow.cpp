@@ -4963,3 +4963,89 @@ TEST_CASE("UI: the Menu Builder adds an item, with what's on it, and a category"
     CHECK(by(u"builderAddItem"_s));   // Tacos is the one shown, ready for its items
     s.shot("builder");
 }
+
+TEST_CASE("UI: the Menu Builder makes a choice group, row by row", "[flow][ui][menubuild]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto type = [&](const QString &field, const char *text) {
+        QQuickItem *f = by(field);
+        REQUIRE(f);
+        scrollTo(f);
+        s.tapItem(f);
+        QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
+        for (const char *ch = text; *ch; ++ch)
+            QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+    };
+    s.tapItem(by(u"builderModeChoices"_s));
+    QTest::qWait(60);
+    REQUIRE(by(u"builderGroupRow-temperature"_s));
+    s.tapItem(by(u"builderAddGroup"_s));
+    QTest::qWait(60);
+    type(u"builderGroupName"_s, "Salsa");
+    type(u"builderOption-0"_s, "Pico de gallo");
+    type(u"builderOption-1"_s, "Salsa Verde");
+    type(u"builderOptionPrice-1"_s, "0.50");
+    scrollTo(by(u"builderAddOption"_s));
+    s.tapItem(by(u"builderAddOption"_s));
+    QTest::qWait(60);
+    type(u"builderOption-2"_s, "Habanero");
+    s.shot("builder-group");
+    s.tapItem(by(u"builderSaveGroup"_s));
+    QTest::qWait(150);
+    QVariantMap salsa;
+    for (const QVariant &g : s.pos.choiceGroups())
+        if (g.toMap()[u"name"_s] == u"Salsa"_s)
+            salsa = g.toMap();
+    REQUIRE_FALSE(salsa.isEmpty());
+    CHECK(salsa[u"rule"_s] == u"Pick 1"_s);   // one, required: the starting rule
+    CHECK(salsa[u"options"_s].toList().size() == 3);
+    CHECK(by(u"builderGroupRow-"_s + salsa[u"id"_s].toString()));
+}
+
+TEST_CASE("UI: the Menu Builder adds several at once, and duplicates one", "[flow][ui][menubuild]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    s.tapItem(by(u"builderCategory-plates"_s));
+    QTest::qWait(60);
+    s.tapItem(by(u"builderAddSeveral"_s));
+    QTest::qWait(100);
+    QQuickItem *text = by(u"builderSeveralText"_s);
+    REQUIRE(text);
+    text->setProperty("text", u"Fish Tacos 13.50\nShrimp Tacos 14,50\nDrinks: Horchata 2.75"_s);
+    QTest::qWait(60);
+    s.shot("builder-several");
+    QQuickItem *add = by(u"builderSeveralAdd"_s);
+    REQUIRE(add);
+    CHECK(add->property("text").toString() == u"Add 3 items"_s);
+    s.tapItem(add);
+    QTest::qWait(150);
+    QStringList names;
+    for (const QVariant &m : s.pos.menuItems())
+        names << m.toMap()[u"name"_s].toString() + u'/' + m.toMap()[u"family"_s].toString();
+    CHECK(names.contains(u"Fish Tacos/plates"_s));
+    CHECK(names.contains(u"Shrimp Tacos/plates"_s));
+    CHECK(names.contains(u"Horchata/drinks"_s));
+
+    // Duplicate Fish Tacos: the copy opens, ready to rename.
+    QString fish;
+    for (const QVariant &m : s.pos.menuItems())
+        if (m.toMap()[u"name"_s] == u"Fish Tacos"_s)
+            fish = m.toMap()[u"id"_s].toString();
+    s.tapItem(by(u"builderItem-"_s + fish));
+    QTest::qWait(60);
+    s.tapItem(by(u"builderDuplicate"_s));
+    QTest::qWait(150);
+    QQuickItem *name = by(u"builderName"_s);
+    REQUIRE(name);
+    CHECK(name->property("text").toString() == u"Fish Tacos 2"_s);
+}
