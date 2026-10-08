@@ -303,6 +303,21 @@ write("pos/settings.json", {
                  "tender:gift": "2400 Gift card liability", "tender:house": "1200 House accounts receivable"},
     "stations": [{"id": "grill", "name": "Grill"}, {"id": "fryer", "name": "Fryer"},
                  {"id": "cold", "name": "Cold Line"}],
+    # The menu's categories, in order: their buttons on the menu screens, their
+    # meal periods, and what new items in them start with (Menu Builder).
+    "menuCategories": [
+        {"id": "breakfast", "name": "Breakfast Plates", "color": "#a86a12", "periods": ["breakfast"],
+         "printer": "kitchen"},
+        {"id": "burgers", "name": "Burgers", "color": "#a86a12", "periods": ["lunch", "dinner"],
+         "printer": "kitchen", "station": "grill"},
+        {"id": "salads", "name": "Salads", "color": "#1f8a4c", "periods": ["lunch", "dinner"],
+         "printer": "kitchen", "station": "cold"},
+        {"id": "plates", "name": "Plates", "color": "#6b46c1", "periods": ["lunch", "dinner"], "printer": "kitchen"},
+        {"id": "combos", "name": "Combos", "color": "#1f8a4c", "periods": ["lunch", "dinner"], "printer": "kitchen"},
+        {"id": "sides", "name": "Sides", "color": "#8a5a2b", "periods": [], "printer": "kitchen", "station": "fryer"},
+        {"id": "drinks", "name": "Drinks", "color": "#1f6f73", "periods": [], "printer": "bar"},
+        {"id": "events", "name": "Events", "color": "#6b46c1", "periods": [], "printer": "kitchen"},
+    ],
     "modifierGroups": link_items([
         {"id": "dressing", "name": "Dressing", "min": 1, "max": 1, "askHow": True,   # on the side
          "options": [{"name": n, "price": 0, "kitchenName": k} for n, k in
@@ -374,7 +389,7 @@ write("pos/settings.json", {
 WIDGETS = ["orderList", "loginPad", "guestCount", "numPad", "paymentPanel",
            "logoutPanel", "clock", "checkList", "keyboard", "statusBar",
            "adminPanel", "reportView", "drawerPanel", "endOfDay", "splitCheck", "customerInfo",
-           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "timeClock", "dashboard", "checklist", "hostStand", "deliveryBoard"]
+           "customerLookup", "giftCard", "waitlist", "schedule", "factoryReset", "messageComposer", "network", "receiveDelivery", "checkSearch", "orderLater", "menuGrid", "menuCategories", "timeClock", "dashboard", "checklist", "hostStand", "deliveryBoard"]
 widget_style = {"normal": {"fill": "#232933", "frame": "flat", "shadow": 0, "radius": 12,
                            "textColor": "#e6e9ef", "fontSize": 28, "bold": False}}
 write("theme.json", {
@@ -434,23 +449,20 @@ tmpl.append(zone("tab-check", 1736, 16, 168, 72, "Check…", actions=[jump(page=
 page("order-template", "Order Template", "template", tmpl)
 
 # ---------------------------------------------------------------- index pages
-def index_page(id, name, period, cats):
-    zs = [label("title", 592, 104, 1312, 72, name)]
-    for i, (text, target, color) in enumerate(cats):
-        col, row = i % 3, i // 3
-        zs.append(zone(f"cat-{target}", 592 + col * 444, 192 + row * 260, 424, 240, text,
-                       actions=[jump(page=target, mode="replace")], style=fill(color)))
+# The meal's categories fill themselves (Menu Builder): a new category or item
+# shows up with no page editing. Everything and Popular beneath.
+def index_page(id, name, period):
+    zs = [label("title", 592, 104, 1312, 72, name),
+          zone("categories", 592, 192, 1312, 600, kind="menuCategories", props={"period": period, "columns": 3}),
+          zone("cat-menu-all", 592, 812, 640, 152, "Everything", actions=[jump(page="menu-all", mode="replace")],
+               style=fill(PURPLE)),
+          zone("cat-menu-popular", 1264, 812, 640, 152, "Popular", actions=[jump(page="menu-popular", mode="replace")],
+               style=fill(RED))]
     page(id, name, "index", zs, templateId="order-template", mealPeriod=period)
 
-index_page("index-breakfast", "Breakfast", "breakfast",
-           [("Plates", "items-breakfast", AMBER), ("Drinks", "items-drinks", TEAL),
-            ("Everything", "menu-all", PURPLE), ("Popular", "menu-popular", RED)])
-index_page("index-lunch", "Lunch", "lunch",
-           [("Burgers", "items-burgers", AMBER), ("Salads", "items-salads", GREEN),
-            ("Drinks", "items-drinks", TEAL), ("Everything", "menu-all", PURPLE), ("Popular", "menu-popular", RED)])
-index_page("index-dinner", "Dinner", "dinner",
-           [("Burgers", "items-burgers", AMBER), ("Salads", "items-salads", GREEN),
-            ("Drinks", "items-drinks", TEAL), ("Everything", "menu-all", PURPLE), ("Popular", "menu-popular", RED)])
+index_page("index-breakfast", "Breakfast", "breakfast")
+index_page("index-lunch", "Lunch", "lunch")
+index_page("index-dinner", "Dinner", "dinner")
 
 # Today's best sellers, most first: they fill in as the day goes.
 page("menu-popular", "Popular", "items", [
@@ -464,16 +476,31 @@ page("find-item", "Find an Item", "items", [
     zone("keyboard", 592, 516, 1312, 448, kind="keyboard", props={"placeholder": "Part of a name…"}),
 ], templateId="order-template")
 
-# The whole menu, laid out by itself: new items appear with no editing.
-page("menu-all", "Everything", "items", [
+# The whole menu, laid out by itself: a category's items (touched on the meal's
+# page), with a button for each category across the top. New items appear
+# with no editing.
+page("menu-all", "Menu", "items", [
     zone("menu", 592, 104, 1312, 860, kind="menuGrid", props={"columns": 4}),
-], templateId="order-template")
+], templateId="order-template", role="menu")
 
 # ---------------------------------------------------------------- item pages
 def add(name, seq=None):
     a = {"type": "addItem", "item": slug(name)}
     if seq: a["modifierSequence"] = seq
     return a
+
+# Hand-built item pages: the menu screens fill themselves now; these stay as
+# the tests' fixtures (pages of buttons placed by hand, for the page editor).
+FIXTURES = os.path.join(OUT, "..", "tests", "fixtures", "pages")
+os.makedirs(FIXTURES, exist_ok=True)
+
+def fixture_page(id, name, kind, zones, **kw):
+    p = {"id": id, "name": name, "kind": kind, "canvas": {"w": 1920, "h": 1080}, "grid": 8}
+    p.update(kw)
+    p["zones"] = zones
+    with open(os.path.join(FIXTURES, f"{id}.json"), "w") as f:
+        json.dump({"schemaVersion": SCHEMA, **p}, f, indent=2)
+        f.write("\n")
 
 def item_page(id, name, items, color, shape="rounded", cols=4, cell=(316, 180), extra=()):
     zs = [label("title", 592, 104, 1312, 72, name)]
@@ -484,7 +511,7 @@ def item_page(id, name, items, color, shape="rounded", cols=4, cell=(316, 180), 
         zs.append(zone(f"item-{i + 1}", 592 + col * (w + gap_x), 192 + row * (h + 16), w, h, text,
                        actions=[add(text, seq)], shape=shape, style=fill(color)))
     zs.extend(extra)
-    page(id, name, "items", zs, templateId="order-template")
+    fixture_page(id, name, "items", zs, templateId="order-template")
 
 item_page("items-burgers", "Burgers", [(n, None) for n, _ in BURGERS[:6]], AMBER,
           extra=[zone("combo", 924, 596, 300, 180, "Burger Combo", actions=[add("Burger Combo")],

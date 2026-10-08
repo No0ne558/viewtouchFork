@@ -140,6 +140,8 @@ struct PosSettings {
     // address change). Made once, on first start.
     std::string serverId;
     std::vector<MealPeriod> mealPeriods = defaultMealPeriods();
+    // The menu's categories, in order (an item's family is one's id).
+    std::vector<MenuCategory> menuCategories;
     std::vector<ModifierGroup> modifierGroups;
 
     const ModifierGroup *modifierGroup(const std::string &id) const

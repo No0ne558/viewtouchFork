@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "layoutcontroller.hh"
 #include "net/layout_hub.hh"
 #include "net/pos_server.hh"
@@ -34,7 +35,7 @@ bool waitFor(F condition, int msec = 3000)
 
 layout::Layout seedLayout()
 {
-    auto l = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto l = vt::test::loadTestLayout();
     REQUIRE(l);
     return *l;
 }
@@ -258,7 +259,7 @@ TEST_CASE("Remote terminal: full order flow through the server", "[net][remote]"
     CHECK(front.c.pageId() == u"index-lunch"_s);
     CHECK(front.remote->checkInfo()[u"guests"_s].toInt() == 3);
 
-    front.tap(u"cat-items-burgers"_s);
+    REQUIRE(front.c.jumpTo(u"items-burgers"_s));      // a page of buttons placed by hand (a fixture)
     front.tap(u"item-1"_s);                            // Classic Burger -> its choices
     CHECK(front.c.pageId() == u"modifiers"_s);
     front.remote->chooseOption(u"temperature"_s, 1);   // Medium Rare

@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "layoutcontroller.hh"
 #include "pos_fixture.hh"
 #include "qt_catch.hh"
@@ -29,7 +30,7 @@ void collect(QtMsgType type, const QMessageLogContext &, const QString &msg)
 
 TEST_CASE("Every seed page renders cleanly, running and editing", "[ui][pages]")
 {
-    auto layout = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto layout = vt::test::loadTestLayout();
     REQUIRE(layout);
     QStringList pageIds;
     for (const auto &p : layout->pages)
@@ -88,7 +89,7 @@ int countVisible(QQuickItem *root, const char *classPrefix)
 
 TEST_CASE("Admin screen: touching a record opens its form", "[ui][pages]")
 {
-    auto layout = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto layout = vt::test::loadTestLayout();
     REQUIRE(layout);
     test::RecordingSink sink;
     app::PosService pos(test::seedPosData(), &sink);
@@ -120,7 +121,7 @@ TEST_CASE("Admin screen: touching a record opens its form", "[ui][pages]")
 
 TEST_CASE("Kitchen display shows sent orders; touching one bumps it", "[ui][pages]")
 {
-    auto layout = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto layout = vt::test::loadTestLayout();
     REQUIRE(layout);
     test::RecordingSink sink;
     app::PosService pos(test::seedPosData(), &sink);
@@ -176,7 +177,7 @@ TEST_CASE("Kitchen display shows sent orders; touching one bumps it", "[ui][page
 
 TEST_CASE("Customer details typed then Continue are kept", "[ui][pages]")
 {
-    auto layout = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto layout = vt::test::loadTestLayout();
     REQUIRE(layout);
     app::PosService pos(test::seedPosData(), nullptr);
     LayoutController c(std::move(*layout));
@@ -220,7 +221,7 @@ TEST_CASE("Customer details typed then Continue are kept", "[ui][pages]")
 
 TEST_CASE("F1 opens the editor only for someone allowed to edit pages", "[ui][pages][security]")
 {
-    auto layout = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto layout = vt::test::loadTestLayout();
     REQUIRE(layout);
     app::PosService pos(test::seedPosData(), nullptr);
     LayoutController c(std::move(*layout));
@@ -254,7 +255,7 @@ TEST_CASE("F1 opens the editor only for someone allowed to edit pages", "[ui][pa
 
 TEST_CASE("Logging out closes the editor", "[pages][security]")
 {
-    auto layout = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto layout = vt::test::loadTestLayout();
     REQUIRE(layout);
     app::PosService pos(test::seedPosData(), nullptr);
     LayoutController c(std::move(*layout));

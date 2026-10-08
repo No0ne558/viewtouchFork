@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "menu-all",
-  "name": "Everything",
+  "name": "Menu",
   "kind": "items",
   "canvas": {
     "w": 1920,
@@ -9,6 +9,7 @@
   },
   "grid": 8,
   "templateId": "order-template",
+  "role": "menu",
   "zones": [
     {
       "id": "menu",

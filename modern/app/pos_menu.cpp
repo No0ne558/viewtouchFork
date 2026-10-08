@@ -384,6 +384,39 @@ QStringList PosService::soldOut() const
     return out;
 }
 
+std::vector<MenuCategory> PosShared::categories() const
+{
+    std::vector<MenuCategory> out = settings.menuCategories;
+    for (const MenuItem &m : menu) {
+        if (m.isModifier || m.family.empty() || std::ranges::any_of(out, [&](const MenuCategory &c) { return c.id == m.family; }))
+            continue;
+        MenuCategory c;
+        c.id = m.family;
+        c.name = m.family;
+        c.name[0] = char(std::toupper(static_cast<unsigned char>(c.name[0])));
+        out.push_back(std::move(c));
+    }
+    return out;
+}
+
+QVariantList PosService::menuCategories() const
+{
+    QVariantList out;
+    const std::string period = currentMealPeriod();
+    for (const MenuCategory &c : s_->categories()) {
+        const auto count = std::ranges::count_if(s_->menu, [&](const MenuItem &m) { return m.family == c.id && !m.isModifier; });
+        QStringList periods;
+        for (const std::string &p : c.periods)
+            periods << qs(p);
+        out.append(QVariantMap{{u"id"_s, qs(c.id)}, {u"name"_s, qs(c.name)}, {u"color"_s, qs(c.color)},
+                               {u"periods"_s, periods}, {u"count"_s, qint64(count)},
+                               {u"now"_s, c.periods.empty() || std::ranges::find(c.periods, period) != c.periods.end()},
+                               {u"printer"_s, qs(c.printer)}, {u"station"_s, qs(c.station)},
+                               {u"taxClass"_s, qs(c.taxClass)}});
+    }
+    return out;
+}
+
 QVariantList PosService::menuItems() const
 {
     QVariantList out;

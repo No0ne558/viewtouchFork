@@ -18,7 +18,8 @@ else()
     target_link_libraries(vtm_tests PRIVATE Catch2::Catch2)
     find_package(Qt6 REQUIRED COMPONENTS Qml Test)
     target_link_libraries(vtm_tests PRIVATE vtm_ui vtm_uiplugin Qt6::Test)
-    target_compile_definitions(vtm_tests PRIVATE VTM_SEED_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../seed")
+    target_compile_definitions(vtm_tests PRIVATE VTM_SEED_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../seed"
+                                                 VTM_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/pages")
 endif()
 
 include(${VTM_LEGACY_ROOT}/external/catch2/extras/Catch.cmake)

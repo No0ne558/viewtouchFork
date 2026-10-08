@@ -59,6 +59,9 @@ class LayoutController : public QObject {
     Q_PROPERTY(QString mealPeriod READ mealPeriod NOTIFY mealPeriodChanged)
     // The theme's status colors (theme "status": tableMine, kitchenLate...).
     Q_PROPERTY(QVariantMap statusColors READ statusColors NOTIFY statusColorsChanged)
+    // The menu category being shown (a self-filling menu with no category of
+    // its own shows this one).
+    Q_PROPERTY(QString menuCategory READ menuCategory WRITE setMenuCategory NOTIFY menuCategoryChanged)
     // Font families this screen can use: its own and the store's (installed here).
     Q_PROPERTY(QStringList fontFamilies READ fontFamilies NOTIFY fontsChanged)
     // The setup guide is showing (opens for managers until it's finished).
@@ -164,6 +167,10 @@ public:
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goHome();
     Q_INVOKABLE bool jumpTo(const QString &pageId);
+    // A category's items: the menu page (role "menu", else "menu-all") on it.
+    Q_INVOKABLE bool openCategory(const QString &categoryId);
+    QString menuCategory() const { return menuCategory_; }
+    void setMenuCategory(const QString &id);
     // Holding a button: what it does, in plain words, instead of doing it.
     Q_INVOKABLE void explain(const QString &zoneId);
     Q_INVOKABLE void clearExplanation();
@@ -209,6 +216,7 @@ signals:
     void asleepChanged();
     void mealPeriodChanged();
     void statusColorsChanged();
+    void menuCategoryChanged();
     void fontsChanged();
     void setupOpenChanged();
     // A command for the widgets on the page (kitchenStation, kitchenAllDay...).
@@ -273,6 +281,7 @@ private:
     QTimer idleTimer_;
     QTimer sleepTimer_;
     QVariantMap statusColors_;
+    QString menuCategory_;
     QVariantMap widgetState_;
     bool setupOpen_ = false;
     QSet<QString> installedFonts_;   // by content hash

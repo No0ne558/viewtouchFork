@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "net/layout_hub.hh"
 #include "net/pairing.hh"
 #include "net/pos_server.hh"
@@ -26,7 +27,7 @@ namespace {
 
 layout::Layout seedLayout()
 {
-    auto l = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto l = vt::test::loadTestLayout();
     REQUIRE(l);
     return *l;
 }

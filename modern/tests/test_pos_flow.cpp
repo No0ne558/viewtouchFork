@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "layoutcontroller.hh"
 #include "print/raster.hh"
 #include "editorcontroller.hh"
@@ -36,7 +37,7 @@ namespace {
 
 Layout seedLayout()
 {
-    auto l = Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto l = vt::test::loadTestLayout();
     REQUIRE(l);
     return *l;
 }
@@ -96,7 +97,7 @@ TEST_CASE("Flow: login, table, order with modifiers, send, pay, close", "[flow]"
     CHECK(s.pos.checkInfo()[u"label"_s].toString() == u"T3"_s);
     CHECK(s.pos.checkInfo()[u"guests"_s].toInt() == 2);
 
-    s.c.activate(u"cat-items-burgers"_s);
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));          // a page of buttons placed by hand (a fixture)
     s.c.activate(u"item-1"_s);                       // Classic Burger: its choices
     CHECK(s.c.pageId() == u"modifiers"_s);
     REQUIRE(s.pos.chooseOption(u"temperature"_s, 1)); // Medium Rare
@@ -185,8 +186,9 @@ TEST_CASE("Flow: quick order from the floor, open checks list", "[flow]")
     s.c.activate(u"quick"_s);
     CHECK(s.c.pageId() == u"index-lunch"_s);
     REQUIRE(s.pos.hasCheck());
-    s.c.activate(u"cat-items-drinks"_s);
-    s.c.activate(u"item-7"_s);                // Draft Beer
+    REQUIRE(s.c.openCategory(u"drinks"_s));   // the Drinks button: the menu on Drinks
+    CHECK(s.c.pageId() == u"menu-all"_s);
+    s.c.orderItem(u"draft-beer"_s);
     s.c.activate(u"flow-tables"_s);           // release and go back to the floor
     CHECK(s.c.pageId() == u"tables"_s);
     CHECK_FALSE(s.pos.hasCheck());
@@ -331,18 +333,25 @@ TEST_CASE("UI flow: keypad login, table map, guest pad, menu, pay", "[flow][ui]"
     s.tapCanvas(970 + 145, 888 + 60);         // Start Order
     CHECK(s.c.pageId() == u"index-lunch"_s);
 
-    s.tapCanvas(592 + 444 + 200, 192 + 120);  // Salads
-    CHECK(s.c.pageId() == u"items-salads"_s);
-    s.tapCanvas(592 + 150, 192 + 90);         // House Salad: it asks for a dressing
+    // The lunch categories fill themselves: Salads, then its items.
+    s.tapKey(u"Salads"_s);
+    CHECK(s.c.pageId() == u"menu-all"_s);
+    CHECK(s.c.menuCategory() == u"salads"_s);
+    QTest::qWait(60);
+    const auto menuItem = [&](const char *id) {
+        return Screen::findBy(s.window->contentItem(), "objectName", u"menuItem-"_s + QString::fromLatin1(id));
+    };
+    s.tapItem(menuItem("house-salad"));       // House Salad: it asks for a dressing
     CHECK(s.c.pageId() == u"modifiers"_s);
     s.tapKey(u"Done"_s);                      // not without the dressing
     CHECK(s.c.pageId() == u"modifiers"_s);
     s.tapKey(u"Ranch"_s);
     s.shot("2-choose");
     s.tapKey(u"Done"_s);
-    CHECK(s.c.pageId() == u"items-salads"_s);
+    CHECK(s.c.pageId() == u"menu-all"_s);
     CHECK(s.pos.lines().size() == 1);
-    s.tapCanvas(592 + 444 + 150, 192 + 90);   // Caesar: a protein is optional
+    QTest::qWait(60);
+    s.tapItem(menuItem("caesar"));            // Caesar: a protein is optional
     s.tapKey(u"Done"_s);
     CHECK(s.pos.lines().size() == 2);
     s.shot("2-order");
@@ -4869,4 +4878,35 @@ TEST_CASE("UI: choosing No Onion on the Choose page keeps the page where it was 
     CHECK(flick->property("contentY").toReal() == Catch::Approx(most));   // still down there
     CHECK(key == Screen::findBy(picker, "objectName", u"option-Onion"_s));   // the same button, updated
     CHECK(key->property("text").toString().startsWith(u"No Onion"_s));
+}
+
+TEST_CASE("UI: a new item shows up on the menu screen by itself", "[flow][ui][menubuild]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.adminSave(u"menu"_s, -1, {{u"name"_s, u"Fish Tacos"_s}, {u"price"_s, 13.5}, {u"family"_s, u"plates"_s},
+                                             {u"taxClass"_s, u"food"_s}, {u"printer"_s, u"kitchen"_s}, {u"available"_s, true}}));
+    s.c.setMealPeriod(u"lunch"_s);
+    REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+    REQUIRE(s.c.jumpTo(u"index-lunch"_s));
+    QTest::qWait(60);
+    // Lunch's categories, in the Menu Builder's order; breakfast's aren't there.
+    QQuickItem *root = s.window->contentItem();
+    CHECK(Screen::findBy(root, "objectName", u"category-burgers"_s));
+    CHECK(Screen::findBy(root, "objectName", u"category-plates"_s));
+    CHECK_FALSE(Screen::findBy(root, "objectName", u"category-breakfast"_s));
+    s.shot("menu-categories");
+    s.tapItem(Screen::findBy(root, "objectName", u"category-plates"_s));
+    QTest::qWait(60);
+    CHECK(s.c.pageId() == u"menu-all"_s);
+    QQuickItem *tacos = nullptr;
+    for (const QVariant &m : s.pos.menuItems())
+        if (m.toMap()[u"name"_s] == u"Fish Tacos"_s)
+            tacos = Screen::findBy(root, "objectName", u"menuItem-"_s + m.toMap()[u"id"_s].toString());
+    REQUIRE(tacos);   // on the screen with no page editing
+    s.shot("menu-plates");
+    s.tapItem(tacos);
+    QTest::qWait(60);
+    REQUIRE(s.pos.lines().size() == 1);
+    CHECK(s.pos.lines()[0].toMap()[u"name"_s].toString() == u"Fish Tacos"_s);
 }

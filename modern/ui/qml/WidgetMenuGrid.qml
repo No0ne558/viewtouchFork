@@ -20,17 +20,15 @@ Item {
     readonly property string face: zone.st.font ?? "DejaVu Sans"
 
     readonly property var items: pos ? pos.menuItems.filter(i => !i.modifier) : []
-    readonly property var families: {
-        const seen = []
-        for (const i of items)
-            if (!seen.includes(i.family))
-                seen.push(i.family)
-        return seen
-    }
-    // Kept by the controller: pages are rebuilt when settings change.
-    property string chosen: zone && zone.controller ? (zone.controller.widgetState(zone.zoneId + ".family") ?? "") : ""
+    // The menu's categories with items, in their order (Menu Builder).
+    readonly property var categories: pos ? pos.menuCategories.filter(c => c.count > 0) : []
+    readonly property var families: categories.map(c => c.id)
+    // The category being shown: the one touched on the menu screen.
+    readonly property string chosen: zone && zone.controller ? zone.controller.menuCategory : ""
     readonly property string family: fixedFamily !== "" ? fixedFamily
-                                    : families.includes(chosen) ? chosen : (families[0] ?? "")
+                                    : families.includes(chosen) ? chosen
+                                    : ((categories.find(c => c.now) ?? categories[0] ?? {}).id ?? "")
+    function categoryOf(id) { return categories.find(c => c.id === id) ?? ({}) }
     // Searching: every family, best matches first (the name starts with it, then a word does).
     readonly property var shown: {
         if (popular)
@@ -50,7 +48,10 @@ Item {
         return items.map(i => ({ item: i, rank: rank(i) })).filter(x => x.rank >= 0)
                     .sort((a, b) => a.rank - b.rank || a.item.name.localeCompare(b.item.name)).map(x => x.item)
     }
-    function title(f) { return f === "" ? qsTr("Other") : qsTranslate("Page", f.charAt(0).toUpperCase() + f.slice(1)) }
+    function title(f) {
+        const name = categoryOf(f).name ?? ""
+        return f === "" ? qsTr("Other") : qsTranslate("Page", name !== "" ? name : f.charAt(0).toUpperCase() + f.slice(1))
+    }
     function img(ref) { return w.pos && ref ? (w.pos.imageRevision < 0 ? undefined : w.pos.imageUrl(ref)) : "" }
 
     readonly property real gap: 12
@@ -95,10 +96,7 @@ Item {
                     text: w.title(modelData)
                     accent: modelData === w.family
                     fontScale: 0.38
-                    onClicked: {
-                        w.chosen = modelData
-                        w.zone.controller.setWidgetState(w.zone.zoneId + ".family", modelData)
-                    }
+                    onClicked: w.zone.controller.menuCategory = modelData
                 }
             }
             WidgetKey {
@@ -124,6 +122,8 @@ Item {
             delegate: Item {
                 id: cell
                 required property var modelData
+                // Its own color, else its category's.
+                readonly property string itemColor: modelData.buttonColor || (w.categoryOf(modelData.family).color ?? "")
                 width: grid.cellWidth
                 height: grid.cellHeight
                 Rectangle {
@@ -134,7 +134,7 @@ Item {
                     readonly property var st: w.zone ? w.zone.st : ({})
                     radius: st.keyRadius !== undefined ? st.keyRadius : 14
                     color: !cell.modelData.available ? "#3a3f48"
-                         : press.pressed ? (st.keyLitFill ?? "#4c8dff") : (cell.modelData.buttonColor || (st.keyFill ?? "#343c49"))
+                         : press.pressed ? (st.keyLitFill ?? "#4c8dff") : (cell.itemColor || (st.keyFill ?? "#343c49"))
                     readonly property bool isPicked: w.arranging && w.picked === cell.modelData.id
                     border.color: isPicked ? "#f5b940" : Qt.darker(color, 1.4)
                     border.width: isPicked ? 6 : 2
@@ -203,7 +203,7 @@ Item {
                             maximumLineCount: 2
                             elide: Text.ElideRight
                             text: qsTranslate("Page", cell.modelData.name)
-                            color: cell.modelData.buttonColor ? w.inkOn(cell.modelData.buttonColor) : (card.st.keyTextColor ?? "white")
+                            color: cell.itemColor ? w.inkOn(cell.itemColor) : (card.st.keyTextColor ?? "white")
                             font.family: card.st.keyFont ?? w.face
                             font.pixelSize: Math.max(14, Math.min(cell.height * 0.16, cell.width * 0.11))
                             font.bold: true

@@ -151,6 +151,7 @@ if(Qt6_FOUND)
             ui/qml/WidgetCheckSearch.qml
             ui/qml/WidgetOrderLater.qml
             ui/qml/WidgetMenuGrid.qml
+            ui/qml/WidgetMenuCategories.qml
             ui/qml/WidgetTimeClock.qml
             ui/qml/WidgetDashboard.qml
             ui/qml/WidgetChecklist.qml

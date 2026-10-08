@@ -111,6 +111,22 @@ struct ModifierOption {
     bool operator==(const ModifierOption &) const = default;
 };
 
+// A category of the menu (Burgers, Drinks): its button on the menu screens,
+// in this order, and what new items in it start with. Items name it by id
+// (MenuItem::family).
+struct MenuCategory {
+    std::string id;
+    std::string name;
+    std::string color;                  // "#rrggbb": its button and its items'; empty: the theme's
+    std::vector<std::string> periods;   // meal period ids it's on; empty: all day
+    // New items in it start with these.
+    std::string printer;                // their kitchen ticket ("kitchen", "bar")
+    std::string station;                // made at (kitchen screen)
+    std::string taxClass;               // "food", "alcohol"...; empty: food
+
+    bool operator==(const MenuCategory &) const = default;
+};
+
 // Choices asked for when an item is ordered: "Temperature" (exactly one),
 // "Toppings" (up to three)... `min` choices are required; `max` is the most
 // allowed (0 = any number; 1 = choosing another replaces the choice).

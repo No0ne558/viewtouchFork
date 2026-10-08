@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "layoutcontroller.hh"
 #include "qt_catch.hh"
 
@@ -13,7 +14,7 @@ namespace {
 
 LayoutController seedController()
 {
-    auto layout = vt::layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto layout = vt::test::loadTestLayout();
     REQUIRE(layout);
     return LayoutController(std::move(*layout));
 }
@@ -23,7 +24,7 @@ LayoutController seedController()
 // can still build in the page editor.
 vt::layout::Layout withModifierPages()
 {
-    auto seed = vt::layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto seed = vt::test::loadTestLayout();
     REQUIRE(seed);
     QJsonObject root = seed->toJson();
     QJsonArray pages = root.value(u"pages").toArray();
@@ -116,7 +117,7 @@ TEST_CASE("Seed navigation without a POS session", "[controller]")
     CHECK(role(c, u"tab-lunch"_s, ZoneModel::CurrentRole).toBool());
     CHECK_FALSE(role(c, u"tab-dinner"_s, ZoneModel::CurrentRole).toBool());
 
-    c.activate(u"cat-items-burgers"_s);
+    REQUIRE(c.jumpTo(u"items-burgers"_s));   // a page of buttons placed by hand (a fixture)
     CHECK(c.pageId() == u"items-burgers"_s);
     CHECK(role(c, u"tab-lunch"_s, ZoneModel::CurrentRole).toBool());   // via last index
 

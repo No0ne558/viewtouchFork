@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "app/pos_json.hh"
 #include "layoutcontroller.hh"
 #include "pos_fixture.hh"
@@ -87,7 +88,7 @@ TEST_CASE("Modifier groups: choose one, up to N, required before Done", "[menu][
 
 TEST_CASE("Ordering an item with choices opens the Choose page", "[menu][modifiers][ui]")
 {
-    auto l = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto l = vt::test::loadTestLayout();
     REQUIRE(l);
     PosService pos(test::seedPosData(true), nullptr);
     LayoutController c(*l);
@@ -123,7 +124,7 @@ TEST_CASE("Prices change with the meal period", "[menu][prices]")
 
 TEST_CASE("Sold out (86): can't be ordered, marked on its buttons", "[menu][86]")
 {
-    auto l = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto l = vt::test::loadTestLayout();
     REQUIRE(l);
     PosService pos(test::seedPosData(true), nullptr);
     LayoutController c(*l);

@@ -707,6 +707,23 @@ bool LayoutController::jumpTo(const QString &pageId)
     return navigate(Navigator::Mode::Push, pageId) || nav_.current() == pageId;
 }
 
+void LayoutController::setMenuCategory(const QString &id)
+{
+    if (id == menuCategory_)
+        return;
+    menuCategory_ = id;
+    emit menuCategoryChanged();
+}
+
+bool LayoutController::openCategory(const QString &categoryId)
+{
+    setMenuCategory(categoryId);
+    QString page = rolePage(u"menu"_s);
+    if (page.isEmpty())
+        page = u"menu-all"_s;
+    return jumpTo(page);
+}
+
 bool LayoutController::showPage(const QString &pageId)
 {
     if (!activeLayout().page(pageId))

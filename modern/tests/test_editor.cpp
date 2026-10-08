@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "app/layout_editor.hh"
 #include "layout/json_path.hh"
 #include "layout/schema.hh"
@@ -15,7 +16,7 @@ namespace {
 
 Layout seed()
 {
-    auto l = Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto l = vt::test::loadTestLayout();
     REQUIRE(l);
     return *l;
 }

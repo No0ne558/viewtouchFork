@@ -25,63 +25,29 @@
       "label": "Breakfast"
     },
     {
-      "id": "cat-items-breakfast",
-      "kind": "button",
+      "id": "categories",
+      "kind": "menuCategories",
       "rect": {
         "x": 592,
         "y": 192,
-        "w": 424,
-        "h": 240
+        "w": 1312,
+        "h": 600
       },
       "shape": "rect",
-      "behavior": "blink",
-      "label": "Plates",
-      "actions": [
-        {
-          "type": "jump",
-          "mode": "replace",
-          "page": "items-breakfast"
-        }
-      ],
-      "style": {
-        "normal": {
-          "fill": "#a86a12"
-        }
-      }
-    },
-    {
-      "id": "cat-items-drinks",
-      "kind": "button",
-      "rect": {
-        "x": 1036,
-        "y": 192,
-        "w": 424,
-        "h": 240
-      },
-      "shape": "rect",
-      "behavior": "blink",
-      "label": "Drinks",
-      "actions": [
-        {
-          "type": "jump",
-          "mode": "replace",
-          "page": "items-drinks"
-        }
-      ],
-      "style": {
-        "normal": {
-          "fill": "#1f6f73"
-        }
+      "behavior": "none",
+      "props": {
+        "period": "breakfast",
+        "columns": 3
       }
     },
     {
       "id": "cat-menu-all",
       "kind": "button",
       "rect": {
-        "x": 1480,
-        "y": 192,
-        "w": 424,
-        "h": 240
+        "x": 592,
+        "y": 812,
+        "w": 640,
+        "h": 152
       },
       "shape": "rect",
       "behavior": "blink",
@@ -103,10 +69,10 @@
       "id": "cat-menu-popular",
       "kind": "button",
       "rect": {
-        "x": 592,
-        "y": 452,
-        "w": 424,
-        "h": 240
+        "x": 1264,
+        "y": 812,
+        "w": 640,
+        "h": 152
       },
       "shape": "rect",
       "behavior": "blink",

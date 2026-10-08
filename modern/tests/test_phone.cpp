@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "layout/reflow.hh"
 #include "layoutcontroller.hh"
 #include "pos_fixture.hh"
@@ -18,7 +19,7 @@ namespace {
 
 layout::Layout seedLayout()
 {
-    auto l = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto l = vt::test::loadTestLayout();
     REQUIRE(l);
     return *l;
 }

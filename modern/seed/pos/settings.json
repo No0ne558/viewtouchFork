@@ -216,6 +216,81 @@
       "name": "Cold Line"
     }
   ],
+  "menuCategories": [
+    {
+      "id": "breakfast",
+      "name": "Breakfast Plates",
+      "color": "#a86a12",
+      "periods": [
+        "breakfast"
+      ],
+      "printer": "kitchen"
+    },
+    {
+      "id": "burgers",
+      "name": "Burgers",
+      "color": "#a86a12",
+      "periods": [
+        "lunch",
+        "dinner"
+      ],
+      "printer": "kitchen",
+      "station": "grill"
+    },
+    {
+      "id": "salads",
+      "name": "Salads",
+      "color": "#1f8a4c",
+      "periods": [
+        "lunch",
+        "dinner"
+      ],
+      "printer": "kitchen",
+      "station": "cold"
+    },
+    {
+      "id": "plates",
+      "name": "Plates",
+      "color": "#6b46c1",
+      "periods": [
+        "lunch",
+        "dinner"
+      ],
+      "printer": "kitchen"
+    },
+    {
+      "id": "combos",
+      "name": "Combos",
+      "color": "#1f8a4c",
+      "periods": [
+        "lunch",
+        "dinner"
+      ],
+      "printer": "kitchen"
+    },
+    {
+      "id": "sides",
+      "name": "Sides",
+      "color": "#8a5a2b",
+      "periods": [],
+      "printer": "kitchen",
+      "station": "fryer"
+    },
+    {
+      "id": "drinks",
+      "name": "Drinks",
+      "color": "#1f6f73",
+      "periods": [],
+      "printer": "bar"
+    },
+    {
+      "id": "events",
+      "name": "Events",
+      "color": "#6b46c1",
+      "periods": [],
+      "printer": "kitchen"
+    }
+  ],
   "modifierGroups": [
     {
       "id": "dressing",

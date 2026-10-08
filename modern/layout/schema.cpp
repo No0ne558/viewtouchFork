@@ -114,6 +114,10 @@ QJsonArray widgetSettings(const QString &kind)
                         u"The screen's Station button can pick another."_s));
         out.append(hint(field(u"props.lockStation"_s, u"Keep this station"_s, u"bool"_s, g),
                         u"For panels side by side: the screen's Station button doesn't change this one."_s));
+    } else if (kind == u"menuCategories") {
+        out.append(hint(field(u"props.period"_s, u"Meal period"_s, u"string"_s, g),
+                        u"Its categories (breakfast, lunch...: Menu Builder). Empty: what's on now."_s));
+        out.append(intField(u"props.columns"_s, u"Columns"_s, g, 1, 8));
     } else if (kind == u"menuGrid") {
         out.append(hint(field(u"props.family"_s, u"Family"_s, u"string"_s, g),
                         u"The menu family it shows (burgers, drinks...). Empty: every family, with a button for each."_s));
@@ -210,7 +214,7 @@ QStringList widgetKinds()
             u"soldOutList"_s, u"orderList"_s, u"loginPad"_s, u"guestCount"_s, u"checkList"_s,
             u"paymentPanel"_s, u"numPad"_s, u"keyboard"_s, u"splitCheck"_s, u"drawerPanel"_s,
             u"reportView"_s, u"endOfDay"_s, u"logoutPanel"_s, u"clock"_s, u"statusBar"_s,
-            u"adminPanel"_s, u"kitchenDisplay"_s, u"customerInfo"_s, u"customerLookup"_s, u"giftCard"_s, u"waitlist"_s, u"schedule"_s, u"factoryReset"_s, u"messageComposer"_s, u"network"_s, u"receiveDelivery"_s, u"checkSearch"_s, u"orderLater"_s, u"menuGrid"_s, u"timeClock"_s, u"dashboard"_s, u"checklist"_s, u"hostStand"_s, u"deliveryBoard"_s};
+            u"adminPanel"_s, u"kitchenDisplay"_s, u"customerInfo"_s, u"customerLookup"_s, u"giftCard"_s, u"waitlist"_s, u"schedule"_s, u"factoryReset"_s, u"messageComposer"_s, u"network"_s, u"receiveDelivery"_s, u"checkSearch"_s, u"orderLater"_s, u"menuGrid"_s, u"menuCategories"_s, u"timeClock"_s, u"dashboard"_s, u"checklist"_s, u"hostStand"_s, u"deliveryBoard"_s};
 }
 
 QStringList allKinds()
@@ -233,7 +237,7 @@ QStringList pageKinds()
 QStringList pageRoles()
 {
     return {u"login"_s, u"tables"_s, u"guestCount"_s, u"checkList"_s, u"settle"_s, u"logout"_s,
-            u"manager"_s, u"bar"_s, u"kitchen"_s, u"weigh"_s, u"timeClock"_s};
+            u"manager"_s, u"bar"_s, u"kitchen"_s, u"weigh"_s, u"timeClock"_s, u"menu"_s};
 }
 
 QJsonArray zoneFields(const QString &kind)

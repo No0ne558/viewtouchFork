@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "layoutcontroller.hh"
 #include "qt_catch.hh"
 
@@ -39,7 +40,7 @@ public:
 
     static Layout seed()
     {
-        auto l = Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+        auto l = vt::test::loadTestLayout();
         REQUIRE(l);
         return *l;
     }
@@ -188,8 +189,8 @@ TEST_CASE("UI: keyboard shortcuts edit the selection", "[ui]")
 TEST_CASE("UI: touching buttons outside edit mode still navigates", "[ui]")
 {
     Ui ui(u"index-lunch"_s, false);
-    ui.click({592 + 200, 192 + 120});   // "Burgers" category
-    CHECK(ui.controller.pageId() == u"items-burgers"_s);
+    ui.click({592 + 300, 812 + 76});    // "Everything"
+    CHECK(ui.controller.pageId() == u"menu-all"_s);
 
     // F1 enters edit mode from the running app.
     QTest::keyClick(ui.window, Qt::Key_F1);

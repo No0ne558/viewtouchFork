@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "storage/layout_store.hh"
 #include "qt_catch.hh"
 
@@ -16,7 +17,7 @@ TEST_CASE("LayoutStore saves and loads the whole layout", "[store]")
     QTemporaryDir dir;
     REQUIRE(dir.isValid());
     const QString dbPath = dir.filePath(u"vt.db"_s);
-    auto seed = Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto seed = vt::test::loadTestLayout();
     REQUIRE(seed);
 
     {

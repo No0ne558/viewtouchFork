@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "layoutcontroller.hh"
 #include "qt_catch.hh"
 #include "storage/layout_store.hh"
@@ -14,7 +15,7 @@ namespace {
 
 Layout seed()
 {
-    auto l = Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto l = vt::test::loadTestLayout();
     REQUIRE(l);
     return *l;
 }

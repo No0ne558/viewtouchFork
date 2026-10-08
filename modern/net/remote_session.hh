@@ -147,6 +147,7 @@ public:
     void takeOver(const QString &pin) override;
     QStringList soldOut() const override { return v(u"soldOut").toStringList(); }
     QVariantList menuItems() const override { return v(u"menuItems").toList(); }
+    QVariantList menuCategories() const override { return v(u"menuCategories").toList(); }
     int queryRevision() const override { return queryRevision_; }
 
     // Answered from a cache; fetched from the server when missing or stale.

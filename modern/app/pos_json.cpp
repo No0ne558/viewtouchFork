@@ -752,6 +752,18 @@ QJsonObject toJson(const PosSettings &s)
         {u"gratuity"_s, QJsonObject{{u"percent"_s, double(s.gratuityBp) / 100.0}, {u"minGuests"_s, s.gratuityMinGuests}}},
         {u"terminals"_s, terminals},
         {u"mealPeriods"_s, mealPeriods},
+        {u"menuCategories"_s, [&] {
+             QJsonArray out;
+             for (const MenuCategory &c : s.menuCategories) {
+                 QJsonArray periods;
+                 for (const std::string &p : c.periods)
+                     periods.append(qs(p));
+                 out.append(QJsonObject{{u"id"_s, qs(c.id)}, {u"name"_s, qs(c.name)}, {u"color"_s, qs(c.color)},
+                                        {u"periods"_s, periods}, {u"printer"_s, qs(c.printer)},
+                                        {u"station"_s, qs(c.station)}, {u"taxClass"_s, qs(c.taxClass)}});
+             }
+             return out;
+         }()},
         {u"cashMode"_s, qs(toString(s.cashMode))},
         {u"labor"_s, QJsonObject{{u"paidBreaks"_s, s.paidBreaks}, {u"overtimeDailyHours"_s, s.overtimeDailyHours},
                                  {u"overtimeWeeklyHours"_s, s.overtimeWeeklyHours}, {u"weekStartsOn"_s, s.weekStartsOn}}},
@@ -1118,6 +1130,20 @@ PosSettings settingsFromJson(const QJsonObject &o)
     if (o.contains(u"tableReadyText") && !o.value(u"tableReadyText").toString().trimmed().isEmpty())
         s.tableReadyText = ss(o.value(u"tableReadyText").toString());
     s.textWebhook = ss(o.value(u"textWebhook").toString());
+    for (const QJsonValue &v : o.value(u"menuCategories").toArray()) {
+        const QJsonObject c = v.toObject();
+        MenuCategory cat;
+        cat.id = ss(c.value(u"id").toString());
+        cat.name = ss(c.value(u"name").toString(c.value(u"id").toString()));
+        cat.color = ss(c.value(u"color").toString());
+        for (const QJsonValue &p : c.value(u"periods").toArray())
+            cat.periods.push_back(ss(p.toString()));
+        cat.printer = ss(c.value(u"printer").toString());
+        cat.station = ss(c.value(u"station").toString());
+        cat.taxClass = ss(c.value(u"taxClass").toString());
+        if (!cat.id.empty())
+            s.menuCategories.push_back(std::move(cat));
+    }
     if (o.contains(u"mealPeriods")) {   // older settings keep the defaults
         s.mealPeriods.clear();
         for (const QJsonValue &v : o.value(u"mealPeriods").toArray()) {

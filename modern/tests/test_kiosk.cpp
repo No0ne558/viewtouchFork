@@ -2,6 +2,7 @@
 
 #include <sstream>
 
+#include "layout_fixture.hh"
 #include "net/layout_hub.hh"
 #include "net/pairing.hh"
 #include "net/pos_server.hh"
@@ -175,7 +176,7 @@ TEST_CASE("Self-order: straight to the kitchen when the store says so; walking a
 
 TEST_CASE("Self-order: a paired screen set up as a kiosk comes up as one", "[kiosk][net]")
 {
-    auto layout = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto layout = vt::test::loadTestLayout();
     REQUIRE(layout);
     app::PosShared shared(test::seedPosData(), nullptr);
     net::LayoutHub hub(*layout);

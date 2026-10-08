@@ -265,6 +265,9 @@ public:
     // The store's computers and printers, for Manager -> Network (set by
     // the app): {role, term, terminals, standby, printers}.
     std::function<QVariantMap()> network;
+    // The menu's categories: those set up, in order, then any family an item
+    // names that isn't (older menus), named after it.
+    std::vector<core::MenuCategory> categories() const;
     // What each printer says is wrong (print::PrinterMonitor): printer id ->
     // "paperOut", "coverOpen", "paperLow", "error", "offline"; none: fine.
     std::map<std::string, std::string> printerProblems;
@@ -603,6 +606,7 @@ public:
     QString onBreakSince() const override;
     QStringList soldOut() const override;
     QVariantList menuItems() const override;
+    QVariantList menuCategories() const override;
     QVariantList kitchenTickets() const override;
     QVariantMap drawerInfo() const override;
     QVariantMap dayInfo() const override;

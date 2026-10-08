@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "layout_fixture.hh"
 #include "app/pos_json.hh"
 #include "fake_stripe.hh"
 #include "layoutcontroller.hh"
@@ -250,7 +251,7 @@ TEST_CASE("Moving or merging a table's check leaves the old table to bus", "[rob
 TEST_CASE("A card approved while the store is out of reach survives the app closing", "[robust][cards]")
 {
     QSettings().remove(u"cards/unsent"_s);
-    auto l = layout::Layout::loadDirectory(QStringLiteral(VTM_SEED_DIR));
+    auto l = vt::test::loadTestLayout();
     REQUIRE(l);
     const QVariantMap approved{{u"approved"_s, true}, {u"reference"_s, u"pi_offline"_s}, {u"brand"_s, u"visa"_s},
                                {u"last4"_s, u"4242"_s}, {u"amountCents"_s, 298}, {u"tipCents"_s, 0},
