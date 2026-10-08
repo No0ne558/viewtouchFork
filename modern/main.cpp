@@ -1408,7 +1408,7 @@ int runDemoData(const Args &cli, const Options &o)
     vt::storage::AsyncWriter writer(dbPath);
     vt::storage::SqlPosSink sink(writer);
     vt::app::PosService pos(std::move(*data), &sink);
-    qInfo("Playing two months of service (and the same months last year)...");
+    qInfo("Playing two months of service (the same months last year, and a few days years back)...");
     const QString result = vt::app::fillDemoData(pos, QDateTime::currentMSecsSinceEpoch());
     writer.flush();
     if (result.startsWith(u"This store"_s)) {

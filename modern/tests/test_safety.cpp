@@ -366,27 +366,67 @@ TEST_CASE("A long busy service on four terminals: quick, and nothing lost", "[sa
 #include "app/pos_demo.hh"
 
 #include <QDateTime>
+#include <QJsonArray>
 #include <QProcess>
 
-TEST_CASE("Demo data: months of real service, then refuses a store with sales", "[demo]")
+TEST_CASE("Demo data: months of real service, everything in use, then refuses a store with sales", "[demo]")
 {
     PosService pos(test::seedPosData(true), nullptr);
-    const QString done = app::fillDemoData(pos, QDateTime::currentMSecsSinceEpoch());
+    const std::int64_t now = QDateTime::currentMSecsSinceEpoch();
+    const QString done = app::fillDemoData(pos, now);
     INFO(done.toStdString());
     CHECK(done.startsWith(u"Added"_s));
-    CHECK(pos.shared()->pastDays.size() == 120);
-    CHECK(pos.shared()->customers.size() == 12);
-    CHECK(pos.shared()->giftCards.size() == 8);
-    CHECK(pos.shared()->shifts.size() > 20);
-    CHECK(pos.shared()->open.empty());                              // every check paid
-    for (const core::CustomerRecord &c : pos.shared()->customers)   // accounts are paid weekly
+    app::PosShared *s = pos.shared();
+    CHECK(s->pastDays.size() == 126);
+    // Some of them years back (Find a Check: 5 Years).
+    CHECK(s->pastDays.back().day.openedAt < now - 4LL * 365 * 24 * 3'600'000);
+    CHECK(s->customers.size() >= 12);                                    // and phone orders' guests
+    CHECK(s->giftCards.size() == 8);
+    CHECK(s->shifts.size() > 20);
+    for (const core::CustomerRecord &c : s->customers)   // accounts are paid weekly
         if (c.houseAccount) CHECK(c.accountBalance < c.accountLimit);
     // Every past day balanced its banks and closed.
-    for (const app::PastDay &d : pos.shared()->pastDays)
+    for (const app::PastDay &d : s->pastDays)
         CHECK(d.day.closedAt > d.day.openedAt);
+    // Over the days: refunds, deliveries with the driver, the checklists.
+    const auto rowsOf = [&](const char *report, const QString &first) {
+        int n = 0;
+        for (const app::PastDay &d : s->pastDays)
+            for (const QJsonValue &row : d.reports.value(QLatin1StringView(report)).toObject().value(u"rows").toArray())
+                n += row.toObject().value(u"cells").toArray().first().toString().startsWith(first);
+        return n;
+    };
+    CHECK(rowsOf("sales", u"Refunds"_s) > 5);
+    CHECK(rowsOf("drivers", u"Lou"_s) > 30);
+    CHECK(rowsOf("checklists", u"Count the starting cash"_s) > 100);
+    CHECK_FALSE(s->deliveries.empty());                                   // vendors delivered
+    // Regulars remember their last order; card payments say which card.
+    CHECK(std::ranges::any_of(s->customers, [](const core::CustomerRecord &c) { return !c.lastOrder.empty(); }));
+    bool card = false;
+    for (const core::Check &c : s->closedToday)
+        for (const core::Payment &p : c.payments)
+            card = card || !p.last4.empty();
+    CHECK(card);
+
+    // Right now: tables seated, a tab, a phone order, a delivery out, one for later.
     REQUIRE(pos.loginWithPin(u"1234"_s));
+    CHECK(s->open.size() >= 6);
+    const QVariantMap floor = pos.floor();
+    CHECK(floor[u"T2"_s].toMap()[u"state"_s] == u"seated"_s);
+    CHECK(floor[u"T1"_s].toMap()[u"state"_s] == u"seated"_s);            // the walk-in
+    CHECK(floor[u"T5"_s].toMap()[u"party"_s] == u"Martinez"_s);          // held
+    CHECK(floor[u"T3"_s].toMap()[u"state"_s] == u"dirty"_s);
+    bool out = false;
+    for (const QVariant &v : pos.deliveries())
+        out = out || v.toMap()[u"state"_s] == u"out"_s;
+    CHECK(out);
+    CHECK_FALSE(pos.kitchenTickets().isEmpty());
     CHECK(pos.waitlistInfo()[u"waiting"_s].toList().size() == 3);
-    CHECK(app::fillDemoData(pos, QDateTime::currentMSecsSinceEpoch()).startsWith(u"This store"_s));
+    CHECK(pos.checklists()[u"openingDone"_s] == 5);
+    CHECK(s->settings.staffRequests.size() >= 3);
+    CHECK(std::ranges::any_of(s->settings.staffRequests, [](const auto &r) { return r.status == "approved"; }));
+    CHECK(s->settings.notices.size() == 1);
+    CHECK(app::fillDemoData(pos, now).startsWith(u"This store"_s));
 }
 
 TEST_CASE("Factory reset: backed up, then a fresh store", "[demo][backup]")
