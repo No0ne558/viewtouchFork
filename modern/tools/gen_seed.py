@@ -822,6 +822,7 @@ for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees
                          ("admin-modifier-groups", "Modifier Groups", "modifierGroups"),
                          ("admin-inventory", "Inventory", "inventory"),
                          ("admin-vendors", "Vendors", "vendors"),
+                         ("admin-card-readers", "Card Readers", "cardReaders"),
                          ("admin-promotions", "Promotions", "promotions"),
                          ("admin-punches", "Time Punches", "punches"),
                          ("admin-requests", "Time Off & Swaps", "requests")]:
@@ -829,6 +830,10 @@ for pid, name, panel in [("admin-menu", "Menu Items", "menu"), ("admin-employees
     extra = [zone("vendors", 1008, 944, 432, 120, "Vendors…", actions=[command("openAdmin", panel="vendors")]),
              zone("receive", 1472, 944, 432, 120, "Receive a Delivery…", actions=[jump(page="receive-delivery")],
                   style=fill(GREEN))] if panel == "inventory" else []
+    # Terminals: the Stripe readers beside the registers.
+    if panel == "terminals":
+        extra = [zone("card-readers", 1472, 944, 432, 120, "Card Readers…",
+                      actions=[command("openAdmin", panel="cardReaders")])]
     page(pid, name, "manager", [
         label("title", 16, 16, 1888, 80, name),
         zone("editor", 16, 112, 1888, 816, kind="adminPanel", props={"panel": panel}),

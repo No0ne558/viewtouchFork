@@ -941,6 +941,10 @@ int runStore(const Args &cli, const Options &o)
                                      std::function<void(const QString &, const QString &)> done) {
         stripe.refund(paymentId, cents, std::move(done));
     };
+    shared->stripeCall = [&stripe](const QString &method, const QString &path, const QString &form,
+                                   std::function<void(const QJsonObject &, const QString &)> done) {
+        stripe.call(method, path, form, std::move(done));
+    };
 
     // Texts to guests ("your table is ready") go to the store's texting
     // service: a JSON POST of {to, message}, never blocking the screen.

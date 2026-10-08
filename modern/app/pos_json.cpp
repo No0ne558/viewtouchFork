@@ -835,6 +835,13 @@ QJsonObject toJson(const PosSettings &s)
         {u"deliveryMinutes"_s, s.deliveryMinutes}, {u"minutesPerOrderWaiting"_s, s.minutesPerOrderWaiting},
         {u"deliveryFee"_s, qint64(s.deliveryFee.cents())},
         {u"stripeSecretKey"_s, qs(s.stripeSecretKey)}, {u"cardCurrency"_s, qs(s.cardCurrency)},
+        {u"stripeLocation"_s, qs(s.stripeLocation)}, {u"cardTipOn"_s, qs(s.cardTipOn)},
+        {u"stripeReaders"_s, [&] {
+             QJsonArray a;
+             for (const PosSettings::StripeReader &r : s.stripeReaders)
+                 a.append(QJsonObject{{u"id"_s, qs(r.id)}, {u"label"_s, qs(r.label)}, {u"deviceType"_s, qs(r.deviceType)}});
+             return a;
+         }()},
         {u"tipPercents"_s, [&] { QJsonArray a; for (int p : s.tipPercents) a.append(p); return a; }()}, {u"tableReadyText"_s, qs(s.tableReadyText)},
         {u"textWebhook"_s, qs(s.textWebhook)},
     };
@@ -1029,6 +1036,13 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.cardCurrency = ss(o.value(u"cardCurrency").toString(u"usd"_s));
     if (s.cardCurrency.empty())
         s.cardCurrency = "usd";
+    s.stripeLocation = ss(o.value(u"stripeLocation").toString());
+    s.cardTipOn = ss(o.value(u"cardTipOn").toString());
+    for (const QJsonValue &v : o.value(u"stripeReaders").toArray()) {
+        const QJsonObject r = v.toObject();
+        s.stripeReaders.push_back({ss(r.value(u"id").toString()), ss(r.value(u"label").toString()),
+                                   ss(r.value(u"deviceType").toString())});
+    }
     if (o.value(u"tipPercents").isArray()) {
         s.tipPercents.clear();
         for (const QJsonValue &v : o.value(u"tipPercents").toArray()) {

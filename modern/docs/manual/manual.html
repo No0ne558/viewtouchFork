@@ -448,7 +448,25 @@
 </ul>
 
 <h2>Card readers (Stripe)</h2>
-<p>ViewTouch can take cards itself on a <b>Stripe Reader S700</b>: the ViewTouch app runs on the reader (Stripe calls this <i>Apps on Devices</i>), and when you touch <b>Credit Card</b> on the Pay screen, Stripe's own payment screen asks the guest to tap, insert or swipe. The amount (with the tip the guest chose) goes to the reader; when the card is approved, the check shows it, like <i>Credit Card · Visa •••• 4242</i>, and so does the receipt with Stripe's payment number. ViewTouch never sees the card number.</p>
+<p>There are two ways to take cards with Stripe: a reader <b>beside the register</b> (any register: a Linux touch screen, a tablet), run from the store's computer, or ViewTouch running <b>on</b> a Stripe Reader S700 as a handheld.</p>
+<h3>A reader beside the register</h3>
+<p>A Stripe <b>S700</b> or <b>WisePOS E</b> sits on the counter next to the register, on the store's Wi-Fi or network. Touch <b>Credit Card</b> on the Pay screen: the amount appears on the reader, the guest taps, inserts or swipes, and the payment lands on the check with the card. The reader runs Stripe's own software; nothing is installed on it, and nothing needs Stripe's app review.</p>
+<p class="shot"><img src="shots/m127-counter-reader.jpg" width="560" height="315"></p>
+<p class="caption">Waiting for the card on the reader beside the register (in Stripe test mode, with test-card buttons).</p>
+<ol>
+<li>Manager → Store Settings → <i>Stripe secret key</i> (see below).</li>
+<li>Manager → Terminals → <b>Card Readers…</b> → <b>+ Add</b>: on the reader, swipe in from the left edge → Settings → <i>Generate pairing code</i>, type the code and a name ("Front counter"), Save. The first time, Stripe also needs the store's street address. It shows up in the list when Stripe has paired it.</li>
+<li>Manager → Terminals → the register → <i>Card reader: Reader beside it: Front counter</i>.</li>
+</ol>
+<ul>
+<li><b>Cancel</b> clears the reader. While the card is being read it says to wait a moment.</li>
+<li><b>Declined</b>, or the guest pressing cancel on the reader: nothing goes on the check, and it says why.</li>
+<li>The store's computer follows the payment with Stripe, so a register that drops off the network loses nothing: the approved card still goes on the check.</li>
+<li><b>Tips:</b> Store Settings → <i>Card tips are asked on</i>: the customer display (Ask Guest for Tip), or the reader's own screen (turn on tipping in the Stripe Dashboard → Terminal → Configurations). With tips on the reader, a store can do without a customer display; the display still shows the order as it's rung, rewards sign-up and the receipt choice.</li>
+<li><b>Try it without a reader:</b> with a Stripe <i>test</i> key, pair the code <code>simulated-wpe</code>: a simulated reader. The waiting screen then has <b>Tap Test Card</b> and <b>Tap Declined Card</b>.</li>
+</ul>
+<h3>ViewTouch on the reader</h3>
+<p>ViewTouch can also take cards itself on a <b>Stripe Reader S700</b>: the ViewTouch app runs on the reader (Stripe calls this <i>Apps on Devices</i>), and when you touch <b>Credit Card</b> on the Pay screen, Stripe's own payment screen asks the guest to tap, insert or swipe. The amount (with the tip the guest chose) goes to the reader; when the card is approved, the check shows it, like <i>Credit Card · Visa •••• 4242</i>, and so does the receipt with Stripe's payment number. ViewTouch never sees the card number.</p>
 <p class="shot"><img src="shots/m126-card-reader.jpg" width="560" height="315"></p>
 <p class="caption">Taking a card (here the simulated reader, for practice): the amount, and Cancel.</p>
 <ul>

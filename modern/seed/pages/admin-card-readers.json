@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "admin-terminals",
-  "name": "Terminals",
+  "id": "admin-card-readers",
+  "name": "Card Readers",
   "kind": "manager",
   "canvas": {
     "w": 1920,
@@ -21,7 +21,7 @@
       },
       "shape": "rect",
       "behavior": "none",
-      "label": "Terminals"
+      "label": "Card Readers"
     },
     {
       "id": "editor",
@@ -35,7 +35,7 @@
       "shape": "rect",
       "behavior": "none",
       "props": {
-        "panel": "terminals"
+        "panel": "cardReaders"
       }
     },
     {
@@ -54,28 +54,6 @@
         {
           "type": "jump",
           "mode": "back"
-        }
-      ]
-    },
-    {
-      "id": "card-readers",
-      "kind": "button",
-      "rect": {
-        "x": 1472,
-        "y": 944,
-        "w": 432,
-        "h": 120
-      },
-      "shape": "rect",
-      "behavior": "blink",
-      "label": "Card Readers\u2026",
-      "actions": [
-        {
-          "type": "command",
-          "name": "openAdmin",
-          "args": {
-            "panel": "cardReaders"
-          }
         }
       ]
     }

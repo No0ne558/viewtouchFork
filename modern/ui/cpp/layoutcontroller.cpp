@@ -79,6 +79,11 @@ LayoutController::LayoutController(Layout layout, QObject *parent)
             cardReader_.provideToken({}, tr("Not connected to the store."));
     });
     connect(&cardReader_, &CardReader::finished, this, &LayoutController::cardTaken);
+    connect(&cardReader_, &CardReader::cancelRequested, this, [this] { if (pos_) pos_->cancelCounterCharge(); });
+    connect(&cardReader_, &CardReader::testCardRequested, this, [this](bool decline) {
+        if (pos_)
+            pos_->presentTestCard(decline);
+    });
     updateMealPeriod();
     mealTimer_.setInterval(60 * 1000);
     connect(&mealTimer_, &QTimer::timeout, this, &LayoutController::updateMealPeriod);
@@ -256,6 +261,7 @@ void LayoutController::setPos(PosSession *pos)
         // deactivated or losing the role closes the editor (unsaved edits
         // are dropped, as in the legacy system).
         connect(pos_, &PosSession::sessionChanged, this, [this] {
+            cardReader_.setCounter(pos_->counterCharge());   // a reader beside the screen, at work
             // The connection token the reader asked for.
             const QVariantMap token = pos_->readerToken();
             if (const int seq = token.value(u"seq"_s).toInt(); seq > readerTokenSeq_) {
@@ -1062,7 +1068,10 @@ void LayoutController::runAction(const Action &a, Done done)
             return done(true);
         }
         const QJsonValue amount = a.data.value(u"amount");
-        // A card, on a screen with a card reader: the reader takes it.
+        // A card, on a screen with a card reader: the reader takes it (one
+        // beside the screen is run by the store's computer).
+        if (cardReader_.kind() == u"counter" && !amount.isDouble())
+            return call(u"startCounterCharge"_s, {a.str(u"tender")}, [done](const QVariant &ok) { done(ok.toBool()); });
         if (!cardReader_.kind().isEmpty() && !amount.isDouble())
             return takeCard(a.str(u"tender"), std::move(done));
         return call(u"tender"_s, {a.str(u"tender"), amount.isDouble() ? QVariant(amount.toInteger()) : QVariant()},
@@ -1139,6 +1148,7 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
             {u"modifierGroups"_s, u"admin-modifier-groups"_s}, {u"inventory"_s, u"admin-inventory"_s},
             {u"schedule"_s, u"admin-schedule"_s}, {u"promotions"_s, u"admin-promotions"_s},
             {u"vendors"_s, u"admin-vendors"_s}, {u"punches"_s, u"admin-punches"_s},
+            {u"cardReaders"_s, u"admin-card-readers"_s},
             {u"requests"_s, u"admin-requests"_s},
         };
         const QString page = pages.value(args.value(u"panel"_s).toString());

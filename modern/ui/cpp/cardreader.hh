@@ -22,6 +22,8 @@ class CardReader : public QObject {
     Q_PROPERTY(bool busy READ busy NOTIFY changed)
     Q_PROPERTY(QString status READ status NOTIFY changed)
     Q_PROPERTY(QString amount READ amount NOTIFY changed)   // being charged: "$13.53"
+    // A Stripe test-mode charge on a reader beside the screen: test cards can be "tapped".
+    Q_PROPERTY(bool testCards READ testCards NOTIFY changed)
 
 public:
     explicit CardReader(QObject *parent = nullptr);
@@ -32,9 +34,15 @@ public:
     bool busy() const { return !charging_.isEmpty(); }
     QString status() const { return status_; }
     QString amount() const { return charging_.value(QStringLiteral("amount")).toString(); }
+    bool testCards() const { return kind_ == QStringLiteral("counter") && charging_.value(QStringLiteral("test")).toBool()
+                                    && charging_.value(QStringLiteral("status")).toString() == QStringLiteral("waiting"); }
 
-    // "", "stripe" or "simulated" (the terminal's setting).
+    // "", "stripe", "simulated" or "counter:tmr_..." (the terminal's setting;
+    // kind() is then "counter").
     void setKind(const QString &kind);
+    // A reader beside the screen is run by the store's computer: what it's doing.
+    void setCounter(const QVariantMap &state);
+    Q_INVOKABLE void presentTestCard(bool decline) { emit testCardRequested(decline); }
     // Take a card for a charge the server prepared (cardCharge: amountCents,
     // tipCents, currency, description, checkId, tenderId, amount).
     void charge(const QVariantMap &charge);
@@ -54,6 +62,9 @@ signals:
     // {approved, declined, canceled, message, reference, brand, last4,
     //  amountCents, tipCents, checkId, tenderId, processor}
     void finished(const QVariantMap &result);
+    // A reader beside the screen: the store's computer does these.
+    void cancelRequested();
+    void testCardRequested(bool decline);
 
 private:
     void finish(QVariantMap result);

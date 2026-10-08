@@ -59,7 +59,8 @@ struct TerminalConfig {
     // Phone orders need a name before Send here: "yes", "no", or empty = the person's / the store's.
     std::string requireName;
     // Its card reader: "stripe" (a Stripe smart reader this app runs on),
-    // "simulated" (approves after a moment: for practice), or none.
+    // "counter:tmr_..." (a Stripe reader beside it, run from the store's
+    // computer), "simulated" (approves after a moment: for practice), or none.
     std::string cardReader;
 
     bool operator==(const TerminalConfig &) const = default;
@@ -275,6 +276,18 @@ struct PosSettings {
     // and the currency cards are charged in.
     std::string stripeSecretKey;
     std::string cardCurrency = "usd";
+    // Stripe countertop readers paired with the store (Manager -> Card
+    // Readers), the Stripe location they belong to, and where card tips are
+    // asked: "" the customer display, "reader" on the reader's screen.
+    struct StripeReader {
+        std::string id;           // tmr_...
+        std::string label;
+        std::string deviceType;   // stripe_s700, bbpos_wisepos_e, simulated_wisepos_e...
+        bool operator==(const StripeReader &) const = default;
+    };
+    std::vector<StripeReader> stripeReaders;
+    std::string stripeLocation;
+    std::string cardTipOn;
     // Messages posted until a time (the original's Expire Messages): every
     // screen shows them, to each person, until then.
     struct Notice {

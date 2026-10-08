@@ -8,6 +8,8 @@
 
 #include <QSignalSpy>
 #include <QTest>
+#include <QJsonArray>
+#include <QUrlQuery>
 #include <QTcpServer>
 #include <QTcpSocket>
 
@@ -218,4 +220,100 @@ TEST_CASE("StripeApi: connection tokens and refunds, with the key", "[cards][str
     CHECK(done);
     CHECK(error.contains(u"key"_s));
     CHECK(requests.size() == asked);
+}
+
+#include "fake_stripe.hh"
+
+
+TEST_CASE("Countertop reader: pair, charge from the store, declined, canceled, a tip on the reader", "[cards][counter]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    openDrawer(pos);
+    test::FakeStripe stripe;
+    stripe.install(pos);
+    QStringList notices;
+    QObject::connect(&pos, &app::PosSession::notice, [&](const QString &n) { notices << n; });
+
+    // Pairing needs the key, then a code; the store's address the first time.
+    QVariantMap pair = pos.adminNewRecord(u"cardReaders"_s);
+    pair[u"label"_s] = u"Front counter"_s;
+    pair[u"code"_s] = u"simulated-wpe"_s;
+    CHECK_FALSE(pos.adminSave(u"cardReaders"_s, -1, pair));                 // no Stripe key yet
+    pos.shared()->settings.stripeSecretKey = "sk_test_x";
+    REQUIRE(pos.adminSave(u"cardReaders"_s, -1, pair));
+    CHECK(notices.last().contains(u"address"_s));                          // Stripe has no location
+    CHECK(pos.shared()->settings.stripeReaders.empty());
+    pair[u"line1"_s] = u"123 Main St"_s;
+    pair[u"city"_s] = u"Springfield"_s;
+    pair[u"state"_s] = u"IL"_s;
+    pair[u"postalCode"_s] = u"62701"_s;
+    REQUIRE(pos.adminSave(u"cardReaders"_s, -1, pair));
+    REQUIRE(pos.shared()->settings.stripeReaders.size() == 1);
+    CHECK(pos.shared()->settings.stripeLocation == "tml_1");
+    CHECK(pos.shared()->settings.stripeReaders[0].deviceType == "simulated_wisepos_e");
+    CHECK(app::settingsFromJson(app::toJson(pos.shared()->settings)).stripeReaders == pos.shared()->settings.stripeReaders);
+    pair[u"code"_s] = u"wrong-code"_s;
+    REQUIRE(pos.adminSave(u"cardReaders"_s, -1, pair));
+    CHECK(notices.last().contains(u"Invalid registration code"_s));
+
+    // This screen uses it.
+    bool offered = false;
+    for (const QVariant &f : pos.adminFields(u"terminals"_s))
+        if (f.toMap()[u"path"_s] == u"cardReader"_s)
+            for (const QVariant &o : f.toMap()[u"options"_s].toList())
+                offered = offered || o.toMap()[u"value"_s] == u"counter:tmr_1"_s;
+    CHECK(offered);
+    REQUIRE(pos.adminSave(u"terminals"_s, -1, {{u"name"_s, pos.terminalName()}, {u"cardReader"_s, u"counter:tmr_1"_s}}));
+    CHECK(pos.counterReaderId() == u"tmr_1"_s);
+
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    REQUIRE(pos.addItem(u"coffee"_s));                                     // $2.98
+    const qint64 check = pos.checkInfo()[u"id"_s].toLongLong();
+
+    // Approved.
+    REQUIRE(pos.startCounterCharge(u"credit"_s));
+    CHECK(pos.counterCharge()[u"status"_s] == u"waiting"_s);
+    CHECK(pos.counterCharge()[u"test"_s].toBool());
+    CHECK(stripe.amount == 298);
+    CHECK(stripe.calls.filter(u"process_payment_intent"_s).last().endsWith(u"=true"_s));   // ...skip_tipping, customer cancel
+    CHECK_FALSE(pos.startCounterCharge(u"credit"_s));                      // one at a time
+    REQUIRE(pos.presentTestCard(false));
+    test::waitFor([&] { return pos.counterCharge().isEmpty(); });
+    REQUIRE(pos.payments().size() == 1);
+    CHECK(pos.payments()[0].toMap()[u"name"_s].toString().endsWith(u"Mastercard •••• 4444"_s));
+    CHECK(pos.totals()[u"balanceCents"_s].toLongLong() == 0);
+    CHECK(pos.shared()->open.at(check).payments[0].reference == "pi_1");
+
+    // Declined: nothing on the check, the payment intent canceled.
+    pos.selectPayment(0);
+    pos.shared()->open.at(check).payments.clear();
+    REQUIRE(pos.startCounterCharge(u"credit"_s));
+    REQUIRE(pos.presentTestCard(true));
+    test::waitFor([&] { return pos.counterCharge().isEmpty(); });
+    CHECK(pos.payments().isEmpty());
+    CHECK(stripe.canceled);
+    CHECK(notices.last().contains(u"declined"_s));
+
+    // Canceled from the register (the reader busy reading: wait).
+    REQUIRE(pos.startCounterCharge(u"credit"_s));
+    stripe.busy = true;
+    REQUIRE(pos.cancelCounterCharge());
+    CHECK(notices.last().contains(u"wait"_s));
+    CHECK_FALSE(pos.counterCharge().isEmpty());
+    stripe.busy = false;
+    REQUIRE(pos.cancelCounterCharge());
+    CHECK(pos.counterCharge().isEmpty());
+    CHECK(pos.payments().isEmpty());
+
+    // Tips asked on the reader: its tip comes with the payment.
+    pos.shared()->settings.cardTipOn = "reader";
+    stripe.readerTip = 50;
+    REQUIRE(pos.startCounterCharge(u"credit"_s));
+    CHECK(stripe.calls.filter(u"process_payment_intent"_s).last().contains(u"process_config[skip_tipping]=false"_s));
+    REQUIRE(pos.presentTestCard(false));
+    test::waitFor([&] { return pos.counterCharge().isEmpty(); });
+    REQUIRE(pos.payments().size() == 1);
+    const core::Payment &paid = pos.shared()->open.at(check).payments.back();
+    CHECK(paid.amount.cents() == 298);
+    CHECK(paid.tip.cents() == 50);
 }

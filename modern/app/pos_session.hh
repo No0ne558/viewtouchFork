@@ -165,6 +165,9 @@ class PosSession : public QObject {
     Q_PROPERTY(QString cardReader READ terminalCardReader NOTIFY adminChanged)
     // The reader's connection token, when asked for: {seq, token, error}.
     Q_PROPERTY(QVariantMap readerToken READ readerToken NOTIFY sessionChanged)
+    // A countertop reader taking a card for this screen: {status, amount,
+    // readerLabel, test...}; empty when none.
+    Q_PROPERTY(QVariantMap counterCharge READ counterCharge NOTIFY sessionChanged)
     // A device pairing in progress (managers only): {active, code, until}.
     Q_PROPERTY(QVariantMap pairing READ pairingInfo NOTIFY adminChanged)
     // The store's meal periods: [{id, name, start (minutes after midnight)}].
@@ -281,6 +284,7 @@ public:
     virtual QString terminalKeyboard() const = 0;
     virtual QString terminalCardReader() const = 0;
     virtual QVariantMap readerToken() const = 0;
+    virtual QVariantMap counterCharge() const = 0;
     virtual int queryRevision() const { return 0; }
 
     virtual void selectLine(qint64 lineId) { invoke(QStringLiteral("selectLine"), {lineId}); }
@@ -364,6 +368,8 @@ public:
     // Phone orders: a regular's last order again; deliveries out with a driver, and back.
     // A card reader's connection token (answered in readerToken).
     Q_INVOKABLE void requestReaderToken() { invoke(QStringLiteral("requestReaderToken"), {}); }
+    Q_INVOKABLE void cancelCounterCharge() { invoke(QStringLiteral("cancelCounterCharge"), {}); }
+    Q_INVOKABLE void presentTestCard(bool decline) { invoke(QStringLiteral("presentTestCard"), {decline}); }
     Q_INVOKABLE void sameAsLastTime() { invoke(QStringLiteral("sameAsLastTime"), {}); }
     Q_INVOKABLE void sendOut(const QVariantList &checkIds, const QString &driverId) { invoke(QStringLiteral("sendOut"), {checkIds, driverId}); }
     Q_INVOKABLE void deliveryBack(qint64 checkId) { invoke(QStringLiteral("deliveryBack"), {checkId}); }

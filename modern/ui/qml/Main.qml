@@ -484,6 +484,30 @@ ApplicationWindow {
                 color: "#c8cfda"
                 font.pixelSize: cardWait.u
             }
+            // Stripe test mode, a reader beside the screen: "tap" a test card.
+            Row {
+                visible: cardWait.reader.testCards
+                width: parent.width
+                spacing: cardWait.u * 0.5
+                WidgetKey {
+                    objectName: "testCardApprove"
+                    width: (parent.width - parent.spacing) / 2
+                    height: cardWait.u * 2.6
+                    fontScale: 0.3
+                    baseColor: "#1f8a4c"
+                    text: qsTr("Tap Test Card")
+                    onClicked: cardWait.reader.presentTestCard(false)
+                }
+                WidgetKey {
+                    objectName: "testCardDecline"
+                    width: (parent.width - parent.spacing) / 2
+                    height: cardWait.u * 2.6
+                    fontScale: 0.3
+                    baseColor: "#8a2c30"
+                    text: qsTr("Tap Declined Card")
+                    onClicked: cardWait.reader.presentTestCard(true)
+                }
+            }
             WidgetKey {
                 objectName: "cardCancel"
                 width: parent.width

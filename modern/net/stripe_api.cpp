@@ -12,7 +12,7 @@ namespace vt::net {
 
 StripeApi::StripeApi(KeyFn secretKey, QObject *parent) : QObject(parent), key_(std::move(secretKey)) {}
 
-void StripeApi::post(const QString &path, const QByteArray &form,
+void StripeApi::call(const QString &method, const QString &path, const QString &form,
                      std::function<void(const QJsonObject &, const QString &)> done)
 {
     const QString key = key_ ? key_() : QString();
@@ -22,11 +22,14 @@ void StripeApi::post(const QString &path, const QByteArray &form,
     }
     QUrl url = base_;
     url.setPath(path);
+    const bool get = method == u"GET";
+    if (get && !form.isEmpty())
+        url.setQuery(form);
     QNetworkRequest request(url);
     request.setRawHeader("Authorization", "Bearer " + key.toUtf8());
     request.setHeader(QNetworkRequest::ContentTypeHeader, u"application/x-www-form-urlencoded"_s);
     request.setTransferTimeout(20000);
-    QNetworkReply *reply = net_.post(request, form);
+    QNetworkReply *reply = get ? net_.get(request) : net_.post(request, form.toUtf8());
     connect(reply, &QNetworkReply::finished, this, [reply, done = std::move(done)] {
         reply->deleteLater();
         const QJsonObject body = QJsonDocument::fromJson(reply->readAll()).object();

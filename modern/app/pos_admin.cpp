@@ -194,6 +194,22 @@ QVariantList PosService::adminFields(const QString &panel)
         return punchFields();
     if (panel == u"requests")
         return requestFields();
+    if (panel == u"cardReaders") {
+        return {
+            field(u"label"_s, tr("Name"), u"string"_s, tr("Which one it is: \"Front counter\", \"Bar\".")),
+            with(field(u"deviceType"_s, tr("Model"), u"string"_s, tr("Filled in by Stripe.")), u"readonlyExisting"_s, true),
+            with(field(u"id"_s, tr("Stripe reader id"), u"string"_s, tr("Filled in by Stripe.")), u"readonlyExisting"_s, true),
+            field(u"code"_s, tr("Pairing code"), u"string"_s,
+                  tr("New reader: on the reader, swipe from the left edge -> Settings -> Generate pairing code, "
+                     "and type it here. In Stripe test mode, simulated-wpe pairs a simulated reader.")),
+            field(u"line1"_s, tr("Store street address"), u"string"_s,
+                  tr("Only the first time, if Stripe has no location for the store yet.")),
+            field(u"city"_s, tr("City"), u"string"_s),
+            field(u"state"_s, tr("State"), u"string"_s),
+            field(u"postalCode"_s, tr("ZIP / postal code"), u"string"_s),
+            field(u"country"_s, tr("Country (two letters)"), u"string"_s),
+        };
+    }
     if (panel == u"vendors") {
         return {
             field(u"name"_s, tr("Name"), u"string"_s), readonlyId,
@@ -367,6 +383,9 @@ QVariantList PosService::adminFields(const QString &panel)
                       : tr("Set (ends in %1). Type a new key to change it, or \"none\" to remove it.")
                             .arg(qs(s_->settings.stripeSecretKey.substr(s_->settings.stripeSecretKey.size() - 4)))),
             field(u"cardCurrency"_s, tr("Card currency"), u"string"_s, tr("usd, cad, eur...: what cards are charged in.")),
+            with(field(u"cardTipOn"_s, tr("Card tips are asked on"), u"enum"_s,
+                       tr("The card reader's screen needs tipping turned on in Stripe (Dashboard -> Terminal -> Configurations).")),
+                 u"options"_s, options({{"", "The customer display (Ask Guest for Tip)"}, {"reader", "The card reader beside the register"}})),
             with(with(field(u"screenSaverMinutes"_s, tr("Dim the screen after (minutes)"), u"int"_s,
                             tr("Untouched screens dim; a touch wakes them (and does nothing else). 0 = never. "
                                "Kitchen, bar and expo screens stay on.")), u"min"_s, 0), u"max"_s, 240),
@@ -504,8 +523,15 @@ QVariantList PosService::adminFields(const QString &panel)
                        tr("Stripe: this app runs on a Stripe Reader S700 (Apps on Devices) and takes cards on it; "
                           "the store needs its Stripe secret key (Store Settings). Simulated: approves after a moment, "
                           "for practice (cents ending in 05 are declined).")),
-                 u"options"_s, options({{"", "None (card payments are typed in)"}, {"stripe", "Stripe smart reader (this device)"},
-                                        {"simulated", "Simulated (practice)"}})),
+                 u"options"_s, [&] {
+                     QVariantList o = options({{"", "None (card payments are typed in)"},
+                                               {"stripe", "Stripe smart reader (this device)"},
+                                               {"simulated", "Simulated (practice)"}});
+                     for (const PosSettings::StripeReader &r : s_->settings.stripeReaders)
+                         o.append(QVariantMap{{u"value"_s, u"counter:"_s + qs(r.id)},
+                                              {u"text"_s, tr("Reader beside it: %1").arg(qs(r.label))}});
+                     return o;
+                 }()),
         };
     }
     return {};
@@ -649,6 +675,7 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"minutesPerOrderWaiting"_s, s_->settings.minutesPerOrderWaiting},
              {u"deliveryFee"_s, double(s_->settings.deliveryFee.cents()) / 100.0},
              {u"stripeSecretKey"_s, QString()}, {u"cardCurrency"_s, qs(s_->settings.cardCurrency)},
+             {u"cardTipOn"_s, qs(s_->settings.cardTipOn)},
              {u"tipPercents"_s, [&] { QStringList l; for (int p : s_->settings.tipPercents) l << QString::number(p); return l.join(u", "_s); }()},
              {u"tableReadyText"_s, qs(s_->settings.tableReadyText)}, {u"textWebhook"_s, qs(s_->settings.textWebhook)},
              {u"paidBreaks"_s, s_->settings.paidBreaks}, {u"overtimeDailyHours"_s, s_->settings.overtimeDailyHours},
@@ -672,6 +699,16 @@ QVariantList PosService::adminRecords(const QString &panel)
         return punchRecords();
     } else if (panel == u"requests") {
         return requestRecords();
+    } else if (panel == u"cardReaders") {
+        for (const PosSettings::StripeReader &r : s_->settings.stripeReaders) {
+            QStringList screens;
+            for (const TerminalConfig &t : s_->settings.terminals)
+                if (t.cardReader == "counter:" + r.id)
+                    screens << qs(t.name);
+            add({{u"id"_s, qs(r.id)}, {u"label"_s, qs(r.label)}, {u"deviceType"_s, qs(r.deviceType)}, {u"code"_s, QString()}},
+                qs(r.label), screens.isEmpty() ? tr("%1 · no screen uses it yet").arg(qs(r.deviceType))
+                                               : tr("%1 · for %2").arg(qs(r.deviceType), screens.join(u", "_s)));
+        }
     } else if (panel == u"vendors") {
         for (const Vendor &v : s_->settings.vendors)
             add({{u"id"_s, qs(v.id)}, {u"name"_s, qs(v.name)}, {u"phone"_s, qs(v.phone)}, {u"account"_s, qs(v.account)},
@@ -746,6 +783,10 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"lowAt"_s, 0.0}, {u"cost"_s, 0.0}, {u"vendor"_s, QString()}};
     if (panel == u"punches")
         return punchNewRecord();
+    if (panel == u"cardReaders")
+        return {{u"id"_s, QString()}, {u"label"_s, QString()}, {u"deviceType"_s, QString()}, {u"code"_s, QString()},
+                {u"line1"_s, QString()}, {u"city"_s, QString()}, {u"state"_s, QString()}, {u"postalCode"_s, QString()},
+                {u"country"_s, u"US"_s}};
     if (panel == u"vendors")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"phone"_s, QString()}, {u"account"_s, QString()},
                 {u"note"_s, QString()}};
@@ -781,6 +822,23 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         ok = savePunchRecord(index, record);
     } else if (panel == u"requests") {
         ok = saveRequestRecord(index, record);
+    } else if (panel == u"cardReaders") {
+        auto &list = s_->settings.stripeReaders;
+        if (index >= 0 && index < int(list.size())) {   // a new name
+            const QString label = record.value(u"label"_s).toString().trimmed();
+            if (label.isEmpty())
+                return fail(tr("Give the reader a name."));
+            list[index].label = ss(label);
+        } else {
+            // A new reader: pairing with Stripe takes a moment; it shows up when it's done.
+            if (s_->settings.stripeSecretKey.empty())
+                return fail(tr("Set the store's Stripe secret key first (Store Settings)."));
+            if (record.value(u"code"_s).toString().trimmed().isEmpty())
+                return fail(tr("Type the pairing code the reader shows."));
+            emit notice(tr("Pairing with Stripe…"));
+            pairCounterReader(record);
+            return true;
+        }
     } else if (panel == u"vendors") {
         auto &list = s_->settings.vendors;
         const QString name = record.value(u"name"_s).toString().trimmed();
@@ -857,7 +915,10 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             return fail(tr("Choose whether phone orders need a name at this screen."));
         t.requireName = ss(requireName);
         const QString reader = record.value(u"cardReader"_s).toString();
-        if (!QStringList{QString(), u"stripe"_s, u"simulated"_s}.contains(reader))
+        const bool paired = reader.startsWith(u"counter:"_s)
+                            && std::ranges::any_of(s_->settings.stripeReaders,
+                                                   [&](const PosSettings::StripeReader &r) { return qs(r.id) == reader.mid(8); });
+        if (!paired && !QStringList{QString(), u"stripe"_s, u"simulated"_s}.contains(reader))
             return fail(tr("Choose the screen's card reader."));
         t.cardReader = ss(reader);
         if (index >= 0 && index < int(list.size()))
@@ -1017,6 +1078,12 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
                 return fail(tr("A Stripe secret key starts with sk_ (or rk_ for a restricted key)."));
             else
                 s_->settings.stripeSecretKey = ss(key);
+        }
+        if (record.contains(u"cardTipOn"_s)) {
+            const QString on = record.value(u"cardTipOn"_s).toString();
+            if (on != u"reader" && !on.isEmpty())
+                return fail(tr("Choose where card tips are asked."));
+            s_->settings.cardTipOn = ss(on);
         }
         if (record.contains(u"cardCurrency"_s)) {
             const QString currency = record.value(u"cardCurrency"_s).toString().trimmed().toLower();
@@ -1692,6 +1759,14 @@ bool PosService::adminDelete(const QString &panel, int index)
         settingsChanged();
     } else if (panel == u"punches") {
         return deletePunchRecord(index, QString());
+    } else if (panel == u"cardReaders" && index >= 0 && index < int(s_->settings.stripeReaders.size())) {
+        // Forgotten here (it stays in Stripe); screens that used it have none.
+        const std::string gone = "counter:" + s_->settings.stripeReaders[index].id;
+        for (TerminalConfig &t : s_->settings.terminals)
+            if (t.cardReader == gone)
+                t.cardReader.clear();
+        s_->settings.stripeReaders.erase(s_->settings.stripeReaders.begin() + index);
+        settingsChanged();
     } else if (panel == u"vendors" && index >= 0 && index < int(s_->settings.vendors.size())) {
         s_->settings.vendors.erase(s_->settings.vendors.begin() + index);
         settingsChanged();

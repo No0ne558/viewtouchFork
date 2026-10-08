@@ -12,6 +12,7 @@
 #include "app/pos_session.hh"
 
 #include <QJsonObject>
+#include <QTimer>
 
 #include <QObject>
 #include <QString>
@@ -166,6 +167,10 @@ public:
     std::function<void(std::function<void(const QString &token, const QString &error)>)> stripeConnectionToken;
     std::function<void(const QString &paymentId, std::int64_t cents,
                        std::function<void(const QString &refundId, const QString &error)>)> stripeRefund;
+    // Any Stripe call (countertop readers, pairing): "GET" / "POST", a path
+    // ("/v1/terminal/readers/tmr_1"), a form ("a=1&b[c]=2").
+    std::function<void(const QString &method, const QString &path, const QString &form,
+                       std::function<void(const QJsonObject &reply, const QString &error)>)> stripeCall;
     core::CustomerRecord *customer(const std::string &id);
     core::GiftCard *giftCard(const std::string &number);
     std::int64_t lastCheckId = 0;
@@ -664,7 +669,16 @@ public:
     QVariantMap readerToken() const override { return readerToken_; }
     QVariantMap cardCharge(const QString &tenderId);   // {ok, amountCents, tipCents, currency...} or {ok: false}
     bool recordCardPayment(const QVariantMap &result);
+    bool addCardPayment(const QVariantMap &result);   // recordCardPayment, without asking who
     void requestReaderToken();
+    // A Stripe reader beside this screen, run from the store's computer.
+    QVariantMap counterCharge() const override { return counter_; }
+    bool startCounterCharge(const QString &tenderId);
+    bool cancelCounterCharge();
+    bool presentTestCard(bool decline);   // Stripe test mode: a card "tapped" on the reader
+    void pairCounterReader(const QVariantMap &record);
+    QString counterReaderId() const;
+    QString counterReaderLabel(const QString &id) const;
     enum class Refund { NotNeeded, Started, CantNow };
     Refund refundCardPayment(const core::Check &c, const core::Payment &p);
     // Phone orders and deliveries (pos_phone_orders.cpp).
@@ -882,6 +896,17 @@ private:
     QVariantMap readerToken_;          // the latest connection token for this terminal's reader
     int readerTokenSeq_ = 0;
     std::set<std::int64_t> refunding_; // card payments whose refund is on its way
+    // The card a countertop reader is taking: {status: starting | waiting,
+    // reader, readerLabel, paymentIntent, amount, test...}; empty when none.
+    QVariantMap counter_;
+    QTimer counterPoll_;
+    int counterPolls_ = 0;
+    bool counterAsking_ = false;
+    void pollCounter();
+    void counterPaid(const QString &paymentIntent);
+    void counterDone(const QString &message);
+    void stripe(const QString &method, const QString &path, const QString &form,
+                std::function<void(const QJsonObject &, const QString &)> done);
     // The last item taken off (or made fewer) on this terminal's check, for Undo.
     struct LastChange {
         std::int64_t checkId = 0;

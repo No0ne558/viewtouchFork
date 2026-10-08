@@ -7,7 +7,10 @@
 #include "app/pos_json.hh"
 #include "app/pos_service.hh"
 
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QPointer>
+#include <QUrl>
 
 #include <algorithm>
 
@@ -75,6 +78,11 @@ bool PosService::recordCardPayment(const QVariantMap &r)
 {
     if (!require(perm::Settle, tr("Taking payments")))
         return false;
+    return addCardPayment(r);
+}
+
+bool PosService::addCardPayment(const QVariantMap &r)
+{
     const QString reference = r.value(u"reference"_s).toString();
     if (reference.isEmpty())
         return fail(tr("The card reader didn't say which payment it was."));
@@ -185,6 +193,283 @@ PosService::Refund PosService::refundCardPayment(const Check &c, const Payment &
         self->changed(check);
     });
     return Refund::Started;
+}
+
+} // namespace vt::app
+
+// --- a countertop reader, run from the store's computer ----------------------------
+//
+// The register asks for a card; the store creates the PaymentIntent, sends it
+// to the reader beside the register (Stripe's server-driven integration),
+// asks Stripe how it's going every 1.5 seconds, and records the payment
+// when the reader says so. Nothing depends on the register staying connected.
+
+namespace vt::app {
+
+namespace {
+
+QString form(std::initializer_list<std::pair<QString, QString>> fields)
+{
+    QStringList out;
+    for (const auto &[k, v] : fields)
+        out << QString::fromLatin1(QUrl::toPercentEncoding(k, "[]")) + u'=' + QString::fromLatin1(QUrl::toPercentEncoding(v));
+    return out.join(u'&');
+}
+
+constexpr int kCounterPollMs = 1500;
+constexpr int kCounterGiveUpPolls = 200;   // five minutes
+
+} // namespace
+
+QString PosService::counterReaderId() const
+{
+    const QString reader = terminalCardReader();
+    return reader.startsWith(u"counter:"_s) ? reader.mid(8) : QString();
+}
+
+QString PosService::counterReaderLabel(const QString &id) const
+{
+    for (const PosSettings::StripeReader &r : s_->settings.stripeReaders)
+        if (qs(r.id) == id)
+            return qs(r.label);
+    return id;
+}
+
+void PosService::stripe(const QString &method, const QString &path, const QString &body,
+                        std::function<void(const QJsonObject &, const QString &)> done)
+{
+    if (!s_->stripeCall) {
+        done({}, tr("This computer can't reach Stripe."));
+        return;
+    }
+    QPointer<PosService> self(this);
+    s_->stripeCall(method, path, body, [self, done = std::move(done)](const QJsonObject &r, const QString &e) {
+        if (self)
+            done(r, e);
+    });
+}
+
+void PosService::counterDone(const QString &message)
+{
+    counterPoll_.stop();
+    counter_.clear();
+    emit sessionChanged();
+    if (!message.isEmpty())
+        emit notice(message);
+}
+
+bool PosService::startCounterCharge(const QString &tenderId)
+{
+    const QString reader = counterReaderId();
+    if (reader.isEmpty())
+        return fail(tr("This screen has no card reader beside it (Manager -> Terminals)."));
+    if (s_->settings.stripeSecretKey.empty())
+        return fail(tr("The store's Stripe key isn't set (Manager -> Store Settings)."));
+    if (!counter_.isEmpty())
+        return fail(tr("The card reader is already taking a card."));
+    const QVariantMap charge = cardCharge(tenderId);
+    if (charge.value(u"notCard"_s).toBool())
+        return tender(tenderId);   // cash, a discount...: as usual
+    if (!charge.value(u"ok"_s).toBool())
+        return false;
+    const qint64 total = charge.value(u"amountCents"_s).toLongLong() + charge.value(u"tipCents"_s).toLongLong();
+    counter_ = charge;
+    counter_.insert(u"status"_s, u"starting"_s);
+    counter_.insert(u"reader"_s, reader);
+    counter_.insert(u"readerLabel"_s, counterReaderLabel(reader));
+    counter_.insert(u"test"_s, s_->settings.stripeSecretKey.starts_with("sk_test_")
+                                   || s_->settings.stripeSecretKey.starts_with("rk_test_"));
+    emit sessionChanged();
+    const QString body = form({{u"amount"_s, QString::number(total)},
+                               {u"currency"_s, charge.value(u"currency"_s).toString()},
+                               {u"allowed_payment_method_types[]"_s, u"card_present"_s},
+                               {u"capture_method"_s, u"automatic"_s},
+                               {u"description"_s, charge.value(u"description"_s).toString()},
+                               {u"metadata[viewtouch_check]"_s, charge.value(u"checkId"_s).toString()}});
+    stripe(u"POST"_s, u"/v1/payment_intents"_s, body, [this, reader](const QJsonObject &pi, const QString &error) {
+        if (!error.isEmpty() || counter_.isEmpty())
+            return counterDone(error.isEmpty() ? QString() : tr("The card payment couldn't start: %1").arg(error));
+        const QString id = pi.value(u"id").toString();
+        counter_.insert(u"paymentIntent"_s, id);
+        // The tip on the reader's screen, when that's where it's asked.
+        const QString skipTip = s_->settings.cardTipOn == "reader" ? u"false"_s : u"true"_s;
+        stripe(u"POST"_s, u"/v1/terminal/readers/%1/process_payment_intent"_s.arg(reader),
+               form({{u"payment_intent"_s, id}, {u"process_config[skip_tipping]"_s, skipTip},
+                     {u"process_config[enable_customer_cancellation]"_s, u"true"_s}}),
+               [this, id](const QJsonObject &, const QString &error) {
+            if (!error.isEmpty()) {
+                stripe(u"POST"_s, u"/v1/payment_intents/%1/cancel"_s.arg(id), {}, [](const QJsonObject &, const QString &) {});
+                return counterDone(tr("The card reader didn't take it: %1").arg(error));
+            }
+            counter_.insert(u"status"_s, u"waiting"_s);
+            counterPolls_ = 0;
+            connect(&counterPoll_, &QTimer::timeout, this, &PosService::pollCounter, Qt::UniqueConnection);
+            counterPoll_.start(kCounterPollMs);
+            emit sessionChanged();
+        });
+    });
+    return true;
+}
+
+void PosService::pollCounter()
+{
+    if (counter_.value(u"status"_s).toString() != u"waiting" || counterAsking_)
+        return;
+    if (++counterPolls_ > kCounterGiveUpPolls) {
+        counterPoll_.stop();
+        emit notice(tr("No answer from the card reader: check it, then Cancel."));
+        return;
+    }
+    counterAsking_ = true;
+    const QString reader = counter_.value(u"reader"_s).toString();
+    const QString pi = counter_.value(u"paymentIntent"_s).toString();
+    stripe(u"GET"_s, u"/v1/terminal/readers/%1"_s.arg(reader), {}, [this, pi](const QJsonObject &r, const QString &error) {
+        counterAsking_ = false;
+        if (!error.isEmpty() || counter_.value(u"paymentIntent"_s) != pi)
+            return;   // asked again in a moment
+        const QJsonObject action = r.value(u"action").toObject();
+        if (action.value(u"process_payment_intent").toObject().value(u"payment_intent").toString() != pi)
+            return;
+        const QString status = action.value(u"status").toString();
+        if (status == u"succeeded")
+            return counterPaid(pi);
+        if (status != u"failed")
+            return;
+        // A lost connection may still have been paid: Stripe knows.
+        if (action.value(u"failure_code").toString() == u"connection_error")
+            return counterPaid(pi);
+        const QString why = action.value(u"failure_message").toString();
+        stripe(u"POST"_s, u"/v1/payment_intents/%1/cancel"_s.arg(pi), {}, [](const QJsonObject &, const QString &) {});
+        counterDone(action.value(u"failure_code").toString() == u"customer_canceled"
+                        ? tr("The guest canceled on the card reader.")
+                        : tr("Card declined: %1").arg(why.isEmpty() ? tr("try another card") : why));
+    });
+}
+
+void PosService::counterPaid(const QString &pi)
+{
+    counterPoll_.stop();
+    stripe(u"GET"_s, u"/v1/payment_intents/%1"_s.arg(pi), u"expand[]=latest_charge"_s,
+           [this, pi](const QJsonObject &intent, const QString &error) {
+        if (counter_.value(u"paymentIntent"_s) != pi)
+            return;
+        const QString status = intent.value(u"status").toString();
+        if (!error.isEmpty() || (status != u"succeeded" && status != u"requires_capture" && status != u"processing")) {
+            stripe(u"POST"_s, u"/v1/payment_intents/%1/cancel"_s.arg(pi), {}, [](const QJsonObject &, const QString &) {});
+            return counterDone(error.isEmpty() ? tr("The card didn't go through.") : tr("Stripe: %1").arg(error));
+        }
+        const QJsonObject card = intent.value(u"latest_charge").toObject().value(u"payment_method_details").toObject()
+                                     .value(u"card_present").toObject();
+        const qint64 readerTip = intent.value(u"amount_details").toObject().value(u"tip").toObject().value(u"amount").toInteger();
+        QVariantMap paid{{u"reference"_s, pi}, {u"brand"_s, card.value(u"brand").toString()},
+                         {u"last4"_s, card.value(u"last4").toString()},
+                         {u"amountCents"_s, intent.value(u"amount").toInteger()},
+                         {u"tipCents"_s, counter_.value(u"tipCents"_s).toLongLong() + readerTip},
+                         {u"checkId"_s, counter_.value(u"checkId"_s)}, {u"tenderId"_s, counter_.value(u"tenderId"_s)},
+                         {u"processor"_s, u"stripe"_s}};
+        // On the check even if the register logged out meanwhile: the money was taken.
+        const bool ok = addCardPayment(paid);
+        counterDone(ok ? QString() : tr("The card was approved (%1) but isn't on the check: add it by hand or refund it in Stripe.").arg(pi));
+    });
+}
+
+bool PosService::cancelCounterCharge()
+{
+    if (counter_.isEmpty())
+        return true;
+    const QString reader = counter_.value(u"reader"_s).toString();
+    const QString pi = counter_.value(u"paymentIntent"_s).toString();
+    if (pi.isEmpty()) {   // not on the reader yet
+        counterDone(tr("Card payment canceled."));
+        return true;
+    }
+    stripe(u"POST"_s, u"/v1/terminal/readers/%1/cancel_action"_s.arg(reader), {},
+           [this, pi](const QJsonObject &, const QString &error) {
+        if (!error.isEmpty() && error.contains(u"busy"_s, Qt::CaseInsensitive)) {
+            emit notice(tr("The card is being read: wait a moment."));
+            return;
+        }
+        stripe(u"POST"_s, u"/v1/payment_intents/%1/cancel"_s.arg(pi), {}, [](const QJsonObject &, const QString &) {});
+        counterDone(tr("Card payment canceled."));
+    });
+    return true;
+}
+
+bool PosService::presentTestCard(bool decline)
+{
+    if (counter_.value(u"status"_s).toString() != u"waiting" || !counter_.value(u"test"_s).toBool())
+        return fail(tr("Test cards are for Stripe test mode, while the reader waits."));
+    const QString reader = counter_.value(u"reader"_s).toString();
+    stripe(u"POST"_s, u"/v1/test_helpers/terminal/readers/%1/present_payment_method"_s.arg(reader),
+           form({{u"type"_s, u"card_present"_s},
+                 {u"card_present[number]"_s, decline ? u"4000000000000002"_s : u"4242424242424242"_s}}),
+           [this](const QJsonObject &, const QString &error) {
+        if (!error.isEmpty())
+            emit notice(tr("Stripe: %1").arg(error));
+    });
+    return true;
+}
+
+// --- pairing countertop readers ----------------------------------------------------
+
+void PosService::pairCounterReader(const QVariantMap &record)
+{
+    const QString code = record.value(u"code"_s).toString().trimmed();
+    const QString label = record.value(u"label"_s).toString().trimmed();
+    const auto paired = [this, label](const QJsonObject &reader, const QString &error) {
+        if (!error.isEmpty()) {
+            emit notice(tr("The reader didn't pair: %1").arg(error));
+            return;
+        }
+        PosSettings::StripeReader r{ss(reader.value(u"id").toString()), ss(reader.value(u"label").toString(label)),
+                                    ss(reader.value(u"device_type").toString())};
+        std::erase_if(s_->settings.stripeReaders, [&](const PosSettings::StripeReader &x) { return x.id == r.id; });
+        s_->settings.stripeReaders.push_back(r);
+        settingsChanged();
+        emit s_->adminChanged();
+        emit notice(tr("Card reader paired: %1. Choose it for a screen in Terminals.").arg(qs(r.label)));
+    };
+    const auto registerAt = [this, code, label, paired](const QString &location) {
+        stripe(u"POST"_s, u"/v1/terminal/readers"_s,
+               form({{u"registration_code"_s, code}, {u"label"_s, label.isEmpty() ? code : label},
+                     {u"location"_s, location}}),
+               paired);
+    };
+    if (!s_->settings.stripeLocation.empty())
+        return registerAt(qs(s_->settings.stripeLocation));
+    // Readers belong to a Stripe location (the store's address): Stripe's
+    // first one, or a new one from the address given.
+    stripe(u"GET"_s, u"/v1/terminal/locations"_s, u"limit=1"_s,
+           [this, record, registerAt](const QJsonObject &list, const QString &error) {
+        if (!error.isEmpty()) {
+            emit notice(tr("The reader didn't pair: %1").arg(error));
+            return;
+        }
+        const QString found = list.value(u"data").toArray().first().toObject().value(u"id").toString();
+        const auto use = [this, registerAt](const QString &id) {
+            s_->settings.stripeLocation = ss(id);
+            settingsChanged();
+            registerAt(id);
+        };
+        if (!found.isEmpty())
+            return use(found);
+        const auto text = [&](const char16_t *k) { return record.value(QString::fromUtf16(k)).toString().trimmed(); };
+        if (text(u"line1").isEmpty() || text(u"city").isEmpty() || text(u"country").isEmpty()) {
+            emit notice(tr("Stripe needs the store's address once: fill in Street, City, State, ZIP and Country."));
+            return;
+        }
+        stripe(u"POST"_s, u"/v1/terminal/locations"_s,
+               form({{u"display_name"_s, qs(s_->settings.storeName)}, {u"address[line1]"_s, text(u"line1")},
+                     {u"address[city]"_s, text(u"city")}, {u"address[state]"_s, text(u"state")},
+                     {u"address[postal_code]"_s, text(u"postalCode")}, {u"address[country]"_s, text(u"country").toUpper()}}),
+               [this, use](const QJsonObject &location, const QString &error) {
+            if (!error.isEmpty()) {
+                emit notice(tr("Stripe didn't take the address: %1").arg(error));
+                return;
+            }
+            use(location.value(u"id").toString());
+        });
+    });
 }
 
 } // namespace vt::app

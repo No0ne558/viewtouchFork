@@ -11,6 +11,7 @@
 #include <QTemporaryDir>
 #include "app/i18n.hh"
 #include "language.hh"
+#include "fake_stripe.hh"
 #include "pos_fixture.hh"
 #include "qt_catch.hh"
 
@@ -4137,4 +4138,37 @@ TEST_CASE("Card reader (simulated): Pay with a card, declined, canceled", "[ui][
     // No reader: Credit Card is typed in as before.
     REQUIRE(s.pos.adminSave(u"terminals"_s, 0, {{u"name"_s, s.pos.terminalName()}, {u"cardReader"_s, u""_s}}));
     CHECK(reader->kind().isEmpty());
+}
+
+TEST_CASE("Countertop reader: Pay, the reader waits, a test card is tapped", "[ui][cards][counter]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.entryKey(u"10000"_s);
+    REQUIRE(s.pos.openDrawerSession());
+    test::FakeStripe stripe;
+    stripe.install(s.pos);
+    s.pos.shared()->settings.stripeSecretKey = "sk_test_x";
+    s.pos.shared()->settings.stripeReaders.push_back({"tmr_1", "Front counter", "simulated_wisepos_e"});
+    REQUIRE(s.pos.adminSave(u"terminals"_s, -1, {{u"name"_s, s.pos.terminalName()}, {u"cardReader"_s, u"counter:tmr_1"_s}}));
+    CHECK(s.c.cardReader()->kind() == u"counter"_s);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+
+    REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+    REQUIRE(s.pos.addItem(u"coffee"_s));
+    REQUIRE(s.c.jumpTo(u"settle"_s));
+    QTest::qWait(50);
+    s.c.activate(u"tender-credit"_s);
+    QTest::qWait(80);
+    REQUIRE(by(u"cardWait"_s));
+    REQUIRE(by(u"testCardApprove"_s));                      // Stripe test mode
+    s.shot("counter-1-waiting");
+    s.tapItem(by(u"testCardApprove"_s));
+    test::waitFor([&] { return !s.pos.payments().isEmpty(); });
+    QTest::qWait(60);
+    CHECK_FALSE(by(u"cardWait"_s));
+    REQUIRE(s.pos.payments().size() == 1);
+    CHECK(s.pos.payments()[0].toMap()[u"name"_s].toString().contains(u"Mastercard •••• 4444"_s));
+    s.shot("counter-2-paid");
 }

@@ -100,8 +100,18 @@ void CardReader::setStatus(const QString &text, bool ready)
     emit changed();
 }
 
-void CardReader::setKind(const QString &kind)
+void CardReader::setKind(const QString &setting)
 {
+    const QString kind = setting.startsWith(u"counter:"_s) ? u"counter"_s : setting;
+    if (kind == u"counter") {
+        if (kind_ != kind) {
+            kind_ = kind;
+            charging_.clear();
+        }
+        setStatus(tr("Card reader beside this screen"), true);
+        emit changed();
+        return;
+    }
     if (kind == kind_)
         return;
     if (busy())
@@ -155,10 +165,26 @@ void CardReader::charge(const QVariantMap &charge)
                                               : tr("This screen has no card reader.")}});
 }
 
+void CardReader::setCounter(const QVariantMap &state)
+{
+    if (kind_ != u"counter" || state == charging_)
+        return;
+    charging_ = state;
+    const QString status = state.value(u"status"_s).toString();
+    status_ = status == u"starting" ? tr("Sending it to the card reader…")
+            : status == u"waiting" ? tr("Tap, insert or swipe on %1").arg(state.value(u"readerLabel"_s).toString())
+                                   : tr("Card reader beside this screen");
+    emit changed();
+}
+
 void CardReader::cancel()
 {
     if (!busy())
         return;
+    if (kind_ == u"counter") {
+        emit cancelRequested();
+        return;
+    }
     if (kind_ == u"simulated") {
         simulated_.stop();
         finish({{u"canceled"_s, true}, {u"message"_s, tr("Card payment canceled.")}});
