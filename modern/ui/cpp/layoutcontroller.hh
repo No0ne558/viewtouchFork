@@ -177,6 +177,9 @@ public:
     // over, then Save, or Undo); false when there's nothing to switch or
     // this person may not edit pages.
     Q_INVOKABLE bool switchToSelfFillingMenu();
+    // A spreadsheet saved as CSV, on this device: {items: [{row, name, price,
+    // category, description, onIt}], problems, columns, error}.
+    Q_INVOKABLE QVariantMap readMenuFile(const QUrl &file) const;
     QString menuCategory() const { return menuCategory_; }
     void setMenuCategory(const QString &id);
     // Holding a button: what it does, in plain words, instead of doing it.

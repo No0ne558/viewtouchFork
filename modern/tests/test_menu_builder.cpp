@@ -246,3 +246,126 @@ TEST_CASE("Menu Builder: an item or a category moved to an exact place", "[menub
     REQUIRE(pos.moveCategoryTo(u"drinks"_s, 0));
     CHECK(order().first() == u"drinks"_s);
 }
+
+#include "app/menu_import.hh"
+#include "layoutcontroller.hh"
+#include "layout_fixture.hh"
+
+#include <QTemporaryDir>
+
+TEST_CASE("Menu import: the usual spreadsheet shapes", "[menubuilder][import]")
+{
+    using app::readMenuCsv;
+    // A header in any order, quotes, a $ and a thousands comma.
+    auto r = readMenuCsv(u"Category,Item,Price,Description\n"
+                         u"Tacos,Carne Asada,$3.50,\"Steak, onion, cilantro\"\n"
+                         u"Platters,\"Family Pack \"\"Big\"\"\",\"1,250.00\",\n"
+                         u",,,\n"
+                         u"Tacos,Nachos,,\n"_s);
+    REQUIRE(r.items.size() == 2);
+    CHECK(r.items[0].name == u"Carne Asada"_s);
+    CHECK(r.items[0].price == 3.5);
+    CHECK(r.items[0].category == u"Tacos"_s);
+    CHECK(r.items[0].description == u"Steak, onion, cilantro"_s);
+    CHECK(r.items[1].name == u"Family Pack \"Big\""_s);
+    CHECK(r.items[1].price == 1250.0);
+    CHECK(r.problems == QStringList{u"Row 5: no price for Nachos"_s});
+
+    // No header: name, price, category. Semicolons and a comma for the cents.
+    r = readMenuCsv(u"Horchata;2,75;Bebidas\r\nAgua de Jamaica;2,50;Bebidas\r\n"_s);
+    REQUIRE(r.items.size() == 2);
+    CHECK(r.items[0].price == 2.75);
+    CHECK(r.items[1].category == u"Bebidas"_s);
+
+    // Tabs; Spanish headers; what's on it.
+    r = readMenuCsv(u"Nombre\tPrecio\tCategoría\tIngredientes\nTorta\t9.00\tTortas\tfrijol, aguacate\n"_s);
+    REQUIRE(r.items.size() == 1);
+    CHECK(r.items[0].category == u"Tortas"_s);
+    CHECK(r.items[0].onIt == u"frijol, aguacate"_s);
+    CHECK(r.columns.contains(u"onIt"_s));
+}
+
+TEST_CASE("Menu import: into the menu, categories made, prices updated if asked", "[menubuilder][import]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const QVariantList rows{
+        QVariantMap{{u"name"_s, u"Carne Asada"_s}, {u"price"_s, 3.5}, {u"category"_s, u"Tacos"_s}, {u"onIt"_s, u"onion, cilantro"_s}},
+        QVariantMap{{u"name"_s, u"Al Pastor"_s}, {u"price"_s, 3.25}, {u"category"_s, u"tacos"_s}},
+        QVariantMap{{u"name"_s, u"Classic Burger"_s}, {u"price"_s, 12.0}},   // already on the menu
+        QVariantMap{{u"name"_s, u"Garden Burger"_s}, {u"price"_s, 11.0}}};   // no category: the one chosen
+    CHECK(pos.importMenuRows(rows, u"burgers"_s, false) == 3);
+    const auto item = [&](const QString &name) {
+        for (const QVariant &m : pos.menuItems())
+            if (m.toMap()[u"name"_s] == name)
+                return m.toMap();
+        return QVariantMap{};
+    };
+    CHECK(item(u"Carne Asada"_s)[u"family"_s] == u"tacos"_s);
+    CHECK(item(u"Al Pastor"_s)[u"family"_s] == u"tacos"_s);              // the same category, any case
+    CHECK(item(u"Carne Asada"_s)[u"onIt"_s].toStringList() == QStringList{u"onion"_s, u"cilantro"_s});
+    CHECK(item(u"Garden Burger"_s)[u"family"_s] == u"burgers"_s);
+    CHECK(item(u"Classic Burger"_s)[u"price"_s] == u"$11.50"_s);         // left as it was
+    CHECK(pos.importMenuRows({rows[2]}, u"burgers"_s, true) == 1);       // the new price, asked for
+    CHECK(item(u"Classic Burger"_s)[u"price"_s] == u"$12.00"_s);
+}
+
+TEST_CASE("Menu import: reading the file on this device", "[menubuilder][import]")
+{
+    QTemporaryDir dir;
+    QFile csv(dir.filePath(u"menu.csv"_s));
+    REQUIRE(csv.open(QIODevice::WriteOnly));
+    csv.write("Item,Price,Category\nCaf\xe9 de Olla,2.50,Drinks\n");   // Latin-1, as older spreadsheets save
+    csv.close();
+    auto l = test::loadTestLayout();
+    REQUIRE(l);
+    LayoutController c(*l);
+    QVariantMap read = c.readMenuFile(QUrl::fromLocalFile(csv.fileName()));
+    REQUIRE(read[u"items"_s].toList().size() == 1);
+    CHECK(read[u"items"_s].toList()[0].toMap()[u"name"_s] == u"Café de Olla"_s);
+    QFile xlsx(dir.filePath(u"menu.xlsx"_s));
+    REQUIRE(xlsx.open(QIODevice::WriteOnly));
+    xlsx.write("PK\x03\x04 a spreadsheet");
+    xlsx.close();
+    read = c.readMenuFile(QUrl::fromLocalFile(xlsx.fileName()));
+    CHECK(read[u"error"_s].toString().contains(u"CSV"_s));
+}
+
+TEST_CASE("Starter menus: added alongside, ready to order", "[menubuilder][templates]")
+{
+    PosService pos(test::seedPosData(true), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const QVariantList templates = pos.menuTemplates();
+    REQUIRE(templates.size() == 4);
+    const int before = int(pos.menuItems().size());
+    for (const QVariant &t : templates) {
+        INFO(t.toMap()[u"id"_s].toString().toStdString());
+        REQUIRE(pos.applyMenuTemplate(t.toMap()[u"id"_s].toString()));
+    }
+    CHECK(pos.menuItems().size() > before + 30);   // those already on the menu (Classic Burger, Fries...) skipped
+    QVariantMap taco, latte;
+    for (const QVariant &m : pos.menuItems()) {
+        if (m.toMap()[u"name"_s] == u"Carne Asada Taco"_s)
+            taco = m.toMap();
+        if (m.toMap()[u"name"_s] == u"Latte"_s)
+            latte = m.toMap();
+    }
+    REQUIRE_FALSE(taco.isEmpty());
+    CHECK(taco[u"price"_s] == u"$3.50"_s);
+    CHECK(taco[u"onIt"_s].toStringList() == QStringList{u"onion"_s, u"cilantro"_s});
+    CHECK(taco[u"station"_s] == u"grill"_s);
+    CHECK(latte[u"printer"_s] == u"bar"_s);
+    // Applied again: nothing doubled.
+    const auto count = pos.menuItems().size();
+    REQUIRE(pos.applyMenuTemplate(u"taqueria"_s));
+    CHECK(pos.menuItems().size() == count);
+    // A taco orders, asks its salsa and tortilla, and can be had No onion.
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    REQUIRE(pos.addItem(taco[u"id"_s].toString()));
+    QStringList asked;
+    for (const QVariant &g : pos.choosingInfo()[u"groups"_s].toList())
+        asked << g.toMap()[u"name"_s].toString();
+    CHECK(asked.contains(u"Salsa"_s));
+    CHECK(asked.contains(u"Tortilla"_s));
+    CHECK_FALSE(pos.finishChoosing());   // salsa and tortilla are required
+}

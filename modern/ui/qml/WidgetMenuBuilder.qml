@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Fusion
+import QtQuick.Dialogs
 import QtQuick.Layouts
 
 // Manager -> Menu Builder: the whole menu on one screen. Categories (their
@@ -375,6 +376,28 @@ Item {
                     }
                     TouchButton { text: "▲"; enabled: !!w.category; onClicked: w.pos.moveCategory(w.categoryId, -1) }
                     TouchButton { text: "▼"; enabled: !!w.category; onClicked: w.pos.moveCategory(w.categoryId, 1) }
+                }
+                // Many at once: from a spreadsheet, or a starter menu.
+                RowLayout {
+                    visible: w.mode === "menu"
+                    Layout.fillWidth: true
+                    spacing: 6
+                    TouchButton {
+                        objectName: "builderImport"
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        text: qsTr("Import…")
+                        ToolTip.visible: hovered
+                        ToolTip.text: qsTr("A spreadsheet saved as CSV")
+                        onClicked: importFile.open()
+                    }
+                    TouchButton {
+                        objectName: "builderTemplates"
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        text: qsTr("Starter Menu…")
+                        onClicked: templateDialog.open()
+                    }
                 }
             }
 
@@ -986,6 +1009,121 @@ Item {
     }
 
     // Many at once: "Carne Asada 3.50" a line, or "Tacos: Carne Asada 3.50, Al Pastor 3.25".
+    // A spreadsheet saved as CSV (a USB stick, this computer): read here,
+    // shown, then added.
+    FileDialog {
+        id: importFile
+        title: qsTr("A menu saved as CSV")
+        nameFilters: [qsTr("Spreadsheets saved as CSV (*.csv *.tsv *.txt)"), qsTr("All files (*)")]
+        onAccepted: {
+            importDialog.read = w.zone.controller.readMenuFile(selectedFile)
+            importDialog.open()
+        }
+    }
+    Dialog {
+        id: importDialog
+        objectName: "builderImportDialog"
+        property var read: ({})
+        readonly property var items: read.items ?? []
+        readonly property var categoriesIn: [...new Set(items.map(i => i.category || (w.category ? w.category.name : "")))]
+        title: read.error ? qsTr("Can't import that") : qsTr("Import %n item(s)", "", items.length)
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 820)
+        height: Math.min(parent.height - 40, 640)
+        modal: true
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 8
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: importDialog.read.error
+                      ? importDialog.read.error
+                      : qsTr("Into: %1. Rows without a category go in %2.").arg(importDialog.categoriesIn.join(", "))
+                                                                          .arg(w.category ? w.category.name : "?")
+            }
+            Label {
+                visible: (importDialog.read.problems ?? []).length > 0
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                color: "#f5b940"
+                text: qsTr("Left out: %1").arg((importDialog.read.problems ?? []).join("; "))
+            }
+            ListView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                model: importDialog.items
+                delegate: RowLayout {
+                    required property var modelData
+                    width: ListView.view.width
+                    Label { Layout.fillWidth: true; text: modelData.name; elide: Text.ElideRight }
+                    Label { text: w.pos.currencySymbol + Number(modelData.price).toFixed(2) }
+                    Label { Layout.preferredWidth: 180; text: modelData.category; opacity: 0.7; elide: Text.ElideRight }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Switch { id: updatePrices; objectName: "builderImportPrices" }
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: qsTr("Items already on the menu get the file's price (otherwise they're left as they are)") }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                TouchButton {
+                    objectName: "builderImportGo"
+                    Layout.fillWidth: true
+                    highlighted: true
+                    enabled: importDialog.items.length > 0
+                    text: qsTr("Import")
+                    onClicked: {
+                        w.pos.importMenuRows(importDialog.items, w.categoryId, updatePrices.checked)
+                        importDialog.close()
+                    }
+                }
+                TouchButton { Layout.preferredWidth: 160; text: qsTr("Cancel"); onClicked: importDialog.close() }
+            }
+        }
+    }
+
+    // Starter menus: a kind of place's categories, choices and items.
+    Dialog {
+        id: templateDialog
+        objectName: "builderTemplateDialog"
+        title: qsTr("Start from a starter menu")
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 760)
+        modal: true
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 10
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                opacity: 0.8
+                text: qsTr("Its categories, choices and items, with typical prices, are added to your menu; nothing already on it changes. Then change anything you like.")
+            }
+            Repeater {
+                model: w.pos ? w.pos.menuTemplates : []
+                delegate: TouchButton {
+                    required property var modelData
+                    objectName: "builderTemplate-" + modelData.id
+                    Layout.fillWidth: true
+                    implicitHeight: 72
+                    text: modelData.name + "  ·  " + qsTr("%1 categories, %2 items").arg(modelData.categories).arg(modelData.items)
+                          + "\n" + modelData.description
+                    onClicked: {
+                        w.pos.applyMenuTemplate(modelData.id)
+                        templateDialog.close()
+                    }
+                }
+            }
+            TouchButton { Layout.alignment: Qt.AlignRight; text: qsTr("Cancel"); onClicked: templateDialog.close() }
+        }
+    }
+
     // What's being dragged, under the finger.
     Rectangle {
         id: ghost

@@ -621,6 +621,11 @@ public:
     bool duplicateMenuItem(const QString &id);   // "Fish Tacos 2", right after it
     // "Tacos: Carne Asada 3.50, Al Pastor 3.25" / one per line; returns how many were added.
     int addMenuItemsFromText(const QString &categoryId, const QString &text);
+    // Rows read from a spreadsheet: [{name, price, category, description, onIt}].
+    int importMenuRows(const QVariantList &rows, const QString &categoryId, bool updatePrices);
+    // Starter menus (menu_templates.cpp): [{id, name, description, categories, items}].
+    QVariantList menuTemplates() const override;
+    bool applyMenuTemplate(const QString &id);
     // {id ("" new), name, min, max, askHow, options: [{name, price, included, kitchenName}]}
     bool saveChoiceGroup(const QVariantMap &record);
     bool deleteChoiceGroup(const QString &id);   // items stop asking for it

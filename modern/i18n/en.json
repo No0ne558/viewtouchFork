@@ -98,5 +98,13 @@
  "Add %n item(s)": {
   "one": "Add %n item",
   "other": "Add %n items"
+ },
+ "Import %n item(s)": {
+  "one": "Import %n item",
+  "other": "Import %n items"
+ },
+ "new prices for %n": {
+  "one": "a new price for %n item",
+  "other": "new prices for %n items"
  }
 }

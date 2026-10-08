@@ -12,6 +12,7 @@
 
 #include "core/employee.hh"
 #include "core/settings.hh"
+#include "app/menu_import.hh"
 #include "layout/menu_screens.hh"
 #include "layout/reflow.hh"
 #include "layout/schema.hh"
@@ -715,6 +716,28 @@ void LayoutController::setMenuCategory(const QString &id)
         return;
     menuCategory_ = id;
     emit menuCategoryChanged();
+}
+
+QVariantMap LayoutController::readMenuFile(const QUrl &file) const
+{
+    QFile f(file.isLocalFile() ? file.toLocalFile() : file.toString());
+    if (f.size() > 4 * 1024 * 1024)
+        return {{u"error"_s, tr("That file is too big for a menu.")}};
+    if (!f.open(QIODevice::ReadOnly))
+        return {{u"error"_s, tr("Can't open it: %1").arg(f.errorString())}};
+    QByteArray bytes = f.readAll();
+    if (bytes.startsWith("PK"))
+        return {{u"error"_s, tr("That's a spreadsheet file: save it as CSV first (File → Save As → CSV).")}};
+    // UTF-8, else Latin-1 (older spreadsheets).
+    QString text = QString::fromUtf8(bytes);
+    if (text.contains(QChar::ReplacementCharacter))
+        text = QString::fromLatin1(bytes);
+    const vt::app::MenuImport read = vt::app::readMenuCsv(text);
+    QVariantList items;
+    for (const vt::app::ImportedItem &i : read.items)
+        items.append(QVariantMap{{u"row"_s, i.row}, {u"name"_s, i.name}, {u"price"_s, i.price}, {u"category"_s, i.category},
+                                 {u"description"_s, i.description}, {u"onIt"_s, i.onIt}});
+    return {{u"items"_s, items}, {u"problems"_s, read.problems}, {u"columns"_s, read.columns}};
 }
 
 bool LayoutController::menuScreensHandBuilt() const

@@ -24,7 +24,7 @@ const QStringList &PosSession::stateKeys()
         u"lines"_s, u"totals"_s, u"payments"_s, u"selectedLine"_s, u"selectedPayment"_s, u"openChecks"_s, u"floor"_s, u"deliveries"_s, u"drivers"_s, u"popularItems"_s, u"stockLeft"_s, u"dashboard"_s, u"checklists"_s,
         u"checkFilter"_s, u"kitchenTickets"_s, u"drawer"_s, u"day"_s, u"days"_s, u"adminRevision"_s,
         u"tipsOwed"_s, u"mealPeriods"_s, u"pairing"_s, u"screenMode"_s, u"terminalLook"_s, u"terminalKeyboard"_s, u"cardReader"_s, u"readerToken"_s, u"counterCharge"_s, u"receiptOffer"_s,
-        u"closedChecks"_s, u"staff"_s, u"checkHistory"_s, u"choosing"_s, u"weighing"_s, u"setup"_s, u"soldOut"_s, u"menuItems"_s, u"menuCategories"_s, u"choiceGroups"_s, u"onBreakSince"_s,
+        u"closedChecks"_s, u"staff"_s, u"checkHistory"_s, u"choosing"_s, u"weighing"_s, u"setup"_s, u"soldOut"_s, u"menuItems"_s, u"menuCategories"_s, u"choiceGroups"_s, u"menuTemplates"_s, u"onBreakSince"_s,
         u"customers"_s, u"customer"_s, u"giftCard"_s, u"waitlist"_s, u"customerPrompt"_s, u"schedule"_s, u"nextShift"_s, u"rangeReport"_s, u"expoTickets"_s, u"approval"_s, u"training"_s, u"autoLogoutMinutes"_s, u"screenSaverMinutes"_s, u"storeImages"_s, u"storeLogo"_s, u"kitchenStations"_s, u"kitchenStation"_s, u"messages"_s, u"network"_s, u"printerAlerts"_s, u"language"_s, u"userPrefs"_s, u"storeLanguage"_s, u"selfOrder"_s, u"kioskMenu"_s, u"clockInJobs"_s, u"timeClock"_s, u"receiving"_s, u"checkSearch"_s,
     };
     return keys;
@@ -59,7 +59,7 @@ QVariantMap PosSession::snapshot() const
         {u"mealPeriods"_s, mealPeriods()}, {u"pairing"_s, pairingInfo()}, {u"screenMode"_s, screenMode()}, {u"terminalLook"_s, terminalLook()}, {u"terminalKeyboard"_s, terminalKeyboard()},
         {u"cardReader"_s, terminalCardReader()}, {u"readerToken"_s, readerToken()}, {u"counterCharge"_s, counterCharge()}, {u"receiptOffer"_s, receiptOffer()},
         {u"closedChecks"_s, closedChecks()}, {u"staff"_s, staff()}, {u"checkHistory"_s, checkHistory()},
-        {u"choosing"_s, choosingInfo()}, {u"weighing"_s, weighingInfo()}, {u"setup"_s, setupInfo()}, {u"soldOut"_s, soldOut()}, {u"menuItems"_s, menuItems()}, {u"menuCategories"_s, menuCategories()}, {u"choiceGroups"_s, choiceGroups()},
+        {u"choosing"_s, choosingInfo()}, {u"weighing"_s, weighingInfo()}, {u"setup"_s, setupInfo()}, {u"soldOut"_s, soldOut()}, {u"menuItems"_s, menuItems()}, {u"menuCategories"_s, menuCategories()}, {u"choiceGroups"_s, choiceGroups()}, {u"menuTemplates"_s, menuTemplates()},
         {u"onBreakSince"_s, onBreakSince()},
         {u"customers"_s, customerResults()}, {u"customer"_s, customerInfo()}, {u"giftCard"_s, giftCardInfo()},
         {u"waitlist"_s, waitlistInfo()}, {u"customerPrompt"_s, customerPrompt()},

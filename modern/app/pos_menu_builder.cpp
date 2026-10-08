@@ -537,6 +537,71 @@ int PosService::addMenuItemsFromText(const QString &categoryId, const QString &t
     return added;
 }
 
+// Rows read from a spreadsheet (LayoutController::readMenuFile): each in
+// its category (made if new; none named: `categoryId`); an item already on
+// the menu is skipped, or gets the new price with `updatePrices`.
+int PosService::importMenuRows(const QVariantList &rows, const QString &categoryId, bool updatePrices)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return 0;
+    int added = 0, updated = 0;
+    QStringList skipped;
+    for (const QVariant &v : rows) {
+        const QVariantMap r = v.toMap();
+        const QString name = r.value(u"name"_s).toString().trimmed();
+        const double price = r.value(u"price"_s).toDouble();
+        QString category = categoryId;
+        if (const QString wanted = r.value(u"category"_s).toString().trimmed(); !wanted.isEmpty()) {
+            const auto cats = s_->categories();
+            const auto c = std::ranges::find_if(cats, [&](const MenuCategory &x) {
+                return QString::compare(qs(x.name), wanted, Qt::CaseInsensitive) == 0 || qs(x.id) == wanted;
+            });
+            if (c == cats.end()) {
+                if (!saveCategory({{u"name"_s, wanted}}))
+                    return added;
+                for (const MenuCategory &x : s_->categories())
+                    if (qs(x.name) == wanted)
+                        category = qs(x.id);
+            } else {
+                category = qs(c->id);
+            }
+        }
+        if (category.isEmpty()) {
+            fail(tr("%1 has no category: choose one, or add a Category column.").arg(name));
+            return added;
+        }
+        auto existing = std::ranges::find_if(s_->menu, [&](const MenuItem &m) {
+            return !m.isModifier && QString::compare(qs(m.name), name, Qt::CaseInsensitive) == 0;
+        });
+        if (existing != s_->menu.end()) {
+            if (!updatePrices) {
+                skipped << name;
+                continue;
+            }
+            if (!saveMenuItemCard({{u"id"_s, qs(existing->id)}, {u"name"_s, qs(existing->name)},
+                                   {u"price"_s, QString::number(price, 'f', 2)}}))
+                return added;
+            ++updated;
+            continue;
+        }
+        QVariantMap card{{u"name"_s, name}, {u"price"_s, QString::number(price, 'f', 2)}, {u"family"_s, category}};
+        if (const QString d = r.value(u"description"_s).toString().trimmed(); !d.isEmpty())
+            card.insert(u"description"_s, d);
+        if (const QString on = r.value(u"onIt"_s).toString().trimmed(); !on.isEmpty())
+            card.insert(u"onIt"_s, on);
+        if (!saveMenuItemCard(card))
+            return added;
+        ++added;
+    }
+    QString what = tr("Added %n item(s)", nullptr, added);
+    if (updated)
+        what += u"; "_s + tr("new prices for %n", nullptr, updated);
+    if (!skipped.isEmpty())
+        what += u"; "_s + tr("already on the menu: %1").arg(skipped.join(u", "_s));
+    emit notice(what);
+    return added + updated;
+}
+
 bool PosService::deleteMenuItemCard(const QString &id)
 {
     if (!require(perm::Manager, tr("Changing the menu")))

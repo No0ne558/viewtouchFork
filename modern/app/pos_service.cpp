@@ -2420,6 +2420,9 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"deleteMenuItemCard"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.deleteMenuItemCard(a.value(0).toString())); }},
         {u"saveChoiceGroup"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.saveChoiceGroup(a.value(0).toMap())); }},
         {u"duplicateMenuItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.duplicateMenuItem(a.value(0).toString())); }},
+        {u"applyMenuTemplate"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.applyMenuTemplate(a.value(0).toString())); }},
+        {u"importMenuRows"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.importMenuRows(a.value(0).toList(), a.value(1).toString(), a.value(2).toBool()) > 0); }},
         {u"addMenuItemsFromText"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.addMenuItemsFromText(a.value(0).toString(), a.value(1).toString()) > 0); }},
         {u"deleteChoiceGroup"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.deleteChoiceGroup(a.value(0).toString())); }},

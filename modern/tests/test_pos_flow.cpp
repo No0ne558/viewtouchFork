@@ -5016,6 +5016,12 @@ TEST_CASE("UI: the Menu Builder adds several at once, and duplicates one", "[flo
     QTest::qWait(100);
     QQuickItem *root = s.window->contentItem();
     const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    // Down the categories list, as a finger would scroll it.
+    QQuickItem *plates = by(u"builderCategory-plates"_s);
+    REQUIRE(plates);
+    QQuickItem *list = plates->parentItem()->parentItem();   // the ListView
+    QMetaObject::invokeMethod(list, "positionViewAtIndex", Q_ARG(int, 3), Q_ARG(int, 2 /* Contain */));
+    QTest::qWait(60);
     s.tapItem(by(u"builderCategory-plates"_s));
     QTest::qWait(60);
     s.tapItem(by(u"builderAddSeveral"_s));

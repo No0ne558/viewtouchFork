@@ -141,6 +141,8 @@ class PosSession : public QObject {
     // Every choice group: [{id, name, min, max, rule, askHow, menuItems, own,
     // options: [{name, price, included, kitchenName, kitchenHide}], usedBy: [names]}].
     Q_PROPERTY(QVariantList choiceGroups READ choiceGroups NOTIFY adminChanged)
+    // Starter menus by kind of place: [{id, name, description, categories, items}].
+    Q_PROPERTY(QVariantList menuTemplates READ menuTemplates NOTIFY adminChanged)
     // The current check's history [{time, who, what}].
     Q_PROPERTY(QVariantList checkHistory READ checkHistory NOTIFY checkChanged)
     Q_PROPERTY(QString checkFilter READ checkFilter WRITE setCheckFilter NOTIFY openChecksChanged)
@@ -283,6 +285,7 @@ public:
     virtual QVariantList menuItems() const = 0;
     virtual QVariantList menuCategories() const = 0;
     virtual QVariantList choiceGroups() const = 0;
+    virtual QVariantList menuTemplates() const = 0;
     virtual QString checkFilter() const = 0;
     virtual QVariantList kitchenTickets() const = 0;
     virtual QVariantList expoTickets() const = 0;
@@ -419,6 +422,8 @@ public:
     Q_INVOKABLE void deleteMenuItemCard(const QString &id) { invoke(QStringLiteral("deleteMenuItemCard"), {id}); }
     Q_INVOKABLE void saveChoiceGroup(const QVariantMap &record) { invoke(QStringLiteral("saveChoiceGroup"), {record}); }
     Q_INVOKABLE void duplicateMenuItem(const QString &id) { invoke(QStringLiteral("duplicateMenuItem"), {id}); }
+    Q_INVOKABLE void applyMenuTemplate(const QString &id) { invoke(QStringLiteral("applyMenuTemplate"), {id}); }
+    Q_INVOKABLE void importMenuRows(const QVariantList &rows, const QString &categoryId, bool updatePrices) { invoke(QStringLiteral("importMenuRows"), {rows, categoryId, updatePrices}); }
     Q_INVOKABLE void addMenuItemsFromText(const QString &categoryId, const QString &text) { invoke(QStringLiteral("addMenuItemsFromText"), {categoryId, text}); }
     Q_INVOKABLE void deleteChoiceGroup(const QString &id) { invoke(QStringLiteral("deleteChoiceGroup"), {id}); }
     Q_INVOKABLE void finishChoosing() { invoke(QStringLiteral("finishChoosing")); }
