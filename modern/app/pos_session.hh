@@ -374,6 +374,7 @@ public:
     Q_INVOKABLE void fireCourse() { invoke(QStringLiteral("fireCourse")); }
     Q_INVOKABLE void fireCourseIn(int minutes) { invoke(QStringLiteral("fireCourseIn"), {minutes}); }
     Q_INVOKABLE void chooseOption(const QString &groupId, int index) { invoke(QStringLiteral("chooseOption"), {groupId, index}); }
+    Q_INVOKABLE void chooseOptionAs(const QString &groupId, int index, const QString &qualifier) { invoke(QStringLiteral("chooseOptionAs"), {groupId, index, qualifier}); }
     Q_INVOKABLE void finishChoosing() { invoke(QStringLiteral("finishChoosing")); }
     Q_INVOKABLE void cancelChoosing() { invoke(QStringLiteral("cancelChoosing")); }
     Q_INVOKABLE void backupNow() { invoke(QStringLiteral("backupNow")); }

@@ -22,9 +22,12 @@ std::string PosService::currentMealPeriod() const
 // --- choosing modifiers ---------------------------------------------------------------------
 
 namespace {
+// Choices made in a group ("No Onion" leaves something off: it isn't one).
 int chosenIn(const OrderLine &l, const std::string &group)
 {
-    return int(std::ranges::count_if(l.modifiers, [&](const Modifier &m) { return m.group == group; }));
+    return int(std::ranges::count_if(l.modifiers, [&](const Modifier &m) {
+        return m.group == group && m.qualifier != Qualifier::No;
+    }));
 }
 } // namespace
 
@@ -43,13 +46,17 @@ QVariantMap PosService::choosingInfo() const
         QVariantList options;
         for (int i = 0; i < int(g->options.size()); ++i) {
             const ModifierOption &o = g->options[i];
-            const bool chosen = std::ranges::any_of(l->modifiers, [&](const Modifier &m) {
+            const auto it = std::ranges::find_if(l->modifiers, [&](const Modifier &m) {
                 return m.group == g->id && m.name == o.name;
             });
+            const bool chosen = it != l->modifiers.end();
             const MenuItem *linked = o.itemId.empty() ? nullptr : findItem(qs(o.itemId));
             options.append(QVariantMap{{u"index"_s, i}, {u"name"_s, qs(o.name)},
                                        {u"price"_s, o.price.cents() ? format(o.price) : QString()},
-                                       {u"chosen"_s, chosen}, {u"soldOut"_s, linked && !linked->available}});
+                                       {u"chosen"_s, chosen}, {u"soldOut"_s, linked && !linked->available},
+                                       // "No", "Extra"...: how it was chosen (and the price that way)
+                                       {u"qualifier"_s, chosen ? qs(qualifierPrefix(it->qualifier)).trimmed() : QString()},
+                                       {u"chosenPrice"_s, chosen && it->price().cents() ? format(it->price()) : QString()}});
         }
         const int n = chosenIn(*l, g->id);
         const QString rule = g->min == 1 && g->max == 1 ? tr("Choose 1")
@@ -105,15 +112,29 @@ bool PosService::chooseOption(const QString &groupId, int index)
         return false;
     const ModifierOption &o = g->options[index];
     const MenuItem *linked = o.itemId.empty() ? nullptr : findItem(qs(o.itemId));
-    // Touching a chosen option takes it off.
+    // A qualifier touched first: No onion, Extra cheese, Lite mayo, ranch on the Side.
+    const Qualifier q = qualifier_;
+    if (q != Qualifier::None) {
+        qualifier_ = Qualifier::None;
+        emit qualifierChanged();
+    }
+    if (q == Qualifier::Sub)
+        return fail(tr("Sub is for menu items: touch Sub, then the item to swap in."));
+    // Touching a chosen option takes it off (or, with a qualifier, changes how it's had).
     auto same = [&](const Modifier &m) { return m.group == g->id && m.name == o.name; };
-    if (std::ranges::any_of(l->modifiers, same)) {
+    const auto had = std::ranges::find_if(l->modifiers, same);
+    if (had != l->modifiers.end() && (q == Qualifier::None || had->qualifier == q)) {
         std::erase_if(l->modifiers, same);
     } else {
-        if (g->max == 1)   // one choice: the new one replaces it
-            std::erase_if(l->modifiers, [&](const Modifier &m) { return m.group == g->id; });
-        else if (g->max > 1 && chosenIn(*l, g->id) >= g->max)
-            return fail(tr("%1: up to %2.").arg(qs(g->name)).arg(g->max));
+        if (had != l->modifiers.end())
+            std::erase_if(l->modifiers, same);   // the same option, another way
+        // "No" leaves something off: it doesn't replace the group's choice or count toward it.
+        if (q != Qualifier::No) {
+            if (g->max == 1)   // one choice: the new one replaces it
+                std::erase_if(l->modifiers, [&](const Modifier &m) { return m.group == g->id && m.qualifier != Qualifier::No; });
+            else if (g->max > 1 && chosenIn(*l, g->id) >= g->max)
+                return fail(tr("%1: up to %2.").arg(qs(g->name)).arg(g->max));
+        }
         if (linked && !linked->available)
             return fail(tr("%1 is sold out.").arg(qs(o.name)));
         Modifier m;
@@ -121,7 +142,8 @@ bool PosService::chooseOption(const QString &groupId, int index)
         if (linked)
             m.station = linked->station;   // made at the fryer, say
         m.name = o.name;
-        m.unitPrice = o.price;
+        m.unitPrice = q == Qualifier::Extra ? s_->settings.withExtra(o.price) : o.price;
+        m.qualifier = q;
         m.group = g->id;
         m.kitchenName = o.kitchenName;
         m.kitchenHide = o.kitchenHide;
@@ -137,6 +159,12 @@ bool PosService::chooseOption(const QString &groupId, int index)
     }
     changed(*c);
     return true;
+}
+
+bool PosService::chooseOptionAs(const QString &groupId, int index, const QString &qualifier)
+{
+    qualifier_ = qualifierFromString(ss(qualifier));
+    return chooseOption(groupId, index);
 }
 
 bool PosService::finishChoosing()

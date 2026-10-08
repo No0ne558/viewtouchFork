@@ -19,8 +19,11 @@ Rectangle {
     property string fontFamily: "DejaVu Sans"
     property real fontScale: 0.42
     property bool accent: false
+    // Held down (half a second): held() instead of clicked(), for keys that say so.
+    property bool holdable: false
 
     signal clicked()
+    signal held()
 
     radius: keySt.keyRadius !== undefined ? keySt.keyRadius : Math.min(width, height) * 0.14
     color: tap.pressed || accent ? (keySt.keyLitFill ?? (tap.pressed ? "#4c8dff" : "#1f8a4c")) : baseColor
@@ -42,6 +45,8 @@ Rectangle {
 
     TapHandler {
         id: tap
+        longPressThreshold: key.holdable ? 0.5 : 0.8
         onTapped: key.clicked()
+        onLongPressed: if (key.holdable) key.held()
     }
 }

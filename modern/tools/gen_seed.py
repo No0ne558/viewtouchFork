@@ -101,9 +101,11 @@ for bid in ("pancakes", "french-toast"):
 item("kids-burger")["modifierGroups"] = ["kids-side", "kids-drink"]
 # Burgers ask how they're cooked and for a side (the veggie patty just the side),
 # on staff screens and the self-order kiosk alike.
+# Toppings: what comes on it, to leave off (No Onion), go easy on (Lite) or
+# double (Extra), and add-ons at a price.
 for bid in ("classic-burger", "cheeseburger", "bacon-burger", "mushroom-swiss", "burger-of-the-day"):
-    item(bid)["modifierGroups"] = ["temperature", "side"]
-item("veggie-burger")["modifierGroups"] = ["side"]
+    item(bid)["modifierGroups"] = ["temperature", "side", "toppings"]
+item("veggie-burger")["modifierGroups"] = ["side", "toppings"]
 for did in ("soda", "lemonade", "juice"):
     item(did)["modifierGroups"] = ["drink-size"]
 item("coffee")["modifierGroups"] = ["coffee-extras"]
@@ -326,6 +328,11 @@ write("pos/settings.json", {
         {"id": "side", "name": "Side", "min": 1, "max": 1, "menuItems": True,   # "No Side": nothing for the kitchen
          "options": [dict({"name": n, "price": p}, **({"kitchenHide": True} if n == "No Side" else {}))
                      for n, p in SIDES]},
+        {"id": "toppings", "name": "Toppings", "min": 0, "max": 0,
+         "options": [{"name": n, "price": p, "kitchenName": k} for n, p, k in
+                     (("Lettuce", 0, "LETT"), ("Tomato", 0, "TOM"), ("Onion", 0, "ONION"), ("Pickles", 0, "PICK"),
+                      ("Mayo", 0, "MAYO"), ("Cheese", 1.00, "CHZ"), ("Bacon", 2.00, "BCN"), ("Avocado", 1.50, "AVO"),
+                      ("Jalapeños", 0.75, "JAL"))]},
         {"id": "combo-drink", "name": "Drink", "min": 1, "max": 1, "menuItems": True,
          "options": [{"name": "Soda", "price": 0}, {"name": "Tea", "price": 0}, {"name": "Lemonade", "price": 0.30},
                      {"name": "Juice", "price": 0.55}, {"name": "Draft Beer", "price": 3.00}]},

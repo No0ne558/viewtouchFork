@@ -9,7 +9,8 @@
     "number": "101",
     "modifierGroups": [
       "temperature",
-      "side"
+      "side",
+      "toppings"
     ],
     "periodPrices": {
       "dinner": 12.5
@@ -41,7 +42,8 @@
     "number": "102",
     "modifierGroups": [
       "temperature",
-      "side"
+      "side",
+      "toppings"
     ],
     "kitchenColor": "orange",
     "station": "grill",
@@ -74,7 +76,8 @@
     "number": "103",
     "modifierGroups": [
       "temperature",
-      "side"
+      "side",
+      "toppings"
     ],
     "periodPrices": {
       "dinner": 14.5
@@ -111,7 +114,8 @@
     "number": "104",
     "modifierGroups": [
       "temperature",
-      "side"
+      "side",
+      "toppings"
     ],
     "kitchenName": "MUSH SWS",
     "kitchenColor": "orange",
@@ -144,7 +148,8 @@
     "printer": "kitchen",
     "number": "105",
     "modifierGroups": [
-      "side"
+      "side",
+      "toppings"
     ],
     "kitchenColor": "orange",
     "station": "grill",
@@ -199,7 +204,8 @@
     "number": "107",
     "modifierGroups": [
       "temperature",
-      "side"
+      "side",
+      "toppings"
     ],
     "kitchenName": "BOTD",
     "kitchenColor": "orange",

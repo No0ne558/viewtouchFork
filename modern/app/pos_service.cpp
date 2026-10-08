@@ -838,6 +838,11 @@ bool PosService::addItem(const QString &idOrName)
     Check &c = *current();
 
     const Qualifier q = qualifier_;
+    // No / Lite / Side go on a choice or an add-on, not a whole item: still
+    // waiting for one. (Extra on an item is a bigger portion; Sub swaps one in.)
+    if ((q == Qualifier::No || q == Qualifier::Lite || q == Qualifier::Side) && !item->isModifier)
+        return fail(tr("%1 goes on a choice: touch Choose on the item, then what to change.")
+                        .arg(qs(qualifierPrefix(q)).trimmed()));
     // "Extra" costs what the store says (Store Settings), on top of the price.
     const auto extra = [&](Money price) { return q == Qualifier::Extra ? s_->settings.withExtra(price) : price; };
     if (q == Qualifier::Sub && !item->isModifier) {
@@ -909,6 +914,15 @@ void PosService::setQualifier(const QString &qualifier)
     const Qualifier q = qualifierFromString(ss(qualifier));
     qualifier_ = (q == qualifier_) ? Qualifier::None : q;
     emit qualifierChanged();
+    // What it's waiting for.
+    switch (qualifier_) {
+    case Qualifier::No: emit notice(tr("No: now touch what to leave off")); break;
+    case Qualifier::Lite: emit notice(tr("Lite: now touch what to go easy on")); break;
+    case Qualifier::Extra: emit notice(tr("Extra: now touch a choice, or an item for a bigger portion")); break;
+    case Qualifier::Side: emit notice(tr("Side: now touch what goes on the side")); break;
+    case Qualifier::Sub: emit notice(tr("Sub: now touch the item to swap in")); break;
+    default: break;
+    }
 }
 
 void PosService::selectLine(qint64 lineId)
@@ -2289,6 +2303,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"payOnAccount"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.payOnAccount(a.value(0).toString(), a.value(1).toLongLong())); }},
         {u"setSeat"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setSeat(a.value(0).toInt())); }},
+        {u"chooseOptionAs"_s, [](PosService &p, const QVariantList &a) {
+             return QVariant(p.chooseOptionAs(a.value(0).toString(), a.value(1).toInt(), a.value(2).toString())); }},
         {u"chooseOption"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.chooseOption(a.value(0).toString(), a.value(1).toInt())); }},
         {u"finishChoosing"_s, [](PosService &p, const QVariantList &) { return QVariant(p.finishChoosing()); }},

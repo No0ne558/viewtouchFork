@@ -3997,3 +3997,53 @@ TEST_CASE("Order screen: swipe a line, same as last time, deliveries board", "[u
     QTest::qWait(50);
     CHECK(s.pos.checkInfo()[u"id"_s].toLongLong() == ana);
 }
+
+TEST_CASE("Qualifiers: No opens the item's choices; hold a choice for Lite / Extra / Side", "[ui][qualifiers]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    s.c.orderItem(u"classic-burger"_s);
+    QTest::qWait(80);
+    REQUIRE(s.pos.chooseOption(u"temperature"_s, 2));
+    REQUIRE(s.pos.chooseOption(u"side"_s, 0));
+    s.c.finishChoosing();
+    QTest::qWait(80);
+    const QString menuPage = s.c.pageId();
+    CHECK(menuPage == u"items-burgers"_s);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+
+    // No: the burger's choices open, waiting for what to leave off.
+    s.c.activate(u"flow-no"_s);
+    QTest::qWait(120);
+    CHECK(s.pos.pendingQualifier() == u"no"_s);
+    CHECK(s.c.pageId() != menuPage);
+    QQuickItem *onion = by(u"option-Onion"_s);
+    REQUIRE(onion);
+    s.tapItem(onion);
+    QTest::qWait(50);
+    CHECK(by(u"option-Onion"_s)->property("text").toString().startsWith(u"No Onion"_s));
+
+    // Held: how to have it.
+    QQuickItem *bacon = by(u"option-Tomato"_s);   // in view, beside the onion
+    REQUIRE(bacon);
+    const QPoint at = bacon->mapToScene(QPointF(bacon->width() / 2, bacon->height() / 2)).toPoint();
+    QTest::mousePress(s.window, Qt::LeftButton, {}, at);
+    QTest::qWait(700);
+    QTest::mouseRelease(s.window, Qt::LeftButton, {}, at);
+    QTest::qWait(50);
+    REQUIRE(by(u"qualifierSheet"_s));
+    s.shot("qual-1-hold");
+    s.tapItem(by(u"how-extra"_s));
+    QTest::qWait(50);
+    CHECK_FALSE(by(u"qualifierSheet"_s));
+    CHECK(by(u"option-Tomato"_s)->property("text").toString().startsWith(u"Extra Tomato"_s));
+    s.shot("qual-2-chosen");
+    QStringList mods;
+    for (const QVariant &m : s.pos.lines().last().toMap()[u"modifiers"_s].toList())
+        mods << m.toMap()[u"name"_s].toString();
+    CHECK(mods.contains(u"No Onion"_s));
+    CHECK(mods.contains(u"Extra Tomato"_s));
+}

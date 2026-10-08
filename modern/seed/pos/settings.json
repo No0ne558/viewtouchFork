@@ -447,6 +447,59 @@
       ]
     },
     {
+      "id": "toppings",
+      "name": "Toppings",
+      "min": 0,
+      "max": 0,
+      "options": [
+        {
+          "name": "Lettuce",
+          "price": 0,
+          "kitchenName": "LETT"
+        },
+        {
+          "name": "Tomato",
+          "price": 0,
+          "kitchenName": "TOM"
+        },
+        {
+          "name": "Onion",
+          "price": 0,
+          "kitchenName": "ONION"
+        },
+        {
+          "name": "Pickles",
+          "price": 0,
+          "kitchenName": "PICK"
+        },
+        {
+          "name": "Mayo",
+          "price": 0,
+          "kitchenName": "MAYO"
+        },
+        {
+          "name": "Cheese",
+          "price": 1.0,
+          "kitchenName": "CHZ"
+        },
+        {
+          "name": "Bacon",
+          "price": 2.0,
+          "kitchenName": "BCN"
+        },
+        {
+          "name": "Avocado",
+          "price": 1.5,
+          "kitchenName": "AVO"
+        },
+        {
+          "name": "Jalape\u00f1os",
+          "price": 0.75,
+          "kitchenName": "JAL"
+        }
+      ]
+    },
+    {
       "id": "combo-drink",
       "name": "Drink",
       "min": 1,

@@ -1016,7 +1016,28 @@ void LayoutController::runAction(const Action &a, Done done)
             setStatus(tr("Qualifier: %1").arg(a.str(u"qualifier")));
             return done(true);
         }
-        return call(u"setQualifier"_s, {a.str(u"qualifier")}, [done](const QVariant &) { done(true); });
+        return call(u"setQualifier"_s, {a.str(u"qualifier")}, [this, done](const QVariant &) {
+            done(true);
+            // No / Lite / Side go on a choice: the touched item's (or the newest
+            // one's) Choose page opens, if it has choices and isn't sent. (Extra
+            // can also be a bigger portion of the next item; Sub swaps one in.)
+            const QString q = pos_ ? pos_->pendingQualifier() : QString();
+            if ((q != u"no" && q != u"lite" && q != u"side") || nav_.current() == rolePage(u"modifiers"_s))
+                return;
+            qint64 line = 0;
+            for (const QVariant &v : pos_->lines()) {
+                const QVariantMap l = v.toMap();
+                const bool choices = l.value(u"choices"_s).toBool();
+                if (l.value(u"selected"_s).toBool()) {   // the touched item, or nothing
+                    line = choices ? l.value(u"id"_s).toLongLong() : 0;
+                    break;
+                }
+                if (choices)
+                    line = l.value(u"id"_s).toLongLong();   // else the newest with choices
+            }
+            if (line)
+                QMetaObject::invokeMethod(this, [this, line] { chooseLine(line); }, Qt::QueuedConnection);
+        });
     }
 
     if (type == u"tender") {

@@ -371,6 +371,8 @@ public:
     // An item with modifier groups opens choosing: choose options, then
     // finish (required groups must be satisfied) or cancel (the item comes off).
     bool chooseOption(const QString &groupId, int index);
+    // The same, as "no", "lite", "extra" or "side" (held down on the Choose page).
+    bool chooseOptionAs(const QString &groupId, int index, const QString &qualifier);
     bool finishChoosing();
     bool cancelChoosing();
     // Choose again for an unsent item already on the check.

@@ -553,3 +553,66 @@ TEST_CASE("Event tickets: only as many as there are seats, kept across days, not
     clock = when.addSecs(60).toMSecsSinceEpoch();
     CHECK_FALSE(pos.addItem(u"wine-dinner-ticket"_s));
 }
+
+TEST_CASE("Qualifiers on choices: No onion, Extra bacon, Lite, on the Side", "[menu][qualifiers]")
+{
+    app::PosService pos(test::seedPosData(), nullptr);
+    pos.shared()->settings.extraPercent = 50;
+    pos.shared()->settings.extraCharge = Money();
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    REQUIRE(pos.addItem(u"classic-burger"_s));
+    const auto option = [&](const QString &group, const QString &name) {
+        for (const QVariant &g : pos.choosingInfo()[u"groups"_s].toList())
+            if (g.toMap()[u"id"_s] == group)
+                for (const QVariant &o : g.toMap()[u"options"_s].toList())
+                    if (o.toMap()[u"name"_s] == name)
+                        return o.toMap();
+        return QVariantMap();
+    };
+    const auto mods = [&] {
+        QStringList out;
+        for (const QVariant &m : pos.lines().last().toMap()[u"modifiers"_s].toList())
+            out << m.toMap()[u"name"_s].toString() + u' ' + m.toMap()[u"price"_s].toString();
+        return out;
+    };
+    REQUIRE(pos.chooseOption(u"temperature"_s, 2));   // Medium
+    REQUIRE(pos.chooseOption(u"side"_s, 0));
+
+    // No onion: free, and doesn't count as a choice.
+    pos.setQualifier(u"no"_s);
+    CHECK(pos.chooseOption(u"toppings"_s, option(u"toppings"_s, u"Onion"_s)[u"index"_s].toInt()));
+    CHECK(pos.pendingQualifier().isEmpty());                       // used up
+    CHECK(option(u"toppings"_s, u"Onion"_s)[u"qualifier"_s] == u"No"_s);
+    CHECK(mods().contains(u"No Onion "_s));
+
+    // Extra bacon: $2.00 + 50%.
+    REQUIRE(pos.chooseOptionAs(u"toppings"_s, option(u"toppings"_s, u"Bacon"_s)[u"index"_s].toInt(), u"extra"_s));
+    CHECK(mods().contains(u"Extra Bacon $3.00"_s));
+    // Touched again as Lite: the same bacon, another way (and free).
+    REQUIRE(pos.chooseOptionAs(u"toppings"_s, option(u"toppings"_s, u"Bacon"_s)[u"index"_s].toInt(), u"lite"_s));
+    CHECK(option(u"toppings"_s, u"Bacon"_s)[u"qualifier"_s] == u"Lite"_s);
+    CHECK(std::ranges::count_if(mods(), [](const QString &m) { return m.contains(u"Bacon"_s); }) == 1);
+    // The same way again: off.
+    REQUIRE(pos.chooseOptionAs(u"toppings"_s, option(u"toppings"_s, u"Bacon"_s)[u"index"_s].toInt(), u"lite"_s));
+    CHECK_FALSE(option(u"toppings"_s, u"Bacon"_s)[u"chosen"_s].toBool());
+
+    // "No" in a choose-one group doesn't take the place of the choice.
+    pos.setQualifier(u"no"_s);
+    REQUIRE(pos.chooseOption(u"side"_s, 1));
+    CHECK(option(u"side"_s, pos.choosingInfo()[u"groups"_s].toList()[1].toMap()[u"options"_s].toList()[0]
+                                .toMap()[u"name"_s].toString())[u"chosen"_s].toBool());
+    REQUIRE(pos.finishChoosing());                                  // still has its side
+
+    // No / Lite / Side on a whole item: waits for a choice instead.
+    pos.setQualifier(u"no"_s);
+    const int before = int(pos.lines().size());
+    CHECK_FALSE(pos.addItem(u"cobb"_s));
+    CHECK(pos.lines().size() == before);
+    CHECK(pos.pendingQualifier() == u"no"_s);                       // still armed
+    pos.setQualifier(u"no"_s);                                      // touched again: off
+    CHECK(pos.pendingQualifier().isEmpty());
+
+    // The kitchen sees it.
+    CHECK(QString::fromStdString(pos.shared()->open.begin()->second.lines.front().modifiers[2].kitchenText()) == u"No ONION"_s);
+}

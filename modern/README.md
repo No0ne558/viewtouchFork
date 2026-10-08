@@ -388,7 +388,7 @@ Where pennies are gone (Canada, and elsewhere): Manager → Taxes → *Cash roun
 Log in with a demo PIN: **1234** (manager), **1111** (server) or **2222** (cashier). Then:
 
 1. Touch a table on the floor plan and enter the number of guests. Quick Order and Takeout skip the table.
-2. Order from the menu pages. Burgers walk through Temperature and then Side. Tap No / Extra / Lite / Side before an item to qualify it. Touch a line in the check to select it.
+2. Order from the menu pages. Burgers walk through Temperature and then Side. Tap No / Lite / Side and the touched item's choices open; touch the topping ("No Onion"). Or hold a choice on the Choose page for No / Lite / Extra / On the Side. Extra on a whole item is a bigger portion; Sub, then a substitute item, swaps a side. Touch a line in the check to select it.
 3. **Send** the order. **Void** removes an item that hasn't been sent; voiding a sent item needs a manager.
 4. **Pay**, then type an amount (or use the balance due) and choose a payment: Cash gives change, card payments are capped at the balance, and 10% Off and Comp are discounts. Then **Close Check**. Cash needs an open drawer: **Drawer…** on the Settle page.
 5. **Split Check** on the Settle page moves items to another check at the same table. Touching a table that has several checks lets you choose one.
@@ -400,7 +400,9 @@ Log in with a demo PIN: **1234** (manager), **1111** (server) or **2222** (cashi
   - pancakes and French toast: syrup
   - add-ons on breakfast items
   - the Kids Burger: side and drink
+  - burgers: toppings (lettuce, tomato, onion, pickles, mayo; cheese, bacon, avocado, jalapeños at a price)
   - drinks: soda, lemonade and juice sizes, coffee extras, tea hot or iced, draft beer choice, wine color and glass or bottle
+- **Qualifiers on choices.** With No / Lite / Extra / Side lit, the next choice touched is had that way (*No Onion*, *Extra Bacon* at the Extra price, *Lite Mayo*, *Side of Ranch*); arming No / Lite / Side on a menu page opens the touched (or newest) unsent item's Choose page. Holding a choice opens No / Lite / Extra / On the Side for it. The same choice the same way again takes it off; another way changes it. "No" choices don't count toward a group's minimum or maximum, and a choose-one group's choice stays. No / Lite / Side on a whole item waits for a choice instead (Extra on an item is a bigger portion; Sub swaps in a substitute).
 - An item still missing a required choice can't be sent, fired or closed. Its **Choose** button on the check (amber) reopens its choices.
 - **Prices by meal period** (Manager → Menu → *Prices by meal period*, e.g. `dinner = 14.50`): an item costs that during the period. Make a *Happy Hour* meal period for happy-hour prices. Items already on a check keep their price.
 - **Sold out (86):** Check Options or Manager → **Sold Out (86)…**. Touch an item to 86 it or bring it back. Its menu buttons say **SOLD OUT** and can't be ordered, on every terminal. Anyone taking orders can do this.
