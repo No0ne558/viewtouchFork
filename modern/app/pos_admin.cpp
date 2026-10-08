@@ -307,6 +307,9 @@ QVariantList PosService::adminFields(const QString &panel)
             with(field(u"charset"_s, tr("Letters"), u"enum"_s,
                        tr("Accented letters (ñ, é), ¿ ¡, £ and € on Epson and most receipt printers; plain letters for a printer that shows them wrong.")),
                  u"options"_s, options({{"", "Accented letters (PC858)"}, {"ascii", "Plain letters only"}})),
+            field(u"watch"_s, tr("Warn when it's out of paper"), u"bool"_s,
+                  tr("Network ESC/POS printers: every screen says when it's out of paper or low, its cover is "
+                     "open, or it stops answering. Turn off for a printer that doesn't report it.")),
             field(u"receipts"_s, tr("Prints receipts"), u"bool"_s,
                   tr("Offered when a screen asks where to print a receipt (handhelds: Terminals -> Ask each time).")),
         };
@@ -821,7 +824,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"printers")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"type"_s, u"network"_s}, {u"host"_s, QString()},
                 {u"port"_s, 9100}, {u"path"_s, QString()}, {u"format"_s, QString()}, {u"width"_s, 42},
-                {u"cutter"_s, true}, {u"drawerKick"_s, false}, {u"receipts"_s, true}, {u"charset"_s, QString()}};
+                {u"cutter"_s, true}, {u"drawerKick"_s, false}, {u"receipts"_s, true}, {u"charset"_s, QString()}, {u"watch"_s, true}};
     return {};
 }
 

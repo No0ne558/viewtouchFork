@@ -28,6 +28,8 @@ public:
 
     void submit(const core::PrinterConfig &printer, const QByteArray &data, const QString &description);
     int pending() const;
+    // A ticket is waiting for, or on its way to, this network printer.
+    bool busy(const QString &host, int port) const;
     // Tests: process events until the queue is empty or `msec` passes.
     bool waitIdle(int msec);
 

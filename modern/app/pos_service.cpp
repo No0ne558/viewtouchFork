@@ -332,6 +332,38 @@ QVariantMap PosService::userPrefs() const
     return {{u"textSize"_s, e->textSize}, {u"leftHanded"_s, e->leftHanded}, {u"startPage"_s, qs(start)}};
 }
 
+void PosShared::setPrinterProblem(const std::string &printerId, const std::string &problem)
+{
+    const auto it = printerProblems.find(printerId);
+    if (problem.empty() ? it == printerProblems.end() : it != printerProblems.end() && it->second == problem)
+        return;
+    if (problem.empty())
+        printerProblems.erase(it);
+    else
+        printerProblems[printerId] = problem;
+    emit networkChanged();   // every screen's printerAlerts, and Manager -> Network
+}
+
+QVariantList PosService::printerAlerts() const
+{
+    QVariantList out;
+    for (const PrinterConfig &p : s_->settings.printers) {
+        const auto it = s_->printerProblems.find(p.id);
+        if (it == s_->printerProblems.end() || !p.watch)
+            continue;
+        const QString name = qs(p.name);
+        const std::string &what = it->second;
+        const QString text = what == "paperOut"    ? tr("%1: out of paper").arg(name)
+                             : what == "coverOpen" ? tr("%1: the cover is open").arg(name)
+                             : what == "paperLow"  ? tr("%1: paper running low").arg(name)
+                             : what == "offline"   ? tr("%1: not answering (power, cable or network?)").arg(name)
+                                                   : tr("%1 has a problem (a paper jam or the cutter?)").arg(name);
+        out.append(QVariantMap{{u"id"_s, qs(p.id)}, {u"name"_s, name}, {u"problem"_s, qs(what)}, {u"text"_s, text},
+                               {u"urgent"_s, what != "paperLow"}});
+    }
+    return out;
+}
+
 QVariantMap PosService::networkInfo() const
 {
     if (!can(u"manager"_s))

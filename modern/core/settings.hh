@@ -25,6 +25,9 @@ struct PrinterConfig {
     bool receipts = false;       // offered when a screen asks where a receipt goes
     // ESC/POS letters: empty = PC858 (accents, ñ, £ €; Epson and most), "ascii" = plain letters.
     std::string charset;
+    // Network ESC/POS: every screen says when it's out of paper, its cover
+    // is open, or it stops answering.
+    bool watch = true;
 
     std::string effectiveFormat() const { return !format.empty() ? format : type == "network" ? "escpos" : "text"; }
     bool operator==(const PrinterConfig &) const = default;

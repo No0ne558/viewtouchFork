@@ -10,6 +10,7 @@
 #include "net/standby.hh"
 #include "net/protocol.hh"
 #include "net/remote_session.hh"
+#include "print/printer_monitor.hh"
 #include "print/spooler.hh"
 #include "print/ticket_printer.hh"
 #include "storage/async_writer.hh"
@@ -881,6 +882,22 @@ int runStore(const Args &cli, const Options &o)
         if (!was)
             emit shared->networkChanged();
     });
+    // Out of paper, cover open, not answering: asked of each network ESC/POS
+    // printer (not while a ticket is on its way), told to every screen.
+    vt::print::PrinterMonitor printerMonitor;
+    printerMonitor.setBusy([&spooler](const QString &host, int port) { return spooler.busy(host, port); });
+    printerMonitor.setPrinters(shared->settings.printers);
+    QObject::connect(shared, &vt::app::PosShared::adminChanged, &printerMonitor,
+                     [shared, &printerMonitor] { printerMonitor.setPrinters(shared->settings.printers); });
+    QObject::connect(&printerMonitor, &vt::print::PrinterMonitor::statusChanged, shared,
+                     [shared, &pos](const QString &id, const QString &problem) {
+        shared->setPrinterProblem(id.toStdString(), problem.toStdString());
+        for (const QVariant &a : pos.printerAlerts())
+            if (a.toMap().value(u"id"_s).toString() == id)
+                qWarning().noquote() << "printer:" << a.toMap().value(u"text"_s).toString();
+    });
+    // A ticket that didn't go: ask that printer what's wrong now.
+    QObject::connect(&spooler, &vt::print::PrintSpooler::jobFailed, &printerMonitor, [&printerMonitor] { printerMonitor.checkNow(); });
     if (writer) {
         QObject::connect(writer.get(), &vt::storage::AsyncWriter::writeFailed, &pos, [&pos](const QString &error) {
             say(pos, QCoreApplication::translate("main", "Could not save to the database (will retry): %1").arg(error));
@@ -1120,6 +1137,8 @@ int runStore(const Args &cli, const Options &o)
             const QString name = QString::fromStdString(p.name);
             QVariantMap row = printerStatus->value(name, {{u"status"_s, u"unknown"_s}});
             row[u"name"_s] = name;
+            if (const auto it = shared->printerProblems.find(p.id); it != shared->printerProblems.end())
+                row[u"problem"_s] = QString::fromStdString(it->second);
             row[u"type"_s] = QString::fromStdString(p.type);
             row[u"where"_s] = p.type == "network" ? u"%1:%2"_s.arg(QString::fromStdString(p.host)).arg(p.port)
                                                   : QString::fromStdString(p.path);

@@ -613,6 +613,7 @@ QJsonObject toJson(const PrinterConfig &p)
                   {u"receipts"_s, p.receipts}};
     if (!p.charset.empty())
         o.insert(u"charset"_s, qs(p.charset));
+    o.insert(u"watch"_s, p.watch);
     if (!p.host.empty()) o.insert(u"host"_s, qs(p.host));
     if (p.port != 9100) o.insert(u"port"_s, p.port);
     if (!p.path.empty()) o.insert(u"path"_s, qs(p.path));
@@ -638,6 +639,7 @@ PrinterConfig printerFromJson(const QJsonObject &o)
     // Saved before this setting: the receipt printer, and those with a drawer, print receipts.
     p.receipts = o.value(u"receipts").toBool(p.id == "receipt" || p.drawerKick);
     p.charset = ss(o.value(u"charset").toString());
+    p.watch = o.value(u"watch").toBool(true);
     return p;
 }
 

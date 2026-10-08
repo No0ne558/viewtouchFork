@@ -4773,3 +4773,21 @@ TEST_CASE("UI: Open Checks shows yours; All Checks shows everyone's, others' loc
     CHECK(s.pos.approvalInfo()[u"needed"_s].toBool());
     CHECK_FALSE(s.pos.hasCheck());
 }
+
+TEST_CASE("UI: a printer out of paper shows on every staff screen, not on the kiosk", "[flow][ui][status]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    QTest::qWait(60);
+    QQuickItem *root = s.window->contentItem();
+    QQuickItem *banner = Screen::findBy(root, "objectName", u"printerAlerts"_s);
+    CHECK_FALSE(banner);   // nothing wrong: not shown
+    s.pos.shared()->setPrinterProblem("kitchen", "paperOut");
+    QTest::qWait(60);
+    REQUIRE(Screen::findBy(root, "objectName", u"printerAlerts"_s));
+    CHECK(Screen::findBy(root, "text", u"🖨  Kitchen: out of paper"_s));
+    s.shot("printer-alert");
+    s.pos.enableSelfOrder();   // guests don't need to know
+    QTest::qWait(60);
+    CHECK_FALSE(Screen::findBy(root, "objectName", u"printerAlerts"_s));
+}

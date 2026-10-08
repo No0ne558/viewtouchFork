@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QMutex>
 #if QT_CONFIG(process)
 #include <QProcess>
@@ -36,6 +37,7 @@ public:
     void enqueue(Job job)
     {
         pending_.fetch_add(1);
+        hold(job, +1);
         QMetaObject::invokeMethod(this, [this, job = std::move(job)]() mutable {
             queue_.push_back(std::move(job));
             schedule(0);
@@ -43,6 +45,12 @@ public:
     }
 
     int pending() const { return pending_.load(); }
+
+    bool busy(const QString &host, int port) const
+    {
+        QMutexLocker lock(&busyMutex_);
+        return busy_.value(host + u':' + QString::number(port)) > 0;
+    }
     int connectMs = 3000;
     int retryBaseMs = 2000;
 
@@ -72,11 +80,13 @@ private:
             QString error;
             if (deliver(job, &error)) {
                 pending_.fetch_sub(1);
+                hold(job, -1);
                 emit owner_->jobPrinted(QString::fromStdString(job.printer.name), job.description);
                 continue;
             }
             if (++job.attempts >= MaxAttempts) {
                 pending_.fetch_sub(1);
+                hold(job, -1);
                 emit owner_->jobFailed(QString::fromStdString(job.printer.name), job.description, error);
                 continue;
             }
@@ -179,6 +189,17 @@ private:
 #endif
     }
 
+    // Network printers with tickets waiting (the status check stays away).
+    void hold(const Job &job, int delta)
+    {
+        if (job.printer.type != "network")
+            return;
+        QMutexLocker lock(&busyMutex_);
+        busy_[QString::fromStdString(job.printer.host) + u':' + QString::number(job.printer.port)] += delta;
+    }
+
+    mutable QMutex busyMutex_;
+    QHash<QString, int> busy_;
     PrintSpooler *owner_;
     std::deque<Job> queue_;
     std::atomic<int> pending_{0};
@@ -209,6 +230,11 @@ void PrintSpooler::submit(const core::PrinterConfig &printer, const QByteArray &
 int PrintSpooler::pending() const
 {
     return worker_->pending();
+}
+
+bool PrintSpooler::busy(const QString &host, int port) const
+{
+    return worker_->busy(host, port);
 }
 
 bool PrintSpooler::waitIdle(int msec)

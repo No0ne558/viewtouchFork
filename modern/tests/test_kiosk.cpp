@@ -456,3 +456,21 @@ TEST_CASE("Whose checks: your own, the counter's kiosk orders, others with leave
     REQUIRE(pos.loginWithPin(u"1111"_s));
     REQUIRE(pos.openCheck(rosas));
 }
+
+TEST_CASE("Printer alerts reach every screen, and go when fixed", "[status][alerts]")
+{
+    app::PosShared shared(test::seedPosData(), nullptr);
+    app::PosService a(&shared, u"Register"_s), b(&shared, u"Bar"_s);
+    CHECK(a.printerAlerts().isEmpty());
+    shared.setPrinterProblem("kitchen", "paperOut");
+    REQUIRE(b.printerAlerts().size() == 1);
+    const QVariantMap alert = b.printerAlerts()[0].toMap();
+    CHECK(alert[u"text"_s] == u"Kitchen: out of paper"_s);
+    CHECK(alert[u"urgent"_s].toBool());
+    shared.setPrinterProblem("bar", "paperLow");
+    CHECK(a.printerAlerts().size() == 2);
+    CHECK_FALSE(a.printerAlerts()[1].toMap()[u"urgent"_s].toBool());   // amber: soon, not now
+    shared.setPrinterProblem("kitchen", "");
+    shared.setPrinterProblem("bar", "");
+    CHECK(a.printerAlerts().isEmpty());
+}

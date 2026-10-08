@@ -120,6 +120,8 @@ class PosSession : public QObject {
     // address, user, since}], standby: {address, since} | null, printers:
     // [{name, type, where, status: ok|failed|unknown, error, at}]}.
     Q_PROPERTY(QVariantMap network READ networkInfo NOTIFY dayChanged)
+    // Printers that need someone: [{id, name, problem, text, urgent}] (every screen).
+    Q_PROPERTY(QVariantList printerAlerts READ printerAlerts NOTIFY dayChanged)
     // Modifiers being chosen for the item just ordered: {active, item, groups:
     // [{id, name, rule, chosen, done, options: [{index, name, price, chosen}]}]}.
     Q_PROPERTY(QVariantMap choosing READ choosingInfo NOTIFY checkChanged)
@@ -266,6 +268,7 @@ public:
     virtual QVariantMap receiving() const = 0;
     virtual QVariantMap checkSearch() const = 0;
     virtual QVariantMap networkInfo() const = 0;
+    virtual QVariantList printerAlerts() const = 0;
     virtual bool training() const = 0;
     virtual QVariantMap checklists() const = 0;
     virtual QVariantMap dashboard() const = 0;

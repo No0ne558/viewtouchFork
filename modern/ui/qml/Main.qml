@@ -366,6 +366,43 @@ ApplicationWindow {
         }
     }
 
+    // A printer that needs someone (out of paper, cover open, not answering):
+    // on every staff screen until it's fixed. Not on the kiosk (guests).
+    Column {
+        id: printerAlerts
+        objectName: "printerAlerts"
+        readonly property var alerts: root.controller.pos ? (root.controller.pos as PosService).printerAlerts : []
+        visible: alerts.length > 0 && !selfOrder.visible
+        anchors.top: parent.top
+        anchors.topMargin: offline.visible ? offline.height + 20 : 12
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: 6
+        z: 11
+        Repeater {
+            model: printerAlerts.alerts
+            delegate: Rectangle {
+                required property var modelData
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(alertText.implicitWidth + 64, root.width - 32)
+                height: alertText.implicitHeight + 18
+                radius: Math.min(height / 2, 24)
+                color: modelData.urgent ? "#e8b83232" : "#e8a86a12"
+                Text {
+                    id: alertText
+                    objectName: "printerAlert-" + parent.modelData.id
+                    anchors.centerIn: parent
+                    width: Math.min(implicitWidth, root.width - 80)
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
+                    text: "🖨  " + parent.modelData.text
+                    color: "white"
+                    font.pixelSize: 18
+                    font.bold: true
+                }
+            }
+        }
+    }
+
     // Practice (training): everyone can see nothing here is real.
     Rectangle {
         visible: !root.editing && root.controller.pos !== null && (root.controller.pos as PosService).training

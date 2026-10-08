@@ -265,6 +265,10 @@ public:
     // The store's computers and printers, for Manager -> Network (set by
     // the app): {role, term, terminals, standby, printers}.
     std::function<QVariantMap()> network;
+    // What each printer says is wrong (print::PrinterMonitor): printer id ->
+    // "paperOut", "coverOpen", "paperLow", "error", "offline"; none: fine.
+    std::map<std::string, std::string> printerProblems;
+    void setPrinterProblem(const std::string &printerId, const std::string &problem);
     QVariantMap backup;
     void setBackupStatus(QVariantMap status)
     {
@@ -622,6 +626,7 @@ public:
     bool removeMessage(const QString &id);
     QVariantList messages() const override;
     QVariantMap networkInfo() const override;
+    QVariantList printerAlerts() const override;
     QString language() const override;
     QVariantMap userPrefs() const override;
     QString storeLanguage() const override { return QString::fromStdString(s_->settings.language); }

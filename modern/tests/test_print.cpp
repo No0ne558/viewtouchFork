@@ -12,6 +12,7 @@
 #include "qt_catch.hh"
 
 #include <QElapsedTimer>
+#include <atomic>
 #include <QFile>
 #include <QLocale>
 #include <QDateTime>
@@ -547,4 +548,112 @@ TEST_CASE("Every kind of space prints as a space (the time before AM/PM)", "[pri
     Document now;
     now.text(QLocale().toString(QDateTime::currentDateTime(), QLocale::ShortFormat).toStdString());
     CHECK_FALSE(contains(renderEscPos(now, 42), "?"));
+}
+
+// --- out of paper, cover open, not answering --------------------------------------------
+
+#include "print/printer_monitor.hh"
+
+TEST_CASE("Printer status: what the ESC/POS answers mean", "[print][status]")
+{
+    const auto b = [](unsigned char c) { return QByteArray(1, char(c)); };
+    CHECK(problemFromStatus(b(0x12), b(0x12)).isEmpty());          // all fine
+    CHECK(problemFromStatus(b(0x16), b(0x12)) == u"coverOpen"_s);   // bit 2 of DLE EOT 2
+    CHECK(problemFromStatus(b(0x32), b(0x12)) == u"paperOut"_s);    // stopped at the end of the paper
+    CHECK(problemFromStatus(b(0x12), b(0x72)) == u"paperOut"_s);    // the paper sensor: out
+    CHECK(problemFromStatus(b(0x52), b(0x12)) == u"error"_s);       // a jam, the cutter
+    CHECK(problemFromStatus(b(0x12), b(0x1E)) == u"paperLow"_s);    // near the end of the roll
+    CHECK(problemFromStatus(b(0x36), b(0x7E)) == u"coverOpen"_s);   // the cover first: that's what to fix
+    CHECK(problemFromStatus({}, {}).isEmpty());                     // a printer that doesn't say
+    CHECK(problemFromStatus(b(0xFF), b(0xFF)).isEmpty());           // not a status byte: ignored
+}
+
+namespace {
+
+// A network printer that answers DLE EOT 2 and 4 with what the test sets.
+struct FakeStatusPrinter {
+    QTcpServer server;
+    unsigned char offline = 0x12, paper = 0x12;
+    int connections = 0;
+    FakeStatusPrinter()
+    {
+        REQUIRE(server.listen(QHostAddress::LocalHost));
+        QObject::connect(&server, &QTcpServer::newConnection, &server, [this] {
+            while (QTcpSocket *s = server.nextPendingConnection()) {
+                ++connections;
+                QObject::connect(s, &QTcpSocket::readyRead, s, [this, s] {
+                    const QByteArray in = s->readAll();
+                    for (int i = 0; i + 2 < in.size(); ++i)
+                        if (in[i] == 0x10 && in[i + 1] == 0x04)
+                            s->write(QByteArray(1, char(in[i + 2] == 2 ? offline : paper)));
+                });
+                QObject::connect(s, &QTcpSocket::disconnected, s, &QObject::deleteLater);
+            }
+        });
+    }
+    core::PrinterConfig config() const
+    {
+        core::PrinterConfig p;
+        p.id = "kitchen";
+        p.name = "Kitchen";
+        p.type = "network";
+        p.host = "127.0.0.1";
+        p.port = server.serverPort();
+        return p;
+    }
+};
+
+} // namespace
+
+TEST_CASE("Printer status: out of paper is seen, then fixed, then unplugged", "[print][status]")
+{
+    FakeStatusPrinter printer;
+    PrinterMonitor monitor;
+    monitor.setTimings(150, 400);
+    QStringList seen;
+    QObject::connect(&monitor, &PrinterMonitor::statusChanged,
+                     [&](const QString &id, const QString &problem) { seen << id + u'=' + problem; });
+    const auto waitFor = [&](const QString &what) {
+        for (int i = 0; i < 100 && !seen.contains(what); ++i)
+            QTest::qWait(20);
+        return seen.contains(what);
+    };
+    monitor.setPrinters({printer.config()});
+    QTest::qWait(400);
+    CHECK(seen.isEmpty());                                // fine: nothing to say
+    printer.paper = 0x72;                                 // the roll runs out
+    REQUIRE(waitFor(u"kitchen=paperOut"_s));
+    printer.paper = 0x12;                                 // a new roll
+    REQUIRE(waitFor(u"kitchen="_s));
+    printer.offline = 0x16;
+    REQUIRE(waitFor(u"kitchen=coverOpen"_s));
+    printer.offline = 0x12;
+    seen.clear();
+    REQUIRE(waitFor(u"kitchen="_s));
+    printer.server.close();                               // unplugged
+    REQUIRE(waitFor(u"kitchen=offline"_s));
+}
+
+TEST_CASE("Printer status: never while a ticket is on its way; not for printers turned off", "[print][status]")
+{
+    FakeStatusPrinter printer;
+    PrinterMonitor monitor;
+    std::atomic<bool> busy = true;
+    monitor.setBusy([&](const QString &, int) { return busy.load(); });
+    monitor.setTimings(100, 300);
+    monitor.setPrinters({printer.config()});
+    QTest::qWait(500);
+    CHECK(printer.connections == 0);   // a ticket is going: it waits
+    busy = false;
+    for (int i = 0; i < 50 && printer.connections == 0; ++i)
+        QTest::qWait(20);
+    CHECK(printer.connections > 0);
+
+    core::PrinterConfig off = printer.config();
+    off.watch = false;                 // Manager -> Printers: don't warn
+    monitor.setPrinters({off});
+    QTest::qWait(100);
+    const int before = printer.connections;
+    QTest::qWait(400);
+    CHECK(printer.connections == before);
 }

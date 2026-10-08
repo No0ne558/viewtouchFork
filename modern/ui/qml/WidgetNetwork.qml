@@ -151,8 +151,14 @@ Item {
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
                                 font.pixelSize: 16
-                                color: modelData.status === "failed" ? "#ff9a9e" : "white"
-                                text: modelData.status === "ok" ? qsTr("Printed at %1").arg(w.time(modelData.at))
+                                color: modelData.status === "failed" || modelData.problem ? "#ff9a9e" : "white"
+                                // What the printer itself says first (out of paper, cover open...).
+                                text: modelData.problem === "paperOut" ? qsTr("Out of paper")
+                                    : modelData.problem === "coverOpen" ? qsTr("Cover open")
+                                    : modelData.problem === "paperLow" ? qsTr("Paper running low")
+                                    : modelData.problem === "offline" ? qsTr("Not answering")
+                                    : modelData.problem === "error" ? qsTr("Printer error (paper jam or cutter?)")
+                                    : modelData.status === "ok" ? qsTr("Printed at %1").arg(w.time(modelData.at))
                                     : modelData.status === "failed" ? qsTr("Failed at %1: %2").arg(w.time(modelData.at)).arg(modelData.error)
                                     : qsTr("Nothing printed yet since start-up")
                             }
