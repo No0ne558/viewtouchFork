@@ -294,6 +294,9 @@ struct Check {
     Money kept(const Payment &p, const TaxRates &rates) const;
     // Change given back on this cash payment.
     Money changeFrom(const Payment &p, const TaxRates &rates) const;
+    // The most a refund can give back on a payment: what it paid on the
+    // bill (cash less change). Tips aren't refunded: they're the staff's.
+    Money refundable(const Payment &p, const TaxRates &rates) const { return p.amount - changeFrom(p, rates); }
 
     bool operator==(const Check &) const = default;
 };

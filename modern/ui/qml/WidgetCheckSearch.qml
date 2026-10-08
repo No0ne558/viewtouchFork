@@ -378,7 +378,13 @@ Item {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
             }
-            Label { text: w.refunding ? qsTr("Amount (up to %1)").arg(w.refunding.left) : "" }
+            Label {
+                text: w.refunding ? qsTr("Amount (up to %1)").arg(w.refunding.left)
+                                    + (w.refunding.tip ? "  ·  " + qsTr("the %1 tip stays with the staff").arg(w.refunding.tip) : "")
+                                  : ""
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
             TextField {
                 id: refundAmount
                 objectName: "refundAmount"

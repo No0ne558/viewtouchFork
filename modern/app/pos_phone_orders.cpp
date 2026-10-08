@@ -313,9 +313,8 @@ bool PosService::sendOut(const QVariantList &checkIds, const QString &driverId)
         c->driverName = driver->name;
         c->outAt = now();
         c->deliveredAt = 0;
-        // The driver's check now: they collect for it, and its tips are theirs.
-        c->serverId = driver->id;
-        c->serverName = driver->name;
+        // Still the check of whoever took the order (its sale and tip); the
+        // driver collects for it, into their own bank.
         noteEvent(*c, tr("Out for delivery with %1").arg(qs(driver->name)), "delivery");
         changed(*c);
     }

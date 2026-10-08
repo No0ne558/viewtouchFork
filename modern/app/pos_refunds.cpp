@@ -80,8 +80,9 @@ bool PosService::refundPayment(qint64 checkId, qint64 paymentId, qint64 cents, c
         return fail(tr("That payment isn't on the check."));
     if (p->kind == TenderKind::Discount || p->kind == TenderKind::GiftCard || p->kind == TenderKind::HouseAccount)
         return fail(tr("%1 can't be refunded here.").arg(qs(p->tenderName)));
-    // What was kept, less what went back already (today's from any terminal too).
-    const Money left = c->kept(*p, s_->settings.tax) - s_->refundedSoFar(*c, paymentId);
+    // The bill it paid (tips aren't refunded), less what went back already
+    // (today's from any terminal too).
+    const Money left = c->refundable(*p, s_->settings.tax) - s_->refundedSoFar(*c, paymentId);
     const Money amount = cents > 0 ? Money::fromCents(cents) : left;
     if (left.cents() <= 0)
         return fail(tr("That payment was already refunded in full."));

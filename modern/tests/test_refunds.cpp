@@ -331,3 +331,24 @@ TEST_CASE("Refunds: cash is what was kept, not what was handed over", "[refunds]
     CHECK(cash[u"leftCents"_s] == 198);
     CHECK(cash[u"change"_s] == u"$3.02"_s);
 }
+
+TEST_CASE("Refunds: the bill comes back, the tip stays with the staff", "[refunds]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    openDrawer(pos);
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    REQUIRE(pos.addItem(u"coffee"_s));                                    // $2.98
+    const qint64 id = pos.checkInfo()[u"id"_s].toLongLong();
+    REQUIRE(pos.recordCardPayment({{u"reference"_s, u"sim_tip"_s}, {u"amountCents"_s, 348}, {u"tipCents"_s, 50},
+                                   {u"checkId"_s, id}, {u"tenderId"_s, u"credit"_s}, {u"processor"_s, u"simulated"_s}}));
+    REQUIRE(pos.closeCheck());
+    const qint64 payment = pos.shared()->closedToday.back().payments.front().id;
+    pos.searchChecks(u"#%1"_s.arg(id), 0);
+    for (int i = 0; i < 300 && pos.checkSearch()[u"loading"_s].toBool(); ++i)
+        QTest::qWait(10);
+    pos.selectFoundCheck(id);
+    CHECK(pos.checkSearch()[u"selected"_s].toMap()[u"payments"_s].toList()[0].toMap()[u"leftCents"_s] == 298);
+    CHECK_FALSE(pos.refundPayment(id, payment, 348, u"Everything"_s));   // not the tip
+    REQUIRE(pos.refundPayment(id, payment, 0, u"Wrong item"_s));        // all of it: the bill
+    CHECK(pos.shared()->refundsToday.back().amount.cents() == 298);
+}

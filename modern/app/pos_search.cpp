@@ -203,7 +203,7 @@ QVariantMap PosService::checkSearch() const
                 name += u" ("_s + qs(p.reference) + u')';
             // What can still be given back (paid, tip included, less what was).
             const Money back = s_->refundedSoFar(c, p.id);   // today's from any terminal too
-            const Money left = c.kept(p, s_->settings.tax) - back;
+            const Money left = c.refundable(p, s_->settings.tax) - back;   // the bill: tips aren't refunded
             const bool refundable = c.status == CheckStatus::Closed && p.kind != TenderKind::Discount
                                     && p.kind != TenderKind::GiftCard && p.kind != TenderKind::HouseAccount && left.cents() > 0;
             payments.append(QVariantMap{{u"id"_s, qint64(p.id)}, {u"name"_s, name},

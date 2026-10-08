@@ -238,7 +238,7 @@ struct Demo {
             for (const Payment &p : c.payments) {
                 if (p.kind != TenderKind::Card && p.kind != TenderKind::Cash)
                     continue;
-                const Money paid = p.amount + p.tip;
+                const Money paid = p.amount;   // the bill (tips aren't refunded)
                 const std::int64_t cents = chance(60) ? std::min<std::int64_t>(paid.cents(), 300 + pick(900)) : 0;
                 pos.refundPayment(checkId, p.id, cents, QString::fromLatin1(kReasons[pick(4)]));
                 return;

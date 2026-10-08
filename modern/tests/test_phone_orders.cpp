@@ -224,14 +224,15 @@ TEST_CASE("Deliveries: the fee, a driver takes orders out, back, paid into their
     CHECK_FALSE(pos.sendOut({bo}, lou));                    // not sent to the kitchen yet
     CHECK_FALSE(pos.sendOut({ana}, u""_s));                 // who's driving?
 
-    // Out with Lou: their check now.
+    // Out with Lou: still the check of whoever took the order.
     REQUIRE(pos.sendOut({ana}, lou));
     CHECK(stateOf(ana) == u"out"_s);
     CHECK_FALSE(pos.sendOut({ana}, lou));                   // already out
     for (const QVariant &v : pos.drivers())
         if (v.toMap()[u"id"_s] == lou)
             CHECK(v.toMap()[u"out"_s] == 1);
-    CHECK(QString::fromStdString(pos.shared()->open.at(ana).serverName) == u"Lou"_s);
+    CHECK(QString::fromStdString(pos.shared()->open.at(ana).serverName) == u"Morgan (Manager)"_s);
+    CHECK(QString::fromStdString(pos.shared()->open.at(ana).driverName) == u"Lou"_s);
 
     // Back.
     REQUIRE(pos.deliveryBack(ana));
@@ -245,6 +246,11 @@ TEST_CASE("Deliveries: the fee, a driver takes orders out, back, paid into their
     REQUIRE(pos.tender(u"cash"_s));
     REQUIRE(pos.closeCheck());
     CHECK(stateOf(ana).isEmpty());                          // closed: off the board
+    const core::Check &paid = pos.shared()->closedToday.back();
+    CHECK(paid.serverName == "Morgan (Manager)");           // the sale is the order taker's
+    const auto bank = std::ranges::find(pos.shared()->drawers, paid.drawerSession, &core::DrawerSession::id);
+    REQUIRE(bank != pos.shared()->drawers.end());
+    CHECK(bank->employeeId == lou.toStdString());           // the cash is in Lou's bank
 
     // The Drivers report.
     const QVariantMap report = pos.report(u"drivers"_s);
