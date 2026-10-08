@@ -414,7 +414,10 @@ std::optional<app::PosData> PosStore::load(QStringList *errors) const
 
     if (q.exec(u"SELECT COALESCE(MAX(id), 0) FROM drawer_sessions"_s) && q.next())
         data.lastDrawerId = q.value(0).toLongLong();
-    q.prepare(u"SELECT json FROM drawer_sessions WHERE closed_at = 0 OR opened_at >= ? ORDER BY id"_s);
+    // Still open, or today's: opened since the day began and closed after it
+    // did (one counted for End of Day belongs to the day before).
+    q.prepare(u"SELECT json FROM drawer_sessions WHERE closed_at = 0 OR (opened_at >= ? AND closed_at > ?) ORDER BY id"_s);
+    q.addBindValue(qint64(dayStart));
     q.addBindValue(qint64(dayStart));
     if (q.exec()) {
         while (q.next())

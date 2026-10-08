@@ -472,3 +472,54 @@ TEST_CASE("Factory reset from the Manager page: managers, typed RESET, backed up
     CHECK_FALSE(pos.factoryReset(u"RESET"_s));                     // managers only
     CHECK(asked == 2);
 }
+
+TEST_CASE("Today's banks: one closed for last night's End of Day isn't today's", "[storage][banks]")
+{
+    QTemporaryDir dir;
+    const QString path = dir.filePath(u"vt.db"_s);
+    const auto seed = test::seedPosData();
+    const std::int64_t dayStart = QDateTime::currentMSecsSinceEpoch() - 3'600'000;
+    {
+        storage::PosStore store(path);
+        REQUIRE(store.open());
+        REQUIRE(store.seed(seed.settings, seed.menu, seed.employees));
+        storage::AsyncWriter writer(path);
+        storage::SqlPosSink sink(writer);
+        sink.saveDay({1, dayStart - 14 * 3'600'000, dayStart}, {});   // yesterday, ended at dayStart
+        sink.saveDay({2, dayStart, 0}, {});                            // today
+        core::DrawerSession last;   // tips paid out at closing, counted the same moment
+        last.id = 1;
+        last.name = "Morgan's bank";
+        last.employeeId = "manager";
+        last.openedAt = dayStart;
+        last.closedAt = dayStart;
+        core::CashMovement tips;
+        tips.kind = core::CashMovement::Kind::TipPayout;
+        tips.employeeId = "manager";
+        tips.amount = Money::fromCents(1377);
+        last.movements.push_back(tips);
+        sink.saveDrawer(last);
+        core::DrawerSession today = last;   // opened this morning, still open
+        today.id = 2;
+        today.openedAt = dayStart + 600'000;
+        today.closedAt = 0;
+        today.movements.clear();
+        sink.saveDrawer(today);
+        core::DrawerSession counted = today;   // opened and counted today
+        counted.id = 3;
+        counted.closedAt = dayStart + 1'200'000;
+        sink.saveDrawer(counted);
+    }
+    storage::PosStore store(path);
+    REQUIRE(store.open());
+    const auto data = store.load();
+    REQUIRE(data);
+    QList<qint64> ids;
+    for (const core::DrawerSession &d : data->drawers)
+        ids << d.id;
+    CHECK(ids == QList<qint64>{2, 3});
+    // So nobody's tips today go below zero from last night's pay-out.
+    PosService pos(*store.load(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    CHECK(pos.tipsOwed() == u"$0.00"_s);
+}

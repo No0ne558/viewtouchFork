@@ -44,7 +44,7 @@ void clockInMainJob(PosService &pos)
 const char *const kServers[] = {"1111", "2222", "4444", "1234"};
 // Lou drives (PIN 7777), added by the demo.
 const std::pair<const char *, const char *> kStaff[] = {
-    {"1111", "sam"}, {"2222", "casey"}, {"4444", "jo"}, {"1234", "morgan"}, {"3333", "riley"}, {"7777", "lou"}};
+    {"1111", "sam"}, {"2222", "casey"}, {"4444", "jo"}, {"1234", "manager"}, {"3333", "riley"}, {"7777", "lou"}};
 const char *const kGuests[][2] = {{"Avery", "555-210-4411"}, {"Blake", "555-341-9902"}, {"Carmen", "555-480-1123"},
                                   {"Devon", "555-602-7781"}, {"Elena", "555-733-5520"}, {"Finn", "555-819-3307"},
                                   {"Grace", "555-904-6612"}, {"Hector", "555-115-2290"}};
@@ -296,6 +296,7 @@ struct Demo {
     void closeDay()
     {
         for (const auto &[pin, id] : kStaff) {
+            clock += 2 * kMinute;   // one at a time
             as(pin);
             pos.cashOutTips();
             const Employee *me = pos.shared()->employee(id);
@@ -315,6 +316,7 @@ struct Demo {
                 pos.countDrawerById(d.id);
             }
         }
+        clock += 5 * kMinute;
         pos.endOfDay();
     }
 
