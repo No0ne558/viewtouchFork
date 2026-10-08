@@ -657,3 +657,25 @@ TEST_CASE("Printer status: never while a ticket is on its way; not for printers 
     QTest::qWait(400);
     CHECK(printer.connections == before);
 }
+
+// A real printer's status (hidden): VTM_PRINTER_HOST=192.168.1.101 vtm_tests "[printerstatuslive]"
+TEST_CASE("A network printer, live: its status", "[.][printerstatuslive]")
+{
+    const QString host = qEnvironmentVariable("VTM_PRINTER_HOST");
+    if (host.isEmpty())
+        SKIP("Set VTM_PRINTER_HOST to the printer's address.");
+    core::PrinterConfig p;
+    p.id = "receipt";
+    p.name = "Receipt";
+    p.type = "network";
+    p.host = host.toStdString();
+    PrinterMonitor monitor;
+    monitor.setTimings(1000, 1500);
+    QString last = u"(fine)"_s;
+    QObject::connect(&monitor, &PrinterMonitor::statusChanged, [&](const QString &, const QString &problem) {
+        last = problem.isEmpty() ? u"(fine)"_s : problem;
+    });
+    monitor.setPrinters({p});
+    QTest::qWait(5000);
+    WARN("Printer says: " << last.toStdString());
+}
