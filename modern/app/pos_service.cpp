@@ -221,7 +221,7 @@ const MenuItem *PosService::findItem(const QString &idOrName) const
     return nullptr;
 }
 
-bool PosService::require(const char *permission, const QString &action)
+bool PosService::require(const char *permission, const QString &action, Check *noteOn)
 {
     if (!user())
         return fail(tr("Log in first."));
@@ -231,14 +231,15 @@ bool PosService::require(const char *permission, const QString &action)
     if (approved_ && approved_->permission == permission) {
         const std::string by = approved_->by;
         approved_.reset();
-        if (Check *c = current())
+        if (Check *c = noteOn ? noteOn : current())
             noteEvent(*c, tr("%1: approved by %2").arg(action, qs(by)), "approval");
         emit notice(tr("Approved by %1").arg(qs(by)));
         return true;
     }
     // Voids, discounts and manager actions can be approved on the spot.
     const std::string p = permission;
-    if (running_ && !selfOrder_ && (p == perm::Void || p == perm::Discount || p == perm::Manager || p == perm::Settle)) {
+    if (running_ && !selfOrder_
+        && (p == perm::Void || p == perm::Discount || p == perm::Manager || p == perm::Settle || p == perm::OthersChecks)) {
         approval_ = {{u"needed"_s, true}, {u"action"_s, action}, {u"permission"_s, QString::fromLatin1(permission)},
                      {u"who"_s, qs(user()->name)}};
         approvalMethod_ = running_->method;
@@ -758,6 +759,10 @@ bool PosService::openCheck(std::int64_t checkId)
 {
     if (!s_->open.contains(checkId))
         return fail(tr("That check is no longer open."));
+    // Someone else's: those who may (managers, the counter), or a manager's PIN.
+    if (Check &c = s_->open.at(checkId); user() && !mayOpen(c)
+        && !require(perm::OthersChecks, tr("Opening %1's check").arg(qs(c.serverName)), &c))
+        return false;
     if (const QString holder = lockHolder(checkId); !holder.isEmpty())
         return fail(tr("%1 is open on %2.").arg(qs(s_->open.at(checkId).label), holder));
     if (currentId_ != 0 && currentId_ != checkId)
@@ -916,6 +921,7 @@ bool PosService::addItem(const QString &idOrName)
         lineTouched_ = false;
         // Items with modifier groups ask for their choices next.
         choosingLine_ = 0;
+        choosingBefore_.reset();
         for (const std::string &g : item->modifierGroups) {
             if (s_->settings.modifierGroup(g))
                 choosingLine_ = line.id;
@@ -1762,6 +1768,18 @@ QVariantList PosService::payments() const
     return out;
 }
 
+// Theirs; a delivery they're driving (they collect for it); a kiosk order
+// (the counter's) for anyone who takes payments; or anyone's with "Open
+// other people's checks".
+bool PosService::mayOpen(const Check &c) const
+{
+    const Employee *e = user();
+    if (!e)
+        return false;
+    return c.serverId == e->id || (!c.driverId.empty() && c.driverId == e->id) || e->can(perm::OthersChecks)
+           || (c.kiosk && e->can(perm::Settle));
+}
+
 QVariantList PosService::openChecks() const
 {
     QVariantList out;
@@ -1774,6 +1792,10 @@ QVariantList PosService::openChecks() const
             {u"minutes"_s, qint64((t - c.openedAt) / 60000)}, {u"type"_s, qs(toString(c.type))},
             {u"openedAt"_s, qint64(c.openedAt)}, {u"longAfter"_s, s_->settings.tableLongMinutes},
             {u"mine"_s, user() && c.serverId == user()->id}, {u"current"_s, id == currentId_},
+            // In "My checks": theirs, and the counter's kiosk orders for whoever takes payments.
+            {u"forMe"_s, user() && (c.serverId == user()->id || (!c.driverId.empty() && c.driverId == user()->id)
+                                    || (c.kiosk && user()->can(perm::Settle)))},
+            {u"mayOpen"_s, mayOpen(c)}, {u"kiosk"_s, c.kiosk},
             {u"lineCount"_s, int(c.lines.size())}, {u"busyOn"_s, lockHolder(id)},
             {u"customer"_s, qs(c.customer.name)}, {u"due"_s, c.dueAt ? dueText(c.dueAt) : QString()},
         });

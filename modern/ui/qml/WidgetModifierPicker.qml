@@ -172,7 +172,9 @@ Item {
             width: (parent.width - parent.spacing * (buttons.shown - 1)) / Math.max(1, buttons.shown)
             height: parent.height
             visible: w.zone.keyShown("cancel")
-            text: w.zone.keyText("cancel", qsTr("Cancel Item"))
+            // Changing an item already on the check: Cancel puts its choices back.
+            text: (w.choosing.editing ?? false) ? qsTr("Cancel Changes")
+                                                             : w.zone.keyText("cancel", qsTr("Cancel Item"))
             baseColor: "#5a2a2a"
             fontScale: 0.32
             onClicked: {

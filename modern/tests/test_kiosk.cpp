@@ -7,6 +7,7 @@
 #include "net/pos_server.hh"
 #include "net/remote_session.hh"
 #include "pos_fixture.hh"
+#include "storage/pos_store.hh"
 #include "print/tickets.hh"
 #include "qt_catch.hh"
 
@@ -345,4 +346,113 @@ TEST_CASE("Self-order: what the slip says, on any paper", "[kiosk][slip]")
                 CHECK(print::displayWidth(row) <= std::size_t(width));
         }
     }
+}
+
+TEST_CASE("Staff open a kiosk order, change an item's choices, cancel: nothing is lost", "[kiosk][choices]")
+{
+    app::PosShared shared(test::seedPosData(true), nullptr);
+    app::PosService kiosk(&shared, u"Lobby"_s);
+    kiosk.enableSelfOrder();
+    REQUIRE(kiosk.kioskStart(true));
+    const qint64 id = kiosk.checkInfo()[u"id"_s].toLongLong();
+    REQUIRE(kiosk.kioskAdd(u"house-salad"_s));   // asks for a dressing
+    const QVariantMap dressing = kiosk.choosingInfo()[u"groups"_s].toList().value(0).toMap();
+    REQUIRE(kiosk.chooseOption(dressing[u"id"_s].toString(), 0));
+    REQUIRE(kiosk.finishChoosing());
+    REQUIRE(kiosk.kioskFinish({{u"name"_s, u"Lee"_s}}));
+    const core::OrderLine ordered = shared.open.at(id).lines.front();
+
+    for (const char *pin : {"1111", "2222", "1234"}) {   // server, cashier, manager
+        INFO(pin);
+        app::PosService counter(&shared, u"Counter"_s);
+        REQUIRE(counter.loginWithPin(QString::fromLatin1(pin)));
+        REQUIRE(counter.openCheck(id));
+        const qint64 line = counter.lines()[0].toMap()[u"id"_s].toLongLong();
+        REQUIRE(counter.chooseLine(line));                       // Choose…
+        CHECK(counter.choosingInfo()[u"editing"_s].toBool());    // "Cancel Changes"
+        REQUIRE(counter.chooseOption(dressing[u"id"_s].toString(), 1));   // another dressing
+        REQUIRE(counter.cancelChoosing());                       // … then Cancel Changes
+        REQUIRE(shared.open.contains(id));
+        REQUIRE(shared.open.at(id).lines.size() == 1);
+        CHECK(shared.open.at(id).lines.front() == ordered);      // as the guest ordered it
+        // A stray kiosk cleanup (not a kiosk here) never touches it.
+        counter.kioskCancel();
+        counter.releaseCheck();
+        REQUIRE(shared.open.contains(id));
+        CHECK(shared.open.at(id).lines.size() == 1);
+    }
+
+    // Something just added and not wanted: Cancel Item still takes it off.
+    app::PosService counter(&shared, u"Counter"_s);
+    REQUIRE(counter.loginWithPin(u"1111"_s));
+    REQUIRE(counter.openCheck(id));
+    REQUIRE(counter.addItem(u"house-salad"_s));
+    CHECK_FALSE(counter.choosingInfo()[u"editing"_s].toBool());   // "Cancel Item"
+    REQUIRE(counter.cancelChoosing());
+    CHECK(shared.open.at(id).lines.size() == 1);
+}
+
+TEST_CASE("Whose checks: your own, the counter's kiosk orders, others with leave or a manager's PIN", "[checks][whose]")
+{
+    app::PosShared shared(test::seedPosData(), nullptr);
+    app::PosService pos(&shared, u"Register"_s);
+    const auto start = [&](const char *pin) {
+        REQUIRE(pos.loginWithPin(QString::fromLatin1(pin)));
+        REQUIRE(pos.startCheck(core::CheckType::Takeout));
+        REQUIRE(pos.addItem(u"coffee"_s));
+        const qint64 id = pos.checkInfo()[u"id"_s].toLongLong();
+        pos.releaseCheck();
+        pos.logout();
+        return id;
+    };
+    const qint64 sams = start("1111");
+    const qint64 rosas = start("5555");
+    app::PosService kiosk(&shared, u"Lobby"_s);
+    kiosk.enableSelfOrder();
+    REQUIRE(kiosk.kioskStart(true));
+    const qint64 kioskOrder = kiosk.checkInfo()[u"id"_s].toLongLong();
+    REQUIRE(kiosk.kioskAdd(u"water"_s));
+    REQUIRE(kiosk.kioskFinish({{u"name"_s, u"Lee"_s}}));
+
+    const auto listed = [&](qint64 id, const char *key) {
+        for (const QVariant &v : pos.openChecks())
+            if (v.toMap()[u"id"_s].toLongLong() == id)
+                return v.toMap()[QString::fromLatin1(key)].toBool();
+        return false;
+    };
+
+    // Sam, a server: his own, the kiosk's; not Rosa's.
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    CHECK(listed(sams, "forMe"));
+    CHECK(listed(kioskOrder, "forMe"));
+    CHECK_FALSE(listed(rosas, "forMe"));
+    CHECK_FALSE(listed(rosas, "mayOpen"));
+    REQUIRE(pos.openCheck(sams));
+    REQUIRE(pos.openCheck(kioskOrder));
+    CHECK_FALSE(pos.openCheck(rosas));
+    // From the screen, a manager's PIN lets him.
+    pos.invoke(u"openCheck"_s, {rosas});
+    CHECK(pos.approvalInfo()[u"needed"_s].toBool());
+    pos.approve(u"1234"_s);
+    CHECK(pos.checkInfo()[u"id"_s].toLongLong() == rosas);
+    CHECK(std::ranges::any_of(shared.open.at(rosas).events, [](const core::CheckEvent &e) {
+        return e.kind == "approval" && QString::fromStdString(e.what).contains(u"Morgan"_s);
+    }));                                                    // on Rosa's check, for the record
+    pos.releaseCheck();
+    pos.logout();
+
+    // Casey, a cashier: anyone's (the counter takes everyone's payments).
+    REQUIRE(pos.loginWithPin(u"2222"_s));
+    CHECK(listed(rosas, "mayOpen"));
+    CHECK_FALSE(listed(rosas, "forMe"));   // still not in "My Checks"
+    REQUIRE(pos.openCheck(rosas));
+    pos.releaseCheck();
+    pos.logout();
+
+    // Leave given to one server (Employees -> Open other people's checks: Yes).
+    for (core::Employee &e : shared.employees)
+        if (e.id == "sam")
+            e.allow.insert("check.others");
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    REQUIRE(pos.openCheck(rosas));
 }

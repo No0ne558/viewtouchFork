@@ -17,10 +17,36 @@ Item {
         if (mode === "closed") return pos.closedChecks
         if (mode === "merge") return pos.openChecks.filter(c => !c.current)
         if (mode === "tabs") return pos.openChecks.filter(c => c.type === "tab")
-        return filter === "" ? pos.openChecks : pos.openChecks.filter(c => c.label === filter)
+        if (filter !== "") return pos.openChecks.filter(c => c.label === filter)   // a table's: all of them
+        return showAll ? pos.openChecks : pos.openChecks.filter(c => c.forMe)
     }
+    // Open checks: yours (and the counter's kiosk orders), or everyone's to see.
+    property bool showAll: false
+    readonly property bool choosesWhose: mode === "" && filter === ""
     // A table with several checks (after a split) shows only its checks.
     readonly property string filter: pos ? pos.checkFilter : ""
+
+    // My Checks | All Checks
+    Row {
+        id: whose
+        visible: w.choosesWhose
+        anchors { left: parent.left; top: parent.top; margins: 16 }
+        height: visible ? 112 : 0   // a finger's size on a phone too
+        spacing: 10
+        Repeater {
+            model: [{ all: false, text: qsTr("My Checks") }, { all: true, text: qsTr("All Checks") }]
+            delegate: WidgetKey {
+                required property var modelData
+                objectName: modelData.all ? "allChecks" : "myChecks"
+                width: 280
+                height: whose.height
+                fontScale: 0.36
+                text: modelData.text
+                accent: w.showAll === modelData.all
+                onClicked: w.showAll = modelData.all
+            }
+        }
+    }
 
     Rectangle {
         id: banner
@@ -49,7 +75,7 @@ Item {
         ScrollBar.vertical: TouchScrollBar { id: gridBar; needed: Math.ceil(grid.count / grid.columns) * (170) > grid.height }
         anchors.fill: parent
         anchors.margins: 16
-        anchors.topMargin: banner.visible ? 96 : 16
+        anchors.topMargin: whose.visible ? 144 : banner.visible ? 96 : 16
         clip: true
         readonly property int columns: Math.max(1, Math.floor((width - gridBar.width - 4) / 320))
         cellWidth: Math.max(280, (width - gridBar.room) / columns)
@@ -67,6 +93,15 @@ Item {
                 anchors.margins: 8
                 st: ({ fill: tap.pressed ? "#3b4556" : (card.modelData.mine ? "#1f5f3a" : "#2d3440"),
                        frame: "raised", frameWidth: 3, radius: 14, shadow: 4 })
+                // Someone else's you may not open (a manager's PIN can).
+                opacity: card.locked ? 0.55 : 1
+            }
+            readonly property bool locked: w.mode === "" && card.modelData.mayOpen === false
+            Text {
+                visible: card.locked
+                anchors { right: parent.right; top: parent.top; margins: 22 }
+                text: "🔒"
+                font.pixelSize: 24
             }
             Column {
                 anchors.fill: parent
@@ -122,7 +157,8 @@ Item {
         Text {
             anchors.centerIn: parent
             visible: grid.count === 0
-            text: w.mode === "closed" ? qsTr("No checks closed today")
+            text: w.choosesWhose && !w.showAll ? qsTr("You have no open checks")
+                 : w.mode === "closed" ? qsTr("No checks closed today")
                  : w.mode === "tabs" ? qsTr("No tabs open. Touch New Tab… to start one.")
                  : w.mode === "merge" ? qsTr("No other open checks") : qsTr("No open checks")
             color: "#8a94a6"

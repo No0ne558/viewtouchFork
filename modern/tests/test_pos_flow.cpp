@@ -13,6 +13,7 @@
 #include "language.hh"
 #include "fake_stripe.hh"
 #include "pos_fixture.hh"
+#include "storage/pos_store.hh"
 #include "qt_catch.hh"
 
 #include <QQmlApplicationEngine>
@@ -4692,4 +4693,83 @@ TEST_CASE("Every tap handler on a page ignores the keyboard's touches", "[ui][li
         CHECK(int(text.count(u"TouchGuard.covered("_s)) >= n);
     }
     CHECK(handlers >= 18);
+}
+
+TEST_CASE("UI: after the kiosk is used, staff can open its orders and they stay", "[flow][ui][kiosk][kioskstaff]")
+{
+    Screen s;
+    s.pos.shared()->settings.kioskIdleSeconds = 1;   // the "still there?" wait, short for the test
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.enableSelfOrder();
+    QTest::qWait(60);
+    auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    QQuickItem *kiosk = find(u"selfOrder"_s);
+    s.tapItem(find(u"kioskAttract"_s));
+    QTest::qWait(60);
+    s.tapItem(find(u"kioskForHere"_s));
+    QTest::qWait(60);
+    s.tapItem(Screen::findBy(kiosk, "text", u"Cheeseburger"_s));
+    QTest::qWait(60);
+    s.tapItem(Screen::findBy(kiosk, "text", u"Well Done"_s));
+    s.tapItem(Screen::findBy(kiosk, "text", u"Fries"_s));
+    s.tapItem(find(u"kioskChoicesDone"_s));
+    QTest::qWait(60);
+    const qint64 id = s.pos.checkInfo()[u"id"_s].toLongLong();
+    s.tapItem(find(u"kioskReview"_s));
+    QTest::qWait(60);
+    for (const char ch : {'L', 'e', 'e'})
+        QTest::keyClick(s.window, ch);
+    s.tapItem(find(u"kioskPlace"_s));
+    QTest::qWait(100);
+    // A manager ends kiosk mode: hold the corner, a PIN.
+    QTest::mousePress(s.window, Qt::LeftButton, {}, QPoint(10, 10));
+    QTest::qWait(3300);
+    QTest::mouseRelease(s.window, Qt::LeftButton, {}, QPoint(10, 10));
+    QTest::qWait(50);
+    for (const char *key : {"approvalKey-1", "approvalKey-2", "approvalKey-3", "approvalKey-4", "approvalKey-OK"})
+        s.tapItem(find(QString::fromLatin1(key)));
+    QTest::qWait(100);
+    REQUIRE_FALSE(s.pos.selfOrderInfo()[u"on"_s].toBool());
+    // A server opens the order, and keeps it open past every kiosk timer.
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    s.c.openCheck(id);
+    QTest::qWait(100);
+    REQUIRE(s.pos.hasCheck());
+    QTest::qWait(19000);   // the 1 s wait, the 15 s countdown, more
+    REQUIRE(s.pos.shared()->open.contains(id));
+    CHECK(s.pos.shared()->open.at(id).lines.size() == 1);
+    CHECK(s.pos.hasCheck());
+}
+
+TEST_CASE("UI: Open Checks shows yours; All Checks shows everyone's, others' locked", "[flow][ui][whose]")
+{
+    Screen s;
+    const auto start = [&](const char *pin) {
+        REQUIRE(s.pos.loginWithPin(QString::fromLatin1(pin)));
+        REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+        REQUIRE(s.pos.addItem(u"coffee"_s));
+        const QString label = s.pos.checkInfo()[u"label"_s].toString();
+        s.pos.releaseCheck();
+        s.pos.logout();
+        return label;
+    };
+    const QString sams = start("1111");
+    const QString rosas = start("5555");
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    s.c.activate(u"checks"_s);
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    CHECK(Screen::findBy(root, "text", sams));
+    CHECK_FALSE(Screen::findBy(root, "text", rosas));        // not his
+    s.tapItem(Screen::findBy(root, "objectName", u"allChecks"_s));
+    QTest::qWait(100);
+    QQuickItem *hers = Screen::findBy(root, "text", rosas);
+    REQUIRE(hers);
+    CHECK(Screen::findBy(root, "text", u"🔒"_s));             // locked for him
+    s.shot("open-checks-all");
+    s.tapItem(hers);                                          // a manager's PIN is asked
+    QTest::qWait(100);
+    CHECK(s.pos.approvalInfo()[u"needed"_s].toBool());
+    CHECK_FALSE(s.pos.hasCheck());
 }

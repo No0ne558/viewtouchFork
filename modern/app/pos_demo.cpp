@@ -508,7 +508,9 @@ QString fillDemoData(PosService &pos, std::int64_t realNow)
 
     // Today so far.
     const QTime nowTime = QDateTime::fromMSecsSinceEpoch(realNow).time();
-    d.clock = d.at(today, 9, 30);
+    // Opened at 9:30, or (made early in the morning) two hours ago, so there
+    // are guests so far.
+    d.clock = std::min(d.at(today, 9, 30), std::max(d.at(today, 0, 5), realNow - 120 * kMinute));
     d.receive(today);
     d.restock();
     for (const char *pin : {"1234", "1111", "2222", "4444", "3333", "7777"}) {
@@ -520,6 +522,13 @@ QString fillDemoData(PosService &pos, std::int64_t realNow)
     for (int hour = 10; hour < std::min(22, nowTime.hour()); ++hour) {
         for (int k = 0; k < 2 + d.pick(3); ++k)
             d.serve(today, kServers[d.pick(3)], d.at(today, hour, d.pick(50)), hour < 11);
+    }
+    // Made early in the morning: still a few guests so far (today's reports
+    // and the checks to reopen have something), in the time since opening.
+    if (nowTime.hour() < 11) {
+        const std::int64_t from = d.clock;
+        for (std::int64_t at = from + 10 * kMinute; at < realNow - 5 * kMinute; at += 15 * kMinute)
+            d.serve(today, kServers[d.pick(3)], at, true);
     }
 
     // The schedule for this week and next.

@@ -68,7 +68,9 @@ QVariantMap PosService::choosingInfo() const
                                   {u"chosen"_s, n}, {u"done"_s, n >= g->min}, {u"options"_s, options}});
     }
     return {{u"active"_s, true}, {u"lineId"_s, qint64(l->id)}, {u"item"_s, qs(l->displayName())},
-            {u"groups"_s, groups}};
+            {u"groups"_s, groups},
+            // Already on the check (Choose): Cancel Changes puts it back, not Cancel Item.
+            {u"editing"_s, choosingBefore_.has_value() && choosingBefore_->id == l->id}};
 }
 
 QString PosService::missingChoice(const std::vector<OrderLine> &lines) const
@@ -96,6 +98,7 @@ bool PosService::chooseLine(qint64 lineId)
     if (!item || item->modifierGroups.empty())
         return fail(tr("%1 has no choices.").arg(qs(l->displayName())));
     choosingLine_ = l->id;
+    choosingBefore_ = *l;   // Cancel Changes puts it back
     selectedLine_ = l->id;
     emit checkChanged();
     return true;
@@ -178,6 +181,7 @@ bool PosService::finishChoosing()
             return fail(tr("%1: %2.").arg(g.value(u"name"_s).toString(), g.value(u"rule"_s).toString().toLower()));
     }
     choosingLine_ = 0;
+    choosingBefore_.reset();
     emit checkChanged();
     return true;
 }
@@ -187,9 +191,15 @@ bool PosService::cancelChoosing()
     Check *c = current();
     if (!c || choosingLine_ == 0)
         return true;
-    c->removeLine(choosingLine_);   // still unsent: the item comes off
+    OrderLine *l = c->line(choosingLine_);
+    if (l && choosingBefore_ && choosingBefore_->id == l->id) {
+        *l = *choosingBefore_;   // an item already ordered: its choices as they were (never off the check)
+    } else {
+        c->removeLine(choosingLine_);   // just added: the item comes off
+        selectedLine_ = 0;
+    }
     choosingLine_ = 0;
-    selectedLine_ = 0;
+    choosingBefore_.reset();
     changed(*c);
     return true;
 }

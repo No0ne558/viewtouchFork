@@ -156,6 +156,8 @@ bool PosService::kioskFinish(const QVariantMap &guest)
 
 void PosService::kioskCancel()
 {
+    if (!selfOrder_)
+        return;   // a kiosk's own: never a check staff have open
     Check *c = current();
     if (c && c->kiosk) {
         // Nothing of it was sent: it was never really an order.

@@ -136,7 +136,8 @@ TEST_CASE("Refunds: a manager's, through Stripe or the drawer, partial, on today
     // Kept with the check.
     CHECK(app::checkFromJson(app::toJson(checkOf(card)))->refunds == checkOf(card).refunds);
 
-    // An open check: Undo Payment on a Stripe card needs a manager too.
+    // An open check (Sam's): Undo Payment on a Stripe card needs a manager too.
+    REQUIRE(pos.loginWithPin(u"1111"_s));
     REQUIRE(pos.startCheck(core::CheckType::Quick));
     REQUIRE(pos.addItem(u"coffee"_s));
     const qint64 open = pos.checkInfo()[u"id"_s].toLongLong();

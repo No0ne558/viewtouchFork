@@ -18,11 +18,12 @@ inline constexpr const char *Void = "order.void";        // void items already s
 inline constexpr const char *Manager = "manager";        // manager pages
 inline constexpr const char *EditLayout = "layout.edit"; // edit pages
 inline constexpr const char *Discount = "check.discount"; // discounts and comps
+inline constexpr const char *OthersChecks = "check.others"; // open checks that are someone else's
 } // namespace perm
 
 // Every permission, for the per-person settings.
-inline constexpr const char *AllPermissions[] = {perm::Order, perm::Settle, perm::Discount, perm::Void,
-                                                 perm::Manager, perm::EditLayout};
+inline constexpr const char *AllPermissions[] = {perm::Order, perm::Settle, perm::OthersChecks, perm::Discount,
+                                                 perm::Void, perm::Manager, perm::EditLayout};
 
 // Built-in roles. M4 makes these editable.
 std::set<std::string> permissionsForRole(const std::string &role);

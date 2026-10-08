@@ -851,7 +851,8 @@ private:
     Money expectedNow(const core::DrawerSession &d) const;
     void connectShared();
     core::Check *current();
-    bool require(const char *permission, const QString &action);
+    // `noteOn`: the check the approval is noted on (else the open one).
+    bool require(const char *permission, const QString &action, core::Check *noteOn = nullptr);
     // The operation running through invoke(), to try again once approved.
     struct Running { QString method; QVariantList args; };
     std::optional<Running> running_;
@@ -916,6 +917,7 @@ private:
     bool forAnotherDay(const core::Check &c) const;
     void noteEvent(core::Check &c, const QString &what, const char *kind, Money amount = {});
     bool mayManage(const core::Check &c, const QString &action);
+    bool mayOpen(const core::Check &c) const;
     core::ReportContext reportContext(const QString &period) const;
     QString dayLabel(const core::BusinessDay &day) const;
     bool saveMenuRecord(int index, const QVariantMap &record);
@@ -939,6 +941,9 @@ private:
     int course_ = 1;    // course for new items
     bool lineTouched_ = false;   // the selected line was touched (not just added)
     std::int64_t choosingLine_ = 0;   // the line whose modifiers are being chosen
+    // An item already on the check (Choose): as it was, for Cancel Changes;
+    // empty: just added (Cancel Item takes it off).
+    std::optional<core::OrderLine> choosingBefore_;
     QString weighing_;                // an item sold by weight, waiting for its weight
     bool retireMeAtFinish_ = false;   // setup guide: this sample manager goes off at Finish
     qint64 selectedLine_ = 0;

@@ -265,6 +265,10 @@ Start with `--customer-display auto` (or `customer-display = auto` in the kiosk'
 - **Loyalty** (Store Settings): customers on a check earn points on what they spend after discounts (1 per dollar to start); reopening a check takes them back. *Rewards*, one per line like `50 = 5.00`, take money off: Customers → the customer on the check → the reward button. Undoing the reward gives the points back. Guests can sign up or be found by typing their phone number on the customer display.
 - **Promotions** (Manager → Promotions): percent off chosen categories or items, or *buy N, get M* (the cheapest at the percent off), on chosen days and times. They apply by themselves while they run, show on the check and receipt by name, and come off again when the time is up or the items go. The demo set has *Happy Hour* (weekdays 3-6 PM, half-price draft beer and wine) and *Burger Tuesday* (the second burger half off).
 
+## Whose checks
+
+**Open Checks** shows *My Checks*: yours, a delivery you're driving, and (for anyone who takes payments) the kiosk's orders waiting at the counter. **All Checks** shows everyone's; someone else's is dimmed with a lock (`openChecks()`: `forMe`, `mayOpen`). Opening a check that isn't yours needs the permission **Open other people's checks** (`check.others`: managers and cashiers by role; Manager → Employees → per person), or a manager's PIN on the spot, noted on that check's history. The same rule applies to touching another server's table.
+
 ## Self-order kiosk
 
 A screen where guests order on their own, then pay at the counter.
@@ -408,7 +412,7 @@ Log in with a demo PIN: **1234** (manager), **1111** (server) or **2222** (cashi
 5. **Split Check** on the Settle page moves items to another check at the same table. Touching a table that has several checks lets you choose one.
 
 **Menu choices, prices and 86:**
-- **Modifier groups** (Manager → Modifier Groups) are the choices an item asks for: *Dressing* (choose 1), *Add a Protein* (optional, priced), *Fillings* (up to 3). Give items their groups in Manager → Menu. Ordering such an item opens the **Choose** page beside the check. Required groups must be chosen before **Done**, and **Cancel Item** takes it off. Modifier pages (the burgers' Temperature → Side) still work, so use whichever suits each item. The demo menu shows both: burgers use modifier pages. These items use groups:
+- **Modifier groups** (Manager → Modifier Groups) are the choices an item asks for: *Dressing* (choose 1), *Add a Protein* (optional, priced), *Fillings* (up to 3). Give items their groups in Manager → Menu. Ordering such an item opens the **Choose** page beside the check. Required groups must be chosen before **Done**, and **Cancel Item** takes it off; **Choose** on an item already on the check opens the same page with **Cancel Changes**, which puts its choices back (`choosingBefore_`) and never takes it off. Modifier pages (the burgers' Temperature → Side) still work, so use whichever suits each item. The demo menu shows both: burgers use modifier pages. These items use groups:
   - salads: dressing, protein
   - eggs and omelettes: how cooked, fillings, toast
   - pancakes and French toast: syrup
