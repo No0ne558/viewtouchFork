@@ -430,6 +430,27 @@ bool Check::removePayment(std::int64_t paymentId)
     return std::erase_if(payments, [&](const Payment &p) { return p.id == paymentId; }) > 0;
 }
 
+Money Check::changeFrom(const Payment &p, const TaxRates &rates) const
+{
+    if (p.kind != TenderKind::Cash)
+        return {};
+    Money change = totals(rates).change;
+    for (auto it = payments.rbegin(); it != payments.rend() && change.cents() > 0; ++it) {
+        if (it->kind != TenderKind::Cash)
+            continue;
+        const Money share = it->amount < change ? it->amount : change;
+        if (it->id == p.id)
+            return share;
+        change -= share;
+    }
+    return {};
+}
+
+Money Check::kept(const Payment &p, const TaxRates &rates) const
+{
+    return p.amount + p.tip - changeFrom(p, rates);
+}
+
 Totals Check::totals(const TaxRates &rates) const
 {
     Totals t;

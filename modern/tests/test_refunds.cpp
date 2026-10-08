@@ -292,3 +292,42 @@ TEST_CASE("Every closed check is kept and found: 40 years back, by word, a page 
     REQUIRE_FALSE(data->closedToday.empty());
     CHECK(data->closedToday.back().refunds.size() == 1);
 }
+
+TEST_CASE("Refunds: cash is what was kept, not what was handed over", "[refunds]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    openDrawer(pos);
+    // $2.98, paid with a $5 bill: $2.02 back.
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    REQUIRE(pos.addItem(u"coffee"_s));
+    const qint64 id = pos.checkInfo()[u"id"_s].toLongLong();
+    REQUIRE(pos.tender(u"cash"_s, 500));
+    REQUIRE(pos.closeCheck());
+    const core::Check &c = pos.shared()->closedToday.back();
+    const core::Payment &p = c.payments.front();
+    CHECK(p.amount.cents() == 500);
+    CHECK(c.changeFrom(p, pos.shared()->settings.tax).cents() == 202);
+    CHECK(c.kept(p, pos.shared()->settings.tax).cents() == 298);
+    CHECK_FALSE(pos.refundPayment(id, p.id, 500, u"Wrong item"_s));        // not the $5
+    REQUIRE(pos.refundPayment(id, p.id, 0, u"Wrong item"_s));              // all of it: $2.98
+    CHECK(pos.shared()->refundsToday.back().amount.cents() == 298);
+    CHECK(pos.shared()->drawers.back().movements.back().amount.cents() == 298);
+
+    // A card for $1, the rest in cash with change: the change comes off the cash.
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    REQUIRE(pos.addItem(u"coffee"_s));
+    const qint64 split = pos.checkInfo()[u"id"_s].toLongLong();
+    REQUIRE(pos.tender(u"credit"_s, 100));
+    REQUIRE(pos.tender(u"cash"_s, 500));
+    REQUIRE(pos.closeCheck());
+    const core::Check &s = pos.shared()->closedToday.back();
+    CHECK(s.kept(s.payments[0], pos.shared()->settings.tax).cents() == 100);
+    CHECK(s.kept(s.payments[1], pos.shared()->settings.tax).cents() == 198);
+    pos.searchChecks(u"#%1"_s.arg(split), 0);
+    for (int i = 0; i < 300 && pos.checkSearch()[u"loading"_s].toBool(); ++i)
+        QTest::qWait(10);
+    pos.selectFoundCheck(split);
+    const QVariantMap cash = pos.checkSearch()[u"selected"_s].toMap()[u"payments"_s].toList()[1].toMap();
+    CHECK(cash[u"leftCents"_s] == 198);
+    CHECK(cash[u"change"_s] == u"$3.02"_s);
+}

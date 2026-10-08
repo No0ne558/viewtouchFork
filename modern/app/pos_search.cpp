@@ -202,12 +202,14 @@ QVariantMap PosService::checkSearch() const
             else if (!p.reference.empty() && p.kind != TenderKind::HouseAccount)
                 name += u" ("_s + qs(p.reference) + u')';
             // What can still be given back (paid, tip included, less what was).
-            const Money left = p.amount + p.tip - c.refunded(p.id);
+            const Money left = c.kept(p, s_->settings.tax) - c.refunded(p.id);
             const bool refundable = c.status == CheckStatus::Closed && p.kind != TenderKind::Discount
                                     && p.kind != TenderKind::GiftCard && p.kind != TenderKind::HouseAccount && left.cents() > 0;
             payments.append(QVariantMap{{u"id"_s, qint64(p.id)}, {u"name"_s, name},
                                         {u"amount"_s, p.kind == TenderKind::Discount ? QString() : format(p.amount)},
                                         {u"tip"_s, p.tip.cents() ? format(p.tip) : QString()},
+                                        {u"change"_s, c.changeFrom(p, s_->settings.tax).cents()
+                                                          ? format(c.changeFrom(p, s_->settings.tax)) : QString()},
                                         {u"refunded"_s, c.refunded(p.id).cents() ? format(c.refunded(p.id)) : QString()},
                                         {u"refundable"_s, refundable}, {u"leftCents"_s, qint64(left.cents())},
                                         {u"left"_s, format(left)},

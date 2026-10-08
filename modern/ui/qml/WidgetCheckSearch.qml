@@ -298,6 +298,7 @@ Item {
                                     text: detailRow.type === "line" ? (detailRow.modelData.modifiers ?? "")
                                         : detailRow.type === "payment"
                                           ? [detailRow.modelData.tip ? qsTr("tip %1").arg(detailRow.modelData.tip) : "",
+                                             detailRow.modelData.change ? qsTr("change given %1").arg(detailRow.modelData.change) : "",
                                              detailRow.modelData.refunded ? qsTr("%1 refunded").arg(detailRow.modelData.refunded) : ""]
                                                 .filter(x => x).join("  ·  ")
                                         : detailRow.type === "refund" ? qsTr("by %1").arg(detailRow.modelData.by)

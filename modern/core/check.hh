@@ -289,6 +289,11 @@ struct Check {
     bool removePayment(std::int64_t paymentId);
 
     Totals totals(const TaxRates &rates) const;
+    // What a payment actually left with the store, tip included: cash less
+    // the change given back (from the last cash payment first).
+    Money kept(const Payment &p, const TaxRates &rates) const;
+    // Change given back on this cash payment.
+    Money changeFrom(const Payment &p, const TaxRates &rates) const;
 
     bool operator==(const Check &) const = default;
 };
