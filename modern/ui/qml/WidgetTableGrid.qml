@@ -29,7 +29,8 @@ Item {
             required property var modelData
             width: grid.cellWidth
             height: grid.cellHeight
-            readonly property var status: { w.pos ? w.pos.openChecks : null; return w.pos ? w.pos.tableStatus(modelData.name) : ({ open: false }) }
+            // Again when the checks change (compared, not just read: an unused read is compiled away).
+            readonly property var status: !w.pos || !w.pos.openChecks ? ({ open: false }) : w.pos.tableStatus(modelData.name)
             readonly property color tint: !status.open ? (w.zone.st.fill ?? "#2d3440")
                                           : status.current ? "#2f6fd6"
                                           : status.mine ? "#1f8a4c" : "#a86a12"

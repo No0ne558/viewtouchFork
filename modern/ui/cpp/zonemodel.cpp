@@ -43,7 +43,32 @@ QHash<int, QByteArray> ZoneModel::roleNames() const
 
 void ZoneModel::setRows(QList<Row> rows)
 {
-    beginResetModel();
-    rows_ = std::move(rows);
-    endResetModel();
+    // The same zones (a highlight or sold-out mark changed): updated in
+    // place. A reset rebuilds every zone on the page, and its panels lose
+    // where they were scrolled to (the Choose page jumped back to the top
+    // when a No/Extra key went off).
+    const auto same = [&] {
+        if (rows.size() != rows_.size())
+            return false;
+        for (qsizetype i = 0; i < rows.size(); ++i)
+            if (rows[i].value(ZoneIdRole) != rows_[i].value(ZoneIdRole) || rows[i].value(KindRole) != rows_[i].value(KindRole))
+                return false;
+        return true;
+    };
+    if (!same()) {
+        beginResetModel();
+        rows_ = std::move(rows);
+        endResetModel();
+        return;
+    }
+    for (qsizetype i = 0; i < rows.size(); ++i) {
+        if (rows[i] == rows_[i])
+            continue;
+        QList<int> roles;
+        for (auto it = rows[i].cbegin(); it != rows[i].cend(); ++it)
+            if (rows_[i].value(it.key()) != it.value())
+                roles << it.key();
+        rows_[i] = std::move(rows[i]);
+        emit dataChanged(index(int(i)), index(int(i)), roles);
+    }
 }

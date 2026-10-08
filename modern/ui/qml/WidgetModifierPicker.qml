@@ -38,11 +38,15 @@ Item {
             id: groups
             width: flick.width - flickBar.room
             spacing: w.unit * 0.6
+            // Counted, not the list itself: a choice updates the buttons in
+            // place, so the page keeps where it was scrolled to (a new list
+            // rebuilt them and jumped back to the top).
             Repeater {
-                model: w.choosing.groups ?? []
+                model: (w.choosing.groups ?? []).length
                 delegate: Column {
                     id: group
-                    required property var modelData
+                    required property int index
+                    readonly property var modelData: (w.choosing.groups ?? [])[index] ?? ({})
                     width: groups.width
                     spacing: w.unit * 0.3
                     Row {
@@ -66,9 +70,10 @@ Item {
                         width: parent.width
                         spacing: w.unit * 0.3
                         Repeater {
-                            model: group.modelData.options
+                            model: (group.modelData.options ?? []).length
                             delegate: WidgetKey {
-                                required property var modelData
+                                required property int index
+                                readonly property var modelData: (group.modelData.options ?? [])[index] ?? ({})
                                 objectName: "option-" + modelData.name
                                 width: (groups.width - w.unit * 0.9) / 4
                                 height: w.unit * 2.6
@@ -85,8 +90,9 @@ Item {
                                 opacity: enabled ? 1 : 0.4
                                 fontScale: 0.3
                                 holdable: true
-                                // Comes on it: how it's had (No, Lite, Extra, Side) is the question.
-                                onClicked: modelData.included && !modelData.chosen
+                                // Comes on it: how it's had (No, Lite, Extra, Side) is the question,
+                                // unless No, Extra... was touched first: then that's the answer.
+                                onClicked: modelData.included && !modelData.chosen && !w.pos.pendingQualifier
                                            ? w.askHow(group.modelData.id, modelData.index, modelData.name)
                                            : w.pos.chooseOption(group.modelData.id, modelData.index)
                                 // Held: No / Lite / Extra / Side for it.

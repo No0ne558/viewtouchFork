@@ -858,11 +858,16 @@ Rectangle {
                         Layout.fillHeight: true
                         Layout.preferredHeight: implicitHeight
                         spacing: k.u * 0.5
+                        // Counted, not the lists themselves: a choice updates the
+                        // buttons in place, so the sheet stays where it was scrolled
+                        // (a new list rebuilt them and jumped back to the top).
                         Repeater {
-                            model: k.choosing.groups ?? []
+                            model: (k.choosing.groups ?? []).length
                             delegate: ColumnLayout {
                                 id: group
-                                required property var modelData
+                                required property int index
+                                readonly property var modelData: (k.choosing.groups ?? [])[index] ?? ({})
+                                readonly property int optionCount: (modelData.options ?? []).length
                                 Layout.fillWidth: true
                                 spacing: k.u * 0.3
                                 Text {
@@ -882,10 +887,12 @@ Rectangle {
                                     font.pixelSize: k.u * 0.95
                                 }
                                 Repeater {
-                                    model: (group.modelData.options ?? []).filter(o => o.included)
+                                    model: group.optionCount
                                     delegate: RowLayout {
                                         id: onIt
-                                        required property var modelData
+                                        required property int index
+                                        readonly property var modelData: (group.modelData.options ?? [])[index] ?? ({})
+                                        visible: modelData.included ?? false
                                         Layout.fillWidth: true
                                         spacing: k.u * 0.3
                                         Text {
@@ -926,9 +933,11 @@ Rectangle {
                                     Layout.fillWidth: true
                                     spacing: k.u * 0.4
                                     Repeater {
-                                        model: (group.modelData.options ?? []).filter(o => !o.included)
+                                        model: group.optionCount
                                         delegate: Big {
-                                            required property var modelData
+                                            required property int index
+                                            readonly property var modelData: (group.modelData.options ?? [])[index] ?? ({})
+                                            visible: !(modelData.included ?? false)
                                             width: k.u * 10
                                             height: k.u * 3.2
                                             text: modelData.name + (modelData.soldOut ? "\n" + qsTr("sold out")
@@ -943,11 +952,13 @@ Rectangle {
                                 }
                                 // A choice made, had Light, Extra or on the side (dressing on the side).
                                 Repeater {
-                                    model: group.modelData.askHow
-                                           ? (group.modelData.options ?? []).filter(o => !o.included && o.chosen) : []
+                                    model: group.optionCount
                                     delegate: RowLayout {
                                         id: added
-                                        required property var modelData
+                                        required property int index
+                                        readonly property var modelData: (group.modelData.options ?? [])[index] ?? ({})
+                                        visible: (group.modelData.askHow ?? false) && !(modelData.included ?? false)
+                                                 && (modelData.chosen ?? false)
                                         Layout.fillWidth: true
                                         spacing: k.u * 0.3
                                         Text {

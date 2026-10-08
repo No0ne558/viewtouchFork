@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "layoutcontroller.hh"
@@ -4535,6 +4536,8 @@ TEST_CASE("Screens never depend on a value they throw away", "[ui][lint]")
     const QRegularExpression bare(uR"(^\s*[A-Za-z_]\w*(\.\w+)+;?\s*$)"_s);
     const QRegularExpression voided(uR"(\bvoid [A-Za-z_])"_s);
     const QRegularExpression comma(uR"(\([A-Za-z_][\w.]*(Revision|revision|tick)\w*, )"_s);
+    // "{ pos ? pos.openChecks : null; return ..." or a line of its own.
+    const QRegularExpression ternary(uR"((^|\{)\s*[A-Za-z_][\w.]*\s*\?\s*[\w.]+\s*:\s*(null|undefined|\[\]|\{\})\s*(;|$))"_s);
     int files = 0;
     for (const QString &name : qml.entryList({u"*.qml"_s})) {
         QFile f(qml.filePath(name));
@@ -4548,6 +4551,7 @@ TEST_CASE("Screens never depend on a value they throw away", "[ui][lint]")
             CHECK_FALSE(bare.match(code).hasMatch());
             CHECK_FALSE(voided.match(code).hasMatch());
             CHECK_FALSE(comma.match(code).hasMatch());
+            CHECK_FALSE(ternary.match(code).hasMatch());
         }
     }
     CHECK(files > 50);
@@ -4816,4 +4820,53 @@ TEST_CASE("UI: on the kiosk, a guest has no onion and mayo on the side", "[flow]
         names << m.toString() + m.toMap()[u"name"_s].toString();
     CHECK(names.join(u' ').contains(u"No Onion"_s));
     CHECK(names.join(u' ').contains(u"Side of Mayo"_s));
+}
+
+TEST_CASE("UI: choosing No Onion on the Choose page keeps the page where it was scrolled", "[flow][ui][choosescroll]")
+{
+    Screen s(false, 1024, 600);
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    s.c.orderItem(u"classic-burger"_s);   // its choices open
+    QTest::qWait(150);
+    QQuickItem *picker = nullptr;
+    std::function<void(QQuickItem *)> findPicker = [&](QQuickItem *it) {
+        for (QQuickItem *c : it->childItems()) {
+            if (c->isVisible() && QByteArray(c->metaObject()->className()).contains("WidgetModifierPicker"))
+                picker = c;
+            findPicker(c);
+        }
+    };
+    findPicker(s.window->contentItem());
+    REQUIRE(picker);
+    QQuickItem *flick = nullptr;
+    for (QQuickItem *c : picker->childItems())
+        if (QByteArray(c->metaObject()->className()).contains("Flickable"))
+            flick = c;
+    REQUIRE(flick);
+    const qreal most = flick->property("contentHeight").toReal() - flick->height();
+    REQUIRE(most > 50);   // it scrolls here
+    flick->setProperty("contentY", most);
+    QTest::qWait(50);
+    // The No key, then Onion (as the screen does it).
+    int onion = -1;
+    for (const QVariant &g : s.pos.choosingInfo()[u"groups"_s].toList())
+        if (g.toMap()[u"id"_s] == u"toppings"_s)
+            for (const QVariant &o : g.toMap()[u"options"_s].toList())
+                if (o.toMap()[u"name"_s] == u"Onion"_s)
+                    onion = o.toMap()[u"index"_s].toInt();
+    REQUIRE(onion >= 0);
+    QQuickItem *key = Screen::findBy(picker, "objectName", u"option-Onion"_s);
+    REQUIRE(key);
+    QPointer<QQuickItem> before = picker, beforeKey = key;
+    const QString page = s.c.pageId();
+    s.pos.invoke(u"chooseOptionAs"_s, {u"toppings"_s, onion, u"no"_s});
+    QTest::qWait(100);
+    REQUIRE(before);       // the page's panels weren't rebuilt
+    REQUIRE(beforeKey);
+    CHECK(s.c.pageId() == page);
+    CHECK(flick->property("contentY").toReal() == Catch::Approx(most));   // still down there
+    CHECK(key == Screen::findBy(picker, "objectName", u"option-Onion"_s));   // the same button, updated
+    CHECK(key->property("text").toString().startsWith(u"No Onion"_s));
 }
