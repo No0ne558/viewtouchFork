@@ -184,7 +184,7 @@ Item {
             readonly property bool delivery: w.check.type === "delivery"
             visible: w.controls && w.pos && w.pos.hasCheck && (delivery || w.check.type === "takeout")
             Layout.fillWidth: true
-            Layout.preferredHeight: w.unit * 1.9
+            Layout.preferredHeight: w.unit * 1.9 * Math.min(sheet.big, 1.5)
             spacing: w.unit * 0.25
             // Name, phone, (address,) and when it's wanted.
             readonly property int keys: delivery ? 4 : 3
@@ -640,7 +640,9 @@ Item {
         color: Qt.rgba(0.06, 0.07, 0.09, 0.94)
         radius: 8
         MouseArea { anchors.fill: parent; onClicked: sheet.mode = "" }   // outside the keys: close
-        readonly property real key: w.unit * 2.2
+        // On a phone the check's text is small: its choices are made bigger.
+        readonly property real big: w.zone && w.zone.controller && w.zone.controller.formFactor === "phone" ? 1.8 : 1
+        readonly property real key: w.unit * 2.2 * big
         readonly property var others: tableChecks.checks.filter(c => !c.current)
         // Close, then act: from here, since the key touched may go away with either.
         function run(action) {
@@ -676,7 +678,7 @@ Item {
 
         Column {
             anchors.centerIn: parent
-            width: parent.width * 0.85
+            width: parent.width * (sheet.big > 1 ? 0.94 : 0.85)
             spacing: w.unit * 0.4
             Text {
                 width: parent.width
@@ -690,7 +692,7 @@ Item {
                     : (w.check.label ?? "")
                 color: "white"
                 font.family: w.face
-                font.pixelSize: w.unit
+                font.pixelSize: w.unit * sheet.big
                 font.bold: true
             }
             // Who it's for: type it, or touch a regular that matches.
@@ -701,7 +703,7 @@ Item {
                 width: parent.width
                 height: sheet.key
                 font.family: w.face
-                font.pixelSize: w.unit * 0.9
+                font.pixelSize: w.unit * 0.9 * sheet.big
                 inputMethodHints: sheet.mode === "phone" ? Qt.ImhDialableCharactersOnly : Qt.ImhNone
                 placeholderText: sheet.mode === "name" ? qsTr("Name") : sheet.mode === "phone" ? qsTr("Phone")
                                                                        : qsTr("Street, apartment, city")

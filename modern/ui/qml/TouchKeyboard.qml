@@ -33,7 +33,19 @@ Rectangle {
     readonly property var digits: [
         ["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], [".", "0", "back"], ["-", "enter", "hide"],
     ]
-    readonly property var rows: numeric ? digits : symbols ? marks : letters
+    // A phone held upright: a bottom row with room for fingers (@ and - are
+    // on the symbols page).
+    readonly property bool narrow: width < 600
+    readonly property var narrowLetters: letters.slice(0, 4).concat([["?123", ",", "space", ".", "enter", "hide"]])
+    readonly property var narrowMarks: [
+        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+        ["@", "#", "$", "%", "&", "*", "-", "+", "(", ")"],
+        ["!", "\"", "'", ":", ";", "/", "?", "_", "="],
+        ["~", "[", "]", "{", "}", "<", ">", "|", "back"],
+        ["abc", ".", "space", "enter", "hide"],
+    ]
+    readonly property var rows: numeric ? digits : symbols ? (narrow ? narrowMarks : marks)
+                                                           : (narrow ? narrowLetters : letters)
 
     color: "#12161c"
     implicitHeight: Math.min(parent ? parent.height * 0.42 : 360, 420)
@@ -110,6 +122,8 @@ Rectangle {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         Layout.horizontalStretchFactor: wide ? 5 : special && !kb.numeric ? 2 : 1
+                        // Widths in that proportion (the space bar widest).
+                        Layout.preferredWidth: Layout.horizontalStretchFactor * 10
                         radius: 8
                         color: tap.pressed ? "#4a7bd8"
                              : modelData === "enter" ? "#1f5f3a"
@@ -117,11 +131,16 @@ Rectangle {
                              : special ? "#2a313d" : "#343c49"
                         Text {
                             anchors.centerIn: parent
+                            width: key.width - 6
+                            horizontalAlignment: Text.AlignHCenter
                             text: ({ shift: "⇧", back: "⌫", enter: kb.numeric ? qsTr("Done") : "⏎", hide: "⌨▾",
                                      space: qsTr("space") })[key.modelData]
                                   ?? (kb.shifted ? key.modelData.toUpperCase() : key.modelData)
                             color: "white"
                             font.pixelSize: Math.max(14, Math.min(key.height * 0.42, 30))
+                            // Never wider than its key ("?123" on a phone).
+                            fontSizeMode: Text.HorizontalFit
+                            minimumPixelSize: 9
                         }
                         // A TapHandler never takes the focus (the field keeps it), and
                         // every tap counts: "ll" is two letters, not a double-click.

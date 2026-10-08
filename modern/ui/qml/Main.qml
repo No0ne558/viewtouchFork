@@ -38,7 +38,17 @@ ApplicationWindow {
     // The keyboard pops up over the screen (the page keeps its size). When it
     // would cover the field being typed in, the page (or the setup guide)
     // slides up just enough to keep the field in view, and back down after.
-    readonly property real keysTop: touchKeys.visible ? root.height - touchKeys.height : root.height
+    // The device's own keyboard (Android): it pops up over the window (the
+    // manifest's adjustNothing), and its top is where ours would be.
+    readonly property rect deviceKeys: Qt.inputMethod.keyboardRectangle
+    readonly property bool deviceKeysUp: !touchKeys.visible && Qt.inputMethod.visible && deviceKeys.height > 0
+    readonly property bool keyboardUp: touchKeys.visible || deviceKeysUp
+    readonly property real keysHeight: touchKeys.visible ? touchKeys.height
+                                     : deviceKeysUp ? Math.min(root.height, deviceKeys.height) : 0
+    readonly property real keysTop: touchKeys.visible ? root.height - touchKeys.height
+                                  : deviceKeysUp ? (deviceKeys.y > 0 ? Math.min(root.height, deviceKeys.y)
+                                                                     : root.height - keysHeight)
+                                  : root.height
     property real lift: 0
     Behavior on lift { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
     function inside(item, container) {
@@ -48,13 +58,13 @@ ApplicationWindow {
     }
     function updateLift() {
         const field = typingIn
-        if (!touchKeys.visible || !field || !(inside(field, pageColumn) || inside(field, setupLoader))) {
+        if (!keyboardUp || !field || !(inside(field, pageColumn) || inside(field, setupLoader))) {
             lift = 0
             return
         }
         // Where the field's bottom is with the page where it belongs.
         const bottom = field.mapToItem(null, 0, field.height).y + lift
-        lift = Math.max(0, Math.min(bottom + 16 - keysTop, touchKeys.height))
+        lift = Math.max(0, Math.min(bottom + 16 - keysTop, keysHeight))
     }
     onTypingInChanged: Qt.callLater(updateLift)
     onKeysTopChanged: Qt.callLater(updateLift)
@@ -466,7 +476,7 @@ ApplicationWindow {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         // At the top while the keyboard is up (not over the field being typed in).
-        anchors.bottomMargin: touchKeys.visible ? root.height - height - 24 : 24
+        anchors.bottomMargin: root.keyboardUp ? root.height - height - 24 : 24
         width: Math.min(toastText.implicitWidth + 40, root.width - 40)
         height: toastText.implicitHeight + 20
         radius: 18

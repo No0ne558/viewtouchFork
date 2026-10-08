@@ -4047,3 +4047,41 @@ TEST_CASE("Qualifiers: No opens the item's choices; hold a choice for Lite / Ext
     CHECK(mods.contains(u"No Onion"_s));
     CHECK(mods.contains(u"Extra Tomato"_s));
 }
+
+TEST_CASE("Phone audit: typing on a phone", "[.][phonekeys]")
+{
+    Screen s(true, 412, 870, u"phone"_s);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.shot("pk-0-login");
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.c.activate(u"takeout"_s);
+    QTest::qWait(80);
+    QQuickItem *root = s.window->contentItem();
+    s.tapItem(Screen::findBy(root, "objectName", u"who-name"_s));
+    QTest::qWait(300);
+    s.shot("pk-1-name");
+    s.tapItem(Screen::findBy(root, "objectName", u"whoSave"_s));
+    s.tapItem(Screen::findBy(root, "objectName", u"who-phone"_s));
+    QTest::qWait(300);
+    s.shot("pk-2-phone");
+    s.tapItem(Screen::findBy(root, "objectName", u"whoSave"_s));
+    s.pos.releaseCheck();
+    REQUIRE(s.c.jumpTo(u"customer"_s));
+    QTest::qWait(80);
+    QQuickItem *lowest = nullptr;
+    std::function<void(QQuickItem *)> walk = [&](QQuickItem *item) {
+        if (!item->isVisible())
+            return;
+        if ((item->inherits("QQuickTextField") || item->inherits("QQuickTextArea"))
+            && (!lowest || item->mapToScene(QPointF(0, 0)).y() > lowest->mapToScene(QPointF(0, 0)).y()))
+            lowest = item;
+        for (QQuickItem *child : item->childItems())
+            walk(child);
+    };
+    walk(root);
+    if (lowest) {
+        s.tapItem(lowest);
+        QTest::qWait(300);
+        s.shot("pk-3-lifted");
+    }
+}

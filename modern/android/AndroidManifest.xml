@@ -31,7 +31,7 @@
             android:label="ViewTouch"
             android:launchMode="singleTop"
             android:screenOrientation="unspecified"
-            android:windowSoftInputMode="adjustResize"
+            android:windowSoftInputMode="adjustNothing"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
