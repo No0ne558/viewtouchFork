@@ -13,6 +13,8 @@
 
 #include <QElapsedTimer>
 #include <QFile>
+#include <QLocale>
+#include <QDateTime>
 #include <QSignalSpy>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -528,4 +530,21 @@ TEST_CASE("Receipts leave out free choices; the kitchen gets them all", "[print]
     r = renderText(receipt(c, ctx(seed.settings)), 42);
     CHECK(contains(r, "No onion"));
     CHECK(contains(r, "Medium rare"));
+}
+
+TEST_CASE("Every kind of space prints as a space (the time before AM/PM)", "[print][fit]")
+{
+    Document d;
+    d.text("11:23 PM");                            // how Qt writes the time
+    d.text("a b c d　e");            // no-break, thin, figure, ideographic
+    for (const bool accents : {true, false}) {
+        const std::string bytes = renderEscPos(d, 42, accents);
+        CHECK(contains(bytes, "11:23 PM"));
+        CHECK(contains(bytes, "a b c d e"));
+        CHECK_FALSE(contains(bytes, "?"));
+    }
+    // The real clock, as tickets print it.
+    Document now;
+    now.text(QLocale().toString(QDateTime::currentDateTime(), QLocale::ShortFormat).toStdString());
+    CHECK_FALSE(contains(renderEscPos(now, 42), "?"));
 }

@@ -124,8 +124,8 @@ std::string printable(const std::string &s, bool accents)
         "aaaaaaaceeeeiiiidnooooo/ouuuuyty";  // U+00E0..U+00FF
     std::string out;
     for (const char32_t cp : QString::fromStdString(s).normalized(QString::NormalizationForm_C).toUcs4()) {
-        if (cp == U'\n' || cp == U'\r' || cp == U'\t' || cp == 0xA0)
-            out += ' ';
+        if (QChar::isSpace(cp))
+            out += ' ';   // every kind: the time's "11:23 PM" has a narrow no-break space
         else if (cp < 0x20 || (cp >= 0x7F && cp < 0xA0))
             continue;   // control characters: they'd be printer commands
         else if (cp < 0x80)
