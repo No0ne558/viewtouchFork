@@ -159,8 +159,15 @@ TEST_CASE("Unpairing a device disconnects it and keeps it out", "[pairing]")
     QSignalSpy rejected(&remote, &net::RemoteSession::rejected);
 
     // Manager -> Terminals: remove it.
-    REQUIRE(store.manager.adminRecords(u"terminals"_s).size() == 1);
-    REQUIRE(store.manager.adminDelete(u"terminals"_s, 0));
+    // (The manager's own screen is listed too.)
+    const QVariantList terminals = store.manager.adminRecords(u"terminals"_s);
+    REQUIRE(terminals.size() == 2);
+    int tablet = -1;
+    for (int i = 0; i < terminals.size(); ++i)
+        if (terminals[i].toMap()[u"name"_s] == u"Bar Tablet"_s)
+            tablet = i;
+    REQUIRE(tablet >= 0);
+    REQUIRE(store.manager.adminDelete(u"terminals"_s, tablet));
     REQUIRE(rejected.wait(10000));
     CHECK(remote.isRejected());
     CHECK_FALSE(remote.online());

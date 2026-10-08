@@ -17,6 +17,7 @@
  " · own bank": " · bolsa propia",
  " · paired device": " · dispositivo vinculado",
  " · required": " · requerido",
+ " · this screen": " · esta pantalla",
  "\"%1\" isn't on the menu. Use a menu item's name, or turn off \"Options are menu items\".": "\"%1\" no está en el menú. Use el nombre de un artículo del menú, o desactive \"Las opciones son artículos del menú\".",
  "#%1, then Enter": "#%1, luego Enter",
  "#123, 17.62, a name, phone, table, server, item…": "#123, 17.62, un nombre, teléfono, mesa, mesero, artículo…",

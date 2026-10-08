@@ -735,14 +735,24 @@ QVariantList PosService::adminRecords(const QString &panel)
             add({{u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"start"_s, clockText(m.start)}}, qs(m.name),
                 tr("from %1").arg(clockText(m.start)));
     } else if (panel == u"terminals") {
-        for (const TerminalConfig &t : s_->settings.terminals) {
+        // The screen you're on is always here, ready to set up.
+        auto &list = s_->settings.terminals;
+        if (!terminal_.isEmpty()
+            && std::ranges::none_of(list, [&](const TerminalConfig &t) { return qs(t.name) == terminal_; })) {
+            TerminalConfig self;
+            self.name = ss(terminal_);
+            list.insert(list.begin(), self);
+            settingsChanged();
+        }
+        for (const TerminalConfig &t : list) {
             const PrinterConfig *p = s_->settings.printer(t.receiptPrinter);
             add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}, {u"drawer"_s, qs(t.drawer)},
                  {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)}, {u"keyboard"_s, qs(t.keyboard)},
                  {u"requireName"_s, qs(t.requireName)}, {u"cardReader"_s, qs(t.cardReader)}},
                 qs(t.name), (p ? qs(p->name) : tr("Receipt (default)"))
                                 + (s_->settings.hasDrawer(t.name) ? QString() : tr(" · no drawer"))
-                                + (t.key.empty() ? QString() : tr(" · paired device")));
+                                + (t.key.empty() ? QString() : tr(" · paired device"))
+                                + (qs(t.name) == terminal_ ? tr(" · this screen") : QString()));
         }
     }
     return out;
