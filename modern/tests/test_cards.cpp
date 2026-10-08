@@ -317,3 +317,70 @@ TEST_CASE("Countertop reader: pair, charge from the store, declined, canceled, a
     CHECK(paid.amount.cents() == 298);
     CHECK(paid.tip.cents() == 50);
 }
+
+// Against Stripe's test mode itself (run by hand, with a key in the
+// environment: VTM_STRIPE_TEST_KEY=sk_test_... vtm_tests "[stripelive]").
+TEST_CASE("Stripe test mode, live: pair a simulated reader, approved, declined, refunded", "[.][stripelive]")
+{
+    const QString key = qEnvironmentVariable("VTM_STRIPE_TEST_KEY");
+    if (!key.startsWith(u"sk_test_"_s))
+        SKIP("Set VTM_STRIPE_TEST_KEY to a Stripe test key (sk_test_...).");
+    PosService pos(test::seedPosData(), nullptr);
+    openDrawer(pos);
+    pos.shared()->settings.stripeSecretKey = key.toStdString();
+    net::StripeApi api([&] { return key; });
+    pos.shared()->stripeCall = [&](const QString &m, const QString &p, const QString &f, auto done) { api.call(m, p, f, done); };
+    pos.shared()->stripeRefund = [&](const QString &pi, std::int64_t c, auto done) { api.refund(pi, c, done); };
+    QStringList notices;
+    QObject::connect(&pos, &app::PosSession::notice, [&](const QString &n) { notices << n; });
+    const auto wait = [](const std::function<bool()> &ready, int ms = 30000) {
+        for (int i = 0; i < ms / 50 && !ready(); ++i)
+            QTest::qWait(50);
+        return ready();
+    };
+
+    // Pair Stripe's simulated reader (a location from the address, if Stripe has none).
+    QVariantMap pair = pos.adminNewRecord(u"cardReaders"_s);
+    pair[u"label"_s] = u"ViewTouch test reader"_s;
+    pair[u"code"_s] = u"simulated-wpe"_s;
+    pair[u"line1"_s] = u"123 Main St"_s;
+    pair[u"city"_s] = u"Springfield"_s;
+    pair[u"state"_s] = u"IL"_s;
+    pair[u"postalCode"_s] = u"62701"_s;
+    pair[u"country"_s] = u"US"_s;
+    REQUIRE(pos.adminSave(u"cardReaders"_s, -1, pair));
+    INFO("notices: " << notices.join(u" | "_s).toStdString());
+    REQUIRE(wait([&] { return !pos.shared()->settings.stripeReaders.empty(); }));
+    const auto &reader = pos.shared()->settings.stripeReaders.back();
+    INFO("reader " << reader.id << " " << reader.deviceType << " at " << pos.shared()->settings.stripeLocation);
+    REQUIRE(pos.adminSave(u"terminals"_s, -1, {{u"name"_s, pos.terminalName()},
+                                               {u"cardReader"_s, u"counter:"_s + QString::fromStdString(reader.id)}}));
+
+    REQUIRE(pos.startCheck(core::CheckType::Quick));
+    REQUIRE(pos.addItem(u"coffee"_s));                                    // $2.98
+
+    // Declined.
+    REQUIRE(pos.startCounterCharge(u"credit"_s));
+    REQUIRE(wait([&] { return pos.counterCharge()[u"status"_s] == u"waiting"_s; }));
+    REQUIRE(pos.presentTestCard(true));
+    REQUIRE(wait([&] { return pos.counterCharge().isEmpty(); }));
+    CHECK(pos.payments().isEmpty());
+    CHECK(notices.last().contains(u"declined"_s, Qt::CaseInsensitive));
+
+    // Approved.
+    REQUIRE(pos.startCounterCharge(u"credit"_s));
+    REQUIRE(wait([&] { return pos.counterCharge()[u"status"_s] == u"waiting"_s; }));
+    REQUIRE(pos.presentTestCard(false));
+    REQUIRE(wait([&] { return pos.counterCharge().isEmpty(); }));
+    REQUIRE(pos.payments().size() == 1);
+    const QString name = pos.payments()[0].toMap()[u"name"_s].toString();
+    INFO("payment: " << name.toStdString());
+    CHECK(name.contains(u"4242"_s));
+    CHECK(pos.totals()[u"balanceCents"_s].toLongLong() == 0);
+
+    // Refunded through Stripe, then off the check.
+    pos.selectPayment(pos.payments()[0].toMap()[u"id"_s].toLongLong());
+    REQUIRE(pos.removePayment());
+    REQUIRE(wait([&] { return pos.payments().isEmpty(); }));
+    CHECK(notices.last().startsWith(u"Refunded"_s));
+}
