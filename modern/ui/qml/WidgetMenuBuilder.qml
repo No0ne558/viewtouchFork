@@ -242,6 +242,17 @@ Item {
                         onClicked: { w.mode = "choices"; w.editingItem = false; w.editingCategory = false }
                     }
                 }
+                // Ready to go? What would trip up service.
+                TouchButton {
+                    objectName: "builderCheck"
+                    readonly property var problems: w.pos ? w.pos.menuProblems : []
+                    readonly property int serious: problems.filter(p => p.serious).length
+                    Layout.fillWidth: true
+                    text: serious ? qsTr("⚠ %n to fix", "", serious)
+                                  : problems.length ? qsTr("✓ Ready (%n note(s))", "", problems.length) : qsTr("✓ Ready to go")
+                    palette.button: serious ? "#7a2e2e" : "#1f5f3a"
+                    onClicked: checkDialog.open()
+                }
                 Label { visible: w.mode === "menu"; text: qsTr("Categories"); font.pixelSize: 22; font.bold: true }
                 // Choice groups: every one, its rule and who uses it.
                 ListView {
@@ -649,6 +660,29 @@ Item {
                                 text: w.draft.onIt ?? ""
                                 placeholderText: qsTr("e.g. lettuce, tomato, onion, mayo")
                                 onTextEdited: w.set("onIt", text)
+                            }
+
+                            // Also on a page of buttons placed by hand (a Happy Hour page).
+                            RowLayout {
+                                readonly property var pages: w.draft.id && w.zone && w.zone.controller && w.pos
+                                                             ? (w.pos.adminRevision >= 0 && w.zone.controller.menuScreensHandBuilt !== undefined   // again when pages change
+                                                                ? w.zone.controller.handBuiltPages(w.draft.id) : []) : []
+                                visible: pages.length > 0
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Label { text: qsTr("Also a button on") }
+                                ComboBox {
+                                    id: alsoOn
+                                    objectName: "builderAlsoOn"
+                                    Layout.fillWidth: true
+                                    model: parent.pages.map(p => p.name + (p.has ? "  ✓" : ""))
+                                }
+                                TouchButton {
+                                    objectName: "builderAlsoOnAdd"
+                                    enabled: alsoOn.currentIndex >= 0 && !(parent.pages[alsoOn.currentIndex] ?? {}).has
+                                    text: qsTr("Add Button")
+                                    onClicked: w.zone.controller.addItemButton(parent.pages[alsoOn.currentIndex].id, w.draft.id, w.draft.name)
+                                }
                             }
 
                             // Its choices, from the list.
@@ -1084,6 +1118,55 @@ Item {
                 }
                 TouchButton { Layout.preferredWidth: 160; text: qsTr("Cancel"); onClicked: importDialog.close() }
             }
+        }
+    }
+
+    // The menu checked: touch a problem to fix it.
+    Dialog {
+        id: checkDialog
+        objectName: "builderCheckDialog"
+        readonly property var problems: w.pos ? w.pos.menuProblems : []
+        title: problems.length ? qsTr("Before service") : qsTr("Ready to go")
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 760)
+        height: Math.min(parent.height - 40, 600)
+        modal: true
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 8
+            Label {
+                visible: checkDialog.problems.length === 0
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: qsTr("Every item has a price and a category, every choice it asks for is there, and its kitchen ticket goes to a printer that's set up.")
+            }
+            ListView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 6
+                model: checkDialog.problems
+                delegate: TouchButton {
+                    required property var modelData
+                    width: ListView.view.width
+                    text: (modelData.serious ? "⚠ " : "• ") + modelData.text
+                    onClicked: {
+                        checkDialog.close()
+                        if (modelData.item) {
+                            const i = w.allItems.find(x => x.id === modelData.item)
+                            if (i) { w.mode = "menu"; w.categoryId = i.family; w.editItem(i) }
+                        } else if (modelData.group) {
+                            const g = w.allGroups.find(x => x.id === modelData.group)
+                            if (g) w.editGroup(g)
+                        } else if (modelData.category) {
+                            const c = w.categories.find(x => x.id === modelData.category)
+                            if (c) { w.mode = "menu"; w.categoryId = c.id; w.editCategory(c) }
+                        }
+                    }
+                }
+            }
+            TouchButton { Layout.alignment: Qt.AlignRight; text: qsTr("Close"); onClicked: checkDialog.close() }
         }
     }
 

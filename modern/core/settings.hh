@@ -68,6 +68,8 @@ struct TerminalConfig {
     // none), or nothing (empty). receiptPrinter "ask": choose the printer
     // each time (a handheld).
     std::string afterPaying;
+    // Orders opened here start on this menu category (the bar: Drinks); empty: the meal's page.
+    std::string startCategory;
     // Its card reader: "stripe" (a Stripe smart reader this app runs on),
     // "counter:tmr_..." (a Stripe reader beside it, run from the store's
     // computer), "simulated" (approves after a moment: for practice), or none.

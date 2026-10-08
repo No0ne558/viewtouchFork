@@ -99,6 +99,7 @@ public:
     QString screenMode() const override { return v(u"screenMode").toString(); }
     QString terminalLook() const override { return v(u"terminalLook").toString(); }
     QString terminalKeyboard() const override { return v(u"terminalKeyboard").toString(); }
+    QString terminalStartCategory() const override { return v(u"terminalStartCategory").toString(); }
     QString terminalCardReader() const override { return v(u"cardReader").toString(); }
     QVariantMap readerToken() const override { return v(u"readerToken").toMap(); }
     QVariantMap counterCharge() const override { return v(u"counterCharge").toMap(); }
@@ -150,6 +151,7 @@ public:
     QVariantList menuCategories() const override { return v(u"menuCategories").toList(); }
     QVariantList choiceGroups() const override { return v(u"choiceGroups").toList(); }
     QVariantList menuTemplates() const override { return v(u"menuTemplates").toList(); }
+    QVariantList menuProblems() const override { return v(u"menuProblems").toList(); }
     int queryRevision() const override { return queryRevision_; }
 
     // Answered from a cache; fetched from the server when missing or stale.

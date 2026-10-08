@@ -531,6 +531,14 @@ QVariantList PosService::adminFields(const QString &panel)
                                         {"timeClock", "Time Clock (clock in / out and schedules only)"}})),
             // Choices filled in by the screen (its looks).
             field(u"look"_s, tr("Look"), u"look"_s, tr("This screen's colors; the store's look elsewhere.")),
+            with(field(u"startCategory"_s, tr("Start orders on"), u"enum"_s,
+                       tr("A menu category orders opened here start on (the bar: Drinks). The meal's categories: the usual.")),
+                 u"options"_s, [this] {
+                     QVariantList o{QVariantMap{{u"value"_s, QString()}, {u"text"_s, tr("The meal's categories")}}};
+                     for (const MenuCategory &c : s_->categories())
+                         o.append(QVariantMap{{u"value"_s, qs(c.id)}, {u"text"_s, qs(c.name)}});
+                     return o;
+                 }()),
             with(field(u"keyboard"_s, tr("On-screen keyboard"), u"enum"_s,
                        tr("For typing names, notes and numbers on a touch screen. Phones and tablets use their own.")),
                  u"options"_s, options({{"", "Automatic (on; phones and tablets use their own)"}, {"on", "On"},
@@ -775,7 +783,7 @@ QVariantList PosService::adminRecords(const QString &panel)
             add({{u"name"_s, qs(t.name)}, {u"receiptPrinter"_s, qs(t.receiptPrinter)}, {u"drawer"_s, qs(t.drawer)},
                  {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)}, {u"keyboard"_s, qs(t.keyboard)},
                  {u"requireName"_s, qs(t.requireName)}, {u"cardReader"_s, qs(t.cardReader)},
-                 {u"afterPaying"_s, qs(t.afterPaying)}},
+                 {u"afterPaying"_s, qs(t.afterPaying)}, {u"startCategory"_s, qs(t.startCategory)}},
                 qs(t.name), (p ? qs(p->name) : tr("Receipt (default)"))
                                 + (s_->settings.hasDrawer(t.name) ? QString() : tr(" · no drawer"))
                                 + (t.key.empty() ? QString() : tr(" · paired device"))
@@ -807,7 +815,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
     if (panel == u"terminals")
         return {{u"name"_s, terminal_}, {u"receiptPrinter"_s, QString()}, {u"drawer"_s, QString()},
                 {u"screen"_s, QString()}, {u"look"_s, QString()}, {u"keyboard"_s, QString()}, {u"requireName"_s, QString()},
-                {u"cardReader"_s, QString()}, {u"afterPaying"_s, QString()}};
+                {u"cardReader"_s, QString()}, {u"afterPaying"_s, QString()}, {u"startCategory"_s, QString()}};
     if (panel == u"mealPeriods")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"start"_s, u"17:00"_s}};
     if (panel == u"modifierGroups")
@@ -962,6 +970,7 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         if (!QStringList{QString(), u"print"_s, u"ask"_s}.contains(after))
             return fail(tr("Choose what happens after a check is paid."));
         t.afterPaying = ss(after);
+        t.startCategory = ss(record.value(u"startCategory"_s).toString());
         if (index >= 0 && index < int(list.size()))
             list[index] = t;
         else
@@ -1943,6 +1952,14 @@ QString PosService::terminalLook() const
     for (const TerminalConfig &t : s_->settings.terminals)
         if (qs(t.name) == terminal_)
             return qs(t.look);
+    return {};
+}
+
+QString PosService::terminalStartCategory() const
+{
+    for (const TerminalConfig &t : s_->settings.terminals)
+        if (qs(t.name) == terminal_)
+            return qs(t.startCategory);
     return {};
 }
 

@@ -143,6 +143,8 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantList choiceGroups READ choiceGroups NOTIFY adminChanged)
     // Starter menus by kind of place: [{id, name, description, categories, items}].
     Q_PROPERTY(QVariantList menuTemplates READ menuTemplates NOTIFY adminChanged)
+    // The menu checked for what would trip up service (the Menu Builder).
+    Q_PROPERTY(QVariantList menuProblems READ menuProblems NOTIFY adminChanged)
     // The current check's history [{time, who, what}].
     Q_PROPERTY(QVariantList checkHistory READ checkHistory NOTIFY checkChanged)
     Q_PROPERTY(QString checkFilter READ checkFilter WRITE setCheckFilter NOTIFY openChecksChanged)
@@ -171,6 +173,8 @@ class PosSession : public QObject {
     Q_PROPERTY(QString terminalLook READ terminalLook NOTIFY adminChanged)
     // This terminal's on-screen keyboard: "on", "off" or "" (automatic).
     Q_PROPERTY(QString terminalKeyboard READ terminalKeyboard NOTIFY adminChanged)
+    // Orders opened on this screen start on this menu category (Terminals).
+    Q_PROPERTY(QString terminalStartCategory READ terminalStartCategory NOTIFY adminChanged)
     // This terminal's card reader: "stripe", "simulated" or "" (none).
     Q_PROPERTY(QString cardReader READ terminalCardReader NOTIFY adminChanged)
     // The reader's connection token, when asked for: {seq, token, error}.
@@ -286,6 +290,7 @@ public:
     virtual QVariantList menuCategories() const = 0;
     virtual QVariantList choiceGroups() const = 0;
     virtual QVariantList menuTemplates() const = 0;
+    virtual QVariantList menuProblems() const = 0;
     virtual QString checkFilter() const = 0;
     virtual QVariantList kitchenTickets() const = 0;
     virtual QVariantList expoTickets() const = 0;
@@ -299,6 +304,7 @@ public:
     virtual QString screenMode() const = 0;
     virtual QString terminalLook() const = 0;
     virtual QString terminalKeyboard() const = 0;
+    virtual QString terminalStartCategory() const = 0;
     virtual QString terminalCardReader() const = 0;
     virtual QVariantMap readerToken() const = 0;
     virtual QVariantMap counterCharge() const = 0;

@@ -1,6 +1,7 @@
 #include "layoutcontroller.hh"
 
 #include <QFile>
+#include <climits>
 #include <QFontDatabase>
 #include <QImage>
 
@@ -740,6 +741,127 @@ QVariantMap LayoutController::readMenuFile(const QUrl &file) const
     return {{u"items"_s, items}, {u"problems"_s, read.problems}, {u"columns"_s, read.columns}};
 }
 
+namespace {
+
+QString orders(const vt::layout::Zone &z)
+{
+    for (const vt::layout::Action &a : z.actions)
+        if (a.type() == u"addItem")
+            return a.str(u"item");
+    return {};
+}
+
+} // namespace
+
+QVariantList LayoutController::handBuiltPages(const QString &itemId) const
+{
+    QVariantList out;
+    for (const vt::layout::Page &p : activeLayout().pages) {
+        if (p.kind != u"items" && p.kind != u"custom" && p.kind != u"index")
+            continue;
+        const bool selfFilling = std::ranges::any_of(p.zones, [](const vt::layout::Zone &z) {
+            return z.kind == u"menuGrid" || z.kind == u"menuCategories";
+        });
+        const bool itemButtons = std::ranges::any_of(p.zones, [](const vt::layout::Zone &z) { return !orders(z).isEmpty(); });
+        if (selfFilling || !itemButtons)
+            continue;
+        const bool has = std::ranges::any_of(p.zones, [&](const vt::layout::Zone &z) { return orders(z) == itemId; });
+        out.append(QVariantMap{{u"id"_s, p.id}, {u"name"_s, p.name}, {u"has"_s, has}});
+    }
+    return out;
+}
+
+bool LayoutController::addItemButton(const QString &pageId, const QString &itemId, const QString &label)
+{
+    if (!pos_ || !pos_->can(QString::fromLatin1(vt::core::perm::EditLayout))) {
+        setStatus(tr("Changing pages needs a manager."));
+        return false;
+    }
+    if (editing()) {
+        setStatus(tr("Finish editing pages first."));
+        return false;
+    }
+    Layout l = layout_;
+    vt::layout::Page *p = l.page(pageId);
+    if (!p)
+        return false;
+    // Like the page's usual item button (its most common size): its size,
+    // shape and look, on the grid they're on, spaced as they are.
+    QHash<QPair<int, int>, int> sizes;
+    for (const vt::layout::Zone &z : p->zones)
+        if (!orders(z).isEmpty())
+            ++sizes[{z.rect.width(), z.rect.height()}];
+    if (sizes.isEmpty())
+        return false;
+    QPair<int, int> common = sizes.keyBegin().operator*();
+    for (auto it = sizes.cbegin(); it != sizes.cend(); ++it)
+        if (it.value() > sizes.value(common))
+            common = it.key();
+    const QSize size(common.first, common.second);
+    const vt::layout::Zone *like = nullptr;
+    int left = INT_MAX, top = INT_MAX, gapX = INT_MAX, gapY = INT_MAX;
+    for (const vt::layout::Zone &z : p->zones) {
+        if (orders(z).isEmpty() || z.rect.size() != size)
+            continue;
+        if (!like)
+            like = &z;
+        left = std::min(left, z.rect.left());
+        top = std::min(top, z.rect.top());
+        for (const vt::layout::Zone &o : p->zones) {
+            if (&o == &z || orders(o).isEmpty() || o.rect.size() != size)
+                continue;
+            if (o.rect.top() == z.rect.top() && o.rect.left() > z.rect.right())
+                gapX = std::min(gapX, o.rect.left() - z.rect.left() - size.width());
+            if (o.rect.left() == z.rect.left() && o.rect.top() > z.rect.bottom())
+                gapY = std::min(gapY, o.rect.top() - z.rect.top() - size.height());
+        }
+    }
+    if (gapX == INT_MAX) gapX = 16;
+    if (gapY == INT_MAX) gapY = 16;
+    const vt::layout::Page *tmpl = p->templateId.isEmpty() ? nullptr : l.page(p->templateId);
+    const auto clear = [&](const QList<vt::layout::Zone> &zones, const QRect &r) {
+        return std::ranges::none_of(zones, [&](const vt::layout::Zone &z) {
+            return z.kind != u"comment" && z.rect.intersects(r);   // notes show only while editing
+        });
+    };
+    // The next free place, row by row.
+    QRect at;
+    for (int y = top; y + size.height() <= p->canvas.height() && at.isNull(); y += size.height() + gapY)
+        for (int x = left; x + size.width() <= p->canvas.width(); x += size.width() + gapX) {
+            const QRect r(QPoint(x, y), size);
+            if (clear(p->zones, r) && (!tmpl || clear(tmpl->zones, r))) {   // the order bar, the check
+                at = r;
+                break;
+            }
+        }
+    if (at.isNull()) {
+        setStatus(tr("%1 is full: make room in the page editor.").arg(p->name));
+        return false;
+    }
+    vt::layout::Zone z = *like;
+    z.label = label;
+    z.rect = at;
+    z.actions.clear();
+    vt::layout::Action add;
+    add.data = {{u"type"_s, u"addItem"_s}, {u"item"_s, itemId}};
+    z.actions.append(add);
+    QString id = u"item-"_s + itemId;
+    for (int n = 2; p->zone(id); ++n)
+        id = u"item-"_s + itemId + u'-' + QString::number(n);
+    z.id = id;
+    p->zones.append(z);
+    if (saver_) {
+        QString error;
+        if (!saver_(l, &error)) {
+            setStatus(tr("Could not save: %1").arg(error));
+            return false;
+        }
+    }
+    replaceLayout(l);
+    setStatus(tr("%1 is on %2 now").arg(label, p->name));
+    return true;
+}
+
 bool LayoutController::menuScreensHandBuilt() const
 {
     return vt::layout::hasHandBuiltMenu(layout_);
@@ -1359,6 +1481,22 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
 
 bool LayoutController::navigate(Navigator::Mode mode, const QString &target)
 {
+    // To the menu from outside the order screens (tables, a new order, open
+    // checks): this screen's start category, if it has one (the bar: Drinks).
+    // From the order screens (‹ Menu), the meal's page as usual.
+    if (mode == Navigator::Mode::Index && pos_ && !editing()) {
+        const vt::layout::Page *here = currentPage();
+        const bool ordering = here && (here->kind == u"index" || here->kind == u"items" || here->kind == u"modifier"
+                                       || here->kind == u"settle");
+        const QString start = pos_->terminalStartCategory();
+        QString menu = rolePage(u"menu"_s);
+        if (menu.isEmpty() && activeLayout().page(u"menu-all"_s))
+            menu = u"menu-all"_s;
+        if (!ordering && !start.isEmpty() && !menu.isEmpty()) {
+            setMenuCategory(start);
+            return navigate(Navigator::Mode::Push, menu);
+        }
+    }
     if ((mode == Navigator::Mode::Push || mode == Navigator::Mode::Replace) && !mayOpen(target))
         return false;
     if (nav_.jump(mode, target)) {

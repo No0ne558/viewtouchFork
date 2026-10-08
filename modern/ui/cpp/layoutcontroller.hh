@@ -180,6 +180,12 @@ public:
     // A spreadsheet saved as CSV, on this device: {items: [{row, name, price,
     // category, description, onIt}], problems, columns, error}.
     Q_INVOKABLE QVariantMap readMenuFile(const QUrl &file) const;
+    // Pages of buttons placed by hand that an item's button can go on:
+    // [{id, name, has}] (has: one for `itemId` is there already).
+    Q_INVOKABLE QVariantList handBuiltPages(const QString &itemId) const;
+    // A button for the item on that page, like its other item buttons, in
+    // the next free place; saved like the page editor saves.
+    Q_INVOKABLE bool addItemButton(const QString &pageId, const QString &itemId, const QString &label);
     QString menuCategory() const { return menuCategory_; }
     void setMenuCategory(const QString &id);
     // Holding a button: what it does, in plain words, instead of doing it.

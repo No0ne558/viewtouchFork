@@ -208,6 +208,55 @@ bool PosService::deleteCategory(const QString &id)
     return true;
 }
 
+// --- ready to go? ----------------------------------------------------------------------
+
+QVariantList PosService::menuProblems() const
+{
+    QVariantList out;
+    const auto problem = [&](const QString &text, const QString &item = {}, const QString &group = {},
+                             const QString &category = {}, bool serious = true) {
+        out.append(QVariantMap{{u"text"_s, text}, {u"item"_s, item}, {u"group"_s, group}, {u"category"_s, category},
+                               {u"serious"_s, serious}});
+    };
+    const std::vector<MenuCategory> categories = s_->categories();
+    QHash<QString, QString> seen;   // name, lower case -> the first item's id
+    for (const MenuItem &m : s_->menu) {
+        if (m.isModifier)
+            continue;
+        const QString id = qs(m.id), name = qs(m.name);
+        if (m.price.cents() == 0 && !m.byWeight)
+            problem(tr("%1 has no price.").arg(name), id, {}, {}, false);
+        if (m.family.empty())
+            problem(tr("%1 is in no category, so it's on no menu screen.").arg(name), id);
+        for (const std::string &g : m.modifierGroups)
+            if (!s_->settings.modifierGroup(g))
+                problem(tr("%1 asks for a choice group that's gone.").arg(name), id);
+        if (!m.printer.empty() && !s_->settings.printer(m.printer))
+            problem(tr("%1 goes to a kitchen printer that isn't set up (%2).").arg(name, qs(m.printer)), id);
+        if (const QString key = name.toLower(); seen.contains(key))
+            problem(tr("There are two %1: the screens can't tell them apart.").arg(name), id);
+        else
+            seen.insert(key, id);
+    }
+    for (const ModifierGroup &g : s_->settings.modifierGroups) {
+        if (g.id.starts_with("on-"))
+            continue;
+        if (g.options.empty())
+            problem(tr("The choice group %1 has no options.").arg(qs(g.name)), {}, qs(g.id));
+        else if (g.min > int(g.options.size()))
+            problem(tr("%1 asks for %2 choices but has only %3 options.").arg(qs(g.name)).arg(g.min).arg(g.options.size()),
+                    {}, qs(g.id));
+    }
+    for (const MenuCategory &c : categories) {
+        for (const std::string &p : c.periods)
+            if (std::ranges::none_of(s_->settings.mealPeriods, [&](const MealPeriod &x) { return x.id == p; }))
+                problem(tr("%1 is on a meal period that isn't set up (%2).").arg(qs(c.name), qs(p)), {}, {}, qs(c.id));
+        if (std::ranges::none_of(s_->menu, [&](const MenuItem &m) { return m.family == c.id && !m.isModifier; }))
+            problem(tr("%1 has no items yet.").arg(qs(c.name)), {}, {}, qs(c.id), false);
+    }
+    return out;
+}
+
 // --- choice groups ---------------------------------------------------------------------
 
 bool PosService::saveChoiceGroup(const QVariantMap &record)

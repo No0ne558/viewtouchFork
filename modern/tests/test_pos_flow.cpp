@@ -5177,3 +5177,59 @@ TEST_CASE("UI: in the Menu Builder, hold an item and drag it to its new place", 
     CHECK(ids.first() == u"cheeseburger"_s);
     CHECK_FALSE(by(u"builderGhost"_s));
 }
+
+TEST_CASE("Flow: the bar's screen starts orders on Drinks; ‹ Menu still shows the meal's", "[flow][startcategory]")
+{
+    Session s;
+    core::TerminalConfig bar;
+    bar.name = s.pos.terminalName().toStdString();
+    bar.startCategory = "drinks";
+    s.pos.shared()->settings.terminals.push_back(bar);
+    REQUIRE(s.pos.loginWithPin(u"4444"_s));            // Jo, the bartender
+    s.c.activate(u"quick"_s);
+    CHECK(s.c.pageId() == u"menu-all"_s);
+    CHECK(s.c.menuCategory() == u"drinks"_s);
+    s.c.activate(u"tab-categories"_s);                 // ‹ Menu
+    CHECK(s.c.pageId() == u"index-lunch"_s);
+    // Another screen: the meal's page, as before.
+    s.pos.shared()->settings.terminals.back().startCategory.clear();
+    s.c.activate(u"flow-tables"_s);
+    s.c.activate(u"quick"_s);
+    CHECK(s.c.pageId() == u"index-lunch"_s);
+}
+
+TEST_CASE("Flow: an item's button added to a page built by hand, in its next free place", "[flow][alsoon]")
+{
+    Session s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.saveMenuItemCard({{u"name"_s, u"Patty Melt"_s}, {u"price"_s, u"12.75"_s}, {u"family"_s, u"burgers"_s}}));
+    QString melt;
+    for (const QVariant &m : s.pos.menuItems())
+        if (m.toMap()[u"name"_s] == u"Patty Melt"_s)
+            melt = m.toMap()[u"id"_s].toString();
+    QStringList pages;
+    for (const QVariant &p : s.c.handBuiltPages(melt))
+        pages << p.toMap()[u"id"_s].toString();
+    CHECK(pages.contains(u"items-burgers"_s));      // a page of buttons placed by hand
+    CHECK_FALSE(pages.contains(u"menu-all"_s));     // self-filling: no need
+    const bool added = s.c.addItemButton(u"items-burgers"_s, melt, u"Patty Melt"_s);
+    INFO(s.c.statusText().toStdString());
+    REQUIRE(added);
+    const vt::layout::Page *burgers = s.c.activeLayout().page(u"items-burgers"_s);
+    REQUIRE(burgers);
+    const vt::layout::Zone *button = burgers->zone(u"item-"_s + melt);
+    REQUIRE(button);
+    CHECK(button->label == u"Patty Melt"_s);
+    CHECK(button->rect.size() == burgers->zone(u"item-1"_s)->rect.size());   // like the others
+    for (const vt::layout::Zone &z : burgers->zones)
+        if (z.id != button->id)
+            CHECK_FALSE(z.rect.intersects(button->rect));                     // in a free place
+    for (const QVariant &p : s.c.handBuiltPages(melt))
+        if (p.toMap()[u"id"_s] == u"items-burgers"_s)
+            CHECK(p.toMap()[u"has"_s].toBool());
+    // It orders.
+    REQUIRE(s.c.jumpTo(u"items-burgers"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+    s.c.activate(button->id);
+    CHECK(s.pos.lines().size() == 1);
+}

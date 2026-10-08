@@ -625,6 +625,8 @@ public:
     int importMenuRows(const QVariantList &rows, const QString &categoryId, bool updatePrices);
     // Starter menus (menu_templates.cpp): [{id, name, description, categories, items}].
     QVariantList menuTemplates() const override;
+    // What would trip up service: [{text, item, group, category, serious}].
+    QVariantList menuProblems() const override;
     bool applyMenuTemplate(const QString &id);
     // {id ("" new), name, min, max, askHow, options: [{name, price, included, kitchenName}]}
     bool saveChoiceGroup(const QVariantMap &record);
@@ -640,6 +642,7 @@ public:
     QString screenMode() const override;
     QString terminalLook() const override;
     QString terminalKeyboard() const override;
+    QString terminalStartCategory() const override;
 
     // --- pairing devices (manager) -------------------------------------------------
     // Start a pairing: a 10-character code, good for 10 minutes and one device.

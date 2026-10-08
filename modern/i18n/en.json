@@ -106,5 +106,13 @@
  "new prices for %n": {
   "one": "a new price for %n item",
   "other": "new prices for %n items"
+ },
+ "⚠ %n to fix": {
+  "one": "⚠ %n to fix",
+  "other": "⚠ %n to fix"
+ },
+ "✓ Ready (%n note(s))": {
+  "one": "✓ Ready (%n note)",
+  "other": "✓ Ready (%n notes)"
  }
 }

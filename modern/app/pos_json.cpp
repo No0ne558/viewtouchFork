@@ -723,7 +723,7 @@ QJsonObject toJson(const PosSettings &s)
                                      {u"pairedAt"_s, qint64(t.pairedAt)}, {u"screen"_s, qs(t.screen)}, {u"look"_s, qs(t.look)},
                                      {u"station"_s, qs(t.station)}, {u"keyboard"_s, qs(t.keyboard)},
                                      {u"requireName"_s, qs(t.requireName)}, {u"cardReader"_s, qs(t.cardReader)},
-                                     {u"afterPaying"_s, qs(t.afterPaying)}});
+                                     {u"afterPaying"_s, qs(t.afterPaying)}, {u"startCategory"_s, qs(t.startCategory)}});
     QJsonArray printers;
     for (const PrinterConfig &p : s.printers)
         printers.append(toJson(p));
@@ -952,6 +952,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
         c.requireName = ss(t.value(u"requireName").toString());
         c.cardReader = ss(t.value(u"cardReader").toString());
         c.afterPaying = ss(t.value(u"afterPaying").toString());
+        c.startCategory = ss(t.value(u"startCategory").toString());
         s.terminals.push_back(std::move(c));
     }
     s.cashMode = cashModeFromString(ss(o.value(u"cashMode").toString()));

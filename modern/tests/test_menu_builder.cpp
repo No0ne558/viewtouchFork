@@ -369,3 +369,34 @@ TEST_CASE("Starter menus: added alongside, ready to order", "[menubuilder][templ
     CHECK(asked.contains(u"Tortilla"_s));
     CHECK_FALSE(pos.finishChoosing());   // salsa and tortilla are required
 }
+
+TEST_CASE("Ready to go: the starter menu is; mistakes are caught", "[menubuilder][check]")
+{
+    PosService pos(test::seedPosData(true), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const auto problems = [&](bool seriousOnly) {
+        QStringList out;
+        for (const QVariant &p : pos.menuProblems())
+            if (!seriousOnly || p.toMap()[u"serious"_s].toBool())
+                out << p.toMap()[u"text"_s].toString();
+        return out;
+    };
+    INFO(problems(false).join(u"\n"_s).toStdString());
+    CHECK(problems(true).isEmpty());
+
+    // Mistakes.
+    auto &menu = pos.shared()->menu;
+    menu[0].printer = "pizza-oven";
+    menu[1].modifierGroups.push_back("gone");
+    menu[2].name = menu[3].name;
+    pos.shared()->settings.modifierGroups.push_back({"empty", "Salsa", 1, 1, {}, false, false});
+    REQUIRE(pos.saveCategory({{u"name"_s, u"Desserts"_s}}));
+    const QStringList found = problems(false);
+    INFO(found.join(u"\n"_s).toStdString());
+    CHECK(found.filter(u"pizza-oven"_s).size() == 1);
+    CHECK(found.filter(u"choice group that's gone"_s).size() == 1);
+    CHECK(found.filter(u"There are two"_s).size() == 1);
+    CHECK(found.filter(u"Salsa has no options"_s).size() == 1);
+    CHECK(found.filter(u"Desserts has no items yet"_s).size() == 1);
+    CHECK(problems(true).size() == 4);   // an empty category is a note, not a problem
+}
