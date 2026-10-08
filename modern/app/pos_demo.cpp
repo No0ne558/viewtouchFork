@@ -633,8 +633,9 @@ QString fillDemoData(PosService &pos, std::int64_t realNow)
             pos.reserveTables(v.toMap().value(u"id"_s).toLongLong(), {u"T5"_s, u"T6"_s});
             break;
         }
-    // A note for everyone, up until closing.
-    pos.sendMessage(u"all"_s, u"86 Smoked Brisket tonight"_s, QDateTime(today, QTime(23, 0)).toMSecsSinceEpoch());
+    // A note for everyone, up until closing (made late at night: a few hours).
+    pos.sendMessage(u"all"_s, u"86 Smoked Brisket tonight"_s,
+                    std::max(QDateTime(today, QTime(23, 0)).toMSecsSinceEpoch(), realNow + 4 * 3'600'000LL));
     // Time off and a swap: one approved, one waiting; a shift up for grabs, taken.
     const auto askOff = [&](const char *pin, int days, const char *why) {
         pos.timeClockStart(QString::fromLatin1(pin));

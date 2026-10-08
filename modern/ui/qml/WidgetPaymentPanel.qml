@@ -105,7 +105,7 @@ Item {
                 height: w.unit * 1.8
                 radius: 6
                 color: modelData.selected ? "#2f6fd6" : "transparent"
-                TapHandler { onTapped: w.pos.selectedPayment = pay.modelData.id }
+                TapHandler { onTapped: { if (TouchGuard.covered(point.scenePressPosition)) return; w.pos.selectedPayment = pay.modelData.id } }
                 Line {
                     anchors.fill: parent
                     anchors.leftMargin: 8

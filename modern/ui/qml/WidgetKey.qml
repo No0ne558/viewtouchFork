@@ -46,7 +46,7 @@ Rectangle {
     TapHandler {
         id: tap
         longPressThreshold: key.holdable ? 0.5 : 0.8
-        onTapped: key.clicked()
-        onLongPressed: if (key.holdable) key.held()
+        onTapped: { if (TouchGuard.covered(point.scenePressPosition)) return; key.clicked() }
+        onLongPressed: { if (TouchGuard.covered(point.scenePressPosition)) return; if (key.holdable) key.held() }
     }
 }

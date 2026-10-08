@@ -59,7 +59,7 @@ Item {
                     height: w.unit * 2.2
                     radius: 8
                     color: modelData.selected ? "#2f6fd6" : "#2d3440"
-                    TapHandler { onTapped: w.pos.selectedLine = line.modelData.id }
+                    TapHandler { onTapped: { if (TouchGuard.covered(point.scenePressPosition)) return; w.pos.selectedLine = line.modelData.id } }
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: w.unit * 0.5

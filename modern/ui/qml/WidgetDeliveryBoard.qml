@@ -143,7 +143,7 @@ Item {
                         }
                     }
                 }
-                TapHandler { id: cardTap; onTapped: w.toggle(card.modelData.id) }
+                TapHandler { id: cardTap; onTapped: { if (TouchGuard.covered(point.scenePressPosition)) return; w.toggle(card.modelData.id) } }
             }
             Text {
                 anchors.centerIn: parent

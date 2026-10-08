@@ -97,6 +97,11 @@ Rectangle {
         shifted = target !== null && !numeric && (target.text ?? "").length === 0
     }
 
+    // Touches here are the keyboard's: this takes them from MouseAreas
+    // behind it (tap handlers there check TouchGuard). The keys take a tap
+    // without taking the focus from the field.
+    MouseArea { anchors.fill: parent }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 8

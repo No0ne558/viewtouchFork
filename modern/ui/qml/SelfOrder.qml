@@ -75,6 +75,9 @@ Rectangle {
     property int idleLeft: 0
     function touched() { idle.restart(); typeIdle.restart(); stillThere.visible = false }
     PointHandler { onActiveChanged: if (active) k.touched() }   // any touch, without taking it
+    // Touches stop at the kiosk: the store's page is still behind it, and a
+    // touch that fell through pressed its buttons (Log Out cancelled the order).
+    MouseArea { anchors.fill: parent; z: -1 }
     Timer {
         id: idle
         interval: (k.info.idleSeconds ?? 90) * 1000

@@ -4551,3 +4551,145 @@ TEST_CASE("Screens never depend on a value they throw away", "[ui][lint]")
     }
     CHECK(files > 50);
 }
+
+TEST_CASE("UI: the kiosk's own keyboard types a name with a space", "[flow][ui][kiosk][kioskkeys]")
+{
+    for (const QSize size : {QSize(1600, 900), QSize(1080, 1920)}) {
+        INFO(size.width() << "x" << size.height());
+        Screen s(false, size.width(), size.height());
+        REQUIRE(s.pos.loginWithPin(u"1234"_s));
+        REQUIRE(s.c.jumpTo(u"tables"_s));   // the store's tables behind the kiosk
+        s.pos.enableSelfOrder();
+        QTest::qWait(60);
+        auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+        QQuickItem *kiosk = find(u"selfOrder"_s);
+        REQUIRE(kiosk);
+        s.tapItem(find(u"kioskAttract"_s));
+        QTest::qWait(60);
+        s.tapItem(find(u"kioskForHere"_s));
+        QTest::qWait(60);
+        s.tapItem(Screen::findBy(kiosk, "text", u"Cheeseburger"_s));
+        QTest::qWait(60);
+        s.tapItem(Screen::findBy(kiosk, "text", u"Well Done"_s));
+        s.tapItem(Screen::findBy(kiosk, "text", u"Fries"_s));
+        s.tapItem(find(u"kioskChoicesDone"_s));
+        QTest::qWait(60);
+        REQUIRE(s.pos.lines().size() == 1);
+        s.tapItem(find(u"kioskReview"_s));
+        QTest::qWait(80);
+        QQuickItem *name = find(u"kioskName"_s);
+        REQUIRE(name);
+        REQUIRE(name->isVisible());
+        for (const QString &key : {u"L"_s, u"e"_s, u"e"_s, u"space"_s, u"k"_s}) {
+            INFO(key.toStdString());
+            QQuickItem *k = Screen::findBy(kiosk, "text", key);
+            REQUIRE(k);
+            s.tapItem(k);
+            QTest::qWait(40);
+            CHECK(s.pos.selfOrderInfo()[u"ordering"_s].toBool());   // the order is still there
+            CHECK(name->isVisible());                                 // still on the name
+        }
+        CHECK(name->property("text").toString() == u"Lee k"_s);
+        CHECK(s.pos.lines().size() == 1);
+    }
+}
+
+TEST_CASE("UI: a touch on a sheet or the screen saver never presses the page behind it", "[flow][ui][kiosk][kioskkeys]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    QTest::qWait(60);
+    QQuickItem *page = Screen::findBy(s.window->contentItem(), "objectName", u"pageSurface"_s);
+    REQUIRE(page);
+    CHECK(page->isEnabled());
+    s.pos.enableSelfOrder();
+    QTest::qWait(60);
+    CHECK_FALSE(page->isEnabled());   // under the kiosk
+}
+
+TEST_CASE("UI: the pop-up keyboard's keys never press the page behind them", "[flow][ui][kioskkeys][popkeys]")
+{
+    Screen s(true);   // touch keyboard on
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"find-check"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    std::function<QQuickItem *(QQuickItem *)> field = [&](QQuickItem *it) -> QQuickItem * {
+        for (QQuickItem *c : it->childItems()) {
+            if (c->isVisible() && QByteArray(c->metaObject()->className()).contains("TextField"))
+                return c;
+            if (QQuickItem *hit = field(c))
+                return hit;
+        }
+        return nullptr;
+    };
+    QQuickItem *box = field(root);
+    REQUIRE(box);
+    s.tapItem(box);
+    QTest::qWait(100);
+    QQuickItem *kb = nullptr;
+    std::function<void(QQuickItem *)> findKb = [&](QQuickItem *it) {
+        for (QQuickItem *c : it->childItems()) {
+            if (QByteArray(c->metaObject()->className()).contains("TouchKeyboard"))
+                kb = c;
+            findKb(c);
+        }
+    };
+    findKb(root);
+    REQUIRE(kb);
+    REQUIRE(kb->isVisible());
+    // The keys of the current layout (read again each time: the rows are rebuilt).
+    const auto keys = [&] {
+        std::vector<std::pair<QString, QPointF>> out;
+        std::function<void(QQuickItem *)> walk = [&](QQuickItem *it) {
+            for (QQuickItem *c : it->childItems()) {
+                if (c->isVisible() && c->parentItem() && QByteArray(c->parentItem()->metaObject()->className()).contains("RowLayout")) {
+                    QString label;
+                    for (QQuickItem *t : c->childItems())
+                        label += t->property("text").toString();
+                    out.emplace_back(label, c->mapToScene(QPointF(c->width() / 2, c->height() / 2)));
+                }
+                walk(c);
+            }
+        };
+        walk(kb);
+        return out;
+    };
+    const QSet<QString> modes = {u"⇧"_s, u"⌫"_s, u"⏎"_s, u"⌨▾"_s, u"?123"_s, u"abc"_s};
+    int pressed = 0;
+    for (std::size_t i = 0; i < keys().size(); ++i) {
+        const auto [label, at] = keys()[i];
+        if (label.isEmpty() || modes.contains(label))
+            continue;   // a row's Repeater, or a key that changes the layout
+        INFO("key '" << label.toStdString() << "' at " << at.x() << "," << at.y());
+        QTest::mouseClick(s.window, Qt::LeftButton, {}, at.toPoint());
+        QTest::qWait(20);
+        ++pressed;
+        CHECK(s.c.pageId() == u"find-check"_s);
+        REQUIRE(kb->isVisible());
+    }
+    CHECK(pressed > 25);
+    CHECK(box->property("text").toString().size() == pressed);   // every key typed into the field
+}
+
+// Qt offers a touch to the tap handlers under whatever took it: every page
+// control's tap handler ignores a press on the pop-up keyboard (TouchGuard).
+TEST_CASE("Every tap handler on a page ignores the keyboard's touches", "[ui][lint]")
+{
+    const QDir qml(QStringLiteral(VTM_SEED_DIR) + u"/../ui/qml"_s);
+    QStringList files = qml.entryList({u"Widget*.qml"_s});
+    files << u"ZoneItem.qml"_s;
+    const QRegularExpression handler(uR"(\bon(Tapped|LongPressed|DoubleTapped)\s*:)"_s);
+    int handlers = 0;
+    for (const QString &name : files) {
+        QFile f(qml.filePath(name));
+        REQUIRE(f.open(QIODevice::ReadOnly));
+        const QString text = QString::fromUtf8(f.readAll());
+        const int n = int(text.count(handler));
+        handlers += n;
+        INFO(name.toStdString());
+        CHECK(int(text.count(u"TouchGuard.covered("_s)) >= n);
+    }
+    CHECK(handlers >= 18);
+}

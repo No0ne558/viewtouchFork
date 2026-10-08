@@ -88,6 +88,6 @@ Item {
     TapHandler {
         id: tap
         enabled: w.name !== ""
-        onTapped: w.zone.controller.selectTable(w.name)
+        onTapped: { if (TouchGuard.covered(point.scenePressPosition)) return; w.zone.controller.selectTable(w.name) }
     }
 }

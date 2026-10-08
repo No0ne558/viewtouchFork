@@ -362,7 +362,7 @@ Item {
                 radius: 6
                 color: modelData.selected ? "#2f6fd6" : "transparent"
 
-                TapHandler { onTapped: w.pos.selectedLine = row.modelData.id }
+                TapHandler { onTapped: { if (TouchGuard.covered(point.scenePressPosition)) return; w.pos.selectedLine = row.modelData.id } }
                 // Swipe left: off the check (a void once sent). Swipe right: one more.
                 readonly property real swipeAt: width * 0.28
                 DragHandler {

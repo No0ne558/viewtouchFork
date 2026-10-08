@@ -98,7 +98,7 @@ Item {
                         font.pixelSize: w.unit * 0.75
                     }
                 }
-                TapHandler { id: tap; onTapped: w.pos.tickChecklist(w.list, row.index) }
+                TapHandler { id: tap; onTapped: { if (TouchGuard.covered(point.scenePressPosition)) return; w.pos.tickChecklist(w.list, row.index) } }
             }
         }
         Item { Layout.fillHeight: true }

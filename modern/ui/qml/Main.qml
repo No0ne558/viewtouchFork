@@ -116,6 +116,11 @@ ApplicationWindow {
 
     onEditingChanged: if (!editing) pageView.forceActiveFocus()
 
+    // Something over the whole screen (see the page's `enabled`).
+    readonly property bool pageCovered: selfOrder.visible || root.controller.asleep || cardWait.visible
+                                        || receiptSheet.visible || setupLoader.active || jobChooser.visible
+                                        || approvalPad.visible
+
     Loader {
         active: root.customerDisplay
         x: root.posWidth
@@ -166,12 +171,16 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.margins: root.editing ? 12 : 0
+                // Off while something covers the whole screen: Qt still offers a
+                // touch to the tap handlers underneath whatever took it, so the
+                // page's buttons were pressed through the kiosk, a sheet or the
+                // PIN pad, and the touch that woke the screen saver pressed one
+                // (the kiosk's space bar put the order away by touching a table
+                // behind it). Under the pop-up keyboard: see TouchGuard.
+                enabled: !root.pageCovered
                 controller: root.controller
                 editor: root.editing ? root.editor : null
                 focus: true
-                // Asleep: the touch that wakes it does nothing here. A PIN pad or
-                // chooser on top: the buttons under it can't be touched.
-                enabled: !root.controller.asleep && !approvalPad.visible && !jobChooser.visible
 
                 Keys.onPressed: event => {
                     if (root.editing)
@@ -209,6 +218,13 @@ ApplicationWindow {
                 }
             }
         }
+    }
+
+    // The page's tap handlers ignore presses on the keyboard (TouchGuard).
+    Binding {
+        target: TouchGuard
+        property: "keyboardTop"
+        value: touchKeys.visible ? root.height - touchKeys.height : -1
     }
 
     // The on-screen keyboard: over the screen, above every dialog, and it

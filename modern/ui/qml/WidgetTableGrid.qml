@@ -66,6 +66,7 @@ Item {
             TapHandler {
                 id: tap
                 onTapped: {
+                    if (TouchGuard.covered(point.scenePressPosition)) return   // the keyboard's touch
                     if ((w.zone.props.action ?? "") === "move") {
                         w.pos.moveCheck(cell.modelData.name)
                         w.zone.controller.goBack()

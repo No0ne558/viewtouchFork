@@ -210,7 +210,7 @@ Item {
                     }
                     TapHandler {
                         id: tap
-                        onTapped: w.toggle(cell.modelData.name)
+                        onTapped: { if (TouchGuard.covered(point.scenePressPosition)) return; w.toggle(cell.modelData.name) }
                     }
                 }
             }
@@ -277,7 +277,7 @@ Item {
                             font.pixelSize: w.unit * 0.8
                         }
                     }
-                    TapHandler { id: partyTap; onTapped: w.pickParty(row.modelData.id) }
+                    TapHandler { id: partyTap; onTapped: { if (TouchGuard.covered(point.scenePressPosition)) return; w.pickParty(row.modelData.id) } }
                 }
                 Small {
                     anchors.centerIn: parent
