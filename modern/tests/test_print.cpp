@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <QDir>
 #include <QImage>
 #include <QBuffer>
 #include "print/raster.hh"
@@ -16,6 +17,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
+#include <QTest>
 
 using namespace Qt::StringLiterals;
 using namespace vt;
@@ -337,4 +339,35 @@ TEST_CASE("A printer's test page: logo, text, the width ruler, a cut, the drawer
     CHECK(printed.indexOf(QByteArray("\x1dv0\0", 4)) >= 0);       // the logo
     CHECK(printed.contains(QByteArray("\x1bp\0", 3)));             // drawer kick
     CHECK(printed.contains(QByteArray("\x1dV\x42", 3)));           // cut
+}
+
+// A real printer on the network (hidden; run with the printer's address:
+// VTM_PRINTER_HOST=192.168.1.101 vtm_tests "[printerlive]"). Prints the
+// Test Print page: logo, text sizes, a sample item and total, the ruler.
+TEST_CASE("A network printer, live: the Test Print page", "[.][printerlive]")
+{
+    const QString host = qEnvironmentVariable("VTM_PRINTER_HOST");
+    if (host.isEmpty())
+        SKIP("Set VTM_PRINTER_HOST to the printer's address.");
+    core::PosSettings settings;
+    settings.storeName = "ViewTouch";
+    core::PrinterConfig p;
+    p.id = "receipt";
+    p.name = "Receipt";
+    p.type = "network";
+    p.host = host.toStdString();
+    p.port = qEnvironmentVariableIntValue("VTM_PRINTER_PORT") ? qEnvironmentVariableIntValue("VTM_PRINTER_PORT") : 9100;
+    p.width = qEnvironmentVariableIntValue("VTM_PRINTER_WIDTH") ? qEnvironmentVariableIntValue("VTM_PRINTER_WIDTH") : 42;
+    settings.printers = {p};
+    print::PrintSpooler spooler;
+    print::TicketPrinter printer(spooler, QDir::tempPath());
+    QString result;
+    QObject::connect(&spooler, &print::PrintSpooler::jobPrinted, [&](const QString &, const QString &) { result = u"printed"_s; });
+    QObject::connect(&spooler, &print::PrintSpooler::jobFailed,
+                     [&](const QString &, const QString &, const QString &error) { result = u"failed: "_s + error; });
+    REQUIRE(printer.printTestPage(settings, "receipt", false));
+    for (int i = 0; i < 300 && result.isEmpty(); ++i)
+        QTest::qWait(50);
+    INFO(result.toStdString());
+    CHECK(result == u"printed"_s);
 }
