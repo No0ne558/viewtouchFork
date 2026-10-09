@@ -42,14 +42,14 @@ Rectangle {
                 contentItem: ColumnLayout {
                     spacing: 1
                     Label {
-                        text: row.modelData.name || row.modelData.id
+                        text: row.modelData.name ? qsTranslate("Page", row.modelData.name) : row.modelData.id
                         font.bold: row.highlighted
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
                     Label {
-                        text: row.modelData.kind
-                              + (row.modelData.role ? "  ·  " + qsTr("role: %1").arg(row.modelData.role) : "")
+                        text: panel.editor.pageKindName(row.modelData.kind)
+                              + (row.modelData.role ? "  ·  " + qsTr("role: %1").arg(panel.editor.pageRoleName(row.modelData.role)) : "")
                               + (row.modelData.templateId ? "  ·  ⧉ " + row.modelData.templateId : "")
                         color: row.highlighted ? Qt.rgba(1, 1, 1, 0.8) : EditorStyle.muted
                         font.pixelSize: 11

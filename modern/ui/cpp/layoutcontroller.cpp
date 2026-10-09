@@ -1716,7 +1716,7 @@ QString LayoutController::describeAction(const Action &a) const
             for (const QJsonValue &f : t.toObject().value(u"fields"_s).toArray())
                 for (const QJsonValue &o : f.toObject().value(u"options"_s).toArray())
                     if (o.toObject().value(u"value"_s).toString() == name)
-                        return o.toObject().value(u"text"_s).toString() + u'.';
+                        return QCoreApplication::translate("Schema", o.toObject().value(u"text"_s).toString().toUtf8().constData()) + u'.';
         return name;
     }
     return {};

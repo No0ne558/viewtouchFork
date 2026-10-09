@@ -44,7 +44,7 @@ Rectangle {
         const out = []
         for (const f of JSON.parse(fieldsJson)) {
             let g = out.find(x => x.name === f.group)
-            if (!g) { g = { name: f.group, fields: [] }; out.push(g) }
+            if (!g) { g = { name: f.group, key: f.groupKey ?? f.group, fields: [] }; out.push(g) }
             g.fields.push(f)
         }
         return out
@@ -182,7 +182,7 @@ Rectangle {
                         required property var modelData
                         required property int index
                         // Secondary style states start collapsed.
-                        property bool open: !modelData.name.startsWith("Look when")
+                        property bool open: !modelData.key.startsWith("Look when")
 
                         Layout.fillWidth: true
                         Layout.leftMargin: 12

@@ -28,6 +28,9 @@ bool isWidgetKind(const QString &kind);
 
 QStringList pageKinds();
 QStringList pageRoles();
+// [{value, text}]: the kinds and roles by their names on screen (English).
+QJsonArray pageKindOptions();
+QJsonArray pageRoleOptions();
 
 QJsonArray zoneFields(const QString &kind);
 

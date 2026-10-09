@@ -240,6 +240,22 @@ QStringList pageRoles()
             u"manager"_s, u"bar"_s, u"kitchen"_s, u"weigh"_s, u"timeClock"_s, u"menu"_s};
 }
 
+// What page kinds and roles are called on screen.
+QJsonArray pageKindOptions()
+{
+    return options({{"custom", "Custom"}, {"login", "Login"}, {"tables", "Tables"}, {"guestCount", "Guest count"},
+                    {"index", "Menu index"}, {"items", "Menu items"}, {"modifier", "Choices"}, {"settle", "Payment"},
+                    {"logout", "Log out"}, {"manager", "Manager"}, {"kitchen", "Kitchen"}, {"template", "Template"},
+                    {"library", "Button library"}});
+}
+
+QJsonArray pageRoleOptions()
+{
+    return options({{"login", "Login"}, {"tables", "Tables"}, {"guestCount", "Guest count"}, {"checkList", "Open checks"},
+                    {"settle", "Payment"}, {"logout", "Log out"}, {"manager", "Manager"}, {"bar", "Bar"},
+                    {"kitchen", "Kitchen"}, {"weigh", "Weighing"}, {"timeClock", "Time clock"}, {"menu", "Menu"}});
+}
+
 QJsonArray zoneFields(const QString &kind)
 {
     const bool touchable = kind == u"button" || kind == u"image";
@@ -308,12 +324,25 @@ QJsonArray zoneFields(const QString &kind)
             out.append(with(field(u"props.hideButtons"_s, u"Hide all its buttons"_s, u"bool"_s, g), u"hint"_s,
                             u"Put your own buttons anywhere instead: each has a command that does the same."_s));
             for (const BuiltIn &b : keys) {
-                out.append(with(field(u"props.buttons."_s + b.id + u".hide"_s, u"Hide “%1”"_s.arg(b.label), u"bool"_s, g),
-                                u"hint"_s, b.command.isEmpty() ? QString() : u"Command: %1"_s.arg(b.command)));
-                out.append(with(field(u"props.buttons."_s + b.id + u".label"_s, u"“%1” says"_s.arg(b.label),
-                                      u"string"_s, g), u"hint"_s, u"Empty: the usual words"_s));
+                // Composed labels: their parts, to be translated apart.
+                const auto parts = [&](QJsonObject f, const QString &tmpl) {
+                    f.insert(u"labelTemplate"_s, tmpl);
+                    f.insert(u"labelArg"_s, b.label);
+                    return f;
+                };
+                QJsonObject hide = parts(field(u"props.buttons."_s + b.id + u".hide"_s, u"Hide “%1”"_s.arg(b.label), u"bool"_s, g),
+                                         u"Hide “%1”"_s);
+                if (!b.command.isEmpty()) {
+                    hide.insert(u"hint"_s, u"Command: %1"_s.arg(b.command));
+                    hide.insert(u"hintTemplate"_s, u"Command: %1"_s);
+                    hide.insert(u"hintArg"_s, b.command);
+                }
+                out.append(hide);
+                out.append(with(parts(field(u"props.buttons."_s + b.id + u".label"_s, u"“%1” says"_s.arg(b.label),
+                                            u"string"_s, g), u"“%1” says"_s), u"hint"_s, u"Empty: the usual words"_s));
                 if (b.orderable)
-                    out.append(with(intField(u"props.buttons."_s + b.id + u".order"_s, u"“%1” position"_s.arg(b.label), g, 0, 9),
+                    out.append(with(parts(intField(u"props.buttons."_s + b.id + u".order"_s, u"“%1” position"_s.arg(b.label), g, 0, 9),
+                                          u"“%1” position"_s),
                                     u"hint"_s, u"1 = first in its row. 0 or empty: the usual place."_s));
             }
         }
@@ -331,9 +360,9 @@ QJsonArray pageFields()
     out.append(field(u"name"_s, u"Name"_s, u"string"_s, general));
     out.append(with(field(u"id"_s, u"Page ID"_s, u"string"_s, general), u"hint"_s,
                     u"Renaming updates every button that jumps here"_s));
-    out.append(with(field(u"kind"_s, u"Page type"_s, u"enum"_s, general), u"options"_s, options(pageKinds())));
+    out.append(with(field(u"kind"_s, u"Page type"_s, u"enum"_s, general), u"options"_s, pageKindOptions()));
     QJsonArray roles = options({{"", "(none)"}});
-    for (const QJsonValue &v : options(pageRoles()))
+    for (const QJsonValue &v : pageRoleOptions())
         roles.append(v);
     out.append(with(with(field(u"role"_s, u"System role"_s, u"enum"_s, general), u"options"_s, roles),
                     u"hint"_s, u"The app opens this page for that job"_s));
@@ -393,8 +422,11 @@ QJsonArray themeFields()
     // Colors that mean something: table states, kitchen ticket ages, sold out.
     const QString g = u"Status colors"_s;
     const auto color = [&](const char *key, const char *label, const char *usual) {
-        out.append(with(with(field(u"status."_s + QLatin1String(key), QString::fromLatin1(label), u"color"_s, g),
-                             u"inheritable"_s, true), u"hint"_s, u"Usually %1"_s.arg(QLatin1String(usual))));
+        QJsonObject f = with(with(field(u"status."_s + QLatin1String(key), QString::fromLatin1(label), u"color"_s, g),
+                                  u"inheritable"_s, true), u"hint"_s, u"Usually %1"_s.arg(QLatin1String(usual)));
+        f.insert(u"hintTemplate"_s, u"Usually %1"_s);
+        f.insert(u"hintArg"_s, QLatin1String(usual));
+        out.append(f);
     };
     color("tableOpen", "Table with a check", "#a86a12");
     color("tableMine", "Table with my check", "#1f8a4c");
@@ -415,7 +447,7 @@ QJsonArray actionTypes()
     };
     const QString g;   // no groups inside an action card
     QJsonArray roles = options({{"", "(use page)"}});
-    for (const QJsonValue &v : options(pageRoles()))
+    for (const QJsonValue &v : pageRoleOptions())
         roles.append(v);
 
     return {

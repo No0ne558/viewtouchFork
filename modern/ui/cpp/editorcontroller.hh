@@ -69,6 +69,9 @@ public:
     QStringList textures() const;
     QStringList basicKinds() const;
     Q_INVOKABLE QString kindName(const QString &kind) const;
+    // A page kind's / role's name on screen ("manager" -> "Manager").
+    Q_INVOKABLE QString pageKindName(const QString &kind) const;
+    Q_INVOKABLE QString pageRoleName(const QString &role) const;
     QStringList widgetKinds() const;
     QStringList pageKinds() const;
 

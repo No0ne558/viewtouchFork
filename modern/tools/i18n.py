@@ -48,6 +48,13 @@ def source_phrases():
     for path in sorted((ROOT / "app").glob("*.cpp")):
         for block in re.finditer(r'\boptions\(\{(.*?)\}\)', path.read_text(), re.S):
             out += [unescape(m.group(1)) for m in re.finditer(rf'\{{\s*{STR}\s*,\s*({STR})\s*\}}', block.group(1))]
+    # The page editor's fields (layout/schema.cpp): labels, sections, hints,
+    # choices: the literals that read as words (not paths, ids or colors).
+    # Literals side by side (u"..."_s u"..."_s) are one phrase.
+    for run in re.finditer(rf'(?:u?{STR}(?:_s)?\s*)+', (ROOT / "layout/schema.cpp").read_text()):
+        s = joined(run.group(0))
+        if re.search(r"[A-Za-z]", s) and (s[:1].isupper() or s[:1] in "(“" or " " in s) and not s.startswith("#"):
+            out.append(s)
     text = (ROOT / "main.cpp").read_text()
     out += [joined(m.group(1)) for rx, kind in CALLS if kind == "cpp" for m in rx.finditer(text)]
     return out
@@ -57,6 +64,8 @@ def page_phrases():
     out = []
     for path in sorted((ROOT / "seed/pages").glob("*.json")):
         page = json.loads(path.read_text())
+        if page.get("name"):
+            out.append(page["name"])   # the page editor's list
         for z in page.get("zones", []):
             if z.get("label"):
                 out.append(z["label"])

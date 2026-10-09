@@ -70,6 +70,55 @@ bool writeJsonFile(const QUrl &url, const QJsonObject &o, QString *why)
     return true;
 }
 
+// The schema's words in the screen's language: labels, section names,
+// hints, choices; composed ones (Hide “Station…”) part by part. `groupKey`
+// keeps the English section name for code that looks for it.
+QString schemaText(const QString &english)
+{
+    return english.isEmpty() ? english : QCoreApplication::translate("Schema", english.toUtf8().constData());
+}
+
+QJsonObject translatedField(QJsonObject f)
+{
+    if (f.contains(u"labelTemplate"_s))
+        f.insert(u"label"_s, schemaText(f.value(u"labelTemplate"_s).toString()).arg(schemaText(f.value(u"labelArg"_s).toString())));
+    else if (f.contains(u"label"_s))
+        f.insert(u"label"_s, schemaText(f.value(u"label"_s).toString()));
+    if (f.contains(u"hintTemplate"_s))
+        f.insert(u"hint"_s, schemaText(f.value(u"hintTemplate"_s).toString()).arg(f.value(u"hintArg"_s).toString()));
+    else if (f.contains(u"hint"_s))
+        f.insert(u"hint"_s, schemaText(f.value(u"hint"_s).toString()));
+    if (f.contains(u"group"_s)) {
+        f.insert(u"groupKey"_s, f.value(u"group"_s));
+        f.insert(u"group"_s, schemaText(f.value(u"group"_s).toString()));
+    }
+    if (f.contains(u"options"_s)) {
+        QJsonArray options;
+        for (const QJsonValue &v : f.value(u"options"_s).toArray()) {
+            QJsonObject o = v.toObject();
+            if (o.value(u"text"_s).isString())
+                o.insert(u"text"_s, schemaText(o.value(u"text"_s).toString()));
+            options.append(o);
+        }
+        f.insert(u"options"_s, options);
+    }
+    if (f.contains(u"fields"_s)) {   // an action type's
+        QJsonArray fields;
+        for (const QJsonValue &v : f.value(u"fields"_s).toArray())
+            fields.append(translatedField(v.toObject()));
+        f.insert(u"fields"_s, fields);
+    }
+    return f;
+}
+
+QVariantList translated(const QJsonArray &fields)
+{
+    QVariantList out;
+    for (const QJsonValue &v : fields)
+        out.append(translatedField(v.toObject()).toVariantMap());
+    return out;
+}
+
 } // namespace
 
 EditorController::EditorController(Layout base, QObject *parent)
@@ -251,6 +300,22 @@ QString EditorController::kindName(const QString &kind) const
 }
 QStringList EditorController::pageKinds() const { return vt::layout::schema::pageKinds(); }
 
+QString EditorController::pageKindName(const QString &kind) const
+{
+    for (const QJsonValue &o : vt::layout::schema::pageKindOptions())
+        if (o.toObject().value(u"value"_s).toString() == kind)
+            return schemaText(o.toObject().value(u"text"_s).toString());
+    return kind;
+}
+
+QString EditorController::pageRoleName(const QString &role) const
+{
+    for (const QJsonValue &o : vt::layout::schema::pageRoleOptions())
+        if (o.toObject().value(u"value"_s).toString() == role)
+            return schemaText(o.toObject().value(u"text"_s).toString());
+    return role;
+}
+
 // --- selection -----------------------------------------------------------------
 
 void EditorController::select(const QString &zoneId, bool additive)
@@ -395,12 +460,12 @@ void EditorController::redo() { editor_.undoStack()->redo(); }
 
 QVariantList EditorController::zoneFields(const QString &kind) const
 {
-    return vt::layout::schema::zoneFields(kind).toVariantList();
+    return translated(vt::layout::schema::zoneFields(kind));
 }
 
 QVariantList EditorController::pageFields() const
 {
-    QVariantList fields = vt::layout::schema::pageFields().toVariantList();
+    QVariantList fields = translated(vt::layout::schema::pageFields());
     if (mealPeriods_.isEmpty())
         return fields;
     QVariantList choices{QVariantMap{{u"value"_s, QString()}, {u"text"_s, tr("(none)")}}};
@@ -421,12 +486,12 @@ QVariantList EditorController::pageFields() const
 
 QVariantList EditorController::themeFields() const
 {
-    return vt::layout::schema::themeFields().toVariantList();
+    return translated(vt::layout::schema::themeFields());
 }
 
 QVariantList EditorController::actionTypes() const
 {
-    return vt::layout::schema::actionTypes().toVariantList();
+    return translated(vt::layout::schema::actionTypes());
 }
 
 QVariantList EditorController::pageOptions() const

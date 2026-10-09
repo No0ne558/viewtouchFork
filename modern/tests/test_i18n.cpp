@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "editorcontroller.hh"
+#include "layout_fixture.hh"
 #include "app/i18n.hh"
 #include "pos_fixture.hh"
 #include "qt_catch.hh"
@@ -106,4 +108,50 @@ TEST_CASE("Languages: two terminals on one server, each in its own", "[i18n]")
     CHECK(barNotices.last()[0].toString() == u"Escriba el mensaje."_s);
     patio.invoke(u"sendMessage"_s, {u"everyone"_s, QString()});
     CHECK(patioNotices.last()[0].toString() == u"Type the message."_s);
+}
+
+TEST_CASE("The page editor's fields in Spanish", "[i18n][editori18n]")
+{
+    Spanish es;
+    REQUIRE(i18n::setLanguage(u"es"_s));
+    EditorController e(*vt::test::loadTestLayout());
+    e.setPageId(u"items-burgers"_s);
+    const auto find = [](const QVariantList &fields, const QString &path) {
+        for (const QVariant &f : fields)
+            if (f.toMap().value(u"path"_s) == path)
+                return f.toMap();
+        return QVariantMap();
+    };
+    const QVariantList button = e.zoneFields(u"button"_s);
+    const QVariantMap fill = find(button, u"style.selected.fill"_s);
+    CHECK(fill[u"label"_s] == u"Color"_s);
+    CHECK(fill[u"group"_s] == u"Estilo encendido"_s);
+    CHECK(fill[u"groupKey"_s] == u"Look when lit"_s);      // the Inspector starts it collapsed by this
+    const QVariantMap shape = find(button, u"shape"_s);
+    CHECK(shape[u"label"_s] == u"Forma"_s);
+    CHECK(shape[u"options"_s].toList().first().toMap()[u"text"_s] == u"Rectángulo"_s);
+    CHECK(shape[u"options"_s].toList().first().toMap()[u"value"_s] == u"rect"_s);   // values stay
+    // Composed: Hide “Station…”, both parts.
+    const QVariantMap hide = find(e.zoneFields(u"kitchenDisplay"_s), u"props.buttons.station.hide"_s);
+    CHECK(hide[u"label"_s] == u"Ocultar “Estación…”"_s);
+    CHECK(hide[u"hint"_s] == u"Comando: kitchenStation"_s);
+    // Pages, the theme, actions.
+    CHECK(find(e.pageFields(), u"templateId"_s)[u"label"_s] == u"Página plantilla"_s);
+    CHECK(find(e.themeFields(), u"status.soldOut"_s)[u"hint"_s] == u"Normalmente #b83232"_s);
+    bool jump = false;
+    for (const QVariant &t : e.actionTypes())
+        if (t.toMap()[u"type"_s] == u"jump"_s) {
+            jump = true;
+            CHECK(t.toMap()[u"label"_s] == u"Ir a página"_s);
+            CHECK(t.toMap()[u"fields"_s].toList().first().toMap()[u"label"_s] == u"Cómo"_s);
+        }
+    CHECK(jump);
+    // The page list: kinds and roles by name.
+    CHECK(e.pageKindName(u"manager"_s) == u"Gerente"_s);
+    CHECK(e.pageRoleName(u"weigh"_s) == u"Pesado"_s);
+    CHECK(e.pageKindName(u"somethingNew"_s) == u"somethingNew"_s);
+    bool kindOption = false;
+    for (const QVariant &o : find(e.pageFields(), u"kind"_s)[u"options"_s].toList())
+        kindOption |= o.toMap()[u"value"_s] == u"library"_s && o.toMap()[u"text"_s] == u"Biblioteca de botones"_s;
+    CHECK(kindOption);
 }

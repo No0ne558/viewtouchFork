@@ -44,7 +44,7 @@ Rectangle {
             Layout.rightMargin: 4
         }
         Label {
-            text: bar.controller.pageName
+            text: qsTranslate("Page", bar.controller.pageName)
             font.bold: true
             elide: Text.ElideRight
             Layout.maximumWidth: 180
