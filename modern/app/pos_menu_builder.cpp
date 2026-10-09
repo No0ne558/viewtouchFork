@@ -7,6 +7,7 @@
 #include "app/pos_json.hh"
 #include "app/pos_service.hh"
 
+#include <QMap>
 #include <QRegularExpression>
 
 #include <algorithm>
@@ -46,6 +47,19 @@ std::string onItGroupId(const std::string &itemId)
 }
 
 // A list, or typed: "lettuce, tomato, onion".
+// "11.50", "$11.50", "11,50": a price in cents; -1 if it isn't one.
+qint64 priceCents(QString text, const QString &symbol)
+{
+    text = text.remove(symbol).trimmed();
+    if (!text.contains(u'.') && text.count(u',') == 1)
+        text.replace(u',', u'.');           // 3,50
+    else
+        text.remove(u',');                  // 1,250.00
+    bool ok = false;
+    const double v = text.toDouble(&ok);
+    return ok && v >= 0 ? std::llround(v * 100.0) : -1;
+}
+
 QStringList strings(const QVariant &v)
 {
     QStringList out;
@@ -178,6 +192,8 @@ bool PosService::moveMenuItemTo(const QString &id, int position)
             items.push_back(menu[i]);
         }
     const auto from = std::ranges::find_if(items, [&](const MenuItem &m) { return qs(m.id) == id; });
+    if (from == items.end())
+        return fail(tr("'%1' is not on the menu.").arg(id));   // a choice, not an item
     MenuItem moved = *from;
     items.erase(from);
     items.insert(items.begin() + std::clamp(position, 0, int(items.size())), moved);
@@ -220,6 +236,10 @@ QVariantList PosService::menuProblems() const
     };
     const std::vector<MenuCategory> categories = s_->categories();
     QHash<QString, QString> seen;   // name, lower case -> the first item's id
+    // Kitchen tickets for a printer that isn't set up print in the kitchen,
+    // or nowhere without one (a store with no printers at all uses screens).
+    QMap<QString, QStringList> unrouted;
+    QHash<QString, QString> firstOf;
     for (const MenuItem &m : s_->menu) {
         if (m.isModifier)
             continue;
@@ -231,12 +251,27 @@ QVariantList PosService::menuProblems() const
         for (const std::string &g : m.modifierGroups)
             if (!s_->settings.modifierGroup(g))
                 problem(tr("%1 asks for a choice group that's gone.").arg(name), id);
-        if (!m.printer.empty() && !s_->settings.printer(m.printer))
-            problem(tr("%1 goes to a kitchen printer that isn't set up (%2).").arg(name, qs(m.printer)), id);
+        if (!m.printer.empty() && !s_->settings.printer(m.printer) && !s_->settings.printers.empty())
+            unrouted[qs(m.printer)] << name;
+        if (unrouted.contains(qs(m.printer)) && !firstOf.contains(qs(m.printer)))
+            firstOf.insert(qs(m.printer), id);
         if (const QString key = name.toLower(); seen.contains(key))
             problem(tr("There are two %1: the screens can't tell them apart.").arg(name), id);
         else
             seen.insert(key, id);
+    }
+    const bool kitchen = s_->settings.printer("kitchen");
+    for (auto it = unrouted.cbegin(); it != unrouted.cend(); ++it) {
+        QStringList names = it.value();
+        const int n = int(names.size());
+        if (n > 3)
+            names = names.mid(0, 3) << tr("%n more", nullptr, n - 3);
+        if (kitchen)
+            problem(tr("%n item(s) go to the printer %1, which isn't set up, so they print in the kitchen: %2", nullptr, n)
+                        .arg(it.key(), names.join(u", "_s)), firstOf.value(it.key()), {}, {}, false);
+        else
+            problem(tr("%n item(s) go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2", nullptr, n)
+                        .arg(it.key(), names.join(u", "_s)), firstOf.value(it.key()));
     }
     for (const ModifierGroup &g : s_->settings.modifierGroups) {
         if (g.id.starts_with("on-"))
@@ -282,10 +317,9 @@ bool PosService::saveChoiceGroup(const QVariantMap &record)
         const QString optName = o.value(u"name"_s).toString().trimmed();
         if (optName.isEmpty())
             continue;   // a row left empty
-        bool ok = true;
         const QString priceText = o.value(u"price"_s).toString().remove(qs(s_->settings.currencySymbol)).trimmed();
-        const double price = priceText.isEmpty() ? 0 : priceText.toDouble(&ok);
-        if (!ok || price < 0)
+        const qint64 price = priceText.isEmpty() ? 0 : priceCents(priceText, {});
+        if (price < 0)
             return fail(tr("%1: type its price, like 1.50 (or leave it empty).").arg(optName));
         if (std::ranges::any_of(options, [&](const ModifierOption &x) { return QString::compare(qs(x.name), optName, Qt::CaseInsensitive) == 0; }))
             return fail(tr("%1 is in it twice.").arg(optName));
@@ -296,7 +330,7 @@ bool PosService::saveChoiceGroup(const QVariantMap &record)
                 old != it->options.end())
                 opt = *old;
         opt.name = ss(optName);
-        opt.price = Money::fromCents(std::llround(price * 100.0));
+        opt.price = Money::fromCents(price);
         opt.included = o.value(u"included"_s).toBool();
         if (o.contains(u"kitchenName"_s))
             opt.kitchenName = ss(o.value(u"kitchenName"_s).toString().trimmed());
@@ -349,9 +383,8 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
     const QString name = card.value(u"name"_s).toString().trimmed();
     if (name.isEmpty())
         return fail(tr("The item needs a name."));
-    bool priced = false;
-    const double price = card.value(u"price"_s).toString().remove(qs(s_->settings.currencySymbol)).trimmed().toDouble(&priced);
-    if (card.contains(u"price"_s) && (!priced || price < 0))
+    const qint64 price = priceCents(card.value(u"price"_s).toString(), qs(s_->settings.currencySymbol));
+    if (card.contains(u"price"_s) && price < 0)
         return fail(tr("Type the price, like 11.50."));
     const std::string id = ss(card.value(u"id"_s).toString());
     auto &menu = s_->menu;
@@ -393,7 +426,7 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
     item.name = ss(name);
     item.family = family;
     if (card.contains(u"price"_s))
-        item.price = Money::fromCents(std::llround(price * 100.0));
+        item.price = Money::fromCents(price);
     if (card.contains(u"image"_s))
         item.image = ss(card.value(u"image"_s).toString());
     if (card.contains(u"description"_s))

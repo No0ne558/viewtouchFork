@@ -5233,3 +5233,95 @@ TEST_CASE("Flow: an item's button added to a page built by hand, in its next fre
     s.c.activate(button->id);
     CHECK(s.pos.lines().size() == 1);
 }
+
+TEST_CASE("UI: the Menu Builder asks before dropping changes; a new choice group comes back to its item", "[flow][ui][menubuild][unsaved]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto shown = [&](const QString &name) { QQuickItem *i = by(name); return i && i->isVisible(); };
+    const auto type = [&](const QString &field, const char *text) {
+        QQuickItem *f = by(field);
+        REQUIRE(f);
+        scrollTo(f);
+        s.tapItem(f);
+        QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
+        for (const char *ch = text; *ch; ++ch)
+            QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+    };
+    const auto priceOf = [&](const QString &id) {
+        for (const QVariant &m : s.pos.menuItems())
+            if (m.toMap()[u"id"_s] == id)
+                return m.toMap()[u"price"_s].toString();
+        return QString();
+    };
+    s.tapItem(by(u"builderCategory-burgers"_s));
+    QTest::qWait(60);
+    s.tapItem(by(u"builderItem-classic-burger"_s));
+    QTest::qWait(60);
+    const QString before = priceOf(u"classic-burger"_s);
+
+    // Nothing changed: straight to the next one.
+    s.tapItem(by(u"builderItem-classic-burger"_s));
+    QTest::qWait(60);
+    CHECK_FALSE(shown(u"builderLeaveSave"_s));
+
+    // Changed, then another item: asked; Don't Save drops it.
+    type(u"builderPrice"_s, "99");
+    QQuickItem *other = by(u"builderAddItem"_s);
+    s.tapItem(other);
+    QTest::qWait(100);
+    REQUIRE(shown(u"builderLeaveSave"_s));
+    s.shot("builder-unsaved");
+    s.tapItem(by(u"builderLeaveDiscard"_s));
+    QTest::qWait(100);
+    CHECK(priceOf(u"classic-burger"_s) == before);
+    CHECK(by(u"builderName"_s)->property("text").toString().isEmpty());   // the new item's card
+
+    // Changed again: Save keeps it, then goes on.
+    s.tapItem(by(u"builderItem-classic-burger"_s));
+    QTest::qWait(60);
+    type(u"builderPrice"_s, "13.25");
+    s.tapItem(by(u"builderAddItem"_s));
+    QTest::qWait(100);
+    REQUIRE(shown(u"builderLeaveSave"_s));
+    s.tapItem(by(u"builderLeaveSave"_s));
+    QTest::qWait(150);
+    CHECK(priceOf(u"classic-burger"_s) == u"$13.25"_s);
+    CHECK_FALSE(shown(u"builderLeaveSave"_s));
+
+    // + New Choice Group from an item: made, then back to the item with it chosen,
+    // the item's unsaved name kept.
+    s.tapItem(by(u"builderItem-classic-burger"_s));
+    QTest::qWait(60);
+    type(u"builderName"_s, "Classic Burger Deluxe");
+    scrollTo(by(u"builderNewGroup"_s));
+    s.tapItem(by(u"builderNewGroup"_s));
+    QTest::qWait(100);
+    CHECK_FALSE(shown(u"builderLeaveSave"_s));     // nothing is dropped
+    CHECK(shown(u"builderBackToItem"_s));
+    type(u"builderGroupName"_s, "Bun");
+    type(u"builderOption-0"_s, "Brioche");
+    type(u"builderOption-1"_s, "Pretzel");
+    s.tapItem(by(u"builderSaveGroup"_s));
+    QTest::qWait(150);
+    QString bun;
+    for (const QVariant &g : s.pos.choiceGroups())
+        if (g.toMap()[u"name"_s] == u"Bun"_s)
+            bun = g.toMap()[u"id"_s].toString();
+    REQUIRE_FALSE(bun.isEmpty());
+    REQUIRE(shown(u"builderName"_s));
+    CHECK(by(u"builderName"_s)->property("text").toString() == u"Classic Burger Deluxe"_s);
+    REQUIRE(by(u"builderGroup-"_s + bun));
+    CHECK(by(u"builderGroup-"_s + bun)->property("checked").toBool());
+    s.tapItem(by(u"builderSave"_s));
+    QTest::qWait(150);
+    for (const QVariant &m : s.pos.menuItems())
+        if (m.toMap()[u"id"_s] == u"classic-burger"_s) {
+            CHECK(m.toMap()[u"name"_s] == u"Classic Burger Deluxe"_s);
+            CHECK(m.toMap()[u"groups"_s].toStringList().contains(bun));
+        }
+}

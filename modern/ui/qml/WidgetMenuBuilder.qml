@@ -70,20 +70,130 @@ Item {
         stage = "items"
     }
     function editCategory(c) {
-        draft = c ? { id: c.id, name: c.name, color: c.color, periods: c.periods.slice(), printer: c.printer,
-                      station: c.station, taxClass: c.taxClass }
-                  : { id: "", name: "", color: swatches[categories.length % swatches.length], periods: [],
-                      printer: "kitchen", station: "", taxClass: "food" }
+        returnToItem = null
+        draft = categoryDraft(c)
         editingCategory = true
         editingItem = false
         stage = "card"
     }
+    function itemDraft(i) {
+        return i ? { id: i.id, name: i.name, price: i.priceValue.toFixed(2), family: i.family, image: i.image,
+                     groups: i.groups.slice(), onIt: i.onIt.join(", "), available: i.availableSet,
+                     kioskHide: i.kioskHide, description: i.description, favorite: i.favorite }
+                 : { id: "", name: "", price: "", family: categoryId, image: "", groups: [], onIt: "",
+                     available: true, kioskHide: false, description: "", favorite: false }
+    }
+    function categoryDraft(c) {
+        return c ? { id: c.id, name: c.name, color: c.color, periods: c.periods.slice(), printer: c.printer,
+                     station: c.station, taxClass: c.taxClass }
+                 : { id: "", name: "", color: swatches[categories.length % swatches.length], periods: [],
+                     printer: "kitchen", station: "", taxClass: "food" }
+    }
+    function groupDraft(g) {
+        const kind = !g ? "one" : g.max === 1 ? "one" : g.max === 0 ? "any" : "upTo"
+        return g ? { id: g.id, name: g.name, kind: kind, upTo: g.max > 1 ? g.max : 3, required: g.min > 0,
+                     atLeast: Math.max(1, g.min), askHow: g.askHow, options: g.options.map(o => ({ name: o.name,
+                     price: o.price ? o.price.toFixed(2) : "", included: o.included, kitchenName: o.kitchenName })) }
+                 : { id: "", name: "", kind: "one", upTo: 3, required: true, atLeast: 1, askHow: false,
+                     options: [{ name: "", price: "", included: false }, { name: "", price: "", included: false }] }
+    }
+    // Unsaved changes on the open card? Compared with what's saved, the way
+    // the store reads it ("3.5" is 3.50; groups and periods in any order).
+    function same(a, b) {
+        const norm = v => {
+            if (Array.isArray(v)) {
+                const n = v.map(norm)
+                return n.every(x => typeof x === "string") ? n.slice().sort() : n
+            }
+            if (v && typeof v === "object") {
+                const o = {}
+                for (const k of Object.keys(v).sort()) o[k] = norm(v[k])
+                return o
+            }
+            if (typeof v === "string") {
+                const t = v.trim()
+                if (t !== "" && !isNaN(Number(t.replace(",", ".")))) return String(Number(t.replace(",", ".")))
+                return t.split(",").map(x => x.trim()).filter(x => x).join(",")
+            }
+            return v === undefined || v === null ? "" : v
+        }
+        return JSON.stringify(norm(a)) === JSON.stringify(norm(b))
+    }
+    function unsaved() {
+        // A new one already saved: it's there by its name now.
+        const named = list => !draft.id && (draft.name ?? "").trim() !== ""
+                              && list.some(x => x.name.toLowerCase() === draft.name.trim().toLowerCase())
+        if ((editingItem && named(allItems)) || (editingCategory && named(categories)) || (editingGroup && named(allGroups)))
+            return false
+        if (editingItem) {
+            const saved = draft.id ? allItems.find(i => i.id === draft.id) : null
+            if (draft.id && !saved) return false   // removed meanwhile
+            const fresh = itemDraft(saved)
+            if (!draft.id) fresh.family = draft.family
+            return !same(fresh, draft)
+        }
+        if (editingCategory) {
+            const saved = draft.id ? categories.find(c => c.id === draft.id) : null
+            if (draft.id && !saved) return false
+            const fresh = categoryDraft(saved)
+            if (!draft.id) fresh.color = draft.color
+            return !same(fresh, draft)
+        }
+        if (editingGroup) {
+            const saved = draft.id ? allGroups.find(g => g.id === draft.id) : null
+            if (draft.id && !saved) return false
+            return !same(groupDraft(saved), draft)
+        }
+        return false
+    }
+    // Before leaving the open card for another: keep or drop its changes.
+    function leave(then) {
+        if (unsaved()) {
+            leaveDialog.then = then
+            leaveDialog.open()
+        } else {
+            then()
+        }
+    }
+    function saveCard() {
+        if (editingItem) saveItem()
+        else if (editingCategory) saveCategoryCard()
+        else if (editingGroup) saveGroupCard()
+    }
+    function saveCategoryCard() {
+        const c = copy(draft)
+        if (!c.id)
+            waitingForCategory = c.name.trim()
+        pos.saveCategory(c)
+        if (!c.id)
+            editingCategory = false
+    }
+    function saveGroupCard() {
+        const g = groupRecord()
+        if (!g.id)
+            waitingForGroup = g.name.trim()
+        pos.saveChoiceGroup(g)
+    }
+    // + New Choice Group on an item's card: back to the item afterwards.
+    property var returnToItem: null
+    function backToItem(groupId) {
+        const d = returnToItem
+        returnToItem = null
+        if (!d) return
+        if (groupId && !d.groups.includes(groupId))
+            d.groups.push(groupId)
+        mode = "menu"
+        if (d.family) categoryId = d.family
+        draft = d
+        itemId = d.id
+        editingGroup = false
+        editingCategory = false
+        editingItem = true
+        stage = "card"
+    }
     function editItem(i) {
-        draft = i ? { id: i.id, name: i.name, price: i.priceValue.toFixed(2), family: i.family, image: i.image,
-                      groups: i.groups.slice(), onIt: i.onIt.join(", "), available: i.availableSet,
-                      kioskHide: i.kioskHide, description: i.description, favorite: i.favorite }
-                  : { id: "", name: "", price: "", family: categoryId, image: "", groups: [], onIt: "",
-                      available: true, kioskHide: false, description: "" }
+        returnToItem = null
+        draft = itemDraft(i)
         itemId = i ? i.id : ""
         editingItem = true
         editingCategory = false
@@ -91,12 +201,7 @@ Item {
     }
     // A choice group: its rule in words (how many; required), its options as rows.
     function editGroup(g) {
-        const kind = !g ? "one" : g.max === 1 ? "one" : g.max === 0 ? "any" : "upTo"
-        draft = g ? { id: g.id, name: g.name, kind: kind, upTo: g.max > 1 ? g.max : 3, required: g.min > 0,
-                      atLeast: Math.max(1, g.min), askHow: g.askHow, options: g.options.map(o => ({ name: o.name,
-                      price: o.price ? o.price.toFixed(2) : "", included: o.included, kitchenName: o.kitchenName })) }
-                  : { id: "", name: "", kind: "one", upTo: 3, required: true, atLeast: 1, askHow: false,
-                      options: [{ name: "", price: "", included: false }, { name: "", price: "", included: false }] }
+        draft = groupDraft(g)
         mode = "choices"
         editingGroup = true
         editingItem = false
@@ -129,6 +234,10 @@ Item {
         const added = allGroups.find(g => g.name.toLowerCase() === waitingForGroup.toLowerCase())
         if (added) {
             waitingForGroup = ""
+            if (returnToItem) {
+                backToItem(added.id)
+                return
+            }
             editGroup(added)
             Qt.callLater(() => groupList.positionViewAtIndex(groups.findIndex(g => g.id === added.id), ListView.Contain))
         }
@@ -232,14 +341,14 @@ Item {
                         Layout.fillWidth: true
                         text: qsTr("Menu")
                         highlighted: w.mode === "menu"
-                        onClicked: { w.mode = "menu"; w.editingGroup = false }
+                        onClicked: w.leave(() => { w.returnToItem = null; w.mode = "menu"; w.editingGroup = false })
                     }
                     TouchButton {
                         objectName: "builderModeChoices"
                         Layout.fillWidth: true
                         text: qsTr("Choice Groups")
                         highlighted: w.mode === "choices"
-                        onClicked: { w.mode = "choices"; w.editingItem = false; w.editingCategory = false }
+                        onClicked: w.leave(() => { w.mode = "choices"; w.editingItem = false; w.editingCategory = false })
                     }
                 }
                 // Ready to go? What would trip up service.
@@ -284,7 +393,7 @@ Item {
                                 Layout.fillWidth: true
                             }
                         }
-                        MouseArea { anchors.fill: parent; onClicked: w.editGroup(modelData) }
+                        MouseArea { anchors.fill: parent; onClicked: w.leave(() => w.editGroup(modelData)) }
                     }
                 }
                 TouchButton {
@@ -292,7 +401,7 @@ Item {
                     visible: w.mode === "choices"
                     Layout.fillWidth: true
                     text: qsTr("+ Choice Group")
-                    onClicked: w.editGroup(null)
+                    onClicked: w.leave(() => { w.returnToItem = null; w.editGroup(null) })
                 }
                 ListView {
                     id: categoryList
@@ -345,7 +454,7 @@ Item {
                             pressAndHoldInterval: 350
                             property bool dragging: false
                             preventStealing: dragging
-                            onClicked: w.pickCategory(modelData.id)
+                            onClicked: w.leave(() => w.pickCategory(modelData.id))
                             onPressAndHold: m => {
                                 dragging = true
                                 w.dragId = modelData.id
@@ -383,7 +492,7 @@ Item {
                         objectName: "builderAddCategory"
                         Layout.fillWidth: true
                         text: qsTr("+ Category")
-                        onClicked: w.editCategory(null)
+                        onClicked: w.leave(() => w.editCategory(null))
                     }
                     TouchButton { text: "▲"; enabled: !!w.category; onClicked: w.pos.moveCategory(w.categoryId, -1) }
                     TouchButton { text: "▼"; enabled: !!w.category; onClicked: w.pos.moveCategory(w.categoryId, 1) }
@@ -439,7 +548,7 @@ Item {
                         objectName: "builderEditCategory"
                         visible: !!w.category
                         text: qsTr("Edit Category")
-                        onClicked: w.editCategory(w.category)
+                        onClicked: w.leave(() => w.editCategory(w.category))
                     }
                 }
                 Label {
@@ -510,7 +619,7 @@ Item {
                                 pressAndHoldInterval: 350
                                 property bool dragging: false
                                 preventStealing: dragging
-                                onClicked: w.editItem(modelData.add ? null : modelData)
+                                onClicked: w.leave(() => w.editItem(modelData.add ? null : modelData))
                                 // Held: dragged to another place in the category.
                                 onPressAndHold: m => {
                                     if (modelData.add) return
@@ -705,7 +814,11 @@ Item {
                                 TouchButton {
                                     objectName: "builderNewGroup"
                                     text: qsTr("+ New Choice Group…")
-                                    onClicked: w.editGroup(null)
+                                    onClicked: {
+                                        const d = w.copy(w.draft)
+                                        w.editGroup(null)
+                                        w.returnToItem = d
+                                    }
                                 }
                             }
 
@@ -958,12 +1071,13 @@ Item {
                             highlighted: true
                             text: w.draft.id ? qsTr("Save") : qsTr("Add Choice Group")
                             enabled: (w.draft.name ?? "").trim() !== ""
-                            onClicked: {
-                                const g = w.groupRecord()
-                                if (!g.id)
-                                    w.waitingForGroup = g.name.trim()
-                                w.pos.saveChoiceGroup(g)
-                            }
+                            onClicked: w.saveGroupCard()
+                        }
+                        TouchButton {
+                            objectName: "builderBackToItem"
+                            visible: !!w.returnToItem
+                            text: qsTr("‹ %1").arg(w.returnToItem ? (w.returnToItem.name || qsTr("New item")) : "")
+                            onClicked: w.backToItem("")
                         }
                         TouchButton {
                             visible: !!w.draft.id
@@ -1016,14 +1130,7 @@ Item {
                             highlighted: true
                             text: w.draft.id ? qsTr("Save") : qsTr("Add Category")
                             enabled: (w.draft.name ?? "").trim() !== ""
-                            onClicked: {
-                                const c = w.copy(w.draft)
-                                if (!c.id)
-                                    w.waitingForCategory = c.name.trim()
-                                w.pos.saveCategory(c)
-                                if (!c.id)
-                                    w.editingCategory = false
-                            }
+                            onClicked: w.saveCategoryCard()
                         }
                         TouchButton {
                             visible: !!w.draft.id
@@ -1153,6 +1260,9 @@ Item {
                     text: (modelData.serious ? "⚠ " : "• ") + modelData.text
                     onClicked: {
                         checkDialog.close()
+                        w.leave(() => open(modelData))
+                    }
+                    function open(modelData) {
                         if (modelData.item) {
                             const i = w.allItems.find(x => x.id === modelData.item)
                             if (i) { w.mode = "menu"; w.categoryId = i.family; w.editItem(i) }
@@ -1310,6 +1420,44 @@ Item {
                     onClicked: severalDialog.close()
                 }
             }
+        }
+    }
+
+    // Leaving a card with changes: save them, drop them, or stay.
+    Dialog {
+        id: leaveDialog
+        objectName: "builderLeaveDialog"
+        property var then: null
+        padding: 20
+        font.pixelSize: 18
+        title: qsTr("Save the changes to %1?").arg((w.draft.name ?? "").trim() || qsTr("this card"))
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        modal: true
+        RowLayout {
+            spacing: 8
+            TouchButton {
+                objectName: "builderLeaveSave"
+                highlighted: true
+                text: qsTr("Save")
+                onClicked: {
+                    const then = leaveDialog.then
+                    leaveDialog.close()
+                    w.saveCard()
+                    w.waitingFor = ""; w.waitingForCategory = ""; w.waitingForGroup = ""
+                    if (!w.unsaved() && then) then()   // not if the save was refused
+                }
+            }
+            TouchButton {
+                objectName: "builderLeaveDiscard"
+                text: qsTr("Don't Save")
+                onClicked: {
+                    const then = leaveDialog.then
+                    leaveDialog.close()
+                    if (then) then()
+                }
+            }
+            TouchButton { text: qsTr("Keep Editing"); onClicked: leaveDialog.close() }
         }
     }
 

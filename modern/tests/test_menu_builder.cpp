@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "pos_fixture.hh"
+#include "storage/pos_store.hh"
 #include "qt_catch.hh"
 
 using namespace Qt::StringLiterals;
@@ -398,5 +399,49 @@ TEST_CASE("Ready to go: the starter menu is; mistakes are caught", "[menubuilder
     CHECK(found.filter(u"There are two"_s).size() == 1);
     CHECK(found.filter(u"Salsa has no options"_s).size() == 1);
     CHECK(found.filter(u"Desserts has no items yet"_s).size() == 1);
-    CHECK(problems(true).size() == 4);   // an empty category is a note, not a problem
+    CHECK(problems(true).size() == 3);   // an empty category is a note; the kitchen prints pizza-oven's
+    CHECK(problems(true).filter(u"pizza-oven"_s).isEmpty());
+
+    // No kitchen printer to take them: they print nowhere.
+    auto &printers = pos.shared()->settings.printers;
+    std::erase_if(printers, [](const core::PrinterConfig &p) { return p.id == "kitchen"; });
+    REQUIRE_FALSE(printers.empty());
+    CHECK(problems(true).filter(u"pizza-oven"_s).size() == 1);
+    // A store with no printers at all (kitchen screens): nothing to say.
+    printers.clear();
+    CHECK(problems(false).filter(u"printer"_s).isEmpty());
+}
+
+TEST_CASE("Menu Builder: prices typed with a comma", "[menubuilder]")
+{
+    PosService pos(test::seedPosData(true), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const auto priceOf = [&](const QString &name) {
+        for (const auto &m : pos.shared()->menu)
+            if (QString::fromStdString(m.name) == name)
+                return m.price.cents();
+        return decltype(pos.shared()->menu.front().price.cents())(-1);
+    };
+    const QString family = QString::fromStdString(pos.shared()->menu.front().family);
+    REQUIRE(pos.saveMenuItemCard({{u"name"_s, u"Churros"_s}, {u"price"_s, u"3,50"_s}, {u"family"_s, family}}));
+    CHECK(priceOf(u"Churros"_s) == 350);
+    REQUIRE(pos.saveMenuItemCard({{u"name"_s, u"Party Tray"_s}, {u"price"_s, u"$1,250.00"_s}, {u"family"_s, family}}));
+    CHECK(priceOf(u"Party Tray"_s) == 125000);
+    CHECK_FALSE(pos.saveMenuItemCard({{u"name"_s, u"Flan"_s}, {u"price"_s, u"cheap"_s}, {u"family"_s, family}}));
+}
+
+// Prints what the check finds in a store's database: VTM_PROBLEMS_DB=<file>.
+TEST_CASE("Ready to go: a store's database", "[.][problemsdb]")
+{
+    const QByteArray path = qgetenv("VTM_PROBLEMS_DB");
+    REQUIRE_FALSE(path.isEmpty());
+    vt::storage::PosStore store(QString::fromLocal8Bit(path));
+    QString error;
+    REQUIRE(store.open(&error));
+    QStringList errors;
+    auto data = store.load(&errors);
+    REQUIRE(data);
+    PosService pos(std::move(*data), nullptr);
+    for (const QVariant &p : pos.menuProblems())
+        WARN((p.toMap()[u"serious"_s].toBool() ? "SERIOUS " : "note ") << p.toMap()[u"text"_s].toString().toStdString());
 }

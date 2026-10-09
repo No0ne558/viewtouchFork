@@ -114,5 +114,17 @@
  "✓ Ready (%n note(s))": {
   "one": "✓ Ready (%n note)",
   "other": "✓ Ready (%n notes)"
+ },
+ "%n more": {
+  "one": "%n more",
+  "other": "%n more"
+ },
+ "%n item(s) go to the printer %1, which isn't set up, so they print in the kitchen: %2": {
+  "one": "%n item goes to the printer %1, which isn't set up, so it prints in the kitchen: %2",
+  "other": "%n items go to the printer %1, which isn't set up, so they print in the kitchen: %2"
+ },
+ "%n item(s) go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2": {
+  "one": "%n item goes to the printer %1, which isn't set up, and there's no kitchen printer: its tickets print nowhere: %2",
+  "other": "%n items go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2"
  }
 }
