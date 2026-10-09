@@ -57,6 +57,8 @@ public:
         const QString server = v(u"terminalName").toString();
         return server.isEmpty() ? terminal_ : server;
     }
+    QVariantMap updateInfo() const override;
+    void getUpdate() override;
     bool online() const override { return welcomed_; }
     bool loggedIn() const override { return v(u"loggedIn").toBool(); }
     QString userName() const override { return v(u"userName").toString(); }
@@ -201,6 +203,18 @@ private:
     std::unique_ptr<LineChannel> channel_;
     QTimer reconnect_;
     QTimer watchdog_;            // the server gone quiet: reconnect
+    // The store's build, and the update it has for this screen (welcome).
+    int storeBuild_ = 0;
+    QString storeVersion_;
+    QVariantMap storeUpdate_;
+    // An update being fetched: its parts so far, then the file.
+    QByteArray updateData_;
+    int updateParts_ = 0;
+    int updateProgress_ = -1;
+    QString updateReady_;
+    QString updateError_;
+    void finishUpdate(const QJsonObject &done);
+    void openUpdate();
     qint64 silentMs_ = 10'000;   // a server that pings, heard from no longer than this: gone
     qint64 heard_ = 0;           // when the server last said anything
     bool serverPings_ = false;   // it pings (older servers don't)

@@ -2,6 +2,7 @@
 
 #include "layout_fixture.hh"
 #include "layoutcontroller.hh"
+#include "net/build_info.hh"
 #include "net/layout_hub.hh"
 #include "net/pos_server.hh"
 #include "net/remote_session.hh"
@@ -12,6 +13,8 @@
 #include <QSignalSpy>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QTemporaryDir>
+#include <QFileInfo>
 #include <QThread>
 
 using namespace Qt::StringLiterals;
@@ -479,4 +482,61 @@ TEST_CASE("Wi-Fi gone without a word: the handheld says so; the store frees its 
     CHECK_FALSE(notices.isEmpty());
     CHECK(waitFor([&] { return bar.openCheck(id); }, 5000));     // the store let go of it
     wifi.cut = false;                                   // (it keeps trying: a new connection, not this one)
+}
+
+TEST_CASE("Updates: a screen behind the store is told, and a manager there gets the update", "[net][remote][updates]")
+{
+    Store store;
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    store.server.setUpdatesDir(dir.path());
+    const net::AppBuild me = net::appBuild();
+    // An update for screens like this one, newer than this build; one for another kind; one unnamed.
+    const QString arch = me.platform.section(u'-', 1);
+    const QString mine = u"viewtouch-modern_0.7.0_%1-b%2.deb"_s.arg(arch == u"x86_64"_s ? u"amd64"_s : u"arm64"_s).arg(me.number + 5);
+    QByteArray payload(3 * 1024 * 1024 + 123, '\0');   // more than one part
+    for (int i = 0; i < payload.size(); ++i)
+        payload[i] = char(i * 7);
+    for (const auto &[name, bytes] : std::initializer_list<std::pair<QString, QByteArray>>{
+             {mine, payload}, {u"ViewTouch-b%1-armeabi-v7a.apk"_s.arg(me.number + 9), "apk"}, {u"notes.txt"_s, "x"}}) {
+        QFile f(dir.filePath(name));
+        REQUIRE(f.open(QIODevice::WriteOnly));
+        f.write(bytes);
+    }
+    REQUIRE(me.platform.startsWith(u"linux-"_s));
+    CHECK(store.server.updateFiles().size() == 2);
+    CHECK(store.server.updateFor(me.platform, me.number).build == me.number + 5);
+    CHECK(store.server.updateFor(me.platform, me.number + 5).path.isEmpty());   // nothing newer than that
+
+    Screen h(store.terminal(u"Handheld"_s));
+    // Same build as the store: not behind (the store's computer runs this build too).
+    QVariantMap info = h.remote->updateInfo();
+    CHECK(info[u"build"_s] == me.number);
+    CHECK(info[u"storeBuild"_s] == me.number);
+    CHECK_FALSE(info[u"behind"_s].toBool());
+    CHECK(info[u"update"_s].toMap()[u"name"_s] == mine);   // newer than this screen: offered
+    // The store's list of screens: the build, and that an update is ready.
+    const QVariantList screens = store.server.connections();
+    REQUIRE(screens.size() == 1);
+    CHECK(screens[0].toMap()[u"build"_s] == me.number);
+    CHECK(screens[0].toMap()[u"platform"_s] == me.platform);
+    CHECK(screens[0].toMap()[u"hasUpdate"_s].toBool());
+
+    // A server can't fetch it; a manager can.
+    h.pin("1111");
+    QSignalSpy notices(h.remote.get(), &app::PosSession::notice);
+    h.remote->getUpdate();
+    REQUIRE(waitFor([&] { return h.remote->updateInfo().contains(u"error"_s); }));
+    CHECK(h.remote->updateInfo()[u"error"_s].toString().contains(u"manager"_s));
+    h.remote->invoke(u"logout"_s);
+    REQUIRE(waitFor([&] { return !h.remote->loggedIn(); }));
+    h.settle();
+    h.pin("1234");
+    h.remote->getUpdate();
+    REQUIRE(waitFor([&] { return h.remote->updateInfo().contains(u"ready"_s); }, 10000));
+    QFile got(h.remote->updateInfo()[u"ready"_s].toString());
+    REQUIRE(got.open(QIODevice::ReadOnly));
+    CHECK(QFileInfo(got).fileName() == mine);
+    CHECK(got.readAll() == payload);
+    got.remove();
 }

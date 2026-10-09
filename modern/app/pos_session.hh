@@ -24,6 +24,10 @@ class PosSession : public QObject {
     Q_PROPERTY(QString terminalName READ terminalName CONSTANT)
     // False while a remote terminal has lost its server (always true locally).
     Q_PROPERTY(bool online READ online NOTIFY onlineChanged)
+    // This screen's build against the store's: {build, storeBuild, behind,
+    // ahead, update: {name, build, size} if the store has one for it,
+    // downloading: 0..100, ready: path, error}. Empty on the store's computer.
+    Q_PROPERTY(QVariantMap updateInfo READ updateInfo NOTIFY updateChanged)
     Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY sessionChanged)
     Q_PROPERTY(QString userName READ userName NOTIFY sessionChanged)
     Q_PROPERTY(QString userRole READ userRole NOTIFY sessionChanged)
@@ -208,6 +212,10 @@ public:
 
     virtual QString terminalName() const = 0;
     virtual bool online() const { return true; }
+    virtual QVariantMap updateInfo() const { return {}; }
+    // Fetch the store's update for this screen and open it (Android: the
+    // installer asks to install it). Managers.
+    Q_INVOKABLE virtual void getUpdate() {}
     virtual bool loggedIn() const = 0;
     virtual QString userName() const = 0;
     virtual QString userRole() const = 0;
@@ -560,6 +568,7 @@ public:
     Q_INVOKABLE void stopPairing() { invoke(QStringLiteral("stopPairing")); }
 
 signals:
+    void updateChanged();
     void sessionChanged();
     void entryChanged();
     void qualifierChanged();

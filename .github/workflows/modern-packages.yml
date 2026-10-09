@@ -27,6 +27,8 @@ jobs:
           - { distro: ubuntu, image: 'ubuntu:26.04',   arch: aarch64, runner: ubuntu-24.04-arm }
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # every commit: the build number is their count
 
       - name: Install build tools
         run: modern/packaging/build-packages.sh deps

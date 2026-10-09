@@ -29,13 +29,19 @@ build_here() {
     cmake --build "$build"
     mkdir -p "$dist"
     (cd "$build" && cpack -G "$generator" -B "$dist/.cpack-$$")
-    find "$dist/.cpack-$$" -maxdepth 1 \( -name '*.deb' -o -name '*.rpm' \) -exec mv {} "$dist" \;
+    # Named with the build number (viewtouch-...-b1250.deb): the store's
+    # computer tells screens that are behind from it.
+    number=$(sed -n 's/^#define VTM_BUILD_NUMBER //p' "$build/generated/vtm_build_number.hh")
+    for f in "$dist/.cpack-$$"/*.deb "$dist/.cpack-$$"/*.rpm; do
+        [ -e "$f" ] || continue
+        mv "$f" "$dist/$(basename "${f%.*}")-b${number:-0}.${f##*.}"
+    done
     rm -rf "$dist/.cpack-$$"
     ls -l "$dist"
 }
 
-deps_fedora="gcc-c++ cmake ninja-build rpm-build qt6-qtbase-devel qt6-qtdeclarative-devel"
-deps_debian="g++ cmake ninja-build dpkg-dev file qt6-base-dev qt6-declarative-dev qt6-declarative-dev-tools libgl-dev"
+deps_fedora="gcc-c++ cmake ninja-build rpm-build git qt6-qtbase-devel qt6-qtdeclarative-devel"
+deps_debian="g++ cmake ninja-build dpkg-dev file git qt6-base-dev qt6-declarative-dev qt6-declarative-dev-tools libgl-dev"
 
 install_deps() {
     . /etc/os-release

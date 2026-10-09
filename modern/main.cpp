@@ -6,6 +6,7 @@
 #include "net/stripe_api.hh"
 #include "net/discovery.hh"
 #include "net/layout_hub.hh"
+#include "net/build_info.hh"
 #include "net/pos_server.hh"
 #include "net/standby.hh"
 #include "net/protocol.hh"
@@ -1051,6 +1052,9 @@ int runStore(const Args &cli, const Options &o)
             return kBecomeStandby;
         }
         server = std::make_unique<vt::net::PosServer>(shared, &hub);
+        // Updates for the screens: put the new tablet app (and Linux packages) here.
+        server->setUpdatesDir(QDir(dataDirOf(cli, o)).filePath(u"updates"_s));
+        QDir().mkpath(server->updatesDir());
         // The standby's copy: the whole database when it connects, then
         // every change the writer saves.
         if (writer) {
@@ -1153,9 +1157,18 @@ int runStore(const Args &cli, const Options &o)
                                                   : QString::fromStdString(p.path);
             printers << row;
         }
+        // What the store runs, and the updates it has for its screens.
+        const vt::net::AppBuild me = vt::net::appBuild();
+        QVariantList updates;
+        if (server)
+            for (const auto &u : server->updateFiles())
+                updates << QVariantMap{{u"name"_s, QFileInfo(u.path).fileName()}, {u"build"_s, u.build},
+                                       {u"platform"_s, u.platform}};
         return QVariantMap{{u"role"_s, server ? u"main"_s : u"single"_s}, {u"term"_s, shared->settings.serverTerm},
                            {u"machine"_s, QSysInfo::machineHostName()}, {u"terminals"_s, terminals},
-                           {u"standby"_s, standby}, {u"printers"_s, printers}};
+                           {u"standby"_s, standby}, {u"printers"_s, printers},
+                           {u"build"_s, vt::net::buildText(me.version, me.number, me.commit)}, {u"buildNumber"_s, me.number},
+                           {u"updates"_s, updates}, {u"updatesDir"_s, server ? server->updatesDir() : QString()}};
     };
     if (server) {
         QObject::connect(server.get(), &vt::net::PosServer::terminalsChanged, shared, &vt::app::PosShared::networkChanged);

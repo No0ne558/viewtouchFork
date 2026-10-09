@@ -6,6 +6,11 @@
 #include "net/protocol.hh"
 
 #include <QDateTime>
+#include "net/build_info.hh"
+#include <QRegularExpression>
+#include <QFileInfo>
+#include <QDir>
+#include <QCryptographicHash>
 #include <QJsonArray>
 #include <QLoggingCategory>
 #include <QSslPreSharedKeyAuthenticator>
@@ -31,6 +36,8 @@ struct PosServer::Connection {
     QList<QJsonObject> events;                  // queued until the next flush
     QStringList notices;
     qint64 heard = 0;         // when it last sent anything
+    int build = 0;            // what it runs (hello); 0: older than build numbers
+    QString version, platform;
     bool answersPings = false;   // a terminal that says "pong" (older ones don't)
 };
 
@@ -232,6 +239,9 @@ void PosServer::handle(Connection *c, const QJsonObject &m)
                     emit shared_->adminChanged();
                 }
         const QString name = QString::fromStdString(paired->name);
+        c->build = m.value(u"build").toInt();
+        c->version = m.value(u"version").toString();
+        c->platform = m.value(u"platform").toString();
         c->session = std::make_unique<app::PosService>(shared_, name);
         app::PosService *s = c->session.get();
         if (paired->screen == "selfOrder")   // Manager -> Terminals: a kiosk for guests
@@ -249,15 +259,26 @@ void PosServer::handle(Connection *c, const QJsonObject &m)
             c->events << QJsonObject{{u"t"_s, u"event"_s}, {u"e"_s, u"checkClosed"_s}, {u"v"_s, id}};
         });
         c->sent = s->snapshot();
-        c->channel->send({{u"t"_s, u"welcome"_s}, {u"protocol"_s, ProtocolVersion},
-                          {u"layout"_s, layouts_->layout().toJson()},
-                          {u"state"_s, QJsonObject::fromVariantMap(c->sent)}});
+        // What the store runs, and an update for this screen if it has one.
+        const AppBuild me = appBuild();
+        QJsonObject welcome{{u"t"_s, u"welcome"_s}, {u"protocol"_s, ProtocolVersion},
+                            {u"version"_s, me.version}, {u"build"_s, me.number},
+                            {u"layout"_s, layouts_->layout().toJson()},
+                            {u"state"_s, QJsonObject::fromVariantMap(c->sent)}};
+        if (const UpdateFile u = updateFor(c->platform, c->build); !u.path.isEmpty())
+            welcome.insert(u"update"_s, QJsonObject{{u"name"_s, QFileInfo(u.path).fileName()}, {u"build"_s, u.build},
+                                                    {u"size"_s, QFileInfo(u.path).size()}});
+        c->channel->send(welcome);
         qCInfo(lcServer) << "terminal connected:" << name;
         emit terminalsChanged();
         return;
     }
     if (!c->session) {
         c->channel->send({{u"t"_s, u"error"_s}, {u"text"_s, u"say hello first"_s}});
+        return;
+    }
+    if (type == u"getUpdate") {
+        sendUpdate(c);
         return;
     }
 
@@ -350,12 +371,93 @@ QVariantList PosServer::connections() const
     for (const auto &c : connections_) {
         if (!c->session && !c->standby)
             continue;
+        const int mine = appBuild().number;
         out.append(QVariantMap{{u"name"_s, c->standby ? tr("Standby server") : c->session->terminalName()},
                                {u"address"_s, c->socket->peerAddress().toString().remove(u"::ffff:"_s)},
                                {u"since"_s, c->since}, {u"standby"_s, c->standby},
-                               {u"user"_s, c->session ? c->session->userName() : QString()}});
+                               {u"user"_s, c->session ? c->session->userName() : QString()},
+                               {u"build"_s, c->build}, {u"version"_s, c->version}, {u"platform"_s, c->platform},
+                               {u"behind"_s, !c->standby && mine > 0 && c->build < mine},
+                               {u"ahead"_s, !c->standby && mine > 0 && c->build > mine},
+                               {u"hasUpdate"_s, !c->standby && !updateFor(c->platform, c->build).path.isEmpty()}});
     }
     return out;
+}
+
+// --- updates for the screens ---------------------------------------------------------
+
+namespace {
+
+// What a file is for, from its name: the app for a tablet's processor, or a
+// package for a Linux screen's ("" if neither).
+QString platformOf(const QString &name)
+{
+    const QString n = name.toLower();
+    if (n.endsWith(u".apk"_s)) {
+        if (n.contains(u"arm64-v8a"_s)) return u"android-arm64"_s;
+        if (n.contains(u"armeabi-v7a"_s)) return u"android-arm"_s;
+        if (n.contains(u"x86_64"_s)) return u"android-x86_64"_s;
+        return {};
+    }
+    if (n.endsWith(u".deb"_s) || n.endsWith(u".rpm"_s)) {
+        if (n.contains(u"x86_64"_s) || n.contains(u"amd64"_s)) return u"linux-x86_64"_s;
+        if (n.contains(u"aarch64"_s) || n.contains(u"arm64"_s)) return u"linux-arm64"_s;
+    }
+    return {};
+}
+
+} // namespace
+
+QList<PosServer::UpdateFile> PosServer::updateFiles() const
+{
+    QList<UpdateFile> out;
+    if (updatesDir_.isEmpty())
+        return out;
+    static const QRegularExpression buildIn(uR"((?:^|[-_.])b(\d+)(?:[-_.]|$))"_s);
+    for (const QFileInfo &f : QDir(updatesDir_).entryInfoList(QDir::Files, QDir::Name)) {
+        const auto m = buildIn.match(f.completeBaseName());
+        const QString platform = platformOf(f.fileName());
+        if (m.hasMatch() && !platform.isEmpty())
+            out.append({f.absoluteFilePath(), m.captured(1).toInt(), platform});
+    }
+    std::ranges::sort(out, [](const UpdateFile &a, const UpdateFile &b) { return a.build > b.build; });
+    return out;
+}
+
+PosServer::UpdateFile PosServer::updateFor(const QString &platform, int build) const
+{
+    for (const UpdateFile &u : updateFiles())
+        if (u.platform == platform && u.build > build)
+            return u;   // newest first
+    return {};
+}
+
+// The update for this screen, in parts (like the standby's copy), the last
+// with its fingerprint. Managers only: installing it is theirs to decide.
+void PosServer::sendUpdate(Connection *c)
+{
+    const auto refuse = [c](const QString &why) { c->channel->send({{u"t"_s, u"updateError"_s}, {u"text"_s, why}}); };
+    if (!c->session->can(QString::fromLatin1(core::perm::Manager)))
+        return refuse(tr("Updating a screen needs a manager."));
+    const UpdateFile u = updateFor(c->platform, c->build);
+    if (u.path.isEmpty())
+        return refuse(tr("The store has no newer version for this screen."));
+    QFile f(u.path);
+    if (!f.open(QIODevice::ReadOnly))
+        return refuse(tr("Can't read %1: %2").arg(QFileInfo(u.path).fileName(), f.errorString()));
+    const QByteArray data = f.readAll();
+    const QString hash = QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
+    constexpr qsizetype chunk = 1 << 20;
+    const int parts = std::max(1, int((data.size() + chunk - 1) / chunk));
+    for (int i = 0; i < parts; ++i) {
+        QJsonObject part{{u"t"_s, u"updatePart"_s}, {u"i"_s, i}, {u"n"_s, parts},
+                         {u"data"_s, QString::fromLatin1(data.mid(i * chunk, chunk).toBase64())}};
+        if (i == parts - 1)
+            part.insert(u"done"_s, QJsonObject{{u"name"_s, QFileInfo(u.path).fileName()}, {u"build"_s, u.build},
+                                               {u"size"_s, qint64(data.size())}, {u"sha256"_s, hash}});
+        c->channel->send(part);
+    }
+    qCInfo(lcServer) << "sent" << QFileInfo(u.path).fileName() << "to" << c->session->terminalName();
 }
 
 void PosServer::dropRevoked()

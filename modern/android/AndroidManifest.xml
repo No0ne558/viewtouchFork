@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- Installing an update the store sends (Updater.kt; Android still asks). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <!-- The Stripe Terminal SDK needs location to start (a Stripe reader
          grants it by itself; other devices only use it with a card reader). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
@@ -44,5 +46,13 @@
             <meta-data android:name="android.app.lib_name" android:value="-- %%INSERT_APP_LIB_NAME%% --"/>
             <meta-data android:name="android.app.arguments" android:value="-- %%INSERT_APP_ARGUMENTS%% --"/>
         </activity>
+        <!-- Lets Android's installer read an update ViewTouch fetched (Updater.kt). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="org.viewtouch.pos.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths"/>
+        </provider>
     </application>
 </manifest>

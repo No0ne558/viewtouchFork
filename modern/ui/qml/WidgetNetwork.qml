@@ -63,6 +63,14 @@ Item {
                     }
                 }
                 Label {
+                    objectName: "storeBuild"
+                    visible: !!w.net.build
+                    Layout.fillWidth: true
+                    opacity: 0.7
+                    font.pixelSize: 16
+                    text: qsTr("This computer runs ViewTouch %1.").arg(w.net.build ?? "")
+                }
+                Label {
                     visible: (w.net.term ?? 0) > 0
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
@@ -118,9 +126,37 @@ Item {
                                 elide: Text.ElideRight
                                 text: modelData.user ? qsTr("%1 is logged in").arg(modelData.user) : qsTr("Nobody logged in")
                             }
+                            // Behind the store: it needs the update (a manager there can get it).
+                            Label {
+                                objectName: "screenBuild-" + modelData.name
+                                font.pixelSize: 16
+                                color: modelData.behind || modelData.ahead ? "#f5b940" : "white"
+                                opacity: modelData.behind || modelData.ahead ? 1 : 0.6
+                                text: !modelData.build ? qsTr("older version")
+                                    : modelData.behind ? (modelData.hasUpdate ? qsTr("build %1 · update ready").arg(modelData.build)
+                                                                              : qsTr("build %1 · needs an update").arg(modelData.build))
+                                    : modelData.ahead ? qsTr("build %1 · newer than this computer").arg(modelData.build)
+                                    : qsTr("build %1").arg(modelData.build)
+                            }
                             Label { text: qsTr("since %1").arg(w.time(modelData.since)); font.pixelSize: 16; opacity: 0.6 }
                         }
                     }
+                }
+
+                // Updates for the screens: the tablet app and Linux packages, put in a folder here.
+                Heading { text: qsTr("Updates for the screens"); visible: w.serving }
+                Label {
+                    objectName: "updatesFolder"
+                    visible: w.serving
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 16
+                    opacity: 0.8
+                    text: (w.net.updates ?? []).length
+                          ? qsTr("Ready: %1. A manager on a screen that's behind gets the update there.")
+                                .arg((w.net.updates ?? []).map(u => u.name).join(", "))
+                          : qsTr("To update the tablets, copy the new app (ViewTouch-b<build>-arm64-v8a.apk) into %1 on this computer. Screens that are behind then offer it to a manager.")
+                                .arg(w.net.updatesDir ?? "")
                 }
 
                 Heading { text: qsTr("Printers") }

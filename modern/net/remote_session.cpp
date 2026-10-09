@@ -1,6 +1,12 @@
 #include "net/remote_session.hh"
 
+#include "net/build_info.hh"
+
 #include <QDateTime>
+#if defined(Q_OS_ANDROID)
+#include <QCoreApplication>
+#include <QJniObject>
+#endif
 #include "net/standby.hh"
 
 #include "net/protocol.hh"
@@ -254,7 +260,10 @@ bool RemoteSession::waitForWelcome(int msec)
 void RemoteSession::onConnected()
 {
     encrypted_ = true;
-    QJsonObject hello{{u"t"_s, u"hello"_s}, {u"terminal"_s, terminal_}, {u"protocol"_s, ProtocolVersion}};
+    const AppBuild me = appBuild();
+    QJsonObject hello{{u"t"_s, u"hello"_s}, {u"terminal"_s, terminal_}, {u"protocol"_s, ProtocolVersion},
+                      {u"version"_s, me.version}, {u"build"_s, me.number}, {u"commit"_s, me.commit},
+                      {u"platform"_s, me.platform}};
     if (!requestedScreen_.isEmpty())
         hello.insert(u"screen"_s, requestedScreen_);
     send(hello);
@@ -310,12 +319,31 @@ void RemoteSession::handle(const QJsonObject &m)
         }
         applyState(m.value(u"state").toObject(), true);
         cache_.clear();
+        storeBuild_ = m.value(u"build").toInt();
+        storeVersion_ = m.value(u"version").toString();
+        storeUpdate_ = m.value(u"update").toObject().toVariantMap();
+        emit updateChanged();
         welcomed_ = true;
         refusals_ = 0;
         failures_ = 0;
         emit onlineChanged();
     } else if (type == u"state") {
         applyState(m.value(u"set").toObject(), false);
+    } else if (type == u"updatePart") {
+        // The store's update for this screen, a part at a time.
+        if (m.value(u"i").toInt() == 0)
+            updateData_.clear();
+        updateData_ += QByteArray::fromBase64(m.value(u"data").toString().toLatin1());
+        const int n = std::max(1, m.value(u"n").toInt());
+        updateProgress_ = std::min(100, (m.value(u"i").toInt() + 1) * 100 / n);
+        if (const QJsonObject done = m.value(u"done").toObject(); !done.isEmpty())
+            finishUpdate(done);
+        emit updateChanged();
+    } else if (type == u"updateError") {
+        updateProgress_ = -1;
+        updateError_ = m.value(u"text").toString();
+        emit notice(updateError_);
+        emit updateChanged();
     } else if (type == u"reply") {
         const Reply r = replies_.take(m.value(u"id").toInteger());
         if (r)
@@ -444,6 +472,83 @@ QVariantList RemoteSession::adminRecords(const QString &panel)
 QVariantMap RemoteSession::adminNewRecord(const QString &panel)
 {
     return query(u"adminNewRecord|"_s + panel, u"adminNewRecord"_s, {panel}).toMap();
+}
+
+// --- updates -----------------------------------------------------------------------
+
+QVariantMap RemoteSession::updateInfo() const
+{
+    const AppBuild me = appBuild();
+    QVariantMap out{{u"build"_s, me.number}, {u"version"_s, me.version}, {u"platform"_s, me.platform},
+                    {u"text"_s, buildText(me.version, me.number, me.commit)},
+                    {u"storeBuild"_s, storeBuild_}, {u"storeText"_s, buildText(storeVersion_, storeBuild_)},
+                    // Build 0: made without git (or a store older than build numbers): not compared.
+                    {u"behind"_s, me.number > 0 && storeBuild_ > me.number},
+                    {u"ahead"_s, me.number > 0 && storeBuild_ > 0 && storeBuild_ < me.number}};
+    if (!storeUpdate_.isEmpty())
+        out.insert(u"update"_s, storeUpdate_);
+    if (updateProgress_ >= 0)
+        out.insert(u"downloading"_s, updateProgress_);
+    if (!updateReady_.isEmpty())
+        out.insert(u"ready"_s, updateReady_);
+    if (!updateError_.isEmpty())
+        out.insert(u"error"_s, updateError_);
+    return out;
+}
+
+void RemoteSession::getUpdate()
+{
+    // Already here (Android asked to allow installs first): open it again.
+    if (!updateReady_.isEmpty() && QFile::exists(updateReady_)) {
+        openUpdate();
+        return;
+    }
+    if (!welcomed_ || storeUpdate_.isEmpty()) {
+        emit notice(tr("The store has no newer version for this screen."));
+        return;
+    }
+    updateError_.clear();
+    updateReady_.clear();
+    updateProgress_ = 0;
+    emit updateChanged();
+    send({{u"t"_s, u"getUpdate"_s}});
+}
+
+void RemoteSession::finishUpdate(const QJsonObject &done)
+{
+    updateProgress_ = -1;
+    const QByteArray data = std::exchange(updateData_, {});
+    const QString hash = QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
+    if (data.size() != done.value(u"size").toInteger() || hash != done.value(u"sha256").toString()) {
+        updateError_ = tr("The update didn't arrive whole. Try again.");
+        emit notice(updateError_);
+        return;
+    }
+    // Only a plain file name, kept in this app's own folder.
+    const QString name = QFileInfo(done.value(u"name").toString()).fileName();
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + u"/updates"_s;
+    QDir().mkpath(dir);
+    QSaveFile f(dir + u'/' + name);
+    if (name.isEmpty() || !f.open(QIODevice::WriteOnly) || f.write(data) != data.size() || !f.commit()) {
+        updateError_ = tr("Couldn't save the update: %1").arg(f.errorString());
+        emit notice(updateError_);
+        return;
+    }
+    updateReady_ = f.fileName();
+    openUpdate();
+}
+
+void RemoteSession::openUpdate()
+{
+#if defined(Q_OS_ANDROID)
+    // Android's installer asks whoever is here to install it.
+    QJniObject::callStaticMethod<void>("org/viewtouch/pos/Updater", "install",
+                                       "(Landroid/content/Context;Ljava/lang/String;)V",
+                                       QNativeInterface::QAndroidApplication::context().object(),
+                                       QJniObject::fromString(updateReady_).object<jstring>());
+#else
+    emit notice(tr("Update saved: %1").arg(updateReady_));
+#endif
 }
 
 } // namespace vt::net

@@ -90,7 +90,15 @@ if(Qt6_FOUND)
     target_link_libraries(vtm_storage PUBLIC vtm_layout vtm_pos Qt6::Sql)
 
     # Several terminals on one store: server, remote session, page sync
+    # This build's number, commit and version (net/build_info.cpp), fresh at every build.
+    set(VTM_GENERATED ${CMAKE_BINARY_DIR}/generated)
+    add_custom_target(vtm_build_info ALL
+        BYPRODUCTS ${VTM_GENERATED}/vtm_build_number.hh
+        COMMAND ${CMAKE_COMMAND} -DSRC=${CMAKE_CURRENT_SOURCE_DIR} -DOUT=${VTM_GENERATED}/vtm_build_number.hh
+                -DVERSION=${PROJECT_VERSION} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/BuildInfo.cmake
+        COMMENT "Build number")
     add_library(vtm_net STATIC
+        net/build_info.hh net/build_info.cpp
         net/protocol.hh net/protocol.cpp
         net/pairing.hh net/pairing.cpp
         net/discovery.hh net/discovery.cpp
@@ -101,6 +109,8 @@ if(Qt6_FOUND)
         net/standby.hh net/standby.cpp
     )
     target_link_libraries(vtm_net PUBLIC vtm_pos vtm_layout vtm_storage Qt6::Network)
+    target_include_directories(vtm_net PRIVATE ${VTM_GENERATED})
+    add_dependencies(vtm_net vtm_build_info)
 
     # UI: the ViewTouch QML module as a static library, so the app and the
     # UI tests load the very same QML, C++ types, and resources.
@@ -200,7 +210,13 @@ if(Qt6_FOUND)
         # The tablet app: a terminal of a store (see main.cpp, Q_OS_ANDROID).
         # Each build must number higher than the last for Android to update:
         # the version (0.7.0 -> 700) times 100000 plus the build number (CI run).
-        set(VTM_ANDROID_BUILD 0 CACHE STRING "Build number, part of the Android version code")
+        # The build number (commits so far), unless given.
+        execute_process(COMMAND git -c safe.directory=* rev-list --count HEAD WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                        OUTPUT_VARIABLE VTM_COMMITS OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        if(NOT VTM_COMMITS MATCHES "^[0-9]+$")
+            set(VTM_COMMITS 0)
+        endif()
+        set(VTM_ANDROID_BUILD ${VTM_COMMITS} CACHE STRING "Build number, part of the Android version code")
         math(EXPR VTM_VERSION_CODE
              "(${PROJECT_VERSION_MAJOR} * 10000 + ${PROJECT_VERSION_MINOR} * 100 + ${PROJECT_VERSION_PATCH}) * 100000 + ${VTM_ANDROID_BUILD}")
         set_target_properties(vtmodern PROPERTIES

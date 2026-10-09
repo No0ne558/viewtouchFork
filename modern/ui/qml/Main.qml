@@ -366,6 +366,73 @@ ApplicationWindow {
         }
     }
 
+    // This screen behind the store (or ahead of it): said, with the update
+    // for a manager to get. Not on the kiosk; Later hides it till the next connection.
+    Rectangle {
+        id: updateStrip
+        objectName: "updateStrip"
+        readonly property var info: root.controller.pos ? root.controller.pos.updateInfo : ({})
+        readonly property bool manager: !!root.controller.pos && root.controller.pos.loggedIn && root.controller.pos.can("manager")
+        property bool later: false
+        Connections {
+            target: root.controller.pos
+            function onOnlineChanged() { updateStrip.later = false }
+        }
+        visible: !later && (info.behind === true || info.ahead === true) && !selfOrder.visible && !root.pageCovered
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottomMargin: 12
+        width: Math.min(parent.width - 24, updateRow.implicitWidth + 32)
+        height: updateRow.implicitHeight + 16
+        radius: 10
+        color: "#e0302a14"
+        border.color: "#f5b940"
+        border.width: 2
+        z: 9
+        RowLayout {
+            id: updateRow
+            anchors.centerIn: parent
+            spacing: 12
+            Text {
+                Layout.maximumWidth: root.width * 0.55
+                wrapMode: Text.WordWrap
+                color: "white"
+                font.pixelSize: 16
+                text: {
+                    const i = updateStrip.info
+                    if (i.ahead)
+                        return qsTr("This screen is newer than the store's computer (%1). Update the store's computer.").arg(i.storeText ?? "")
+                    if (i.ready)
+                        return qsTr("The update is here: %1").arg(i.ready)
+                    if (i.downloading !== undefined)
+                        return qsTr("Getting the update… %1%").arg(i.downloading)
+                    return qsTr("This screen runs an older ViewTouch (%1) than the store (%2).").arg(i.text ?? "").arg(i.storeText ?? "")
+                         + (i.update ? (updateStrip.manager ? "" : " " + qsTr("A manager can update it here."))
+                                     : " " + qsTr("Put the new version on the store's computer (Manager → Network)."))
+                }
+            }
+            WidgetKey {
+                objectName: "updateNow"
+                visible: !!updateStrip.info.behind && !!updateStrip.info.update && updateStrip.manager
+                         && updateStrip.info.downloading === undefined && (!updateStrip.info.ready || Qt.platform.os === "android")
+                Layout.preferredWidth: 170
+                Layout.preferredHeight: 48
+                text: updateStrip.info.ready ? qsTr("Install") : qsTr("Update Now")
+                fontScale: 0.3
+                baseColor: "#1f6f3a"
+                onClicked: root.controller.pos.getUpdate()
+            }
+            WidgetKey {
+                Layout.preferredWidth: 110
+                Layout.preferredHeight: 48
+                text: qsTr("Later")
+                fontScale: 0.3
+                baseColor: "#343c49"
+                onClicked: updateStrip.later = true
+            }
+        }
+    }
+
     // The guest's allergies (Check Options -> Allergy...): touch each one.
     Rectangle {
         id: allergySheet

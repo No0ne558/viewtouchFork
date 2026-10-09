@@ -28,6 +28,20 @@ public:
     ~PosServer() override;
 
     // False when this system can't make encrypted connections (errorString says why).
+    // Where the store keeps updates for its screens (the app for tablets,
+    // "ViewTouch-b<build>-arm64-v8a.apk"; packages for Linux screens): a
+    // screen that's behind is told, and a manager there can fetch it.
+    void setUpdatesDir(const QString &dir) { updatesDir_ = dir; }
+    QString updatesDir() const { return updatesDir_; }
+    struct UpdateFile {
+        QString path;
+        int build = 0;
+        QString platform;   // "android-arm64", "linux-x86_64"...
+    };
+    // The update files there, newest build first.
+    QList<UpdateFile> updateFiles() const;
+    // The newest for that platform, newer than `build` (none: an empty path).
+    UpdateFile updateFor(const QString &platform, int build) const;
     // Ping every `pingMs`; drop a terminal silent `silentMs` (tests: short).
     void setHeartbeat(int pingMs, qint64 silentMs) { pingTimer_.setInterval(pingMs); silentMs_ = silentMs; }
     bool listen(const QHostAddress &address, quint16 port);
@@ -72,7 +86,9 @@ private:
     QTimer flushTimer_;
     QTimer tickTimer_;   // refresh time-based fields (minutes open)
     QTimer pingTimer_;   // the standby knows the main is alive; terminals, the store
-    qint64 silentMs_ = 15'000;   // a terminal that answered pings, silent this long: gone
+    qint64 silentMs_ = 15'000;
+    QString updatesDir_;
+    void sendUpdate(Connection *c);   // a terminal that answered pings, silent this long: gone
     std::function<QByteArray()> snapshot_;
 };
 

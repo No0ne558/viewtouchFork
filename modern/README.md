@@ -85,6 +85,8 @@ The Android app is a terminal: it finds the store's server on the Wi-Fi, pairs w
 
 The app is full screen and keeps the screen on. Back goes back a page. If the server is out of reach, it starts with the pages it saved last and shows *Reconnecting…*. Its pairing key is never included in Android backups.
 
+**Updating tablets from the store's computer:** every build has a number (the commits so far; the workflow names the app `ViewTouch-b<build>-arm64-v8a.apk`). Copy the new app into the store computer's `updates` folder (in its data folder, `/var/lib/viewtouch/updates` for the packages; Manager → Network shows where). A tablet that's behind shows a strip; a manager there touches **Update Now**: the app comes over the store's own connection (checked by its SHA-256), and Android asks to install it (the first time, to allow ViewTouch to install apps). Linux screens get their package the same way (`-b<build>.deb` / `.rpm`) and install it with the package manager. Apps on a Stripe reader are updated through Stripe (Apps on Devices), not this way.
+
 **Signing:** to install updates over the previous version, every build must be signed with the same key. Make one once and store it in the repository's secrets:
 ```sh
 keytool -genkeypair -keystore viewtouch.keystore -alias viewtouch -keyalg RSA -keysize 3072 -validity 10000
