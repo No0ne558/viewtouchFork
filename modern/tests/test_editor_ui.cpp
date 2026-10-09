@@ -198,3 +198,31 @@ TEST_CASE("UI: touching buttons outside edit mode still navigates", "[ui]")
     QTest::keyClick(ui.window, Qt::Key_F1);   // nothing changed -> leaves directly
     CHECK_FALSE(ui.controller.editing());
 }
+
+TEST_CASE("UI: a finger's tap that wanders a little selects without moving; a corner is easy to grab", "[ui][touchedit]")
+{
+    Ui ui(u"items-burgers"_s);
+    EditorController *e = ui.controller.editor();
+    const QRect before = ui.rect(u"item-1"_s);
+    const QPoint at = ui.at(700, 280);
+    QTest::mousePress(ui.window, Qt::LeftButton, {}, at);
+    QTest::mouseMove(ui.window, at + QPoint(4, 3), 10);
+    QTest::mouseMove(ui.window, at + QPoint(6, -2), 10);
+    QTest::mouseRelease(ui.window, Qt::LeftButton, {}, at + QPoint(6, -2));
+    ui.settle();
+    CHECK(e->selection() == QStringList{u"item-1"_s});
+    CHECK(ui.rect(u"item-1"_s) == before);
+    CHECK_FALSE(e->canUndo());
+
+    // The bottom-right corner, touched a finger's width off (screen pixels).
+    const QPoint corner = ui.at(before.right() + 1, before.bottom() + 1) + QPoint(12, 12);
+    QTest::mousePress(ui.window, Qt::LeftButton, {}, corner);
+    for (int i = 1; i <= 8; ++i)
+        QTest::mouseMove(ui.window, corner + QPoint(6 * i, 4 * i), 10);
+    QTest::mouseRelease(ui.window, Qt::LeftButton, {}, corner + QPoint(48, 32));
+    ui.settle();
+    const QRect after = ui.rect(u"item-1"_s);
+    CHECK(after.topLeft() == before.topLeft());     // resized, not moved
+    CHECK(after.width() > before.width());
+    CHECK(after.height() > before.height());
+}

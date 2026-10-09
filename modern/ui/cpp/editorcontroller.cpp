@@ -3,6 +3,7 @@
 #include "app/pos_session.hh"
 #include "layout/schema.hh"
 
+#include <QCoreApplication>
 #include <QHash>
 #include <QDir>
 #include <QFile>
@@ -42,13 +43,13 @@ std::optional<QJsonObject> readJsonFile(const QUrl &url, QString *why)
 {
     QFile f(url.toLocalFile());
     if (!f.open(QIODevice::ReadOnly)) {
-        *why = u"Cannot open %1: %2"_s.arg(f.fileName(), f.errorString());
+        *why = QCoreApplication::translate("EditorController", "Cannot open %1: %2").arg(f.fileName(), f.errorString());
         return std::nullopt;
     }
     QJsonParseError err;
     const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
     if (!doc.isObject()) {
-        *why = u"%1 is not a ViewTouch file: %2"_s.arg(QFileInfo(f).fileName(), err.errorString());
+        *why = QCoreApplication::translate("EditorController", "%1 is not a ViewTouch file: %2").arg(QFileInfo(f).fileName(), err.errorString());
         return std::nullopt;
     }
     return doc.object();
@@ -58,12 +59,12 @@ bool writeJsonFile(const QUrl &url, const QJsonObject &o, QString *why)
 {
     QSaveFile f(url.toLocalFile());
     if (!f.open(QIODevice::WriteOnly)) {
-        *why = u"Cannot write %1: %2"_s.arg(f.fileName(), f.errorString());
+        *why = QCoreApplication::translate("EditorController", "Cannot write %1: %2").arg(f.fileName(), f.errorString());
         return false;
     }
     f.write(QJsonDocument(o).toJson(QJsonDocument::Indented));
     if (!f.commit()) {
-        *why = u"Cannot write %1: %2"_s.arg(f.fileName(), f.errorString());
+        *why = QCoreApplication::translate("EditorController", "Cannot write %1: %2").arg(f.fileName(), f.errorString());
         return false;
     }
     return true;

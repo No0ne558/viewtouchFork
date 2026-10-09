@@ -28,7 +28,9 @@ Item {
     readonly property var sel: editor ? editor.selection : []
     readonly property real px: 1 / Math.max(scaleFactor, 0.01)   // one screen pixel
     readonly property real snapDistance: 8 * px
-    readonly property real handleSize: 12 * px
+    readonly property real handleSize: 14 * px
+    // How far a finger may wander before a touch is a drag (not a tap).
+    readonly property real dragSlop: Math.max(3, Qt.styleHints.startDragDistance) * px
     readonly property var selectedGeo: geo.filter(g => sel.includes(g.id))
     readonly property var single: selectedGeo.length === 1 ? selectedGeo[0] : null
 
@@ -109,8 +111,9 @@ Item {
     function handleAt(x, y) {
         if (!single) return null
         const s = handleSize
-        // Generous hit area: handles are small on screen.
-        const pad = 4 * px
+        // A finger's reach (handles are small on screen), less on small zones
+        // so the middle of one still moves it.
+        const pad = Math.max(4 * px, Math.min(16 * px, Math.min(single.w, single.h) / 4 - s / 2))
         for (const hr of handleRects(single)) {
             if (x >= hr.x - pad && x <= hr.x + s + pad && y >= hr.y - pad && y <= hr.y + s + pad)
                 return hr
@@ -313,8 +316,8 @@ Item {
                 return
             }
             if (overlay.mode === "pending") {
-                // Small threshold so a click never nudges a zone.
-                if (Math.abs(p.x - overlay.pressPoint.x) < 3 * overlay.px && Math.abs(p.y - overlay.pressPoint.y) < 3 * overlay.px)
+                // A tap (a finger wanders a little) never nudges a zone.
+                if (Math.abs(p.x - overlay.pressPoint.x) < overlay.dragSlop && Math.abs(p.y - overlay.pressPoint.y) < overlay.dragSlop)
                     return
                 overlay.mode = "move"
                 cursorShape = Qt.ClosedHandCursor
@@ -401,7 +404,7 @@ Item {
                 overlay.editor.commitRects(rects)
                 return
             }
-            if (overlay.mode === "band" && overlay.band && (overlay.band.w > 2 * overlay.px || overlay.band.h > 2 * overlay.px))
+            if (overlay.mode === "band" && overlay.band && (overlay.band.w > overlay.dragSlop || overlay.band.h > overlay.dragSlop))
                 overlay.editor.selectInRect(overlay.band.x, overlay.band.y, overlay.band.w, overlay.band.h, additive)
             overlay.finishGesture()
         }
