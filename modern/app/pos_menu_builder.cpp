@@ -663,18 +663,29 @@ int PosService::importMenuRows(const QVariantList &rows, const QString &category
         auto existing = std::ranges::find_if(s_->menu, [&](const MenuItem &m) {
             return !m.isModifier && QString::compare(qs(m.name), name, Qt::CaseInsensitive) == 0;
         });
+        // Its photo, into the store's pictures.
+        QString photo;
+        if (const QString data = r.value(u"photoData"_s).toString(); !data.isEmpty())
+            photo = putMenuPicture(r.value(u"photoName"_s).toString(), QByteArray::fromBase64(data.toLatin1()));
         if (existing != s_->menu.end()) {
-            if (!updatePrices) {
+            // One already on the menu: a photo if it has none; the price if asked.
+            QVariantMap card{{u"id"_s, qs(existing->id)}, {u"name"_s, qs(existing->name)}};
+            if (!photo.isEmpty() && existing->image.empty())
+                card.insert(u"image"_s, photo);
+            if (updatePrices)
+                card.insert(u"price"_s, QString::number(price, 'f', 2));
+            if (card.size() == 2) {
                 skipped << name;
                 continue;
             }
-            if (!saveMenuItemCard({{u"id"_s, qs(existing->id)}, {u"name"_s, qs(existing->name)},
-                                   {u"price"_s, QString::number(price, 'f', 2)}}))
+            if (!saveMenuItemCard(card))
                 return added;
             ++updated;
             continue;
         }
         QVariantMap card{{u"name"_s, name}, {u"price"_s, QString::number(price, 'f', 2)}, {u"family"_s, category}};
+        if (!photo.isEmpty())
+            card.insert(u"image"_s, photo);
         if (const QString d = r.value(u"description"_s).toString().trimmed(); !d.isEmpty())
             card.insert(u"description"_s, d);
         if (const QString on = r.value(u"onIt"_s).toString().trimmed(); !on.isEmpty())
@@ -685,7 +696,7 @@ int PosService::importMenuRows(const QVariantList &rows, const QString &category
     }
     QString what = tr("Added %n item(s)", nullptr, added);
     if (updated)
-        what += u"; "_s + tr("new prices for %n", nullptr, updated);
+        what += u"; "_s + tr("%n changed", nullptr, updated);
     if (!skipped.isEmpty())
         what += u"; "_s + tr("already on the menu: %1").arg(skipped.join(u", "_s));
     emit notice(what);
@@ -704,17 +715,23 @@ QVariantMap PosService::menuExport()
     PosSettings only;
     only.menuCategories = s_->categories();
     QJsonArray items;
+    QVariantMap pictures;
     for (const MenuItem &m : s_->menu) {
         QJsonObject o = toJson(m);
-        for (const char *k : {"ticketsSoldBefore", "autoSoldOut", "soldOutToday", "recipe", "image"})
+        for (const char *k : {"ticketsSoldBefore", "autoSoldOut", "soldOutToday", "recipe"})
             o.remove(QLatin1String(k));
+        // Its photo goes along (the store's pictures, by name); other kinds stay.
+        if (!m.image.starts_with("store:") || !s_->images.contains(m.image.substr(6)))
+            o.remove(u"image"_s);
+        else
+            pictures.insert(qs(m.image.substr(6)), QString::fromLatin1(s_->images.at(m.image.substr(6)).toBase64()));
         items.append(o);
     }
     return {{u"format"_s, u"viewtouch-menu"_s}, {u"version"_s, 1}, {u"store"_s, storeName()},
             {u"exported"_s, QDateTime::fromMSecsSinceEpoch(now()).toString(Qt::ISODate)},
             {u"categories"_s, toJson(only).value(u"menuCategories").toArray().toVariantList()},
             {u"choiceGroups"_s, modifierGroupsToJson(s_->settings.modifierGroups).toVariantList()},
-            {u"items"_s, items.toVariantList()}};
+            {u"items"_s, items.toVariantList()}, {u"pictures"_s, pictures}};
 }
 
 // Another store's menu file: what isn't here by name is added (categories,
@@ -753,6 +770,7 @@ int PosService::importMenuFile(const QVariantMap &file)
                 categoryOf[c.id] = x.id;
     }
 
+    const QVariantMap pictures = file.value(u"pictures"_s).toMap();
     // Items: the one by that name here, or a new id.
     std::vector<MenuItem> items;
     for (const QVariant &v : file.value(u"items"_s).toList())
@@ -810,6 +828,14 @@ int PosService::importMenuFile(const QVariantMap &file)
         item.id = itemOf.value(oldId);
         item.family = categoryOf.value(item.family, item.family);
         item.soldOutToday = false;
+        // Its photo: into this store's pictures (by its name, or one of its own).
+        if (item.image.starts_with("store:")) {
+            const QString name = qs(item.image.substr(6));
+            const QString data = pictures.value(name).toString();
+            item.image = data.isEmpty() ? std::string() : ss(putMenuPicture(name, QByteArray::fromBase64(data.toLatin1())));
+        } else {
+            item.image.clear();
+        }
         std::vector<std::string> groups;
         for (const std::string &g : item.modifierGroups) {
             if (g == onItGroupId(oldId)) {

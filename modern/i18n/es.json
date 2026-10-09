@@ -202,6 +202,7 @@
  "%1: up to %2.": "%1: hasta %2.",
  "%1; %2 on hold for a later course": "%1; %2 en espera para un tiempo posterior",
  "%1m": "%1m",
+ "%n changed": "%n cambiado(s)",
  "%n closing task(s) not done yet": {
   "one": "%n tarea de cierre sin hacer",
   "other": "%n tareas de cierre sin hacer"
@@ -1899,6 +1900,11 @@
  "Room": "Habitación",
  "Room tax %": "Impuesto de habitación %",
  "Rounded": "Redondeado",
+ "Row %1: %2 is too big (8 MB at most)": "Fila %1: %2 es demasiado grande (8 MB como máximo)",
+ "Row %1: %2 isn't a picture (PNG, JPEG, WebP…)": "Fila %1: %2 no es una imagen (PNG, JPEG, WebP…)",
+ "Row %1: no name": "Fila %1: sin nombre",
+ "Row %1: no picture %2 next to the spreadsheet": "Fila %1: no hay imagen %2 junto a la hoja de cálculo",
+ "Row %1: no price for %2": "Fila %1: sin precio para %2",
  "Royalty": "Regalías",
  "Royalty (% of net sales)": "Regalías (% de ventas netas)",
  "Running low": "Por agotarse",

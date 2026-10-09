@@ -5467,3 +5467,61 @@ TEST_CASE("Flow: an item taken off the menu takes its hand-placed buttons; a cat
     REQUIRE(s.pos.deleteCategory(u"desserts"_s));
     CHECK(s.pos.shared()->settings.terminals.back().startCategory.empty());
 }
+
+TEST_CASE("Flow: photos from a spreadsheet's Photo column, and with a menu to another store", "[flow][menuphotos]")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const auto picture = [&](const QString &name, QColor color) {
+        QImage img(40, 30, QImage::Format_RGB32);
+        img.fill(color);
+        REQUIRE(img.save(dir.filePath(name)));
+    };
+    picture(u"Fish Tacos.PNG"_s, Qt::red);
+    picture(u"churros.png"_s, Qt::yellow);
+    QFile csv(dir.filePath(u"menu.csv"_s));
+    REQUIRE(csv.open(QIODevice::WriteOnly));
+    csv.write("Name,Price,Category,Foto\n"
+              "Fish Tacos,4.50,Tacos,fish tacos.png\n"     // another case: found anyway
+              "Churros,3.00,Desserts,churros.png\n"
+              "Flan,3.50,Desserts,flan.jpg\n");           // not there
+    csv.close();
+
+    Session a;
+    REQUIRE(a.pos.loginWithPin(u"1234"_s));
+    const QVariantMap read = a.c.readMenuFile(QUrl::fromLocalFile(csv.fileName()));
+    CHECK(read[u"photos"_s].toInt() == 2);
+    CHECK(read[u"problems"_s].toStringList().filter(u"flan.jpg"_s).size() == 1);
+    CHECK(read[u"items"_s].toList().size() == 3);          // Flan comes in, without a photo
+    // A different picture already called fish-tacos.png: kept; the new one gets its own name.
+    a.pos.shared()->images["fish-tacos.png"] = QByteArray("not the same");
+    CHECK(a.pos.importMenuRows(read[u"items"_s].toList(), {}, false) == 3);
+    const auto imageOf = [](app::PosService &pos, const char *name) {
+        for (const core::MenuItem &m : pos.shared()->menu)
+            if (m.name == name)
+                return QString::fromStdString(m.image);
+        return u"?"_s;
+    };
+    CHECK(imageOf(a.pos, "Fish Tacos") == u"store:fish-tacos-2.png"_s);
+    CHECK(imageOf(a.pos, "Churros") == u"store:churros.png"_s);
+    CHECK(imageOf(a.pos, "Flan").isEmpty());
+    CHECK(a.pos.shared()->images.at("fish-tacos.png") == QByteArray("not the same"));
+    CHECK_FALSE(QImage::fromData(a.pos.shared()->images.at("churros.png")).isNull());
+
+    // To another store: the photos go along.
+    a.c.setExportDirectory(dir.filePath(u"out"_s));
+    a.c.exportMenu();
+    const QStringList files = QDir(dir.filePath(u"out"_s)).entryList({u"*.vtmenu.json"_s});
+    REQUIRE(files.size() == 1);
+    Session b;
+    REQUIRE(b.pos.loginWithPin(u"1234"_s));
+    const QVariantMap menu = b.c.readMenuFile(QUrl::fromLocalFile(QDir(dir.filePath(u"out"_s)).filePath(files.front())));
+    bool churrosPhoto = false;
+    for (const QVariant &i : menu[u"items"_s].toList())
+        churrosPhoto |= i.toMap()[u"name"_s] == u"Churros"_s && i.toMap()[u"photo"_s].toBool();
+    CHECK(churrosPhoto);
+    REQUIRE(b.pos.importMenuFile(menu[u"menuFile"_s].toMap()) >= 3);
+    CHECK(imageOf(b.pos, "Churros") == u"store:churros.png"_s);
+    CHECK(b.pos.shared()->images.at("churros.png") == a.pos.shared()->images.at("churros.png"));
+    CHECK(imageOf(b.pos, "Flan").isEmpty());
+}

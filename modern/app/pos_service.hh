@@ -628,6 +628,7 @@ public:
     // What would trip up service: [{text, item, group, category, serious}].
     QVariantList menuProblems() const override;
     QVariantMap menuExport();
+    QString putMenuPicture(const QString &fileName, const QByteArray &data);
     int importMenuFile(const QVariantMap &file);
     bool applyMenuTemplate(const QString &id);
     // {id ("" new), name, min, max, askHow, options: [{name, price, included, kitchenName}]}

@@ -15,6 +15,7 @@ struct ImportedItem {
     QString category;          // empty: the one chosen
     QString description;
     QString onIt;              // what's on it, "lettuce, tomato"
+    QString photo;             // a picture's file name, next to the spreadsheet
 };
 
 struct MenuImport {
@@ -24,7 +25,7 @@ struct MenuImport {
 };
 
 // Columns by their header (Name / Item, Price, Category / Section / Group,
-// Description, Ingredients / On it; English or Spanish), else name, price,
+// Description, Ingredients / On it, Photo; English or Spanish), else name, price,
 // category in that order. Prices: "$3.50", "3,50", "3.50".
 MenuImport readMenuCsv(const QString &text);
 

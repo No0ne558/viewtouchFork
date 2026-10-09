@@ -744,8 +744,11 @@ QVariantMap LayoutController::readMenuFile(const QUrl &file) const
             if (i.value(u"modifier"_s).toBool())
                 continue;
             const QString family = i.value(u"family"_s).toString();
+            const QString image = i.value(u"image"_s).toString();
             items.append(QVariantMap{{u"name"_s, i.value(u"name"_s)}, {u"price"_s, i.value(u"price"_s).toDouble()},
-                                     {u"category"_s, categoryName.value(family, family)}});
+                                     {u"category"_s, categoryName.value(family, family)},
+                                     {u"photo"_s, image.startsWith(u"store:"_s)
+                                                      && menu.value(u"pictures"_s).toMap().contains(image.mid(6))}});
         }
         return {{u"items"_s, items}, {u"menuFile"_s, menu}, {u"problems"_s, QStringList()},
                 {u"from"_s, menu.value(u"store"_s)}};
@@ -756,12 +759,36 @@ QVariantMap LayoutController::readMenuFile(const QUrl &file) const
     QString text = QString::fromUtf8(bytes);
     if (text.contains(QChar::ReplacementCharacter))
         text = QString::fromLatin1(bytes);
-    const vt::app::MenuImport read = vt::app::readMenuCsv(text);
+    vt::app::MenuImport read = vt::app::readMenuCsv(text);
+    // Photos: picture files beside the spreadsheet (or a path), read here.
+    const QDir beside = QFileInfo(f.fileName()).absoluteDir();
     QVariantList items;
-    for (const vt::app::ImportedItem &i : read.items)
-        items.append(QVariantMap{{u"row"_s, i.row}, {u"name"_s, i.name}, {u"price"_s, i.price}, {u"category"_s, i.category},
-                                 {u"description"_s, i.description}, {u"onIt"_s, i.onIt}});
-    return {{u"items"_s, items}, {u"problems"_s, read.problems}, {u"columns"_s, read.columns}};
+    int photos = 0;
+    for (const vt::app::ImportedItem &i : read.items) {
+        QVariantMap row{{u"row"_s, i.row}, {u"name"_s, i.name}, {u"price"_s, i.price}, {u"category"_s, i.category},
+                        {u"description"_s, i.description}, {u"onIt"_s, i.onIt}};
+        if (!i.photo.isEmpty()) {
+            QString path = QDir::isAbsolutePath(i.photo) ? i.photo : beside.filePath(i.photo);
+            if (!QFileInfo::exists(path))   // "Tacos.JPG" for tacos.jpg
+                for (const QString &n : beside.entryList(QDir::Files))
+                    if (n.compare(QFileInfo(i.photo).fileName(), Qt::CaseInsensitive) == 0)
+                        path = beside.filePath(n);
+            QFile picture(path);
+            if (vt::app::PosSession::storeImageRef(path).isEmpty())
+                read.problems << tr("Row %1: %2 isn't a picture (PNG, JPEG, WebP…)").arg(i.row).arg(i.photo);
+            else if (picture.size() > 8 * 1024 * 1024)
+                read.problems << tr("Row %1: %2 is too big (8 MB at most)").arg(i.row).arg(i.photo);
+            else if (!picture.open(QIODevice::ReadOnly))
+                read.problems << tr("Row %1: no picture %2 next to the spreadsheet").arg(i.row).arg(i.photo);
+            else {
+                row.insert(u"photoName"_s, QFileInfo(path).fileName());
+                row.insert(u"photoData"_s, QString::fromLatin1(picture.readAll().toBase64()));
+                ++photos;
+            }
+        }
+        items.append(row);
+    }
+    return {{u"items"_s, items}, {u"problems"_s, read.problems}, {u"columns"_s, read.columns}, {u"photos"_s, photos}};
 }
 
 void LayoutController::exportMenu()

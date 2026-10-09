@@ -116,6 +116,30 @@ bool PosService::addStoreImage(const QString &fileName, const QString &base64)
     return true;
 }
 
+// A picture brought in with menu items (a spreadsheet's Photo column,
+// another store's menu): kept under its name, or a name of its own when the
+// store has a different picture by that name. "" if it isn't a picture.
+QString PosService::putMenuPicture(const QString &fileName, const QByteArray &data)
+{
+    const QString ref = storeImageRef(fileName);
+    if (ref.isEmpty() || isFont(ref) || data.isEmpty() || data.size() > kMaxImageBytes || !looksLikePicture(data))
+        return {};
+    const QFileInfo info(ref.mid(6));
+    QString name = info.fileName();
+    for (int n = 2;; ++n) {
+        const auto it = s_->images.find(ss(name));
+        if (it == s_->images.end())
+            break;
+        if (it->second == data)
+            return u"store:"_s + name;   // the same picture: already here
+        name = u"%1-%2.%3"_s.arg(info.completeBaseName()).arg(n).arg(info.suffix());
+    }
+    s_->images[ss(name)] = data;
+    if (s_->sink)
+        s_->sink->saveImage(ss(name), data);
+    return u"store:"_s + name;   // the caller says the menu changed
+}
+
 bool PosService::removeStoreImage(const QString &name)
 {
     if (!require(perm::Manager, tr("Removing pictures")))

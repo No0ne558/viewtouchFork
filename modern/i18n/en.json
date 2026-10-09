@@ -126,5 +126,9 @@
  "%n item(s) go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2": {
   "one": "%n item goes to the printer %1, which isn't set up, and there's no kitchen printer: its tickets print nowhere: %2",
   "other": "%n items go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2"
+ },
+ "%n changed": {
+  "one": "%n changed",
+  "other": "%n changed"
  }
 }

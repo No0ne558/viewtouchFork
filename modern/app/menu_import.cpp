@@ -1,5 +1,6 @@
 #include "app/menu_import.hh"
 
+#include <QCoreApplication>
 #include <QRegularExpression>
 
 using namespace Qt::StringLiterals;
@@ -59,6 +60,8 @@ QString what(const QString &header)
                          u"categoria"_s, u"seccion"_s, u"grupo"_s, u"tipo"_s}},
         {u"description"_s, {u"description"_s, u"desc"_s, u"details"_s, u"descripcion"_s}},
         {u"onIt"_s, {u"ingredients"_s, u"on it"_s, u"toppings"_s, u"whats on it"_s, u"comes with"_s, u"ingredientes"_s}},
+        {u"photo"_s, {u"photo"_s, u"photos"_s, u"picture"_s, u"image"_s, u"photo file"_s, u"picture file"_s, u"image file"_s,
+                      u"foto"_s, u"imagen"_s, u"fotografia"_s}},
     };
     for (const auto &[key, words] : names)
         if (words.contains(h))
@@ -104,7 +107,7 @@ MenuImport readMenuCsv(const QString &text)
             firstRow = 1;
         }
     }
-    for (const QString &key : {u"name"_s, u"price"_s, u"category"_s, u"description"_s, u"onIt"_s})
+    for (const QString &key : {u"name"_s, u"price"_s, u"category"_s, u"description"_s, u"onIt"_s, u"photo"_s})
         if (at.contains(key))
             out.columns << key;
     const auto cell = [&](const QStringList &r, const QString &key) {
@@ -121,12 +124,13 @@ MenuImport readMenuCsv(const QString &text)
         item.category = cell(row, u"category"_s);
         item.description = cell(row, u"description"_s);
         item.onIt = cell(row, u"onIt"_s);
+        item.photo = cell(row, u"photo"_s);
         if (item.name.isEmpty()) {
-            out.problems << QStringLiteral("Row %1: no name").arg(item.row);
+            out.problems << QCoreApplication::translate("MenuImport", "Row %1: no name").arg(item.row);
             continue;
         }
         if (!price(cell(row, u"price"_s), &item.price)) {
-            out.problems << QStringLiteral("Row %1: no price for %2").arg(item.row).arg(item.name);
+            out.problems << QCoreApplication::translate("MenuImport", "Row %1: no price for %2").arg(item.row).arg(item.name);
             continue;
         }
         out.items << item;

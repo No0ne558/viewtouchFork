@@ -1239,7 +1239,7 @@ Item {
                 delegate: RowLayout {
                     required property var modelData
                     width: ListView.view.width
-                    Label { Layout.fillWidth: true; text: modelData.name; elide: Text.ElideRight }
+                    Label { Layout.fillWidth: true; text: (modelData.photoData || modelData.photo ? "📷 " : "") + modelData.name; elide: Text.ElideRight }
                     Label { text: w.pos.currencySymbol + Number(modelData.price).toFixed(2) }
                     Label { Layout.preferredWidth: 180; text: modelData.category; opacity: 0.7; elide: Text.ElideRight }
                 }
