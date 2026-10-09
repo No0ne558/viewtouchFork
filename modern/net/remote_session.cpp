@@ -1,4 +1,6 @@
 #include "net/remote_session.hh"
+
+#include <QDateTime>
 #include "net/standby.hh"
 
 #include "net/protocol.hh"
@@ -109,6 +111,19 @@ RemoteSession::RemoteSession(QString terminalName, QObject *parent)
         encrypted_ = false;
         socket_.connectToHostEncrypted(host_, port_);
     });
+    // A server that pings and then says nothing for 10 s is out of reach
+    // (Wi-Fi gone without the socket closing): say so, give up what was
+    // waiting, and reconnect.
+    watchdog_.setInterval(2000);
+    connect(&watchdog_, &QTimer::timeout, this, [this] {
+        if (welcomed_ && serverPings_ && QDateTime::currentMSecsSinceEpoch() - heard_ > silentMs_) {
+            qCWarning(lcRemote) << "the server stopped answering";
+            socket_.abort();
+            if (welcomed_)
+                onDisconnected();
+        }
+    });
+    watchdog_.start();
     reconnect_.setSingleShot(true);
     reconnect_.setInterval(kReconnectMs);
     connect(&reconnect_, &QTimer::timeout, this, [this] {
@@ -282,6 +297,12 @@ void RemoteSession::send(const QJsonObject &m)
 void RemoteSession::handle(const QJsonObject &m)
 {
     const QString type = m.value(u"t").toString();
+    heard_ = QDateTime::currentMSecsSinceEpoch();
+    if (type == u"ping") {
+        serverPings_ = true;
+        send({{u"t"_s, u"pong"_s}});
+        return;
+    }
     if (type == u"welcome") {
         if (auto l = layout::Layout::fromJson(m.value(u"layout").toObject())) {
             layout_ = *l;

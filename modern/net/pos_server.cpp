@@ -30,6 +30,8 @@ struct PosServer::Connection {
     QVariantMap sent;                           // last state sent
     QList<QJsonObject> events;                  // queued until the next flush
     QStringList notices;
+    qint64 heard = 0;         // when it last sent anything
+    bool answersPings = false;   // a terminal that says "pong" (older ones don't)
 };
 
 PosServer::PosServer(app::PosShared *shared, LayoutHub *layouts, QObject *parent)
@@ -55,11 +57,25 @@ PosServer::PosServer(app::PosShared *shared, LayoutHub *layouts, QObject *parent
             shared_->settings.replicaKey = newDeviceKey().toBase64().toStdString();
         shared_->saveSettings();
     }
+    // Every 3 s: the standby knows the main is alive, and each terminal
+    // that it still has the store. A terminal that answers pings and then
+    // says nothing for 15 s is gone (out of Wi-Fi range: its socket never
+    // closes by itself), so the check it had open is free again.
     pingTimer_.setInterval(3'000);
     connect(&pingTimer_, &QTimer::timeout, this, [this] {
-        for (auto &c : connections_)
-            if (c->standby && c->synced)
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        std::vector<Connection *> silent;
+        for (auto &c : connections_) {
+            if ((c->standby && c->synced) || c->session)
                 c->channel->send({{u"t"_s, u"ping"_s}});
+            if (c->session && c->answersPings && now - c->heard > silentMs_)
+                silent.push_back(c.get());
+        }
+        for (Connection *c : silent) {
+            qCWarning(lcServer) << "terminal stopped answering:" << c->session->terminalName();
+            c->socket->abort();
+            drop(c);
+        }
     });
     pingTimer_.start();
     flushTimer_.setSingleShot(true);
@@ -148,6 +164,7 @@ void PosServer::onNewConnection()
 
 void PosServer::onReadyRead(Connection *c)
 {
+    c->heard = QDateTime::currentMSecsSinceEpoch();
     bool overflow = false;
     const QList<QJsonObject> messages = c->channel->receive(&overflow);
     if (overflow) {
@@ -191,6 +208,10 @@ void PosServer::handle(Connection *c, const QJsonObject &m)
         return;
     }
 
+    if (type == u"pong") {
+        c->answersPings = true;
+        return;
+    }
     if (type == u"hello") {
         if (c->session)
             return;

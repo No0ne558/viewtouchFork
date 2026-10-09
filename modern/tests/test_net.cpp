@@ -10,6 +10,8 @@
 
 #include <QElapsedTimer>
 #include <QSignalSpy>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QThread>
 
 using namespace Qt::StringLiterals;
@@ -409,4 +411,72 @@ TEST_CASE("An empty takeout that is put away is discarded", "[net][customer]")
     REQUIRE(pos.startCheck(core::CheckType::DineIn));
     pos.releaseCheck();
     CHECK(pos.openChecks().size() == 1);
+}
+
+namespace {
+
+// Between a terminal and the store, like Wi-Fi: passes everything on until
+// cut, then swallows everything both ways without closing anything (out of
+// range: no socket ever hears the other side has gone).
+struct WifiRelay {
+    QTcpServer server;
+    bool cut = false;
+    std::vector<std::pair<QTcpSocket *, QTcpSocket *>> pairs;
+    explicit WifiRelay(quint16 storePort)
+    {
+        REQUIRE(server.listen(QHostAddress::LocalHost));
+        QObject::connect(&server, &QTcpServer::newConnection, &server, [this, storePort] {
+            while (QTcpSocket *in = server.nextPendingConnection()) {
+                auto *out = new QTcpSocket(&server);
+                out->connectToHost(QHostAddress::LocalHost, storePort);
+                const auto pass = [this](QTcpSocket *from, QTcpSocket *to) {
+                    QObject::connect(from, &QTcpSocket::readyRead, from, [this, from, to] {
+                        const QByteArray bytes = from->readAll();
+                        if (!cut)
+                            to->write(bytes);
+                    });
+                };
+                pass(in, out);
+                pass(out, in);
+                pairs.emplace_back(in, out);
+            }
+        });
+    }
+};
+
+} // namespace
+
+TEST_CASE("Wi-Fi gone without a word: the handheld says so; the store frees its check", "[net][remote][heartbeat]")
+{
+    Store store;
+    store.server.setHeartbeat(200, 1500);
+    WifiRelay wifi(store.server.port());
+    auto remote = std::make_unique<net::RemoteSession>(u"Handheld"_s);
+    net::Credentials creds = store.pairedDevice(u"Handheld"_s);
+    creds.port = wifi.server.serverPort();
+    remote->setCredentials(creds);
+    remote->setWatchdog(1000, 100);
+    remote->connectTo(u"127.0.0.1"_s, wifi.server.serverPort());
+    REQUIRE(remote->waitForWelcome(5000));
+    Screen h(std::move(remote));
+    h.pin("1111");
+    h.c.selectTable(u"T2"_s);
+    h.settle();
+    h.remote->entryKey(u"2"_s);
+    h.settle();
+    h.tap(u"start"_s);
+    REQUIRE(waitFor([&] { return h.remote->hasCheck(); }));
+    const qint64 id = h.remote->checkInfo()[u"id"_s].toLongLong();
+    PosService bar(&store.shared, u"Bar"_s);
+    REQUIRE(bar.loginWithPin(u"2222"_s));
+    CHECK_FALSE(bar.openCheck(id));                     // open on the handheld
+    waitFor([] { return false; }, 600);                 // pings answered: it's a terminal that pongs
+
+    wifi.cut = true;                                    // out of range
+    CHECK(waitFor([&] { return !h.remote->online(); }, 4000));    // the banner, not a hang
+    QSignalSpy notices(h.remote.get(), &app::PosSession::notice);
+    h.remote->invoke(u"releaseCheck"_s);                // a tap now: refused at once
+    CHECK_FALSE(notices.isEmpty());
+    CHECK(waitFor([&] { return bar.openCheck(id); }, 5000));     // the store let go of it
+    wifi.cut = false;                                   // (it keeps trying: a new connection, not this one)
 }

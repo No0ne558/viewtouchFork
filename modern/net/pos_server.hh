@@ -28,6 +28,8 @@ public:
     ~PosServer() override;
 
     // False when this system can't make encrypted connections (errorString says why).
+    // Ping every `pingMs`; drop a terminal silent `silentMs` (tests: short).
+    void setHeartbeat(int pingMs, qint64 silentMs) { pingTimer_.setInterval(pingMs); silentMs_ = silentMs; }
     bool listen(const QHostAddress &address, quint16 port);
     quint16 port() const { return server_.serverPort(); }
     QString errorString() const { return error_.isEmpty() ? server_.errorString() : error_; }
@@ -69,7 +71,8 @@ private:
     std::vector<std::unique_ptr<Connection>> connections_;
     QTimer flushTimer_;
     QTimer tickTimer_;   // refresh time-based fields (minutes open)
-    QTimer pingTimer_;   // the standby knows the main is alive
+    QTimer pingTimer_;   // the standby knows the main is alive; terminals, the store
+    qint64 silentMs_ = 15'000;   // a terminal that answered pings, silent this long: gone
     std::function<QByteArray()> snapshot_;
 };
 

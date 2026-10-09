@@ -26,6 +26,9 @@ class RemoteSession : public app::PosSession {
 
 public:
     explicit RemoteSession(QString terminalName, QObject *parent = nullptr);
+    // The server, silent this long (after pinging), is gone; checked every
+    // `checkMs` (tests: short).
+    void setWatchdog(qint64 silentMs, int checkMs) { silentMs_ = silentMs; watchdog_.setInterval(checkMs); }
     // What this screen is set up as (vtmodern-setup): "selfOrder" or "timeClock".
     // The server takes it when Manager -> Terminals hasn't said otherwise.
     void setRequestedScreen(const QString &screen) { requestedScreen_ = screen; }
@@ -197,6 +200,10 @@ private:
     bool encrypted_ = false;
     std::unique_ptr<LineChannel> channel_;
     QTimer reconnect_;
+    QTimer watchdog_;            // the server gone quiet: reconnect
+    qint64 silentMs_ = 10'000;   // a server that pings, heard from no longer than this: gone
+    qint64 heard_ = 0;           // when the server last said anything
+    bool serverPings_ = false;   // it pings (older servers don't)
     bool welcomed_ = false;
     qint64 nextId_ = 1;
     QHash<qint64, Reply> replies_;
