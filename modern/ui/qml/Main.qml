@@ -508,6 +508,51 @@ ApplicationWindow {
         }
     }
 
+    // A card taken offline that the bank declined once sent: managers see it
+    // until they've dealt with it (OK).
+    Column {
+        id: cardAlerts
+        objectName: "cardAlerts"
+        readonly property var alerts: root.controller.pos ? root.controller.pos.cardAlerts : []
+        visible: alerts.length > 0 && !selfOrder.visible && !root.pageCovered
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.topMargin: 76
+        spacing: 6
+        z: 9
+        Repeater {
+            model: cardAlerts.alerts
+            delegate: Rectangle {
+                required property var modelData
+                width: Math.min(root.width - 24, alertRow.implicitWidth + 28)
+                height: alertRow.implicitHeight + 14
+                radius: 10
+                color: "#e0b83232"
+                RowLayout {
+                    id: alertRow
+                    anchors.centerIn: parent
+                    spacing: 12
+                    Text {
+                        Layout.maximumWidth: root.width * 0.6
+                        wrapMode: Text.WordWrap
+                        color: "white"
+                        font.pixelSize: 16
+                        font.bold: true
+                        text: modelData.text
+                    }
+                    WidgetKey {
+                        Layout.preferredWidth: 90
+                        Layout.preferredHeight: 44
+                        text: qsTr("OK")
+                        fontScale: 0.3
+                        baseColor: "#343c49"
+                        onClicked: root.controller.pos.seeCardAlert(modelData.ref)
+                    }
+                }
+            }
+        }
+    }
+
     // A printer that needs someone (out of paper, cover open, not answering):
     // on every staff screen until it's fixed. Not on the kiosk (guests).
     Column {

@@ -80,6 +80,10 @@ bool PosService::refundPayment(qint64 checkId, qint64 paymentId, qint64 cents, c
         return fail(tr("That payment isn't on the check."));
     if (p->kind == TenderKind::Discount || p->kind == TenderKind::GiftCard || p->kind == TenderKind::HouseAccount)
         return fail(tr("%1 can't be refunded here.").arg(qs(p->tenderName)));
+    if (p->offline == "waiting")
+        return fail(tr("That card was taken offline and hasn't reached Stripe yet: refund it once the internet is back."));
+    if (p->offline == "declined" || p->offline == "seen")
+        return fail(tr("That card was declined: there's nothing to refund."));
     // The bill it paid (tips aren't refunded), less what went back already
     // (today's from any terminal too).
     const Money left = c->refundable(*p, s_->settings.tax) - s_->refundedSoFar(*c, paymentId);

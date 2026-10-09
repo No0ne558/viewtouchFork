@@ -158,6 +158,7 @@ public:
     QVariantList menuTemplates() const override { return v(u"menuTemplates").toList(); }
     QVariantList menuProblems() const override { return v(u"menuProblems").toList(); }
     QString menuUndoText() const override { return v(u"menuUndoText").toString(); }
+    QVariantList cardAlerts() const override { return v(u"cardAlerts").toList(); }
     int queryRevision() const override { return queryRevision_; }
 
     // Answered from a cache; fetched from the server when missing or stale.

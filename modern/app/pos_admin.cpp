@@ -396,6 +396,14 @@ QVariantList PosService::adminFields(const QString &panel)
                       : tr("Set (ends in %1). Type a new key to change it, or \"none\" to remove it.")
                             .arg(qs(s_->settings.stripeSecretKey.substr(s_->settings.stripeSecretKey.size() - 4)))),
             field(u"cardCurrency"_s, tr("Card currency"), u"string"_s, tr("usd, cad, eur...: what cards are charged in.")),
+            field(u"offlineCards"_s, tr("Take cards when the internet is down"), u"bool"_s,
+                  tr("On Stripe readers running ViewTouch: the card is kept and sent to Stripe when the internet is back. "
+                     "The bank only sees it then: if it declines, the store doesn't get that money (a manager is told). "
+                     "Turning this on also turns on Stripe's offline mode for the store's readers.")),
+            field(u"offlineCardMax"_s, tr("Offline: up to this much a card"), u"money"_s,
+                  tr("A bigger payment needs the internet.")),
+            field(u"offlineCardTotal"_s, tr("Offline: up to this much waiting in all"), u"money"_s,
+                  tr("Past that, cards wait for the internet.")),
             with(field(u"cardTipOn"_s, tr("Card tips are asked on"), u"enum"_s,
                        tr("The card reader's screen needs tipping turned on in Stripe (Dashboard -> Terminal -> Configurations).")),
                  u"options"_s, options({{"", "The customer display (Ask Guest for Tip)"}, {"reader", "The card reader beside the register"}})),
@@ -711,6 +719,9 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"minutesPerOrderWaiting"_s, s_->settings.minutesPerOrderWaiting},
              {u"deliveryFee"_s, double(s_->settings.deliveryFee.cents()) / 100.0},
              {u"stripeSecretKey"_s, QString()}, {u"cardCurrency"_s, qs(s_->settings.cardCurrency)},
+             {u"offlineCards"_s, s_->settings.offlineCards},
+             {u"offlineCardMax"_s, double(s_->settings.offlineCardMax) / 100.0},
+             {u"offlineCardTotal"_s, double(s_->settings.offlineCardTotal) / 100.0},
              {u"cardTipOn"_s, qs(s_->settings.cardTipOn)},
              {u"tipPercents"_s, [&] { QStringList l; for (int p : s_->settings.tipPercents) l << QString::number(p); return l.join(u", "_s); }()},
              {u"tableReadyText"_s, qs(s_->settings.tableReadyText)}, {u"textWebhook"_s, qs(s_->settings.textWebhook)},
@@ -1135,6 +1146,14 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
                 return fail(tr("A Stripe secret key starts with sk_ (or rk_ for a restricted key)."));
             else
                 s_->settings.stripeSecretKey = ss(key);
+        }
+        if (record.contains(u"offlineCardMax"_s))
+            s_->settings.offlineCardMax = std::max<std::int64_t>(0, std::llround(record.value(u"offlineCardMax"_s).toDouble() * 100.0));
+        if (record.contains(u"offlineCardTotal"_s))
+            s_->settings.offlineCardTotal = std::max<std::int64_t>(0, std::llround(record.value(u"offlineCardTotal"_s).toDouble() * 100.0));
+        if (record.contains(u"offlineCards"_s) && record.value(u"offlineCards"_s).toBool() != s_->settings.offlineCards) {
+            s_->settings.offlineCards = record.value(u"offlineCards"_s).toBool();
+            setStripeOffline(s_->settings.offlineCards);   // the readers follow
         }
         if (record.contains(u"cardTipOn"_s)) {
             const QString on = record.value(u"cardTipOn"_s).toString();

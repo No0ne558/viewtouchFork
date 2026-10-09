@@ -71,7 +71,10 @@ QVariantMap PosService::cardCharge(const QString &tenderId)
             {u"amountCents"_s, qint64(amount.cents())}, {u"tipCents"_s, qint64(tip.cents())},
             {u"currency"_s, qs(s_->settings.cardCurrency)},
             {u"description"_s, u"%1 #%2"_s.arg(qs(c->label)).arg(c->id)},
-            {u"amount"_s, format(amount + tip)}};
+            {u"amount"_s, format(amount + tip)},
+            // While the internet is down (a Stripe reader): up to these (0: not at all).
+            {u"offlineMax"_s, s_->settings.offlineCards ? qint64(s_->settings.offlineCardMax) : 0},
+            {u"offlineTotal"_s, s_->settings.offlineCards ? qint64(s_->settings.offlineCardTotal) : 0}};
 }
 
 bool PosService::recordCardPayment(const QVariantMap &r)
@@ -83,7 +86,11 @@ bool PosService::recordCardPayment(const QVariantMap &r)
 
 bool PosService::addCardPayment(const QVariantMap &r)
 {
-    const QString reference = r.value(u"reference"_s).toString();
+    // Taken offline: no Stripe id yet; known by the reader's own until it's sent.
+    const bool offline = r.value(u"offline"_s).toBool();
+    const QString reference = offline ? (r.value(u"localRef"_s).toString().isEmpty()
+                                             ? QString() : u"offline:"_s + r.value(u"localRef"_s).toString())
+                                      : r.value(u"reference"_s).toString();
     if (reference.isEmpty())
         return fail(tr("The card reader didn't say which payment it was."));
     // The same approval twice (a resend after a dropped connection): once.
@@ -121,9 +128,13 @@ bool PosService::addCardPayment(const QVariantMap &r)
     paid.processor = ss(r.value(u"processor"_s).toString());
     paid.cardBrand = ss(r.value(u"brand"_s).toString().toLower());
     paid.last4 = ss(r.value(u"last4"_s).toString().right(4));
+    if (offline)
+        paid.offline = "waiting";
     const QString card = cardText(paid);
-    noteEvent(c, tr("Card approved: %1 %2%3").arg(card.isEmpty() ? qs(t->name) : card, format(amount),
-                                                  tip.cents() ? tr(" + %1 tip").arg(format(tip)) : QString()),
+    noteEvent(c, (offline ? tr("Card taken offline (sent to Stripe when the internet is back): %1 %2%3")
+                          : tr("Card approved: %1 %2%3"))
+                     .arg(card.isEmpty() ? qs(t->name) : card, format(amount),
+                          tip.cents() ? tr(" + %1 tip").arg(format(tip)) : QString()),
               "pay", amount);
     if (c.id == currentId_) {
         entry_.clear();
@@ -132,6 +143,116 @@ bool PosService::addCardPayment(const QVariantMap &r)
     emit notice(tr("Approved: %1").arg(card.isEmpty() ? format(charged) : card + u"  "_s + format(charged)));
     changed(c);
     return true;
+}
+
+// --- cards taken offline ----------------------------------------------------------------
+
+// A card taken offline has reached Stripe ("ok", with its pi_ id) or not
+// ("declined" by the bank, or "failed"): the payment says so, and a decline
+// is a manager's to deal with (the store didn't get that money).
+bool PosService::cardForwarded(const QVariantMap &r)
+{
+    const std::string ref = "offline:" + ss(r.value(u"localRef"_s).toString());
+    const QString status = r.value(u"status"_s).toString();
+    for (Check *c : checksToday())
+        for (Payment &p : c->payments) {
+            if (p.reference != ref)
+                continue;
+            if (status == u"ok") {
+                p.reference = ss(r.value(u"id"_s).toString());
+                p.offline.clear();
+                c->note(now(), "Stripe", ss(tr("Card payment sent to Stripe: %1").arg(qs(p.reference))), "pay");
+            } else {
+                p.offline = "declined";
+                c->note(now(), "Stripe", ss(tr("Card declined once sent to Stripe: %1 %2 (%3)")
+                                               .arg(cardText(p), format(p.amount + p.tip), r.value(u"error"_s).toString())),
+                        "pay");
+                emit notice(tr("A card taken offline was declined: %1, %2. See the alert.").arg(qs(c->label), format(p.amount + p.tip)));
+            }
+            saveAnyCheck(*c);
+            ++s_->adminRevision;
+            emit s_->adminChanged();
+            emit s_->dayChanged();
+            return true;
+        }
+    return fail(tr("No card payment taken offline matches that."));
+}
+
+QVariantList PosService::cardAlerts() const
+{
+    QVariantList out;
+    if (!can(QString::fromLatin1(perm::Manager)))
+        return out;
+    for (const Check *c : const_cast<PosService *>(this)->checksToday())
+        for (const Payment &p : c->payments)
+            if (p.offline == "declined")
+                out.append(QVariantMap{{u"ref"_s, qs(p.reference)}, {u"checkId"_s, qint64(c->id)},
+                                       {u"text"_s, tr("%1: a card taken offline was declined (%2, %3). The store didn't get that money: ask the guest to pay again if you can.")
+                                                       .arg(qs(c->label), cardText(p), format(p.amount + p.tip))}});
+    return out;
+}
+
+bool PosService::seeCardAlert(const QString &ref)
+{
+    if (!require(perm::Manager, tr("Card alerts")))
+        return false;
+    for (Check *c : checksToday())
+        for (Payment &p : c->payments)
+            if (qs(p.reference) == ref && p.offline == "declined") {
+                p.offline = "seen";
+                c->note(now(), user() ? user()->name : std::string(), ss(tr("Declined card: dealt with")), "pay");
+                saveAnyCheck(*c);
+                ++s_->adminRevision;
+                emit s_->adminChanged();
+                return true;
+            }
+    return fail(tr("That alert is gone."));
+}
+
+// Open checks and today's closed ones.
+std::vector<Check *> PosService::checksToday()
+{
+    std::vector<Check *> out;
+    for (auto &[id, c] : s_->open)
+        out.push_back(&c);
+    for (Check &c : s_->closedToday)
+        out.push_back(&c);
+    return out;
+}
+
+void PosService::saveAnyCheck(Check &c)
+{
+    if (c.status == CheckStatus::Closed) {
+        if (s_->sink)
+            s_->sink->saveCheck(c);
+    } else {
+        changed(c);
+    }
+}
+
+// Stripe's offline mode for the store's readers (its default Terminal configuration).
+void PosService::setStripeOffline(bool on)
+{
+    if (s_->settings.stripeSecretKey.empty()) {
+        if (on)
+            emit notice(tr("Set the store's Stripe key too: then the readers can take cards offline."));
+        return;
+    }
+    stripe(u"GET"_s, u"/v1/terminal/configurations"_s, u"is_account_default=true&limit=1"_s,
+           [this, on](const QJsonObject &list, const QString &error) {
+        const QString id = list.value(u"data").toArray().first().toObject().value(u"id").toString();
+        const QString path = id.isEmpty() ? u"/v1/terminal/configurations"_s : u"/v1/terminal/configurations/%1"_s.arg(id);
+        if (!error.isEmpty()) {
+            emit notice(tr("Stripe: %1").arg(error));
+            return;
+        }
+        stripe(u"POST"_s, path, on ? u"offline[enabled]=true"_s : u"offline[enabled]=false"_s,
+               [this, on](const QJsonObject &, const QString &error) {
+            emit notice(!error.isEmpty() ? tr("Stripe: %1").arg(error)
+                        : on ? tr("Stripe readers can take cards offline now (after they reconnect).")
+                             : tr("Stripe readers need the internet for cards again."));
+        });
+    });
 }
 
 void PosService::requestReaderToken()

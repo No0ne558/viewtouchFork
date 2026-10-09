@@ -50,6 +50,14 @@ void JNICALL onResult(JNIEnv *env, jclass, jstring json)
         QMetaObject::invokeMethod(g_reader, [j] { if (g_reader) g_reader->bridgeResult(j); }, Qt::QueuedConnection);
 }
 
+// A card taken offline reached Stripe (or was declined): {localRef, id, status, error}.
+void JNICALL onForwarded(JNIEnv *env, jclass, jstring json)
+{
+    const QString j = fromJava(env, json);
+    if (g_reader)
+        QMetaObject::invokeMethod(g_reader, [j] { if (g_reader) g_reader->bridgeForwarded(j); }, Qt::QueuedConnection);
+}
+
 bool registerBridge()
 {
     static bool done = false;
@@ -60,8 +68,9 @@ bool registerBridge()
         {"nativeNeedToken", "()V", reinterpret_cast<void *>(onNeedToken)},
         {"nativeStatus", "(Ljava/lang/String;Z)V", reinterpret_cast<void *>(onStatus)},
         {"nativeResult", "(Ljava/lang/String;)V", reinterpret_cast<void *>(onResult)},
+        {"nativeForwarded", "(Ljava/lang/String;)V", reinterpret_cast<void *>(onForwarded)},
     };
-    done = env.registerNativeMethods(kBridge, methods, 3);
+    done = env.registerNativeMethods(kBridge, methods, 4);
     return done;
 }
 #endif
@@ -80,6 +89,19 @@ CardReader::CardReader(QObject *parent) : QObject(parent)
             return;
         }
         const QString ref = u"sim_"_s + QString::number(QRandomGenerator::global()->generate64(), 16);
+        // "The internet is down": like a Stripe reader, within the store's limits.
+        if (simulatedOffline_) {
+            const qint64 max = charging_.value(u"offlineMax"_s).toLongLong();
+            const qint64 cap = charging_.value(u"offlineTotal"_s).toLongLong();
+            if (max <= 0 || total > max || simulatedWaiting_ + total > cap) {
+                finish({{u"message"_s, tr("The internet is down and this card needs it (simulated).")}});
+                return;
+            }
+            simulatedWaiting_ += total;
+            finish({{u"approved"_s, true}, {u"offline"_s, true}, {u"localRef"_s, ref}, {u"brand"_s, u"visa"_s},
+                    {u"last4"_s, u"4242"_s}, {u"amountCents"_s, total}});
+            return;
+        }
         finish({{u"approved"_s, true}, {u"reference"_s, ref}, {u"brand"_s, u"visa"_s}, {u"last4"_s, u"4242"_s},
                 {u"amountCents"_s, total}});
     });
@@ -153,11 +175,13 @@ void CardReader::charge(const QVariantMap &charge)
 #ifdef Q_OS_ANDROID
     if (kind_ == u"stripe" && ready_) {
         const qint64 total = charge.value(u"amountCents"_s).toLongLong() + charge.value(u"tipCents"_s).toLongLong();
+        // With the store's limits for a card taken while the internet is down (0: none).
         QJniObject::callStaticMethod<void>(
-            kBridge, "charge", "(JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", jlong(total),
+            kBridge, "charge", "(JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;JJ)V", jlong(total),
             QJniObject::fromString(charge.value(u"currency"_s).toString()).object<jstring>(),
             QJniObject::fromString(charge.value(u"description"_s).toString()).object<jstring>(),
-            QJniObject::fromString(QString::number(charge.value(u"checkId"_s).toLongLong())).object<jstring>());
+            QJniObject::fromString(QString::number(charge.value(u"checkId"_s).toLongLong())).object<jstring>(),
+            jlong(charge.value(u"offlineMax"_s).toLongLong()), jlong(charge.value(u"offlineTotal"_s).toLongLong()));
         return;
     }
 #endif
@@ -228,6 +252,11 @@ void CardReader::bridgeResult(const QString &json)
         out.insert(u"brand"_s, r.value(u"brand").toString());
         out.insert(u"last4"_s, r.value(u"last4").toString());
         out.insert(u"amountCents"_s, r.value(u"amount").toInteger());
+        // Taken while the internet was down: Stripe gets it later.
+        if (r.value(u"offline").toBool()) {
+            out.insert(u"offline"_s, true);
+            out.insert(u"localRef"_s, r.value(u"localRef").toString());
+        }
         // A tip chosen on the reader's own screen comes on top.
         if (r.contains(u"tip"))
             out.insert(u"readerTipCents"_s, r.value(u"tip").toInteger());
@@ -237,6 +266,11 @@ void CardReader::bridgeResult(const QString &json)
         out.insert(u"canceled"_s, true);
     }
     finish(out);
+}
+
+void CardReader::bridgeForwarded(const QString &json)
+{
+    emit forwarded(QJsonDocument::fromJson(json.toUtf8()).object().toVariantMap());
 }
 
 void CardReader::finish(QVariantMap result)

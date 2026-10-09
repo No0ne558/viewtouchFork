@@ -50,10 +50,20 @@ public:
     // The answer to needToken() (from the store's server).
     void provideToken(const QString &token, const QString &error);
     void setSimulatedDelay(int ms) { simulatedDelay_ = ms; }
+    // Practice and tests: the simulated reader as if the internet were down
+    // (cards taken offline), then each one reaching Stripe or declined.
+    void setSimulatedOffline(bool on) { simulatedOffline_ = on; }
+    void simulateForwarded(const QString &localRef, bool approved)
+    {
+        emit forwarded({{QStringLiteral("localRef"), localRef}, {QStringLiteral("status"), approved ? QStringLiteral("ok") : QStringLiteral("declined")},
+                        {QStringLiteral("id"), approved ? QStringLiteral("pi_sim_") + localRef : QString()},
+                        {QStringLiteral("error"), approved ? QString() : QStringLiteral("Your card was declined.")}});
+    }
 
     // From the Stripe bridge (any thread).
     void bridgeNeedsToken();
     void bridgeStatus(const QString &text, bool ready);
+    void bridgeForwarded(const QString &json);
     void bridgeResult(const QString &json);
 
 signals:
@@ -62,6 +72,8 @@ signals:
     // {approved, declined, canceled, message, reference, brand, last4,
     //  amountCents, tipCents, checkId, tenderId, processor}
     void finished(const QVariantMap &result);
+    // A card taken offline reached Stripe, or was declined: {localRef, id, status, error}.
+    void forwarded(const QVariantMap &result);
     // A reader beside the screen: the store's computer does these.
     void cancelRequested();
     void testCardRequested(bool decline);
@@ -76,4 +88,6 @@ private:
     QVariantMap charging_;
     QTimer simulated_;
     int simulatedDelay_ = 1500;
+    bool simulatedOffline_ = false;
+    qint64 simulatedWaiting_ = 0;   // cents taken offline so far (simulated)
 };

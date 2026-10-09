@@ -88,6 +88,11 @@ LayoutController::LayoutController(Layout layout, QObject *parent)
             cardReader_.provideToken({}, tr("Not connected to the store."));
     });
     connect(&cardReader_, &CardReader::finished, this, &LayoutController::cardTaken);
+    // A card taken offline, once Stripe has it (or declined it): the store records it.
+    connect(&cardReader_, &CardReader::forwarded, this, [this](const QVariantMap &r) {
+        if (pos_)
+            pos_->cardForwarded(r);
+    });
     connect(&cardReader_, &CardReader::cancelRequested, this, [this] { if (pos_) pos_->cancelCounterCharge(); });
     connect(&cardReader_, &CardReader::testCardRequested, this, [this](bool decline) {
         if (pos_)

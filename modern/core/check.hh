@@ -118,6 +118,10 @@ struct Payment {
     std::string processor;
     std::string cardBrand;        // "visa", "mastercard"...
     std::string last4;
+    // Taken while the internet was down (on a Stripe reader): "waiting" to
+    // reach Stripe (reference: "offline:<id>"), "declined" by the bank once
+    // it did, "seen" when a manager has dealt with that. Empty: online.
+    std::string offline;
 
     bool operator==(const Payment &) const = default;
 };

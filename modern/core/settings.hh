@@ -301,6 +301,13 @@ struct PosSettings {
     // computer: it gets the readers' connection tokens and makes refunds),
     // and the currency cards are charged in.
     std::string stripeSecretKey;
+    // Cards taken while the internet is down (Stripe readers running
+    // ViewTouch): the bank only sees them later, so the store takes the risk
+    // of a decline. Off unless turned on; then up to so much each, and so
+    // much waiting in all (cents).
+    bool offlineCards = false;
+    std::int64_t offlineCardMax = 10000;
+    std::int64_t offlineCardTotal = 100000;
     std::string cardCurrency = "usd";
     // Stripe countertop readers paired with the store (Manager -> Card
     // Readers), the Stripe location they belong to, and where card tips are

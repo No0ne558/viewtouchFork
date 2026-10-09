@@ -133,6 +133,7 @@ QJsonObject toJson(const Check &c)
             {u"kind"_s, qs(toString(p.kind))}, {u"amount"_s, qint64(p.amount.cents())}, {u"percentBp"_s, qint64(p.percentBp)},
             {u"tip"_s, qint64(p.tip.cents())}, {u"reference"_s, qs(p.reference)}, {u"staffMeal"_s, p.staffMeal},
             {u"processor"_s, qs(p.processor)}, {u"cardBrand"_s, qs(p.cardBrand)}, {u"last4"_s, qs(p.last4)},
+            {u"offline"_s, qs(p.offline)},
         });
     }
     QJsonArray events;
@@ -236,6 +237,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
         p.processor = ss(po.value(u"processor").toString());
         p.cardBrand = ss(po.value(u"cardBrand").toString());
         p.last4 = ss(po.value(u"last4").toString());
+        p.offline = ss(po.value(u"offline").toString());
         c.payments.push_back(p);
     }
     c.nextLineId = std::max<std::int64_t>(i64(o.value(u"nextLineId")), 1);
@@ -921,6 +923,8 @@ QJsonObject toJson(const PosSettings &s)
         {u"deliveryMinutes"_s, s.deliveryMinutes}, {u"minutesPerOrderWaiting"_s, s.minutesPerOrderWaiting},
         {u"deliveryFee"_s, qint64(s.deliveryFee.cents())},
         {u"stripeSecretKey"_s, qs(s.stripeSecretKey)}, {u"cardCurrency"_s, qs(s.cardCurrency)},
+        {u"offlineCards"_s, s.offlineCards}, {u"offlineCardMax"_s, qint64(s.offlineCardMax)},
+        {u"offlineCardTotal"_s, qint64(s.offlineCardTotal)},
         {u"stripeLocation"_s, qs(s.stripeLocation)}, {u"cardTipOn"_s, qs(s.cardTipOn)},
         {u"stripeReaders"_s, [&] {
              QJsonArray a;
@@ -1133,6 +1137,9 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.minutesPerOrderWaiting = std::clamp(o.value(u"minutesPerOrderWaiting").toInt(2), 0, 60);
     s.deliveryFee = money(o.value(u"deliveryFee"));
     s.stripeSecretKey = ss(o.value(u"stripeSecretKey").toString());
+    s.offlineCards = o.value(u"offlineCards").toBool(false);
+    s.offlineCardMax = o.value(u"offlineCardMax").toInteger(10000);
+    s.offlineCardTotal = o.value(u"offlineCardTotal").toInteger(100000);
     s.cardCurrency = ss(o.value(u"cardCurrency").toString(u"usd"_s));
     if (s.cardCurrency.empty())
         s.cardCurrency = "usd";

@@ -5608,3 +5608,91 @@ TEST_CASE("UI: allergies: set on the check, marked on the menu; contained, on th
     CHECK(QQmlProperty::read(kiosk, u"avoid"_s).toStringList() == QStringList{u"egg"_s});
     CHECK_FALSE(offered("cobb"));
 }
+
+TEST_CASE("Card reader (simulated), the internet down: cards taken offline within the limits, sent or declined later", "[ui][cards][offlinecards]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    s.pos.entryKey(u"10000"_s);
+    REQUIRE(s.pos.openDrawerSession());
+    REQUIRE(s.pos.adminSave(u"terminals"_s, -1, {{u"name"_s, s.pos.terminalName()}, {u"cardReader"_s, u"simulated"_s}}));
+    CardReader *reader = s.c.cardReader();
+    reader->setSimulatedDelay(100);
+    reader->setSimulatedOffline(true);
+    const auto pay = [&](const char *item) {
+        REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+        REQUIRE(s.pos.addItem(QString::fromLatin1(item)));
+        REQUIRE(s.c.jumpTo(u"settle"_s));
+        s.c.activate(u"tender-credit"_s);
+        QTest::qWait(300);
+    };
+    const auto lastCheck = [&]() -> core::Check & {
+        auto &today = s.pos.shared()->closedToday;
+        REQUIRE_FALSE(today.empty());
+        return today.back();
+    };
+
+    // Not allowed (the store's setting): the card needs the internet.
+    pay("coffee");
+    CHECK(s.pos.payments().isEmpty());
+    CHECK(s.c.statusText().contains(u"internet"_s));
+    s.pos.releaseCheck();
+
+    // Allowed, up to $50 a card.
+    QVariantMap store = s.pos.adminRecords(u"store"_s).value(0).toMap();
+    store[u"offlineCards"_s] = true;
+    store[u"offlineCardMax"_s] = 50.0;
+    store[u"offlineCardTotal"_s] = 500.0;
+    const bool saved = s.pos.adminSave(u"store"_s, 0, store);
+    INFO(s.c.statusText().toStdString());
+    REQUIRE(saved);
+    CHECK(s.pos.shared()->settings.offlineCards);
+    pay("coffee");
+    REQUIRE(s.pos.payments().size() == 1);
+    REQUIRE(s.pos.closeCheck());
+    core::Payment first = lastCheck().payments.back();
+    CHECK(first.offline == "waiting");
+    CHECK(QString::fromStdString(first.reference).startsWith(u"offline:"_s));
+    // No refund before Stripe has it.
+    CHECK_FALSE(s.pos.refundPayment(lastCheck().id, first.id, 0, u"wrong order"_s));
+    CHECK(s.c.statusText().contains(u"hasn't reached Stripe"_s));
+
+    // Over the limit: refused.
+    REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+    for (int i = 0; i < 4; ++i)
+        REQUIRE(s.pos.addItem(u"burger-of-the-day"_s));   // $56 and tax: over $50
+    REQUIRE(s.c.jumpTo(u"settle"_s));
+    s.c.activate(u"tender-credit"_s);
+    QTest::qWait(300);
+    CHECK(s.pos.payments().isEmpty());
+    s.pos.releaseCheck();
+
+    // A second one, then the internet is back: the first reaches Stripe, the second is declined.
+    pay("coffee");
+    REQUIRE(s.pos.closeCheck());
+    const core::Payment second = lastCheck().payments.back();
+    const qint64 secondCheck = lastCheck().id;
+    reader->simulateForwarded(QString::fromStdString(first.reference).mid(8), true);
+    reader->simulateForwarded(QString::fromStdString(second.reference).mid(8), false);
+    QTest::qWait(50);
+    for (const core::Check &c : s.pos.shared()->closedToday)
+        for (const core::Payment &p : c.payments) {
+            if (p.id == first.id && c.id != secondCheck) {
+                CHECK(p.offline.empty());
+                CHECK(QString::fromStdString(p.reference).startsWith(u"pi_sim_"_s));
+            }
+            if (c.id == secondCheck)
+                CHECK(p.offline == "declined");
+        }
+    const QVariantList alerts = s.pos.cardAlerts();
+    REQUIRE(alerts.size() == 1);
+    CHECK(alerts[0].toMap()[u"checkId"_s].toLongLong() == secondCheck);
+    QQuickItem *root = s.window->contentItem();
+    QTest::qWait(60);
+    QQuickItem *banner = Screen::findBy(root, "objectName", u"cardAlerts"_s);
+    REQUIRE(banner);
+    CHECK(banner->isVisible());
+    s.shot("offline-card-declined");
+    REQUIRE(s.pos.seeCardAlert(alerts[0].toMap()[u"ref"_s].toString()));
+    CHECK(s.pos.cardAlerts().isEmpty());
+}

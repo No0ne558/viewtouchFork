@@ -151,6 +151,8 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantList menuProblems READ menuProblems NOTIFY adminChanged)
     // The Menu Builder's last change, to undo ("" if none).
     Q_PROPERTY(QString menuUndoText READ menuUndoText NOTIFY adminChanged)
+    // Cards taken offline that the bank declined once sent (managers): [{ref, checkId, text}].
+    Q_PROPERTY(QVariantList cardAlerts READ cardAlerts NOTIFY adminChanged)
     // The current check's history [{time, who, what}].
     Q_PROPERTY(QVariantList checkHistory READ checkHistory NOTIFY checkChanged)
     Q_PROPERTY(QString checkFilter READ checkFilter WRITE setCheckFilter NOTIFY openChecksChanged)
@@ -302,6 +304,7 @@ public:
     virtual QVariantList menuTemplates() const = 0;
     virtual QVariantList menuProblems() const = 0;
     virtual QString menuUndoText() const = 0;
+    virtual QVariantList cardAlerts() const = 0;
     virtual QString checkFilter() const = 0;
     virtual QVariantList kitchenTickets() const = 0;
     virtual QVariantList expoTickets() const = 0;
@@ -440,6 +443,8 @@ public:
     Q_INVOKABLE void saveChoiceGroup(const QVariantMap &record) { invoke(QStringLiteral("saveChoiceGroup"), {record}); }
     Q_INVOKABLE void duplicateMenuItem(const QString &id) { invoke(QStringLiteral("duplicateMenuItem"), {id}); }
     Q_INVOKABLE void applyMenuTemplate(const QString &id) { invoke(QStringLiteral("applyMenuTemplate"), {id}); }
+    Q_INVOKABLE void cardForwarded(const QVariantMap &r) { invoke(QStringLiteral("cardForwarded"), {r}); }
+    Q_INVOKABLE void seeCardAlert(const QString &ref) { invoke(QStringLiteral("seeCardAlert"), {ref}); }
     Q_INVOKABLE void undoMenuChange() { invoke(QStringLiteral("undoMenuChange")); }
     // The allergens, [{id, name}] in the screen's language; names of some ids.
     Q_INVOKABLE static QVariantList allergenList();

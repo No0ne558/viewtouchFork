@@ -644,6 +644,12 @@ public:
     QVariantList menuProblems() const override;
     QVariantMap menuExport();
     bool setAllergies(const QStringList &ids);
+    bool cardForwarded(const QVariantMap &r);
+    QVariantList cardAlerts() const override;
+    bool seeCardAlert(const QString &ref);
+    void setStripeOffline(bool on);
+    std::vector<core::Check *> checksToday();
+    void saveAnyCheck(core::Check &c);
     // A line's allergens the guest is allergic to.
     static std::vector<std::string> allergyHits(const core::Check &c, const core::OrderLine &l);
     QString menuUndoText() const override;
