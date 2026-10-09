@@ -574,6 +574,7 @@ namespace {
 struct FakeStatusPrinter {
     QTcpServer server;
     unsigned char offline = 0x12, paper = 0x12;
+    bool quiet = false;   // takes the connection, says nothing (stuck)
     int connections = 0;
     FakeStatusPrinter()
     {
@@ -583,6 +584,8 @@ struct FakeStatusPrinter {
                 ++connections;
                 QObject::connect(s, &QTcpSocket::readyRead, s, [this, s] {
                     const QByteArray in = s->readAll();
+                    if (quiet)
+                        return;
                     for (int i = 0; i + 2 < in.size(); ++i)
                         if (in[i] == 0x10 && in[i + 1] == 0x04)
                             s->write(QByteArray(1, char(in[i + 2] == 2 ? offline : paper)));
@@ -678,4 +681,33 @@ TEST_CASE("A network printer, live: its status", "[.][printerstatuslive]")
     monitor.setPrinters({p});
     QTest::qWait(5000);
     WARN("Printer says: " << last.toStdString());
+}
+
+TEST_CASE("Printer status: one that stops responding while still connected", "[print][status][silent]")
+{
+    FakeStatusPrinter printer;
+    PrinterMonitor monitor;
+    monitor.setTimings(150, 200);
+    QStringList seen;
+    QObject::connect(&monitor, &PrinterMonitor::statusChanged,
+                     [&](const QString &id, const QString &problem) { seen << id + u'=' + problem; });
+    const auto waitFor = [&](const QString &what) {
+        for (int i = 0; i < 150 && !seen.contains(what); ++i)
+            QTest::qWait(20);
+        return seen.contains(what);
+    };
+    // A printer that never says: nothing to warn about.
+    printer.quiet = true;
+    monitor.setPrinters({printer.config()});
+    QTest::qWait(1200);
+    CHECK_FALSE(seen.contains(u"kitchen=silent"_s));
+    // One that has said, then stops: warned; answering again: cleared.
+    printer.quiet = false;
+    for (int i = 0; i < 50 && printer.connections < 8; ++i)
+        QTest::qWait(20);
+    printer.quiet = true;
+    REQUIRE(waitFor(u"kitchen=silent"_s));
+    printer.quiet = false;
+    seen.clear();
+    REQUIRE(waitFor(u"kitchen="_s));
 }

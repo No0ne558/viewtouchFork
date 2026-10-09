@@ -1,6 +1,7 @@
 #include "print/printer_monitor.hh"
 
 #include <QHash>
+#include <QSet>
 #include <QMutex>
 #include <QTcpSocket>
 #include <QTimer>
@@ -66,6 +67,8 @@ public:
                 if (!it.value().isEmpty())
                     emit owner->statusChanged(it.key(), QString());
                 failures_.remove(it.key());
+                answered_.remove(it.key());
+                silent_.remove(it.key());
                 it = problems_.erase(it);
             }
         }
@@ -101,6 +104,16 @@ private:
             const QByteArray offline = ask(s, 2);
             const QByteArray paper = ask(s, 4);
             problem = problemFromStatus(offline, paper);
+            // Connected but saying nothing, from a printer that has told its
+            // status before: stuck (twice in a row; once can be a busy one).
+            // Printers that never say are left alone.
+            if (offline.isEmpty() && paper.isEmpty()) {
+                if (answered_.contains(id))
+                    problem = ++silent_[id] >= 2 ? u"silent"_s : problems_.value(id);
+            } else {
+                answered_.insert(id);
+                silent_[id] = 0;
+            }
             s.disconnectFromHost();
             if (s.state() != QAbstractSocket::UnconnectedState)
                 s.waitForDisconnected(timeoutMs);
@@ -127,6 +140,8 @@ private:
 
     std::vector<core::PrinterConfig> printers_;
     QHash<QString, QString> problems_;   // printer id -> its problem
+    QSet<QString> answered_;             // printers that have told their status
+    QHash<QString, int> silent_;         // ... and how many times since they haven't
     QHash<QString, int> failures_;       // printer id -> connections missed in a row
 };
 

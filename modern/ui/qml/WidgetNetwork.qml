@@ -157,6 +157,7 @@ Item {
                                     : modelData.problem === "coverOpen" ? qsTr("Cover open")
                                     : modelData.problem === "paperLow" ? qsTr("Paper running low")
                                     : modelData.problem === "offline" ? qsTr("Not answering")
+                                    : modelData.problem === "silent" ? qsTr("Connected but not responding")
                                     : modelData.problem === "error" ? qsTr("Printer error (paper jam or cutter?)")
                                     : modelData.status === "ok" ? qsTr("Printed at %1").arg(w.time(modelData.at))
                                     : modelData.status === "failed" ? qsTr("Failed at %1: %2").arg(w.time(modelData.at)).arg(modelData.error)

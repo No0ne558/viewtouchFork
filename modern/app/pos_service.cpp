@@ -357,6 +357,7 @@ QVariantList PosService::printerAlerts() const
                              : what == "coverOpen" ? tr("%1: the cover is open").arg(name)
                              : what == "paperLow"  ? tr("%1: paper running low").arg(name)
                              : what == "offline"   ? tr("%1: not answering (power, cable or network?)").arg(name)
+                             : what == "silent"    ? tr("%1: connected but not responding: check it, or turn it off and on").arg(name)
                                                    : tr("%1 has a problem (a paper jam or the cutter?)").arg(name);
         out.append(QVariantMap{{u"id"_s, qs(p.id)}, {u"name"_s, name}, {u"problem"_s, qs(what)}, {u"text"_s, text},
                                {u"urgent"_s, what != "paperLow"}});
