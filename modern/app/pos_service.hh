@@ -627,6 +627,8 @@ public:
     QVariantList menuTemplates() const override;
     // What would trip up service: [{text, item, group, category, serious}].
     QVariantList menuProblems() const override;
+    QVariantMap menuExport();
+    int importMenuFile(const QVariantMap &file);
     bool applyMenuTemplate(const QString &id);
     // {id ("" new), name, min, max, askHow, options: [{name, price, included, kitchenName}]}
     bool saveChoiceGroup(const QVariantMap &record);

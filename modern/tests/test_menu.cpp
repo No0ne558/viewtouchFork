@@ -617,3 +617,37 @@ TEST_CASE("Qualifiers on choices: No onion, Extra bacon, Lite, on the Side", "[m
     // The kitchen sees it.
     CHECK(QString::fromStdString(pos.shared()->open.begin()->second.lines.front().modifiers[2].kitchenText()) == u"No ONION"_s);
 }
+
+TEST_CASE("86'd during service: back after End of Day; marked sold out in the menu: kept", "[menu][eightysix]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    qint64 clock = QDateTime(QDate::currentDate(), QTime(12, 0)).toMSecsSinceEpoch();
+    pos.setClock([&] { return clock; });
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const auto available = [&](const char *id) { return pos.findItem(QString::fromLatin1(id))->available; };
+    REQUIRE(pos.setAvailable(u"cobb"_s, false));            // ran out tonight
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, u"caesar"_s}, {u"name"_s, QString::fromStdString(pos.findItem(u"caesar"_s)->name)},
+                                  {u"available"_s, false}}));   // off the menu for the season
+    CHECK(pos.findItem(u"cobb"_s)->soldOutToday);
+    CHECK_FALSE(pos.findItem(u"caesar"_s)->soldOutToday);
+    // Saved through its card with the switch untouched: still today's.
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, u"cobb"_s}, {u"name"_s, QString::fromStdString(pos.findItem(u"cobb"_s)->name)},
+                                  {u"available"_s, false}, {u"price"_s, u"14.00"_s}}));
+    CHECK(pos.findItem(u"cobb"_s)->soldOutToday);
+    // Kept when stored and read back.
+    CHECK(app::menuItemFromJson(app::toJson(*pos.findItem(u"cobb"_s))).soldOutToday);
+
+    REQUIRE(pos.endOfDay());
+    CHECK(available("cobb"));
+    CHECK_FALSE(pos.findItem(u"cobb"_s)->soldOutToday);
+    CHECK_FALSE(available("caesar"));
+
+    // The store's choice: until someone turns it back on.
+    pos.shared()->settings.soldOutBackNextDay = false;
+    REQUIRE(pos.setAvailable(u"cobb"_s, false));
+    clock += 24 * 3600 * 1000LL;
+    REQUIRE(pos.endOfDay());
+    CHECK_FALSE(available("cobb"));
+    CHECK(app::settingsFromJson(app::toJson(pos.shared()->settings)).soldOutBackNextDay == false);
+    CHECK(app::settingsFromJson(QJsonObject()).soldOutBackNextDay);   // on unless turned off
+}

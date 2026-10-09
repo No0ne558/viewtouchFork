@@ -916,6 +916,23 @@ bool PosService::endOfDay()
             ++it;
         }
     }
+    // 86'd for today: back on the menu.
+    bool back = false;
+    if (s_->settings.soldOutBackNextDay)
+        for (int i = 0; i < int(s_->menu.size()); ++i) {
+            MenuItem &m = s_->menu[i];
+            if (!m.soldOutToday)
+                continue;
+            m.soldOutToday = false;
+            m.available = true;
+            back = true;
+            if (s_->sink)
+                s_->sink->saveMenuItem(m, i);
+        }
+    if (back) {
+        ++s_->adminRevision;
+        emit s_->adminChanged();
+    }
     // Event tickets sold today stay sold (their checks leave closedToday).
     for (int i = 0; i < int(s_->menu.size()); ++i) {
         MenuItem &m = s_->menu[i];

@@ -312,6 +312,8 @@ QJsonObject toJson(const MenuItem &m)
     }
     if (m.autoSoldOut)
         o.insert(u"autoSoldOut"_s, true);
+    if (m.soldOutToday)
+        o.insert(u"soldOutToday"_s, true);
     if (!m.kitchenName.empty())
         o.insert(u"kitchenName"_s, qs(m.kitchenName));
     if (!m.kitchenColor.empty())
@@ -371,6 +373,7 @@ MenuItem menuItemFromJson(const QJsonObject &o)
         m.recipe.push_back({ss(r.value(u"ingredient").toString()), r.value(u"qty").toDouble(1)});
     }
     m.autoSoldOut = o.value(u"autoSoldOut").toBool();
+    m.soldOutToday = o.value(u"soldOutToday").toBool();
     m.kitchenName = ss(o.value(u"kitchenName").toString().trimmed());
     m.kitchenColor = ss(o.value(u"kitchenColor").toString());
     m.kitchenHide = o.value(u"kitchenHide").toBool();
@@ -751,6 +754,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"printers"_s, printers},
         {u"receiptHeader"_s, qs(s.receiptHeader)}, {u"receiptLogo"_s, s.receiptLogo},
         {u"receiptFreeChoices"_s, s.receiptFreeChoices},
+        {u"soldOutBackNextDay"_s, s.soldOutBackNextDay},
         {u"receiptFooter"_s, qs(s.receiptFooter)},
         {u"gratuity"_s, QJsonObject{{u"percent"_s, double(s.gratuityBp) / 100.0}, {u"minGuests"_s, s.gratuityMinGuests}}},
         {u"terminals"_s, terminals},
@@ -1014,6 +1018,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.displayLogo = ss(display.value(u"logo").toString());
     s.receiptLogo = o.value(u"receiptLogo").toBool();
     s.receiptFreeChoices = o.value(u"receiptFreeChoices").toBool(false);
+    s.soldOutBackNextDay = o.value(u"soldOutBackNextDay").toBool(true);
     s.displayAccent = ss(display.value(u"accent").toString(u"#2f6fd6"_s));
     for (const QJsonValue &v : display.value(u"slides").toArray())
         if (!v.toString().trimmed().isEmpty()) s.displaySlides.push_back(ss(v.toString().trimmed()));

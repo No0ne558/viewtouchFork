@@ -1,6 +1,9 @@
 #include "layoutcontroller.hh"
 
 #include <QFile>
+#include <QDate>
+#include <QRegularExpression>
+#include <QSaveFile>
 #include <climits>
 #include <QFontDatabase>
 #include <QImage>
@@ -727,6 +730,26 @@ QVariantMap LayoutController::readMenuFile(const QUrl &file) const
     if (!f.open(QIODevice::ReadOnly))
         return {{u"error"_s, tr("Can't open it: %1").arg(f.errorString())}};
     QByteArray bytes = f.readAll();
+    // Another store's menu (Export...): shown like a spreadsheet's rows.
+    if (const QJsonDocument doc = QJsonDocument::fromJson(bytes); doc.isObject()) {
+        const QVariantMap menu = doc.object().toVariantMap();
+        if (menu.value(u"format"_s) != u"viewtouch-menu"_s)
+            return {{u"error"_s, tr("That isn't a ViewTouch menu file.")}};
+        QHash<QString, QString> categoryName;
+        for (const QVariant &c : menu.value(u"categories"_s).toList())
+            categoryName.insert(c.toMap().value(u"id"_s).toString(), c.toMap().value(u"name"_s).toString());
+        QVariantList items;
+        for (const QVariant &v : menu.value(u"items"_s).toList()) {
+            const QVariantMap i = v.toMap();
+            if (i.value(u"modifier"_s).toBool())
+                continue;
+            const QString family = i.value(u"family"_s).toString();
+            items.append(QVariantMap{{u"name"_s, i.value(u"name"_s)}, {u"price"_s, i.value(u"price"_s).toDouble()},
+                                     {u"category"_s, categoryName.value(family, family)}});
+        }
+        return {{u"items"_s, items}, {u"menuFile"_s, menu}, {u"problems"_s, QStringList()},
+                {u"from"_s, menu.value(u"store"_s)}};
+    }
     if (bytes.startsWith("PK"))
         return {{u"error"_s, tr("That's a spreadsheet file: save it as CSV first (File → Save As → CSV).")}};
     // UTF-8, else Latin-1 (older spreadsheets).
@@ -739,6 +762,30 @@ QVariantMap LayoutController::readMenuFile(const QUrl &file) const
         items.append(QVariantMap{{u"row"_s, i.row}, {u"name"_s, i.name}, {u"price"_s, i.price}, {u"category"_s, i.category},
                                  {u"description"_s, i.description}, {u"onIt"_s, i.onIt}});
     return {{u"items"_s, items}, {u"problems"_s, read.problems}, {u"columns"_s, read.columns}};
+}
+
+void LayoutController::exportMenu()
+{
+    if (!pos_)
+        return;
+    call(u"menuExport"_s, {}, [this](const QVariant &result) {
+        const QVariantMap menu = result.toMap();
+        if (menu.isEmpty())
+            return;   // not allowed: already said
+        const QString dir = exportDir_.isEmpty() ? QDir::home().filePath(u"ViewTouch Exports"_s) : exportDir_;
+        QString store = menu.value(u"store"_s).toString();
+        store.replace(QRegularExpression(u"[\\/:*?\"<>|]"_s), u"-"_s);
+        const QString path = QDir(dir).filePath(u"Menu - %1 - %2.vtmenu.json"_s
+                                                    .arg(store.isEmpty() ? u"ViewTouch"_s : store,
+                                                         QDate::currentDate().toString(Qt::ISODate)));
+        QSaveFile f(path);
+        if (!QDir().mkpath(dir) || !f.open(QIODevice::WriteOnly)
+            || f.write(QJsonDocument(QJsonObject::fromVariantMap(menu)).toJson()) < 0 || !f.commit()) {
+            setStatus(tr("Could not save the menu: %1").arg(f.errorString()));
+            return;
+        }
+        setStatus(tr("Saved to %1").arg(path));
+    });
 }
 
 namespace {

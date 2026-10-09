@@ -39,6 +39,10 @@ struct MenuItem {
     // (autoSoldOut) until restocked.
     std::vector<RecipeLine> recipe;
     bool autoSoldOut = false;
+    // 86'd during service (the order screen, the sold-out list): for today;
+    // End of Day brings it back (PosSettings::soldOutBackNextDay). Marked
+    // sold out in the menu editors: until changed there.
+    bool soldOutToday = false;
     // On the kitchen screen and kitchen tickets: a shorter name, a highlight
     // color, or nothing at all.
     std::string kitchenName;

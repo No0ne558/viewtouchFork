@@ -345,6 +345,8 @@ QVariantList PosService::adminFields(const QString &panel)
             field(u"receiptFooter"_s, tr("Receipt footer"), u"text"_s),
             field(u"receiptFreeChoices"_s, tr("Free choices on receipts"), u"bool"_s,
                   tr("Off: the guest's receipt shows only choices that change the price (Extra bacon), not No onion or Medium rare. Kitchen tickets show them all.")),
+            field(u"soldOutBackNextDay"_s, tr("86'd items come back the next day"), u"bool"_s,
+                  tr("On: items marked sold out during service are back after End of Day. Off: until someone turns them back on. Marked sold out in the Menu Builder: always until changed there.")),
             with(field(u"cashMode"_s, tr("Cash handling"), u"enum"_s,
                        tr("Server bank: whoever takes cash keeps it and turns it in at check out, so anyone can "
                           "use any terminal. Drawer: each terminal has a cash drawer.")),
@@ -635,6 +637,7 @@ QVariantList PosService::adminRecords(const QString &panel)
         add({{u"storeName"_s, qs(s_->settings.storeName)}, {u"language"_s, qs(s_->settings.language)}, {u"currencySymbol"_s, qs(s_->settings.currencySymbol)},
              {u"receiptHeader"_s, qs(s_->settings.receiptHeader)}, {u"receiptFooter"_s, qs(s_->settings.receiptFooter)},
              {u"receiptFreeChoices"_s, s_->settings.receiptFreeChoices},
+             {u"soldOutBackNextDay"_s, s_->settings.soldOutBackNextDay},
              {u"gratuityPercent"_s, double(s_->settings.gratuityBp) / 100.0},
              {u"gratuityMinGuests"_s, s_->settings.gratuityMinGuests},
              {u"cashMode"_s, qs(toString(s_->settings.cashMode))},
@@ -1007,6 +1010,8 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
         s_->settings.receiptFooter = ss(record.value(u"receiptFooter"_s).toString());
         if (record.contains(u"receiptFreeChoices"_s))
             s_->settings.receiptFreeChoices = record.value(u"receiptFreeChoices"_s).toBool();
+        if (record.contains(u"soldOutBackNextDay"_s))
+            s_->settings.soldOutBackNextDay = record.value(u"soldOutBackNextDay"_s).toBool();
         const double gratuity = number(record, u"gratuityPercent");
         if (gratuity < 0 || gratuity > 100)
             return fail(tr("Gratuity is between 0 and 100%."));
@@ -1358,10 +1363,14 @@ bool PosService::saveMenuRecord(int index, const QVariantMap &record)
         data.insert(u"eventAt"_s, at.toMSecsSinceEpoch());
     }
     data.remove(u"ticketsSoldBefore"_s);
+    data.remove(u"soldOutToday"_s);
     MenuItem item = menuItemFromJson(QJsonObject::fromVariantMap(data));
     item.name = ss(name);
-    if (index >= 0 && index < int(s_->menu.size()))
+    if (index >= 0 && index < int(s_->menu.size())) {
         item.ticketsSoldBefore = s_->menu[index].ticketsSoldBefore;   // sales already made stay
+        // 86'd today and left so: still today's.
+        item.soldOutToday = s_->menu[index].soldOutToday && item.available == s_->menu[index].available;
+    }
     if (index >= 0) {
         item.id = s_->menu[index].id;
         s_->menu[index] = item;

@@ -508,14 +508,23 @@ Item {
                         Layout.preferredWidth: 1
                         text: qsTr("Import…")
                         ToolTip.visible: hovered
-                        ToolTip.text: qsTr("A spreadsheet saved as CSV")
+                        ToolTip.text: qsTr("A spreadsheet saved as CSV, or another store's menu")
                         onClicked: importFile.open()
+                    }
+                    TouchButton {
+                        objectName: "builderExport"
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        text: qsTr("Export")
+                        ToolTip.visible: hovered
+                        ToolTip.text: qsTr("The whole menu as a file, for Import… at another store")
+                        onClicked: w.zone.controller.exportMenu()
                     }
                     TouchButton {
                         objectName: "builderTemplates"
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
-                        text: qsTr("Starter Menu…")
+                        text: qsTr("Starter…")
                         onClicked: templateDialog.open()
                     }
                 }
@@ -1155,7 +1164,7 @@ Item {
     FileDialog {
         id: importFile
         title: qsTr("A menu saved as CSV")
-        nameFilters: [qsTr("Spreadsheets saved as CSV (*.csv *.tsv *.txt)"), qsTr("All files (*)")]
+        nameFilters: [qsTr("Menus and spreadsheets saved as CSV (*.csv *.tsv *.txt *.json)"), qsTr("All files (*)")]
         onAccepted: {
             importDialog.read = w.zone.controller.readMenuFile(selectedFile)
             importDialog.open()
@@ -1181,8 +1190,10 @@ Item {
                 wrapMode: Text.WordWrap
                 text: importDialog.read.error
                       ? importDialog.read.error
-                      : qsTr("Into: %1. Rows without a category go in %2.").arg(importDialog.categoriesIn.join(", "))
-                                                                          .arg(w.category ? w.category.name : "?")
+                      : importDialog.read.menuFile
+                        ? qsTr("%1's menu, with its choices. Items already on this menu are left as they are.").arg(importDialog.read.from || "?")
+                        : qsTr("Into: %1. Rows without a category go in %2.").arg(importDialog.categoriesIn.join(", "))
+                                                                            .arg(w.category ? w.category.name : "?")
             }
             Label {
                 visible: (importDialog.read.problems ?? []).length > 0
@@ -1205,6 +1216,7 @@ Item {
                 }
             }
             RowLayout {
+                visible: !importDialog.read.menuFile
                 Layout.fillWidth: true
                 Switch { id: updatePrices; objectName: "builderImportPrices" }
                 Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: qsTr("Items already on the menu get the file's price (otherwise they're left as they are)") }
@@ -1219,7 +1231,10 @@ Item {
                     enabled: importDialog.items.length > 0
                     text: qsTr("Import")
                     onClicked: {
-                        w.pos.importMenuRows(importDialog.items, w.categoryId, updatePrices.checked)
+                        if (importDialog.read.menuFile)
+                            w.pos.importMenuFile(importDialog.read.menuFile)
+                        else
+                            w.pos.importMenuRows(importDialog.items, w.categoryId, updatePrices.checked)
                         importDialog.close()
                     }
                 }

@@ -2421,6 +2421,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"saveChoiceGroup"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.saveChoiceGroup(a.value(0).toMap())); }},
         {u"duplicateMenuItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.duplicateMenuItem(a.value(0).toString())); }},
         {u"applyMenuTemplate"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.applyMenuTemplate(a.value(0).toString())); }},
+        {u"menuExport"_s, [](PosService &p, const QVariantList &) { return QVariant(p.menuExport()); }},
+        {u"importMenuFile"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.importMenuFile(a.value(0).toMap())); }},
         {u"importMenuRows"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.importMenuRows(a.value(0).toList(), a.value(1).toString(), a.value(2).toBool()) > 0); }},
         {u"addMenuItemsFromText"_s, [](PosService &p, const QVariantList &a) {

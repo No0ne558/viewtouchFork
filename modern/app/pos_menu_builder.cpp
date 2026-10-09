@@ -7,6 +7,8 @@
 #include "app/pos_json.hh"
 #include "app/pos_service.hh"
 
+#include <QDateTime>
+#include <QJsonArray>
 #include <QMap>
 #include <QRegularExpression>
 
@@ -431,8 +433,10 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
         item.image = ss(card.value(u"image"_s).toString());
     if (card.contains(u"description"_s))
         item.description = ss(card.value(u"description"_s).toString().trimmed());
-    if (card.contains(u"available"_s))
+    if (card.contains(u"available"_s) && card.value(u"available"_s).toBool() != item.available) {
         item.available = card.value(u"available"_s).toBool();
+        item.soldOutToday = false;   // decided here: until changed here
+    }
     if (card.contains(u"kioskHide"_s))
         item.kioskHide = card.value(u"kioskHide"_s).toBool();
     if (card.contains(u"favorite"_s))
@@ -682,6 +686,152 @@ int PosService::importMenuRows(const QVariantList &rows, const QString &category
         what += u"; "_s + tr("already on the menu: %1").arg(skipped.join(u", "_s));
     emit notice(what);
     return added + updated;
+}
+
+// --- a whole menu, to another store ---------------------------------------------------
+
+// The menu as a file: categories, choice groups and items with every
+// setting; what's this store's alone stays (sales so far, stock recipes,
+// photos, today's 86).
+QVariantMap PosService::menuExport()
+{
+    if (!require(perm::Manager, tr("Copying the menu")))
+        return {};
+    PosSettings only;
+    only.menuCategories = s_->categories();
+    QJsonArray items;
+    for (const MenuItem &m : s_->menu) {
+        QJsonObject o = toJson(m);
+        for (const char *k : {"ticketsSoldBefore", "autoSoldOut", "soldOutToday", "recipe", "image"})
+            o.remove(QLatin1String(k));
+        items.append(o);
+    }
+    return {{u"format"_s, u"viewtouch-menu"_s}, {u"version"_s, 1}, {u"store"_s, storeName()},
+            {u"exported"_s, QDateTime::fromMSecsSinceEpoch(now()).toString(Qt::ISODate)},
+            {u"categories"_s, toJson(only).value(u"menuCategories").toArray().toVariantList()},
+            {u"choiceGroups"_s, modifierGroupsToJson(s_->settings.modifierGroups).toVariantList()},
+            {u"items"_s, items.toVariantList()}};
+}
+
+// Another store's menu file: what isn't here by name is added (categories,
+// choice groups, items); nothing here changes. Returns the items added.
+int PosService::importMenuFile(const QVariantMap &file)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return 0;
+    if (file.value(u"format"_s).toString() != u"viewtouch-menu"_s) {
+        fail(tr("That isn't a ViewTouch menu file."));
+        return 0;
+    }
+    const auto sameName = [](const std::string &a, const QString &b) { return QString::compare(qs(a), b, Qt::CaseInsensitive) == 0; };
+
+    // Categories: the one by that name, or a new one.
+    PosSettings read = settingsFromJson(QJsonObject{
+        {u"menuCategories"_s, QJsonArray::fromVariantList(file.value(u"categories"_s).toList())},
+        {u"modifierGroups"_s, QJsonArray::fromVariantList(file.value(u"choiceGroups"_s).toList())}});
+    QHash<std::string, std::string> categoryOf;
+    for (const MenuCategory &c : read.menuCategories) {
+        const auto here = s_->categories();
+        if (const auto it = std::ranges::find_if(here, [&](const MenuCategory &x) { return sameName(x.name, qs(c.name)); });
+            it != here.end()) {
+            categoryOf[c.id] = it->id;
+            continue;
+        }
+        QStringList periods;   // the meal periods this store has (others: all day)
+        for (const std::string &p : c.periods)
+            if (std::ranges::any_of(s_->settings.mealPeriods, [&](const MealPeriod &m) { return m.id == p; }))
+                periods << qs(p);
+        if (!saveCategory({{u"name"_s, qs(c.name)}, {u"color"_s, qs(c.color)}, {u"periods"_s, periods},
+                           {u"printer"_s, qs(c.printer)}, {u"station"_s, qs(c.station)}, {u"taxClass"_s, qs(c.taxClass)}}))
+            return 0;
+        for (const MenuCategory &x : s_->categories())
+            if (sameName(x.name, qs(c.name)))
+                categoryOf[c.id] = x.id;
+    }
+
+    // Items: the one by that name here, or a new id.
+    std::vector<MenuItem> items;
+    for (const QVariant &v : file.value(u"items"_s).toList())
+        items.push_back(menuItemFromJson(QJsonObject::fromVariantMap(v.toMap())));
+    QHash<std::string, std::string> itemOf;
+    std::vector<std::string> taken;
+    QStringList skipped;
+    std::vector<MenuItem *> adding;
+    for (MenuItem &m : items) {
+        if (const auto it = std::ranges::find_if(s_->menu, [&](const MenuItem &x) { return sameName(x.name, qs(m.name)); });
+            it != s_->menu.end()) {
+            itemOf[m.id] = it->id;
+            skipped << qs(m.name);
+            continue;
+        }
+        const std::string id = freeId(qs(m.name), [&](const std::string &x) {
+            return std::ranges::any_of(s_->menu, [&](const MenuItem &o) { return o.id == x; })
+                   || std::ranges::find(taken, x) != taken.end();
+        });
+        taken.push_back(id);
+        itemOf[m.id] = id;
+        adding.push_back(&m);
+    }
+
+    // Choice groups: the one by that name here, or added; an item's own
+    // (What's on it) goes with the item.
+    QHash<std::string, std::string> groupOf;
+    const auto withItems = [&](ModifierGroup g) {
+        for (ModifierOption &o : g.options)
+            if (!o.itemId.empty())
+                o.itemId = itemOf.value(o.itemId, o.itemId);
+        return g;
+    };
+    for (const ModifierGroup &g : read.modifierGroups) {
+        if (g.id.starts_with("on-"))
+            continue;
+        auto &list = s_->settings.modifierGroups;
+        if (const auto it = std::ranges::find_if(list, [&](const ModifierGroup &x) {
+                return !x.id.starts_with("on-") && sameName(x.name, qs(g.name)); });
+            it != list.end()) {
+            groupOf[g.id] = it->id;
+            continue;
+        }
+        ModifierGroup copy = withItems(g);
+        copy.id = freeId(qs(g.name), [&](const std::string &x) {
+            return std::ranges::any_of(list, [&](const ModifierGroup &o) { return o.id == x; });
+        });
+        groupOf[g.id] = copy.id;
+        list.push_back(std::move(copy));
+    }
+
+    for (MenuItem *m : adding) {
+        MenuItem item = *m;
+        const std::string oldId = item.id;
+        item.id = itemOf.value(oldId);
+        item.family = categoryOf.value(item.family, item.family);
+        item.soldOutToday = false;
+        std::vector<std::string> groups;
+        for (const std::string &g : item.modifierGroups) {
+            if (g == onItGroupId(oldId)) {
+                const auto own = std::ranges::find_if(read.modifierGroups, [&](const ModifierGroup &x) { return x.id == g; });
+                if (own == read.modifierGroups.end())
+                    continue;
+                ModifierGroup copy = withItems(*own);
+                copy.id = onItGroupId(item.id);
+                std::erase_if(s_->settings.modifierGroups, [&](const ModifierGroup &x) { return x.id == copy.id; });
+                s_->settings.modifierGroups.push_back(std::move(copy));
+                groups.push_back(onItGroupId(item.id));
+            } else if (groupOf.contains(g)) {
+                groups.push_back(groupOf.value(g));
+            }
+        }
+        item.modifierGroups = std::move(groups);
+        s_->menu.push_back(std::move(item));
+        if (s_->sink)
+            s_->sink->saveMenuItem(s_->menu.back(), int(s_->menu.size()) - 1);
+    }
+    settingsChanged();
+    menuChanged();
+    const int added = int(adding.size());
+    emit notice(skipped.isEmpty() ? tr("Added %n item(s)", nullptr, added)
+                                  : tr("Added %n item(s); already on the menu: %1", nullptr, added).arg(skipped.join(u", "_s)));
+    return added;
 }
 
 bool PosService::deleteMenuItemCard(const QString &id)

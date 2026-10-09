@@ -180,6 +180,9 @@ public:
     // A spreadsheet saved as CSV, on this device: {items: [{row, name, price,
     // category, description, onIt}], problems, columns, error}.
     Q_INVOKABLE QVariantMap readMenuFile(const QUrl &file) const;
+    // The whole menu as a file (Exports, or the folder set for them), for
+    // Import... at another store.
+    Q_INVOKABLE void exportMenu();
     // Pages of buttons placed by hand that an item's button can go on:
     // [{id, name, has}] (has: one for `itemId` is there already).
     Q_INVOKABLE QVariantList handBuiltPages(const QString &itemId) const;

@@ -133,6 +133,8 @@ struct PosSettings {
     // Choices that cost nothing (No onion, Medium rare) on the guest's
     // receipt; off: only those that change the price (the kitchen gets all).
     bool receiptFreeChoices = false;
+    // Items 86'd during service are back on the menu after End of Day.
+    bool soldOutBackNextDay = true;
     std::string receiptFooter;
     // Auto-gratuity: added to dine-in checks with at least this many guests.
     std::int64_t gratuityBp = 0;   // 0 = off; 1800 = 18%

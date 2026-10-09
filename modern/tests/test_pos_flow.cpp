@@ -24,6 +24,7 @@
 #include <QDate>
 #include <QPointer>
 #include <QSignalSpy>
+#include <QDir>
 #include <QTest>
 
 using namespace Qt::StringLiterals;
@@ -5324,4 +5325,78 @@ TEST_CASE("UI: the Menu Builder asks before dropping changes; a new choice group
             CHECK(m.toMap()[u"name"_s] == u"Classic Burger Deluxe"_s);
             CHECK(m.toMap()[u"groups"_s].toStringList().contains(bun));
         }
+}
+
+TEST_CASE("Flow: a menu exported at one store, imported at another", "[flow][menucopy]")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    // Store A: the taqueria starter menu on top of its own.
+    Session a;
+    REQUIRE(a.pos.loginWithPin(u"1234"_s));
+    REQUIRE(a.pos.applyMenuTemplate(u"taqueria"_s));
+    a.c.setExportDirectory(dir.path());
+    a.c.exportMenu();
+    const QStringList files = QDir(dir.path()).entryList({u"*.vtmenu.json"_s});
+    REQUIRE(files.size() == 1);
+    const QUrl file = QUrl::fromLocalFile(QDir(dir.path()).filePath(files.front()));
+
+    // Store B: the same demo menu, without the taqueria; a price of its own.
+    Session b;
+    REQUIRE(b.pos.loginWithPin(u"1234"_s));
+    auto *classic = const_cast<core::MenuItem *>(b.pos.findItem(u"classic-burger"_s));
+    classic->price = vt::Money::fromCents(999);
+    const int before = int(b.pos.shared()->menu.size());
+    const QVariantMap read = b.c.readMenuFile(file);
+    REQUIRE(read.contains(u"menuFile"_s));
+    CHECK_FALSE(read.contains(u"error"_s));
+    bool sawTaco = false;
+    for (const QVariant &i : read[u"items"_s].toList())
+        if (i.toMap()[u"name"_s] == u"Carne Asada Taco"_s) {
+            sawTaco = true;
+            CHECK(i.toMap()[u"price"_s].toDouble() == 3.5);
+            CHECK(i.toMap()[u"category"_s] == u"Tacos"_s);
+        }
+    CHECK(sawTaco);
+
+    // The taqueria's items B doesn't have by name.
+    int expected = 0;
+    for (const QVariant &v : read[u"menuFile"_s].toMap()[u"items"_s].toList()) {
+        const QString name = v.toMap()[u"name"_s].toString();
+        expected += std::ranges::none_of(b.pos.shared()->menu, [&](const core::MenuItem &m) {
+            return QString::fromStdString(m.name).compare(name, Qt::CaseInsensitive) == 0;
+        });
+    }
+    REQUIRE(expected >= 10);
+    const int added = b.pos.importMenuFile(read[u"menuFile"_s].toMap());
+    CHECK(added == expected);
+    CHECK(int(b.pos.shared()->menu.size()) == before + expected);
+    CHECK(b.pos.findItem(u"classic-burger"_s)->price.cents() == 999);   // B's own unchanged
+    // The taco, in a Tacos category, with Salsa and Tortilla and what's on it.
+    const core::MenuItem *taco = nullptr;
+    for (const core::MenuItem &m : b.pos.shared()->menu)
+        if (m.name == "Carne Asada Taco")
+            taco = &m;
+    REQUIRE(taco);
+    CHECK(taco->price.cents() == 350);
+    const auto cats = b.pos.shared()->categories();
+    CHECK(std::ranges::any_of(cats, [&](const core::MenuCategory &c) { return c.id == taco->family && c.name == "Tacos"; }));
+    QStringList groupNames;
+    for (const std::string &g : taco->modifierGroups)
+        if (const core::ModifierGroup *mg = b.pos.shared()->settings.modifierGroup(g))
+            groupNames << QString::fromStdString(mg->name);
+    CHECK(groupNames.size() == 3);
+    CHECK(groupNames.contains(u"Salsa"_s));
+    CHECK(groupNames.contains(u"Tortilla"_s));
+    const core::ModifierGroup *onIt = b.pos.shared()->settings.modifierGroup("on-" + taco->id);
+    REQUIRE(onIt);
+    CHECK(onIt->options.size() == 2);                           // onion, cilantro
+    // The check finds nothing wrong with what came in.
+    for (const QVariant &p : b.pos.menuProblems())
+        CHECK_FALSE(p.toMap()[u"serious"_s].toBool());
+    // Again: nothing doubles.
+    CHECK(b.pos.importMenuFile(read[u"menuFile"_s].toMap()) == 0);
+    CHECK(int(b.pos.shared()->menu.size()) == before + expected);
+    // Not a menu.
+    CHECK(b.c.readMenuFile(QUrl::fromLocalFile(dir.filePath(u"x.json"_s))).contains(u"error"_s));
 }

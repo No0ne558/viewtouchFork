@@ -265,6 +265,7 @@ bool PosService::setAvailable(const QString &itemId, bool available)
             return true;
         m.available = available;
         m.autoSoldOut = false;   // a person decided
+        m.soldOutToday = !available;
         if (s_->sink)
             s_->sink->saveMenuItem(m, i);
         emit notice(available ? tr("%1 is back").arg(qs(m.name)) : tr("%1 is sold out (86)").arg(qs(m.name)));
