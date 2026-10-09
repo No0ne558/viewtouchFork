@@ -732,3 +732,27 @@ TEST_CASE("Printer status: paper low, then no connections: probably out of paper
     REQUIRE(waitFor(u"kitchen=offlinePaper"_s));
     CHECK_FALSE(seen.contains(u"kitchen=offline"_s));
 }
+
+TEST_CASE("Printer status: paper low, then printed to the end (connected, silent): probably out of paper", "[print][status][offlinepaper]")
+{
+    FakeStatusPrinter printer;
+    PrinterMonitor monitor;
+    monitor.setTimings(150, 200);
+    QStringList seen;
+    QObject::connect(&monitor, &PrinterMonitor::statusChanged,
+                     [&](const QString &id, const QString &problem) { seen << id + u'=' + problem; });
+    const auto waitFor = [&](const QString &what) {
+        for (int i = 0; i < 150 && !seen.contains(what); ++i)
+            QTest::qWait(20);
+        return seen.contains(what);
+    };
+    printer.paper = 0x1E;
+    monitor.setPrinters({printer.config()});
+    REQUIRE(waitFor(u"kitchen=paperLow"_s));
+    printer.quiet = true;                 // the roll printed to its end
+    REQUIRE(waitFor(u"kitchen=offlinePaper"_s));
+    CHECK_FALSE(seen.contains(u"kitchen=silent"_s));
+    printer.quiet = false;                // a new roll
+    printer.paper = 0x12;
+    REQUIRE(waitFor(u"kitchen="_s));
+}

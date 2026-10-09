@@ -111,9 +111,13 @@ private:
             // Connected but saying nothing, from a printer that has told its
             // status before: stuck (twice in a row; once can be a busy one).
             // Printers that never say are left alone.
+            // An Epson that has printed its roll to the end does this too: after
+            // paper low, that's the likely why.
             if (offline.isEmpty() && paper.isEmpty()) {
+                const QString before = problems_.value(id);
+                const bool wasPaper = before == u"paperLow" || before == u"paperOut" || before == u"offlinePaper";
                 if (answered_.contains(id))
-                    problem = ++silent_[id] >= 2 ? u"silent"_s : problems_.value(id);
+                    problem = ++silent_[id] >= 2 ? (wasPaper ? u"offlinePaper"_s : u"silent"_s) : before;
             } else {
                 answered_.insert(id);
                 silent_[id] = 0;
