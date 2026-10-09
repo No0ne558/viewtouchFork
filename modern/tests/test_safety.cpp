@@ -523,3 +523,18 @@ TEST_CASE("Today's banks: one closed for last night's End of Day isn't today's",
     REQUIRE(pos.loginWithPin(u"1234"_s));
     CHECK(pos.tipsOwed() == u"$0.00"_s);
 }
+
+TEST_CASE("Demo data made at any hour: today has guests already, nothing closed in the future", "[demo][demomidnight]")
+{
+    for (const int minutes : {1, 16, 90, 4 * 60, 9 * 60, 14 * 60 + 10}) {
+        PosService pos(test::seedPosData(true), nullptr);
+        const std::int64_t now = QDateTime(QDate::currentDate(), QTime(0, 0)).addSecs(minutes * 60).toMSecsSinceEpoch();
+        REQUIRE(app::fillDemoData(pos, now).startsWith(u"Added"_s));
+        INFO(minutes << " minutes after midnight");
+        CHECK(pos.shared()->pastDays.size() == 126);
+        CHECK(pos.shared()->day.openedAt <= now);
+        CHECK_FALSE(pos.shared()->closedToday.empty());
+        for (const core::Check &c : pos.shared()->closedToday)
+            CHECK(c.closedAt <= now);
+    }
+}

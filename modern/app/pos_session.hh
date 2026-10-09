@@ -145,6 +145,8 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantList menuTemplates READ menuTemplates NOTIFY adminChanged)
     // The menu checked for what would trip up service (the Menu Builder).
     Q_PROPERTY(QVariantList menuProblems READ menuProblems NOTIFY adminChanged)
+    // The Menu Builder's last change, to undo ("" if none).
+    Q_PROPERTY(QString menuUndoText READ menuUndoText NOTIFY adminChanged)
     // The current check's history [{time, who, what}].
     Q_PROPERTY(QVariantList checkHistory READ checkHistory NOTIFY checkChanged)
     Q_PROPERTY(QString checkFilter READ checkFilter WRITE setCheckFilter NOTIFY openChecksChanged)
@@ -291,6 +293,7 @@ public:
     virtual QVariantList choiceGroups() const = 0;
     virtual QVariantList menuTemplates() const = 0;
     virtual QVariantList menuProblems() const = 0;
+    virtual QString menuUndoText() const = 0;
     virtual QString checkFilter() const = 0;
     virtual QVariantList kitchenTickets() const = 0;
     virtual QVariantList expoTickets() const = 0;
@@ -429,6 +432,7 @@ public:
     Q_INVOKABLE void saveChoiceGroup(const QVariantMap &record) { invoke(QStringLiteral("saveChoiceGroup"), {record}); }
     Q_INVOKABLE void duplicateMenuItem(const QString &id) { invoke(QStringLiteral("duplicateMenuItem"), {id}); }
     Q_INVOKABLE void applyMenuTemplate(const QString &id) { invoke(QStringLiteral("applyMenuTemplate"), {id}); }
+    Q_INVOKABLE void undoMenuChange() { invoke(QStringLiteral("undoMenuChange")); }
     Q_INVOKABLE void importMenuFile(const QVariantMap &file) { invoke(QStringLiteral("importMenuFile"), {file}); }
     Q_INVOKABLE void importMenuRows(const QVariantList &rows, const QString &categoryId, bool updatePrices) { invoke(QStringLiteral("importMenuRows"), {rows, categoryId, updatePrices}); }
     Q_INVOKABLE void addMenuItemsFromText(const QString &categoryId, const QString &text) { invoke(QStringLiteral("addMenuItemsFromText"), {categoryId, text}); }

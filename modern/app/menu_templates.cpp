@@ -157,6 +157,7 @@ bool PosService::applyMenuTemplate(const QString &id)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    const MenuStep step(this, tr("Starter menu"));
     const Template *t = templateById(id);
     if (!t)
         return fail(tr("There's no starter menu '%1'.").arg(id));

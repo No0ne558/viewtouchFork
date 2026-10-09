@@ -486,3 +486,45 @@ TEST_CASE("Sent by a screen: reports and settings only for managers", "[security
     CHECK_FALSE(ask(u"adminRecords"_s, {u"employees"_s}).toList().isEmpty());
     CHECK_FALSE(ask(u"report"_s, {u"sales"_s, 0}).toMap().value(u"title"_s).toString().contains(u"managers"_s));
 }
+
+TEST_CASE("Menu Builder: undo, a change at a time; not over a change made elsewhere", "[menubuilder][menuundo]")
+{
+    test::RecordingSink sink;
+    PosService pos(test::seedPosData(true), &sink);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const auto menu0 = pos.shared()->menu;
+    const auto groups0 = pos.shared()->settings.modifierGroups;
+    CHECK(pos.menuUndoText().isEmpty());
+
+    // A starter menu: many saves, one step.
+    REQUIRE(pos.applyMenuTemplate(u"pizza"_s));
+    CHECK(pos.menuUndoText() == u"Starter menu"_s);
+    REQUIRE(pos.deleteMenuItemCard(u"classic-burger"_s));
+    CHECK(pos.menuUndoText() == u"Remove an item"_s);
+    // A save that changes nothing: no step.
+    const QString name = QString::fromStdString(pos.shared()->menu.front().name);
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, QString::fromStdString(pos.shared()->menu.front().id)}, {u"name"_s, name}}));
+    CHECK(pos.menuUndoText() == u"Remove an item"_s);
+
+    REQUIRE(pos.undoMenuChange());
+    CHECK(pos.findItem(u"classic-burger"_s));          // back, and stored again
+    CHECK(sink.savedMenuIds().contains(u"classic-burger"_s));
+    CHECK(pos.menuUndoText() == u"Starter menu"_s);
+    REQUIRE(pos.undoMenuChange());
+    CHECK(pos.shared()->menu == menu0);                 // as it was, choice groups too
+    CHECK(pos.shared()->settings.modifierGroups == groups0);
+    CHECK_FALSE(pos.undoMenuChange());                  // nothing more
+
+    // Changed elsewhere since (Manager -> Menu): not undone over it.
+    REQUIRE(pos.saveCategory({{u"name"_s, u"Desserts"_s}}));
+    pos.shared()->menu.front().price = vt::Money::fromCents(1);   // as another editor would
+    CHECK_FALSE(pos.undoMenuChange());
+    CHECK(pos.menuUndoText().isEmpty());
+    CHECK(pos.shared()->menu.front().price.cents() == 1);
+
+    // Only managers.
+    REQUIRE(pos.saveCategory({{u"name"_s, u"Sides"_s}}));
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"2222"_s));
+    CHECK_FALSE(pos.undoMenuChange());
+}

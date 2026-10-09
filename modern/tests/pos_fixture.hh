@@ -48,6 +48,17 @@ inline app::PosData seedPosData(bool requiredChoices = false)
 }
 
 struct RecordingSink : app::PosSink {
+    // The menu as stored: saved items by id (deleted ones gone).
+    std::map<std::string, core::MenuItem> menu;
+    void saveMenuItem(const core::MenuItem &m, int) override { menu[m.id] = m; }
+    void deleteMenuItem(const std::string &id) override { menu.erase(id); }
+    QStringList savedMenuIds() const
+    {
+        QStringList out;
+        for (const auto &[id, m] : menu)
+            out << QString::fromStdString(id);
+        return out;
+    }
     std::map<std::int64_t, core::Check> checks;
     std::map<std::int64_t, core::TimePunch> punches;
     int checkSaves = 0;

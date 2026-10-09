@@ -79,6 +79,73 @@ QStringList strings(const QVariant &v)
 
 } // namespace
 
+PosShared::MenuState PosService::menuState() const
+{
+    return {s_->menu, s_->settings.menuCategories, s_->settings.modifierGroups};
+}
+
+// One Menu Builder change, as one step to undo: what it was before, kept if
+// the change changed something (nested changes are part of the outer one).
+PosService::MenuStep::MenuStep(PosService *pos, QString label)
+    : pos_(pos), label_(std::move(label)), outer_(pos->s_->menuUndoDepth++ == 0)
+{
+    if (outer_)
+        before_ = pos_->menuState();
+}
+
+PosService::MenuStep::~MenuStep()
+{
+    --pos_->s_->menuUndoDepth;
+    if (!outer_)
+        return;
+    PosShared::MenuState after = pos_->menuState();
+    if (after == before_)
+        return;
+    auto &undo = pos_->s_->menuUndo;
+    undo.push_back({label_, std::move(before_), std::move(after)});
+    if (undo.size() > 20)
+        undo.erase(undo.begin());
+    ++pos_->s_->adminRevision;
+    emit pos_->s_->adminChanged();
+}
+
+QString PosService::menuUndoText() const
+{
+    return s_->menuUndo.empty() ? QString() : s_->menuUndo.back().label;
+}
+
+bool PosService::undoMenuChange()
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    auto &undo = s_->menuUndo;
+    if (undo.empty())
+        return fail(tr("Nothing to undo."));
+    if (!(menuState() == undo.back().after)) {
+        // Changed since, elsewhere (another screen, Manager -> Menu): not over that.
+        undo.clear();
+        ++s_->adminRevision;
+        emit s_->adminChanged();
+        return fail(tr("The menu has changed since, so that can't be undone."));
+    }
+    PosShared::MenuUndo step = std::move(undo.back());
+    undo.pop_back();
+    // Items gone from the store's records, then every item where it was.
+    for (const MenuItem &m : s_->menu)
+        if (s_->sink && std::ranges::none_of(step.before.menu, [&](const MenuItem &x) { return x.id == m.id; }))
+            s_->sink->deleteMenuItem(m.id);
+    s_->menu = std::move(step.before.menu);
+    if (s_->sink)
+        for (int i = 0; i < int(s_->menu.size()); ++i)
+            s_->sink->saveMenuItem(s_->menu[i], i);
+    s_->settings.menuCategories = std::move(step.before.categories);
+    s_->settings.modifierGroups = std::move(step.before.groups);
+    settingsChanged();
+    menuChanged();
+    emit notice(tr("Undone: %1").arg(step.label));
+    return true;
+}
+
 void PosService::menuChanged()
 {
     refreshSoldOut();
@@ -92,6 +159,7 @@ bool PosService::saveCategory(const QVariantMap &record)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    const MenuStep step(this, tr("Category %1").arg(record.value(u"name"_s).toString().trimmed()));
     const QString name = record.value(u"name"_s).toString().trimmed();
     if (name.isEmpty())
         return fail(tr("The category needs a name."));
@@ -143,6 +211,7 @@ bool PosService::moveCategory(const QString &id, int by)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    const MenuStep step(this, tr("Move a category"));
     std::vector<MenuCategory> list = s_->categories();
     const auto it = std::ranges::find_if(list, [&](const MenuCategory &c) { return qs(c.id) == id; });
     if (it == list.end())
@@ -162,6 +231,7 @@ bool PosService::moveCategoryTo(const QString &id, int position)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    const MenuStep step(this, tr("Move a category"));
     std::vector<MenuCategory> list = s_->categories();
     const auto it = std::ranges::find_if(list, [&](const MenuCategory &c) { return qs(c.id) == id; });
     if (it == list.end())
@@ -181,6 +251,7 @@ bool PosService::moveMenuItemTo(const QString &id, int position)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    const MenuStep step(this, tr("Move an item"));
     auto &menu = s_->menu;
     const auto it = std::ranges::find_if(menu, [&](const MenuItem &m) { return qs(m.id) == id; });
     if (it == menu.end())
@@ -214,6 +285,7 @@ bool PosService::deleteCategory(const QString &id)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    const MenuStep step(this, tr("Remove a category"));
     const auto items = std::ranges::count_if(s_->menu, [&](const MenuItem &m) { return qs(m.family) == id && !m.isModifier; });
     if (items > 0)
         return fail(tr("Move or remove its %n item(s) first.", nullptr, int(items)));
@@ -304,6 +376,7 @@ bool PosService::saveChoiceGroup(const QVariantMap &record)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    const MenuStep step(this, tr("Choice group %1").arg(record.value(u"name"_s).toString().trimmed()));
     const QString name = record.value(u"name"_s).toString().trimmed();
     if (name.isEmpty())
         return fail(tr("The choice group needs a name."));
@@ -365,6 +438,7 @@ bool PosService::deleteChoiceGroup(const QString &id)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    const MenuStep step(this, tr("Remove a choice group"));
     auto &list = s_->settings.modifierGroups;
     if (std::erase_if(list, [&](const ModifierGroup &g) { return qs(g.id) == id; }) == 0)
         return fail(tr("That choice group is gone."));
@@ -386,6 +460,7 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    const MenuStep step(this, card.value(u"name"_s).toString().trimmed());
     const QString name = card.value(u"name"_s).toString().trimmed();
     if (name.isEmpty())
         return fail(tr("The item needs a name."));
@@ -517,6 +592,7 @@ bool PosService::duplicateMenuItem(const QString &id)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    const MenuStep step(this, tr("Duplicate an item"));
     auto &menu = s_->menu;
     const auto it = std::ranges::find_if(menu, [&](const MenuItem &m) { return qs(m.id) == id; });
     if (it == menu.end())
@@ -560,6 +636,7 @@ int PosService::addMenuItemsFromText(const QString &categoryId, const QString &t
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return 0;
+    const MenuStep step(this, tr("Add several"));
     static const QRegularExpression priced(uR"(^(.*?)[\s\-–:]*\$?\s*(\d+(?:[.,]\d{1,2})?)\s*$)"_s);
     QString category = categoryId;
     struct Entry { QString category, name; double price; };
@@ -634,6 +711,7 @@ int PosService::importMenuRows(const QVariantList &rows, const QString &category
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return 0;
+    const MenuStep step(this, tr("Import"));
     int added = 0, updated = 0;
     QStringList skipped;
     for (const QVariant &v : rows) {
@@ -740,6 +818,7 @@ int PosService::importMenuFile(const QVariantMap &file)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return 0;
+    const MenuStep step(this, tr("Import a menu"));
     if (file.value(u"format"_s).toString() != u"viewtouch-menu"_s) {
         fail(tr("That isn't a ViewTouch menu file."));
         return 0;
@@ -868,6 +947,7 @@ bool PosService::deleteMenuItemCard(const QString &id)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    const MenuStep step(this, tr("Remove an item"));
     auto &menu = s_->menu;
     const auto it = std::ranges::find_if(menu, [&](const MenuItem &m) { return qs(m.id) == id; });
     if (it == menu.end())

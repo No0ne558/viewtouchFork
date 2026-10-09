@@ -435,8 +435,12 @@ QString fillDemoData(PosService &pos, std::int64_t realNow)
         d.stock[g.id] = g.onHand;
 
     const QDate today = QDateTime::fromMSecsSinceEpoch(realNow).date();
+    const QTime nowTime = QDateTime::fromMSecsSinceEpoch(realNow).time();
+    // Made between midnight and 3: a late night, the day still going since
+    // last evening (so yesterday isn't a day of its own).
+    const bool lateNight = nowTime.hour() < 3;
     const QDate lastYear = today.addYears(-1).addDays(-60);
-    const QDate thisYear = today.addDays(-60);
+    const QDate thisYear = today.addDays(lateNight ? -61 : -60);
 
     // The store "opened" the morning of the first day (five years back).
     const QDate firstDay = today.addYears(-5);
@@ -506,11 +510,10 @@ QString fillDemoData(PosService &pos, std::int64_t realNow)
     for (int i = 0; i < 60; ++i)
         d.playDay(thisYear.addDays(i), 1.0);
 
-    // Today so far.
-    const QTime nowTime = QDateTime::fromMSecsSinceEpoch(realNow).time();
-    // Opened at 9:30, or (made early in the morning) two hours ago, so there
-    // are guests so far.
-    d.clock = std::min(d.at(today, 9, 30), std::max(d.at(today, 0, 5), realNow - 120 * kMinute));
+    // Today so far: opened at 9:30, or (made early in the morning) two
+    // hours ago, or (a late night) last evening, so there are guests so far.
+    d.clock = lateNight ? realNow - 180 * kMinute
+                        : std::min(d.at(today, 9, 30), std::max(d.at(today, 0, 0) + kMinute / 6, realNow - 120 * kMinute));
     d.receive(today);
     d.restock();
     for (const char *pin : {"1234", "1111", "2222", "4444", "3333", "7777"}) {
@@ -519,16 +522,20 @@ QString fillDemoData(PosService &pos, std::int64_t realNow)
     }
     d.openDrawer();
     d.checklist(u"opening"_s, 5);
+    // Guests who'd be gone by now (a visit takes up to an hour and a half).
+    const std::int64_t lastStart = realNow - 95 * kMinute;
     for (int hour = 10; hour < std::min(22, nowTime.hour()); ++hour) {
         for (int k = 0; k < 2 + d.pick(3); ++k)
-            d.serve(today, kServers[d.pick(3)], d.at(today, hour, d.pick(50)), hour < 11);
+            if (const std::int64_t at = d.at(today, hour, d.pick(50)); at <= lastStart)
+                d.serve(today, kServers[d.pick(3)], at, hour < 11);
     }
-    // Made early in the morning: still a few guests so far (today's reports
-    // and the checks to reopen have something), in the time since opening.
+    // Made early in the morning (or late at night): still a few guests so far
+    // (today's reports and the checks to reopen have something).
     if (nowTime.hour() < 11) {
         const std::int64_t from = d.clock;
-        for (std::int64_t at = from + 10 * kMinute; at < realNow - 5 * kMinute; at += 15 * kMinute)
-            d.serve(today, kServers[d.pick(3)], at, true);
+        const std::int64_t step = std::clamp<std::int64_t>((lastStart - from) / 6, kMinute, 15 * kMinute);
+        for (std::int64_t at = from + step; at <= lastStart; at += step)
+            d.serve(QDateTime::fromMSecsSinceEpoch(at).date(), kServers[d.pick(3)], at, !lateNight);
     }
 
     // The schedule for this week and next.

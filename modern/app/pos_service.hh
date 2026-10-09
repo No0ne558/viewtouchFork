@@ -140,6 +140,21 @@ public:
 
     core::PosSettings settings;
     std::vector<core::MenuItem> menu;
+    // The Menu Builder's changes, to undo (last first): the menu, its
+    // categories and choice groups before, and after (undone only if the
+    // menu is still as that change left it).
+    struct MenuState {
+        std::vector<core::MenuItem> menu;
+        std::vector<core::MenuCategory> categories;
+        std::vector<core::ModifierGroup> groups;
+        bool operator==(const MenuState &) const = default;
+    };
+    struct MenuUndo {
+        QString label;
+        MenuState before, after;
+    };
+    std::vector<MenuUndo> menuUndo;
+    int menuUndoDepth = 0;   // inside a change (an import's many saves): one step
     std::vector<core::Employee> employees;
     std::map<std::int64_t, core::Check> open;
     std::vector<core::TimePunch> punches;   // today's, plus any still open
@@ -628,6 +643,8 @@ public:
     // What would trip up service: [{text, item, group, category, serious}].
     QVariantList menuProblems() const override;
     QVariantMap menuExport();
+    QString menuUndoText() const override;
+    bool undoMenuChange();
     QString putMenuPicture(const QString &fileName, const QByteArray &data);
     int importMenuFile(const QVariantMap &file);
     bool applyMenuTemplate(const QString &id);
@@ -825,6 +842,21 @@ public:
     bool stopPairing();
 
 private:
+    // One Menu Builder change, as one step to undo (PosShared::menuUndo).
+    class MenuStep {
+    public:
+        MenuStep(PosService *pos, QString label);
+        ~MenuStep();
+        MenuStep(const MenuStep &) = delete;
+        MenuStep &operator=(const MenuStep &) = delete;
+    private:
+        PosService *pos_;
+        QString label_;
+        bool outer_;
+        PosShared::MenuState before_;
+    };
+    PosShared::MenuState menuState() const;
+
     // Stock out (sign 1) or back (-1) for these lines; then sold-out marks.
     void takeStock(const std::vector<core::OrderLine> &lines, int sign);
     // Sold out by itself when an ingredient runs short; back when restocked.

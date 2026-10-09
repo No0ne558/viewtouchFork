@@ -384,6 +384,21 @@ Item {
                     palette.button: serious ? "#7a2e2e" : "#1f5f3a"
                     onClicked: checkDialog.open()
                 }
+                // The last change, taken back (the card open closes: it may be gone).
+                TouchButton {
+                    objectName: "builderUndo"
+                    visible: !!w.pos && w.pos.menuUndoText !== ""
+                    Layout.fillWidth: true
+                    text: qsTr("↶ Undo: %1").arg(w.pos ? w.pos.menuUndoText : "")
+                    onClicked: {
+                        w.editingItem = false
+                        w.editingCategory = false
+                        w.editingGroup = false
+                        w.returnToItem = null
+                        w.stage = w.mode === "choices" ? "categories" : "items"
+                        w.pos.undoMenuChange()
+                    }
+                }
                 Label { visible: w.mode === "menu"; text: qsTr("Categories"); font.pixelSize: 22; font.bold: true }
                 // Choice groups: every one, its rule and who uses it.
                 ListView {

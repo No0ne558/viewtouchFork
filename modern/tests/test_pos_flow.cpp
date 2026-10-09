@@ -1657,8 +1657,9 @@ TEST_CASE("UI: the Time Clock: clock in and out, breaks and the schedule, by PIN
         s.tapItem(find(u"clockKey-OK"_s));
         QTest::qWait(60);
     };
-    // Sam works today and the day after tomorrow.
+    // Sam works today and the day after tomorrow; it's noon (whenever this runs).
     const QDateTime today(QDate::currentDate(), QTime(0, 0));
+    s.pos.setClock([today] { return today.addSecs(12 * 3600).toMSecsSinceEpoch(); });
     for (const int day : {0, 2}) {
         core::Shift shift;
         shift.id = 100 + day;
