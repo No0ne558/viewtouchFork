@@ -130,5 +130,9 @@
  "%n changed": {
   "one": "%n changed",
   "other": "%n changed"
+ },
+ "Avoiding %n": {
+  "one": "Avoiding %n",
+  "other": "Avoiding %n"
  }
 }

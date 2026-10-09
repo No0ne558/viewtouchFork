@@ -101,9 +101,10 @@ Item {
     function itemDraft(i) {
         return i ? { id: i.id, name: i.name, price: i.priceValue.toFixed(2), family: i.family, image: i.image,
                      groups: i.groups.slice(), onIt: i.onIt.join(", "), available: i.availableSet,
-                     kioskHide: i.kioskHide, description: i.description, favorite: i.favorite }
+                     kioskHide: i.kioskHide, description: i.description, favorite: i.favorite,
+                     allergens: (i.allergens ?? []).slice() }
                  : { id: "", name: "", price: "", family: categoryId, image: "", groups: [], onIt: "",
-                     available: true, kioskHide: false, description: "", favorite: false }
+                     available: true, kioskHide: false, description: "", favorite: false, allergens: [] }
     }
     function categoryDraft(c) {
         return c ? { id: c.id, name: c.name, color: c.color, periods: c.periods.slice(), printer: c.printer,
@@ -175,6 +176,19 @@ Item {
             leaveDialog.open()
         } else {
             then()
+        }
+    }
+    // A problem from the menu check: straight to what to fix.
+    function openProblem(p) {
+        if (p.item) {
+            const i = w.allItems.find(x => x.id === p.item)
+            if (i) { w.mode = "menu"; w.categoryId = i.family; w.editItem(i) }
+        } else if (p.group) {
+            const g = w.allGroups.find(x => x.id === p.group)
+            if (g) w.editGroup(g)
+        } else if (p.category) {
+            const c = w.categories.find(x => x.id === p.category)
+            if (c) { w.mode = "menu"; w.categoryId = c.id; w.editCategory(c) }
         }
     }
     function saveCard() {
@@ -430,7 +444,13 @@ Item {
                                 Layout.fillWidth: true
                             }
                         }
-                        MouseArea { anchors.fill: parent; onClicked: w.leave(() => w.editGroup(modelData)) }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                const group = modelData, b = w
+                                b.leave(() => b.editGroup(group))
+                            }
+                        }
                     }
                 }
                 TouchButton {
@@ -491,7 +511,10 @@ Item {
                             pressAndHoldInterval: 350
                             property bool dragging: false
                             preventStealing: dragging
-                            onClicked: w.leave(() => w.pickCategory(modelData.id))
+                            onClicked: {
+                                const id = modelData.id, b = w
+                                b.leave(() => b.pickCategory(id))
+                            }
                             onPressAndHold: m => {
                                 dragging = true
                                 w.dragId = modelData.id
@@ -665,7 +688,12 @@ Item {
                                 pressAndHoldInterval: 350
                                 property bool dragging: false
                                 preventStealing: dragging
-                                onClicked: w.leave(() => w.editItem(modelData.add ? null : modelData))
+                                onClicked: {
+                                    // Taken now: after a Save in the prompt this tile (and
+                                    // what it can see) may be gone.
+                                    const item = modelData.add ? null : modelData, b = w
+                                    b.leave(() => b.editItem(item))
+                                }
                                 // Held: dragged to another place in the category.
                                 onPressAndHold: m => {
                                     if (modelData.add) return
@@ -815,6 +843,25 @@ Item {
                                 text: w.draft.onIt ?? ""
                                 placeholderText: qsTr("e.g. lettuce, tomato, onion, mayo")
                                 onTextEdited: w.set("onIt", text)
+                            }
+
+                            // Allergens: guests and the kitchen are warned.
+                            Label { text: qsTr("Contains"); font.pixelSize: 18; font.bold: true }
+                            Flow {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                Repeater {
+                                    model: w.pos ? w.pos.allergenList() : []
+                                    delegate: TouchButton {
+                                        required property var modelData
+                                        objectName: "builderAllergen-" + modelData.id
+                                        checkable: true
+                                        checked: (w.draft.allergens ?? []).includes(modelData.id)
+                                        highlighted: checked
+                                        text: modelData.name
+                                        onClicked: w.toggleIn("allergens", modelData.id)
+                                    }
+                                }
                             }
 
                             // Also on a page of buttons placed by hand (a Happy Hour page).
@@ -1319,19 +1366,8 @@ Item {
                     text: (modelData.serious ? "⚠ " : "• ") + modelData.text
                     onClicked: {
                         checkDialog.close()
-                        w.leave(() => open(modelData))
-                    }
-                    function open(modelData) {
-                        if (modelData.item) {
-                            const i = w.allItems.find(x => x.id === modelData.item)
-                            if (i) { w.mode = "menu"; w.categoryId = i.family; w.editItem(i) }
-                        } else if (modelData.group) {
-                            const g = w.allGroups.find(x => x.id === modelData.group)
-                            if (g) w.editGroup(g)
-                        } else if (modelData.category) {
-                            const c = w.categories.find(x => x.id === modelData.category)
-                            if (c) { w.mode = "menu"; w.categoryId = c.id; w.editCategory(c) }
-                        }
+                        const problem = modelData, b = w
+                        b.leave(() => b.openProblem(problem))
                     }
                 }
             }

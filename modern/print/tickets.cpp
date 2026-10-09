@@ -18,6 +18,14 @@ std::vector<std::string> splitLines(const std::string &s)
     return out;
 }
 
+std::string join(const std::vector<std::string> &v, const std::string &sep)
+{
+    std::string out;
+    for (const std::string &x : v)
+        out += (out.empty() ? "" : sep) + x;
+    return out;
+}
+
 std::string upper(std::string s)
 {
     for (char &c : s)
@@ -177,6 +185,10 @@ Document kitchenTicket(const Check &check, const std::vector<OrderLine> &lines, 
         d.center("*** RUSH ***", true, true);
     if (check.vip)
         d.center("* VIP *", true, true);
+    if (!check.allergies.empty()) {
+        d.center("!! ALLERGY !!", true, true);
+        d.center(upper(join(ctx.allergens(check.allergies), ", ")), true, true);
+    }
     if (check.dueAt > 0)
         d.center("READY AT " + ctx.time(check.dueAt), true, true);
     d.text(check.label, Document::Align::Left, true, true);
@@ -203,6 +215,12 @@ Document kitchenTicket(const Check &check, const std::vector<OrderLine> &lines, 
         if (!l.forKitchen())
             continue;
         d.text(seat + std::to_string(l.quantity) + " " + l.kitchenText(), Document::Align::Left, true, true);
+        std::vector<std::string> hits;
+        for (const std::string &a : l.allergens)
+            if (std::ranges::find(check.allergies, a) != check.allergies.end())
+                hits.push_back(a);
+        if (!hits.empty())
+            d.text("   !! CONTAINS " + upper(join(ctx.allergens(hits), ", ")), Document::Align::Left, true);
         for (const Modifier &m : l.modifiers) {
             if (!m.kitchenHide)
                 d.text("   > " + m.kitchenText(), Document::Align::Left, true);

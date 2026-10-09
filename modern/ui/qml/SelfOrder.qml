@@ -52,7 +52,10 @@ Rectangle {
     property string family: ""
     readonly property var families: menu.families ?? []
     readonly property string shownFamily: families.includes(family) ? family : (families[0] ?? "")
-    readonly property var items: (menu.items ?? []).filter(i => i.family === shownFamily)
+    // What the guest is avoiding (Allergies): those items aren't shown.
+    property var avoid: []
+    readonly property var items: (menu.items ?? []).filter(i => i.family === shownFamily
+                                                            && !(i.allergens ?? []).some(a => avoid.includes(a)))
     readonly property var lines: pos ? pos.lines.filter(l => !l.voided && !l.comment) : []
     readonly property var choosing: pos ? pos.choosing : ({})
     readonly property string total: pos ? (pos.totals.total ?? "") : ""
@@ -98,6 +101,74 @@ Rectangle {
         running: k.choosingType
         onTriggered: k.choosingType = false
     }
+    // Allergies: what to leave off the menu for this guest.
+    Rectangle {
+        id: avoidSheet
+        objectName: "kioskAvoidSheet"
+        visible: false
+        anchors.fill: parent
+        z: 50
+        color: Qt.rgba(0, 0, 0, 0.85)
+        MouseArea { anchors.fill: parent }   // nothing under it is touched
+        Column {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 2 * k.u, 44 * k.u)
+            spacing: k.u
+            Text {
+                font.family: k.face
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: qsTr("Anything to avoid? Dishes with it won't be shown.")
+                color: "white"
+                font.pixelSize: k.u * 1.4
+                font.bold: true
+            }
+            Grid {
+                anchors.horizontalCenter: parent.horizontalCenter
+                columns: 3
+                spacing: k.u * 0.5
+                Repeater {
+                    model: k.pos ? k.pos.allergenList() : []
+                    delegate: Big {
+                        required property var modelData
+                        readonly property bool on: k.avoid.includes(modelData.id)
+                        objectName: "kioskAvoid-" + modelData.id
+                        width: k.u * 13
+                        height: k.u * 3.6
+                        text: (on ? "✓ " : "") + modelData.name
+                        size: 1
+                        base: on ? "#c62828" : k.card
+                        onClicked: {
+                            const list = k.avoid.slice()
+                            const at = list.indexOf(modelData.id)
+                            if (at >= 0) list.splice(at, 1); else list.push(modelData.id)
+                            k.avoid = list
+                        }
+                    }
+                }
+            }
+            Text {
+                font.family: k.face
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: qsTr("For a serious allergy, please also tell our staff.")
+                color: "#ffcdd2"
+                font.pixelSize: k.u * 0.85
+            }
+            Big {
+                objectName: "kioskAvoidDone"
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: k.u * 14
+                height: k.u * 3.6
+                text: qsTr("Done")
+                base: k.go
+                onClicked: avoidSheet.visible = false
+            }
+        }
+    }
+
     // The confirmation goes back to the attract screen by itself.
     Timer {
         interval: 20000
@@ -197,6 +268,15 @@ Rectangle {
                     maximumLineCount: 2
                 }
                 Text {
+                    visible: (card.modelData.contains ?? []).length > 0
+                    font.family: k.face
+                    Layout.fillWidth: true
+                    text: qsTr("Contains: %1").arg((card.modelData.contains ?? []).join(", "))
+                    color: "#ff8a80"
+                    font.pixelSize: k.u * 0.65
+                    elide: Text.ElideRight
+                }
+                Text {
                     font.family: k.face
                     text: card.modelData.price + ((card.modelData.left ?? -1) >= 0 ? "  ·  " + qsTr("%1 left").arg(card.modelData.left) : "")
                     color: Qt.lighter(k.accent, 1.5)
@@ -282,6 +362,7 @@ Rectangle {
         objectName: "kioskAttract"
         anchors.fill: parent
         visible: !k.ordering && !k.done && !k.choosingType
+        onVisibleChanged: if (visible) k.avoid = []   // the next guest starts afresh
         // The store's slides (Store Settings → Customer display), then dishes with photos.
         readonly property var slides: (k.brand.slides ?? []).concat(
             (k.menu.items ?? []).filter(i => !!i.image && i.available).map(i => ({ image: i.image, text: i.name, price: i.price })))
@@ -532,6 +613,15 @@ Rectangle {
                             onClicked: k.pos.kioskCancel()
                         }
                         Big {
+                            objectName: "kioskAllergies"
+                            Layout.preferredWidth: k.u * 6
+                            Layout.preferredHeight: k.u * 3.4
+                            text: k.avoid.length ? qsTr("Avoiding %n", "", k.avoid.length) : qsTr("Allergies")
+                            size: 0.9
+                            base: k.avoid.length ? "#c62828" : k.card
+                            onClicked: avoidSheet.visible = true
+                        }
+                        Big {
                             objectName: "kioskReview"
                             Layout.fillWidth: true
                             Layout.preferredHeight: k.u * 3.4
@@ -614,6 +704,15 @@ Rectangle {
                     text: qsTr("Start Over")
                     size: 0.85
                     onClicked: k.pos.kioskCancel()
+                }
+                Big {
+                    objectName: "kioskAllergies"
+                    Layout.preferredWidth: k.u * 6
+                    Layout.fillHeight: true
+                    text: k.avoid.length ? qsTr("Avoiding %n", "", k.avoid.length) : qsTr("Allergies")
+                    size: 0.85
+                    base: k.avoid.length ? "#c62828" : k.card
+                    onClicked: avoidSheet.visible = true
                 }
                 Big {
                     objectName: "kioskEasyReach"
@@ -764,7 +863,7 @@ Rectangle {
                     enabled: k.lookSet.askName === false || nameField.text.trim().length > 0
                     text: qsTr("Place My Order")
                     base: k.go
-                    onClicked: k.pos.kioskFinish({ name: nameField.text })
+                    onClicked: k.pos.kioskFinish({ name: nameField.text, avoid: k.avoid })
                 }
             }
         }

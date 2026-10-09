@@ -17,8 +17,14 @@ struct TicketContext {
     std::function<std::string(std::int64_t)> time;       // epoch ms -> "10:31 AM"
     std::int64_t now = 0;
     std::shared_ptr<const Raster> logo;   // receipts: the store logo at the top (null: none)
+    // Allergen ids -> their names in the store's language (none: the ids).
+    std::function<std::vector<std::string>(const std::vector<std::string> &)> allergenNames;
 
     std::string money(Money m) const;
+    std::vector<std::string> allergens(const std::vector<std::string> &ids) const
+    {
+        return allergenNames ? allergenNames(ids) : ids;
+    }
 };
 
 // Customer receipt (legacy SubCheck::PrintReceipt).

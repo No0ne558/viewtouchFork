@@ -137,6 +137,12 @@ bool PosService::kioskFinish(const QVariantMap &guest)
         return fail(missing);
     c->customer.name = ss(name.left(40));
     c->customer.phone = ss(guest.value(u"phone"_s).toString().trimmed().left(20));
+    // What the guest avoided (Allergies): the kitchen sees it as an allergy.
+    const QStringList avoid = guest.value(u"avoid"_s).toStringList();
+    c->allergies.clear();
+    for (const std::string &a : allergenIds())
+        if (avoid.contains(qs(a)))
+            c->allergies.push_back(a);
     changed(*c);
     const bool sendNow = s_->settings.kioskSendNow;
     if (sendNow && !sendOrder())
@@ -233,7 +239,9 @@ QVariantMap PosService::kioskMenu() const
             {u"price"_s, format(m.priceFor(period, kioskToGo_, false))}, {u"description"_s, qs(m.description)},
             {u"image"_s, qs(m.image)},   // a ref: each screen shows its own copy (imageUrl)
             {u"available"_s, m.available && ticketsLeft(m) != 0}, {u"choices"_s, !m.modifierGroups.empty()},
-            {u"left"_s, ticketsLeft(m)}});
+            {u"left"_s, ticketsLeft(m)},
+            {u"allergens"_s, [&m] { QStringList a; for (const std::string &x : m.allergens) a << qs(x); return a; }()},
+            {u"contains"_s, allergenNames(m.allergens)}});
     }
     return {{u"families"_s, families}, {u"items"_s, items}};
 }

@@ -18,6 +18,13 @@ struct RecipeLine {
 
 // Something that can be sold. Modifiers ("Medium Rare", "Onion Rings") are
 // menu items too; they attach to the order line they modify.
+// The major food allergens (US FALCPA + sesame), by id.
+inline const std::vector<std::string> &allergenIds()
+{
+    static const std::vector<std::string> ids{"gluten", "dairy", "egg", "peanut", "treenut", "soy", "fish", "shellfish", "sesame"};
+    return ids;
+}
+
 struct MenuItem {
     std::string id;
     std::string name;
@@ -60,6 +67,8 @@ struct MenuItem {
     // Its button color in the self-filling menu ("#a86a12"); empty: the panel's.
     std::string buttonColor;
     bool kioskHide = false;
+    // What's in it that guests may be allergic to (allergenIds()).
+    std::vector<std::string> allergens;
     // Always in the menu screen's Favorites (with today's best sellers).
     bool favorite = false;
     // Prices by order type (0: the regular price), and who may not discount it.

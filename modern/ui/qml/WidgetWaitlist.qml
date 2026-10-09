@@ -370,9 +370,11 @@ Item {
                         opacity: fits ? 1 : 0.55
                         text: modelData.name + "\n" + (modelData.seats === 1 ? qsTr("1 seat") : qsTr("%1 seats").arg(modelData.seats))
                         onClicked: {
-                            w.pos.seatParty(w.chosen.id, modelData.name, server.currentValue ?? "")
+                            // Seating changes the list (this button among it): everything first.
+                            const party = w.chosen.id, table = modelData.name, who = server.currentValue ?? "", pos = w.pos
                             w.seating = false
                             w.chosenId = null
+                            pos.seatParty(party, table, who)
                         }
                     }
                     Label {

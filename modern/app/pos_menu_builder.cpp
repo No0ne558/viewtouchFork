@@ -520,6 +520,13 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
         item.kioskHide = card.value(u"kioskHide"_s).toBool();
     if (card.contains(u"favorite"_s))
         item.favorite = card.value(u"favorite"_s).toBool();
+    if (card.contains(u"allergens"_s)) {
+        const QStringList wanted = strings(card.value(u"allergens"_s));
+        item.allergens.clear();
+        for (const std::string &a : allergenIds())
+            if (wanted.contains(qs(a)))
+                item.allergens.push_back(a);
+    }
     if (card.contains(u"taxClass"_s))
         item.taxClass = taxClassFromString(ss(card.value(u"taxClass"_s).toString()));
     if (card.contains(u"printer"_s))

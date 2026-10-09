@@ -11,6 +11,11 @@ using namespace vt::core;
 
 namespace vt::app {
 
+namespace {
+QJsonArray strings(const std::vector<std::string> &v);
+std::vector<std::string> strings(const QJsonArray &a);
+} // namespace
+
 QString qs(const std::string &s) { return QString::fromStdString(s); }
 std::string ss(const QString &s) { return s.toStdString(); }
 
@@ -107,6 +112,8 @@ QJsonObject toJson(const Check &c)
             lo.insert(u"kitchenName"_s, qs(l.kitchenName));
         if (!l.kitchenColor.empty())
             lo.insert(u"kitchenColor"_s, qs(l.kitchenColor));
+        if (!l.allergens.empty())
+            lo.insert(u"allergens"_s, strings(l.allergens));
         if (l.kitchenHide)
             lo.insert(u"kitchenHide"_s, true);
         if (l.noDiscount)
@@ -148,7 +155,7 @@ QJsonObject toJson(const Check &c)
         {u"customer"_s, QJsonObject{{u"name"_s, qs(c.customer.name)}, {u"phone"_s, qs(c.customer.phone)},
                                     {u"address"_s, qs(c.customer.address)}, {u"note"_s, qs(c.customer.note)}}},
         {u"events"_s, events}, {u"firedCourse"_s, c.firedCourse}, {u"customerId"_s, qs(c.customerId)},
-        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"kiosk"_s, c.kiosk}, {u"dueAt"_s, qint64(c.dueAt)}, {u"fireAt"_s, qint64(c.fireAt)},
+        {u"rush"_s, c.rush}, {u"vip"_s, c.vip}, {u"allergies"_s, strings(c.allergies)}, {u"kiosk"_s, c.kiosk}, {u"dueAt"_s, qint64(c.dueAt)}, {u"fireAt"_s, qint64(c.fireAt)},
         {u"promisedAt"_s, qint64(c.promisedAt)},
         {u"refunds"_s, [&] {
              QJsonArray a;
@@ -197,6 +204,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
         l.course = std::max(1, lo.value(u"course").toInt(1));
         l.kitchenName = ss(lo.value(u"kitchenName").toString());
         l.kitchenColor = ss(lo.value(u"kitchenColor").toString());
+        l.allergens = strings(lo.value(u"allergens").toArray());
         l.kitchenHide = lo.value(u"kitchenHide").toBool();
         l.noDiscount = lo.value(u"noDiscount").toBool();
         l.noStaffDiscount = lo.value(u"noStaffDiscount").toBool();
@@ -253,6 +261,7 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
     c.outAt = o.value(u"outAt").toInteger(0);
     c.deliveredAt = o.value(u"deliveredAt").toInteger(0);
     c.vip = o.value(u"vip").toBool();
+    c.allergies = strings(o.value(u"allergies").toArray());
     c.pointsEarned = o.value(u"pointsEarned").toInt();
     c.training = o.value(u"training").toBool();
     for (const QJsonValue &v : o.value(u"events").toArray()) {
@@ -334,6 +343,8 @@ QJsonObject toJson(const MenuItem &m)
         o.insert(u"image"_s, qs(m.image));
     if (m.kioskHide)
         o.insert(u"kioskHide"_s, true);
+    if (!m.allergens.empty())
+        o.insert(u"allergens"_s, strings(m.allergens));
     if (m.favorite)
         o.insert(u"favorite"_s, true);
     return o;
@@ -384,6 +395,7 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     m.noStaffDiscount = o.value(u"noStaffDiscount").toBool();
     m.image = ss(o.value(u"image").toString().trimmed());
     m.kioskHide = o.value(u"kioskHide").toBool();
+    m.allergens = strings(o.value(u"allergens").toArray());
     m.favorite = o.value(u"favorite").toBool();
     return m;
 }

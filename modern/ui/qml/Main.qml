@@ -119,7 +119,7 @@ ApplicationWindow {
     // Something over the whole screen (see the page's `enabled`).
     readonly property bool pageCovered: selfOrder.visible || root.controller.asleep || cardWait.visible
                                         || receiptSheet.visible || setupLoader.active || jobChooser.visible
-                                        || approvalPad.visible
+                                        || approvalPad.visible || allergySheet.visible
 
     Loader {
         active: root.customerDisplay
@@ -362,6 +362,81 @@ ApplicationWindow {
                 fontScale: 0.3
                 baseColor: "#343c49"
                 onClicked: approvalPad.takingOver = true
+            }
+        }
+    }
+
+    // The guest's allergies (Check Options -> Allergy...): touch each one.
+    Rectangle {
+        id: allergySheet
+        objectName: "allergySheet"
+        property bool open: false
+        readonly property var chosen: root.controller.pos && root.controller.pos.hasCheck
+                                      ? (root.controller.pos.check.allergies ?? []) : []
+        readonly property real u: Math.max(14, Math.min(root.width, root.height) / 30)
+        anchors.fill: parent
+        z: 74
+        visible: open && !!root.controller.pos && root.controller.pos.hasCheck
+        color: Qt.rgba(0.04, 0.05, 0.07, 0.92)
+        Connections {
+            target: root.controller
+            function onWidgetCommand(name, args) { if (name === "allergies") allergySheet.open = true }
+        }
+        MouseArea { anchors.fill: parent }
+        Column {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 2 * allergySheet.u, 46 * allergySheet.u)
+            spacing: allergySheet.u
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: qsTr("What is the guest allergic to?")
+                color: "white"
+                font.pixelSize: 1.6 * allergySheet.u
+                font.bold: true
+            }
+            Grid {
+                anchors.horizontalCenter: parent.horizontalCenter
+                columns: 3
+                spacing: allergySheet.u / 2
+                Repeater {
+                    model: root.controller.pos ? root.controller.pos.allergenList() : []
+                    delegate: WidgetKey {
+                        required property var modelData
+                        readonly property bool on: allergySheet.chosen.includes(modelData.id)
+                        objectName: "allergy-" + modelData.id
+                        width: 14 * allergySheet.u
+                        height: 4 * allergySheet.u
+                        text: (on ? "✓ " : "") + modelData.name
+                        fontScale: 0.3
+                        baseColor: on ? "#c62828" : "#343c49"
+                        onClicked: {
+                            const list = allergySheet.chosen.slice()
+                            const at = list.indexOf(modelData.id)
+                            if (at >= 0) list.splice(at, 1); else list.push(modelData.id)
+                            root.controller.pos.setAllergies(list)
+                        }
+                    }
+                }
+            }
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: qsTr("The kitchen sees it on the ticket and the kitchen screen, and items with it are marked in red. For anything else, add a note.")
+                color: "#c8ced8"
+                font.pixelSize: 0.9 * allergySheet.u
+            }
+            WidgetKey {
+                objectName: "allergyDone"
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: 16 * allergySheet.u
+                height: 4 * allergySheet.u
+                text: qsTr("Done")
+                fontScale: 0.3
+                baseColor: "#1f6f3a"
+                onClicked: allergySheet.open = false
             }
         }
     }

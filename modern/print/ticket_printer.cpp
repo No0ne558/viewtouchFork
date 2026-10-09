@@ -1,6 +1,7 @@
 #include "print/ticket_printer.hh"
 
 #include "app/i18n.hh"
+#include "app/pos_session.hh"
 #include "print/raster.hh"
 
 #include <QCryptographicHash>
@@ -33,6 +34,13 @@ TicketContext TicketPrinter::context(const PosSettings &settings) const
             return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat).toStdString();
         },
         now_(),
+        nullptr,
+        [](const std::vector<std::string> &ids) {
+            std::vector<std::string> out;
+            for (const QString &n : app::PosSession::allergenNames(ids))
+                out.push_back(n.toStdString());
+            return out;
+        },
     };
 }
 

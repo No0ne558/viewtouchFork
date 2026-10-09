@@ -162,6 +162,45 @@ bool PosService::toggleFlag(const QString &flag)
     return true;
 }
 
+// --- allergies ------------------------------------------------------------------------
+
+bool PosService::setAllergies(const QStringList &ids)
+{
+    if (!require(perm::Order, tr("Allergies")))
+        return false;
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    std::vector<std::string> list;
+    for (const std::string &a : allergenIds())   // in their usual order
+        if (ids.contains(qs(a)))
+            list.push_back(a);
+    if (list == c->allergies)
+        return true;
+    c->allergies = list;
+    noteEvent(*c, list.empty() ? tr("Allergies cleared")
+                               : tr("Allergic to %1").arg(allergenNames(list).join(u", "_s)), "flag");
+    // What's already on it that has one.
+    QStringList risky;
+    for (const OrderLine &l : c->lines)
+        if (!l.voided && !allergyHits(*c, l).empty())
+            risky << qs(l.name);
+    emit notice(risky.isEmpty() ? (list.empty() ? tr("Allergies cleared") : tr("Allergies: the kitchen sees them"))
+                                : tr("⚠ Already on the check, with one of them: %1").arg(risky.join(u", "_s)));
+    changed(*c);
+    emit s_->checksChanged();
+    return true;
+}
+
+std::vector<std::string> PosService::allergyHits(const Check &c, const OrderLine &l)
+{
+    std::vector<std::string> out;
+    for (const std::string &a : l.allergens)
+        if (std::ranges::find(c.allergies, a) != c.allergies.end())
+            out.push_back(a);
+    return out;
+}
+
 // --- seats and courses ------------------------------------------------------------
 
 bool PosService::setSeat(int seat)

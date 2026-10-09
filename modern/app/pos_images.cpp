@@ -155,6 +155,29 @@ bool PosService::removeStoreImage(const QString &name)
     return true;
 }
 
+QVariantList PosSession::allergenList()
+{
+    QVariantList out;
+    const QStringList names = allergenNames(core::allergenIds());
+    for (std::size_t i = 0; i < core::allergenIds().size(); ++i)
+        out.append(QVariantMap{{u"id"_s, QString::fromStdString(core::allergenIds()[i])}, {u"name"_s, names.value(int(i))}});
+    return out;
+}
+
+QStringList PosSession::allergenNames(const std::vector<std::string> &ids)
+{
+    static const QHash<QString, const char *> names{
+        {u"gluten"_s, QT_TR_NOOP("Gluten")}, {u"dairy"_s, QT_TR_NOOP("Dairy")}, {u"egg"_s, QT_TR_NOOP("Egg")},
+        {u"peanut"_s, QT_TR_NOOP("Peanut")}, {u"treenut"_s, QT_TR_NOOP("Tree nuts")}, {u"soy"_s, QT_TR_NOOP("Soy")},
+        {u"fish"_s, QT_TR_NOOP("Fish")}, {u"shellfish"_s, QT_TR_NOOP("Shellfish")}, {u"sesame"_s, QT_TR_NOOP("Sesame")}};
+    QStringList out;
+    for (const std::string &id : ids) {
+        const QString k = QString::fromStdString(id);
+        out << (names.contains(k) ? tr(names.value(k)) : k);
+    }
+    return out;
+}
+
 QString PosSession::storeImageRef(const QString &fileName)
 {
     // A plain name: "Logo Final.PNG" -> "store:logo-final.png".

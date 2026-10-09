@@ -276,6 +276,7 @@ OrderLine &Check::addItem(const MenuItem &item, Qualifier q)
     l.station = item.station;
     l.kitchenName = item.kitchenName;
     l.kitchenColor = item.kitchenColor;
+    l.allergens = item.allergens;
     l.kitchenHide = item.kitchenHide;
     l.noDiscount = item.noDiscount;
     l.noStaffDiscount = item.noStaffDiscount;

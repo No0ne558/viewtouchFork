@@ -239,8 +239,10 @@ StandbyListener::StandbyListener(QString databasePath, QString storeId, QObject 
                     storage::PosStore store(db_);
                     const auto data = store.open() ? store.load() : std::nullopt;
                     const QString pin = m.value(u"pin").toString();
+                    // (A named list: `manager` points into it after the loop.)
+                    const std::vector<core::Employee> staff = data ? data->employees : std::vector<core::Employee>{};
                     const core::Employee *manager = nullptr;
-                    for (const core::Employee &e : data ? data->employees : std::vector<core::Employee>{}) {
+                    for (const core::Employee &e : staff) {
                         if (e.active && e.can(core::perm::Manager) && !e.pinSalt.empty()
                             && app::hashPin(pin, e.pinSalt) == e.pinHash)
                             manager = &e;

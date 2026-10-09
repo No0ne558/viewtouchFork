@@ -14,6 +14,8 @@ int main(int argc, char *argv[])
 {
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
         qputenv("QT_QPA_PLATFORM", "offscreen");
+    // Warnings (QML errors among them) on the screen, not the system journal.
+    qputenv("QT_FORCE_STDERR_LOGGING", "1");
     QGuiApplication app(argc, argv);
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
     vt::i18n::install();   // as the app does: English plurals, Spanish for those who use it

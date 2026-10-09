@@ -25,6 +25,7 @@
 #include <QPointer>
 #include <QSignalSpy>
 #include <QDir>
+#include <QQmlProperty>
 #include <QTest>
 
 using namespace Qt::StringLiterals;
@@ -5525,4 +5526,85 @@ TEST_CASE("Flow: photos from a spreadsheet's Photo column, and with a menu to an
     CHECK(imageOf(b.pos, "Churros") == u"store:churros.png"_s);
     CHECK(b.pos.shared()->images.at("churros.png") == a.pos.shared()->images.at("churros.png"));
     CHECK(imageOf(b.pos, "Flan").isEmpty());
+}
+
+TEST_CASE("UI: allergies: set on the check, marked on the menu; contained, on the item's card; avoided on the kiosk", "[flow][ui][allergy]")
+{
+    Screen s(false, 1280, 800);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto shown = [&](const QString &name) { QQuickItem *i = by(name); return i && i->isVisible(); };
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    // The Menu Builder: the Cobb contains egg and dairy.
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    s.tapItem(by(u"builderCategory-salads"_s));
+    QTest::qWait(60);
+    REQUIRE(by(u"builderItem-cobb"_s));
+    s.tapItem(by(u"builderItem-cobb"_s));
+    QTest::qWait(60);
+    for (const char *a : {"egg", "dairy"}) {
+        QQuickItem *chip = by(u"builderAllergen-"_s + QLatin1String(a));
+        REQUIRE(chip);
+        scrollTo(chip);
+        s.tapItem(chip);
+        QTest::qWait(30);
+    }
+    s.tapItem(by(u"builderSave"_s));
+    QTest::qWait(100);
+    CHECK(s.pos.findItem(u"cobb"_s)->allergens == std::vector<std::string>{"dairy", "egg"});
+
+    // A guest allergic to egg: Check Options -> Allergy...
+    REQUIRE(s.pos.startCheck(core::CheckType::Quick));
+    REQUIRE(s.c.jumpTo(u"check-options"_s));
+    QTest::qWait(60);
+    s.c.activate(u"allergies"_s);
+    QTest::qWait(100);
+    REQUIRE(shown(u"allergySheet"_s));
+    s.tapItem(by(u"allergy-egg"_s));
+    QTest::qWait(60);
+    CHECK(s.pos.checkInfo()[u"allergies"_s].toStringList() == QStringList{u"egg"_s});
+    s.shot("allergy-sheet");
+    s.tapItem(by(u"allergyDone"_s));
+    QTest::qWait(60);
+    CHECK_FALSE(shown(u"allergySheet"_s));
+    // The menu: the Cobb is marked; something without egg isn't.
+    REQUIRE(s.c.jumpTo(u"menu-all"_s));
+    s.c.setMenuCategory(u"salads"_s);
+    QTest::qWait(100);
+    root = s.window->contentItem();
+    CHECK(shown(u"allergyMark-cobb"_s));
+    CHECK_FALSE(shown(u"allergyMark-house-salad"_s));
+    s.shot("allergy-menu");
+    s.pos.releaseCheck();
+
+    // The kiosk: avoiding egg, the Cobb isn't offered.
+    REQUIRE(s.c.jumpTo(u"tables"_s));
+    s.pos.enableSelfOrder();
+    QTest::qWait(60);
+    s.tapItem(by(u"kioskAttract"_s));
+    QTest::qWait(60);
+    s.tapItem(by(u"kioskForHere"_s));
+    QTest::qWait(100);
+    QQuickItem *kiosk = by(u"selfOrder"_s);
+    REQUIRE(kiosk);
+    const auto offered = [&](const char *id) {
+        for (const QVariant &i : kiosk->property("menu").toMap()[u"items"_s].toList())
+            if (i.toMap()[u"id"_s] == QLatin1String(id))
+                for (const QVariant &v : QQmlProperty::read(kiosk, u"avoid"_s).toList())
+                    if (i.toMap()[u"allergens"_s].toStringList().contains(v.toString()))
+                        return false;
+        return true;
+    };
+    CHECK(offered("cobb"));
+    s.tapItem(by(u"kioskAllergies"_s));
+    QTest::qWait(60);
+    REQUIRE(shown(u"kioskAvoidSheet"_s));
+    s.tapItem(by(u"kioskAvoid-egg"_s));
+    QTest::qWait(60);
+    s.shot("kiosk-avoid");
+    s.tapItem(by(u"kioskAvoidDone"_s));
+    QTest::qWait(60);
+    CHECK(QQmlProperty::read(kiosk, u"avoid"_s).toStringList() == QStringList{u"egg"_s});
+    CHECK_FALSE(offered("cobb"));
 }

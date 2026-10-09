@@ -323,3 +323,54 @@ TEST_CASE("Stations: with none listed, the kitchen is one screen and parts stay 
     CHECK(pos.kitchenTickets().isEmpty());
     CHECK(pos.expoTickets().first().toMap()[u"ready"_s].toBool());
 }
+
+TEST_CASE("Allergies: marked on the check, warned on adding, loud on the ticket and the kitchen screen", "[kitchen][allergy]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    qint64 clock = todayAt(12);
+    pos.shared()->setClock([&] { return clock; });
+    // Cobb salad has egg and dairy; the Caesar, fish (anchovies), egg, dairy, gluten.
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, u"cobb"_s}, {u"name"_s, QString::fromStdString(pos.findItem(u"cobb"_s)->name)},
+                                  {u"allergens"_s, QStringList{u"dairy"_s, u"egg"_s}}}));
+    const_cast<core::MenuItem *>(pos.findItem(u"caesar"_s))->allergens = {"gluten", "dairy", "egg", "fish"};
+    CHECK(app::menuItemFromJson(app::toJson(*pos.findItem(u"cobb"_s))).allergens == std::vector<std::string>{"dairy", "egg"});
+    pos.logout();
+
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    REQUIRE(pos.selectTable(u"T1"_s) == PosService::TableNeedsGuests);
+    REQUIRE(pos.startCheck(core::CheckType::DineIn));
+    REQUIRE(pos.addItem(u"cobb"_s));
+    QStringList notices;
+    QObject::connect(&pos, &app::PosSession::notice, [&](const QString &n) { notices << n; });
+    REQUIRE(pos.setAllergies({u"fish"_s, u"egg"_s, u"nonsense"_s}));
+    CHECK(pos.checkInfo()[u"allergies"_s].toStringList() == QStringList{u"egg"_s, u"fish"_s});   // known ones, in order
+    CHECK(notices.filter(u"Already on the check"_s).size() == 1);      // the Cobb has egg
+    notices.clear();
+    REQUIRE(pos.addItem(u"caesar"_s));
+    CHECK(notices.filter(u"the guest is allergic"_s).size() == 1);
+    CHECK(notices.join(u" "_s).contains(u"Egg, Fish"_s));
+    REQUIRE(pos.sendOrder());
+
+    const core::Check &c = pos.shared()->open.rbegin()->second;
+    CHECK(app::checkFromJson(app::toJson(c))->allergies == std::vector<std::string>{"egg", "fish"});
+    CHECK(app::checkFromJson(app::toJson(c))->lines.back().allergens.size() == 4);
+    print::TicketContext ctx{pos.shared()->settings, [](std::int64_t) { return std::string("1/1"); },
+                             [](std::int64_t) { return std::string("12:00"); }, 0};
+    const std::string ticket = print::renderText(print::kitchenTicket(c, c.lines, "Kitchen", false, ctx), 42);
+    INFO(ticket);
+    CHECK(ticket.find("!! ALLERGY !!") != std::string::npos);
+    CHECK(ticket.find("EGG, FISH\n") != std::string::npos);
+    CHECK(ticket.find("CONTAINS EGG, FISH") != std::string::npos);   // the Caesar
+    CHECK(ticket.find("CONTAINS EGG\n") != std::string::npos);        // the Cobb
+
+    const QVariantMap kds = pos.kitchenTickets().first().toMap();
+    CHECK(kds[u"allergies"_s].toStringList() == QStringList{u"Egg"_s, u"Fish"_s});
+    int marked = 0;
+    for (const QVariant &l : kds[u"lines"_s].toList())
+        marked += !l.toMap()[u"contains"_s].toStringList().isEmpty();
+    CHECK(marked == 2);
+
+    REQUIRE(pos.setAllergies({}));                                    // cleared
+    CHECK(pos.checkInfo()[u"allergies"_s].toStringList().isEmpty());
+}

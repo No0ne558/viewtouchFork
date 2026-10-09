@@ -643,6 +643,9 @@ public:
     // What would trip up service: [{text, item, group, category, serious}].
     QVariantList menuProblems() const override;
     QVariantMap menuExport();
+    bool setAllergies(const QStringList &ids);
+    // A line's allergens the guest is allergic to.
+    static std::vector<std::string> allergyHits(const core::Check &c, const core::OrderLine &l);
     QString menuUndoText() const override;
     bool undoMenuChange();
     QString putMenuPicture(const QString &fileName, const QByteArray &data);

@@ -713,6 +713,7 @@ page("check-options", "Check Options", "custom", [
     zone("reopen", 932, 702, 972, 104, "Reopen a Closed Check… (manager)", actions=[jump(page="closed-checks")]),
     zone("sold-out", 932, 820, 972, 104, "Sold Out (86)…", actions=[jump(page="sold-out")]),
     zone("back", 932, 944, 600, 120, "‹ Back to the Order", actions=[jump(mode="back")]),
+    zone("allergies", 1548, 944, 356, 120, "Allergy…", actions=[command("allergies")], style=fill(RED)),
     # Someone else needs the screen: this check opens again at this person's next login.
     zone("switch", 1548, 944, 356, 120, "Switch User", actions=[command("logout")], style=fill(BLUE)),
 ], permission="order")

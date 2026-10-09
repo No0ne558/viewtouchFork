@@ -937,6 +937,9 @@ bool PosService::addItem(const QString &idOrName)
             priced.name += " (" + ss(QLocale().toString(QDateTime::fromMSecsSinceEpoch(item->eventAt),
                                                          u"ddd MMM d, h:mm AP"_s)) + ")";
         OrderLine &line = c.addItem(priced, q);
+        if (const auto hits = allergyHits(c, line); !hits.empty())
+            emit notice(tr("⚠ %1 contains %2: the guest is allergic. The kitchen is told.")
+                            .arg(qs(item->name), allergenNames(hits).join(u", "_s)));
         if (item->ticketCapacity > 0)
             emit notice(tr("%1: %2 tickets left").arg(qs(item->name)).arg(ticketsLeft(*item)));
         if (item->byWeight) {   // the weight typed: hundredths (125 = 1.25 lb)
@@ -1658,6 +1661,7 @@ QVariantMap PosService::checkInfo() const
         {u"seat"_s, seat_}, {u"course"_s, course_}, {u"firedCourse"_s, c->firedCourse},
         {u"heldCount"_s, c->heldCount()}, {u"roundSize"_s, int(lastRound(*c).size())},
         {u"firesAt"_s, c->fireAt ? timeOfDay(c->fireAt) : QString()}, {u"rush"_s, c->rush}, {u"vip"_s, c->vip},
+        {u"allergies"_s, [c] { QStringList a; for (const std::string &x : c->allergies) a << qs(x); return a; }()},
         {u"opened"_s, timeOfDay(c->openedAt)},
         {u"dueAt"_s, qint64(c->dueAt)}, {u"due"_s, c->dueAt ? dueText(c->dueAt) : QString()},
         {u"customer"_s, QVariantMap{{u"name"_s, qs(c->customer.name)}, {u"phone"_s, qs(c->customer.phone)},
@@ -1908,6 +1912,7 @@ QVariantList PosService::kitchenTickets() const
             if (!l->made)
                 lines.append(QVariantMap{{u"name"_s, qs(l->isComment() ? l->name : l->kitchenText())},
                                          {u"color"_s, qs(l->kitchenColor)}, {u"quantity"_s, l->quantity},
+                                         {u"contains"_s, allergenNames(allergyHits(*t.check, *l))},
                                          {u"modifiers"_s, mods}, {u"comment"_s, l->isComment()},
                                          {u"printer"_s, qs(l->printerOf())}, {u"station"_s, qs(stationOf(*l))},
                                          {u"seat"_s, l->seat}, {u"course"_s, l->course}});
@@ -1936,6 +1941,7 @@ QVariantList PosService::kitchenTickets() const
             {u"type"_s, qs(toString(t.check->type))}, {u"customer"_s, qs(t.check->customer.name)},
             {u"note"_s, qs(t.check->customer.note)}, {u"lines"_s, lines},
             {u"rush"_s, t.check->rush}, {u"vip"_s, t.check->vip},
+            {u"allergies"_s, allergenNames(t.check->allergies)},
             {u"due"_s, t.check->dueAt ? dueText(t.check->dueAt) : QString()},
             {u"warnMinutes"_s, warn}, {u"lateMinutes"_s, late}, {u"targetMinutes"_s, target},
         });
@@ -2095,6 +2101,7 @@ QVariantList PosService::expoTickets() const
             {u"server"_s, qs(t.check->serverName)}, {u"type"_s, qs(toString(t.check->type))},
             {u"customer"_s, qs(t.check->customer.name)}, {u"lines"_s, lines}, {u"ready"_s, ready},
             {u"waitingOn"_s, waitingOn}, {u"rush"_s, t.check->rush}, {u"vip"_s, t.check->vip},
+            {u"allergies"_s, allergenNames(t.check->allergies)},
             {u"warnMinutes"_s, s_->settings.kitchenWarnMinutes}, {u"lateMinutes"_s, s_->settings.kitchenLateMinutes},
         });
     }
@@ -2423,6 +2430,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"saveChoiceGroup"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.saveChoiceGroup(a.value(0).toMap())); }},
         {u"duplicateMenuItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.duplicateMenuItem(a.value(0).toString())); }},
         {u"applyMenuTemplate"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.applyMenuTemplate(a.value(0).toString())); }},
+        {u"setAllergies"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setAllergies(a.value(0).toStringList())); }},
         {u"undoMenuChange"_s, [](PosService &p, const QVariantList &) { return QVariant(p.undoMenuChange()); }},
         {u"menuExport"_s, [](PosService &p, const QVariantList &) { return QVariant(p.menuExport()); }},
         {u"importMenuFile"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.importMenuFile(a.value(0).toMap())); }},

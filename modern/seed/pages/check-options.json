@@ -268,6 +268,30 @@
       ]
     },
     {
+      "id": "allergies",
+      "kind": "button",
+      "rect": {
+        "x": 1548,
+        "y": 944,
+        "w": 356,
+        "h": 120
+      },
+      "shape": "rect",
+      "behavior": "blink",
+      "label": "Allergy\u2026",
+      "actions": [
+        {
+          "type": "command",
+          "name": "allergies"
+        }
+      ],
+      "style": {
+        "normal": {
+          "fill": "#b83232"
+        }
+      }
+    },
+    {
       "id": "switch",
       "kind": "button",
       "rect": {

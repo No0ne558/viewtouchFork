@@ -554,3 +554,28 @@ TEST_CASE("Modifier groups: * marks what comes on it, saved and shown again", "[
     // And through a restart.
     CHECK(app::modifierGroupsFromJson(app::modifierGroupsToJson({g})).front() == g);
 }
+
+TEST_CASE("Self-order: what a dish contains; what the guest avoided reaches the kitchen", "[kiosk][allergy]")
+{
+    app::PosShared shared(test::seedPosData(true), nullptr);
+    for (core::MenuItem &m : shared.menu)
+        if (m.id == "house-salad")
+            m.allergens = {"dairy"};
+    app::PosService kiosk(&shared, u"Lobby"_s);
+    kiosk.enableSelfOrder();
+    bool shown = false;
+    for (const QVariant &i : kiosk.kioskMenu()[u"items"_s].toList())
+        if (i.toMap()[u"id"_s] == u"house-salad"_s) {
+            shown = true;
+            CHECK(i.toMap()[u"contains"_s].toStringList() == QStringList{u"Dairy"_s});
+            CHECK(i.toMap()[u"allergens"_s].toStringList() == QStringList{u"dairy"_s});
+        }
+    CHECK(shown);
+    REQUIRE(kiosk.kioskStart(true));
+    const qint64 id = kiosk.checkInfo()[u"id"_s].toLongLong();
+    REQUIRE(kiosk.kioskAdd(u"water"_s));
+    REQUIRE(kiosk.kioskFinish({{u"name"_s, u"Lee"_s}, {u"avoid"_s, QStringList{u"peanut"_s, u"sesame"_s}}}));
+    const core::Check *c = openCheck(shared, id);
+    REQUIRE(c);
+    CHECK(c->allergies == std::vector<std::string>{"peanut", "sesame"});
+}

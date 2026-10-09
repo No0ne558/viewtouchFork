@@ -488,7 +488,7 @@ QJsonArray actionTypes()
         {"askForTip", "Ask the guest for a tip (customer display)"},
         {"toggleTraining", "Practice mode on / off for this screen (manager)"},
         {"selfOrder", "Make this screen a self-order kiosk for guests (manager)"},
-        {"rush", "Rush this check (kitchen does it first)"}, {"vip", "Mark this check VIP"}, {"clearText", "Clear typed text"}, {"recallTicket", "Recall kitchen ticket"},
+        {"rush", "Rush this check (kitchen does it first)"}, {"allergies", "Guest allergies…"}, {"vip", "Mark this check VIP"}, {"clearText", "Clear typed text"}, {"recallTicket", "Recall kitchen ticket"},
         {"openTab", "Open a bar tab (the name typed)"},
         {"kitchenStation", "Kitchen screen: next station"}, {"kitchenAllDay", "Kitchen screen: show / hide All Day"},
         {"expoRecall", "Expediter: bring back the last order sent out"},

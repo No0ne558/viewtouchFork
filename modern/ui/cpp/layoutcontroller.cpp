@@ -1524,7 +1524,7 @@ void LayoutController::runCommand(const QString &name, const QVariantMap &args, 
         {u"guestsMore"_s, {u"adjustGuests"_s, {1}}}, {u"guestsFewer"_s, {u"adjustGuests"_s, {-1}}},
     };
     // Widgets' own buttons that change the screen, not the store: the widget does them.
-    if (name == u"kitchenStation" || name == u"kitchenAllDay") {
+    if (name == u"kitchenStation" || name == u"kitchenAllDay" || name == u"allergies") {
         emit widgetCommand(name, args);
         return done(true);
     }
@@ -1752,6 +1752,7 @@ QString LayoutController::describeAction(const Action &a) const
             {u"repeatLine"_s, QT_TR_NOOP("Adds one more of the touched item, made the same way.")},
             {u"addComment"_s, QT_TR_NOOP("Adds a note for the kitchen.")},
             {u"rush"_s, QT_TR_NOOP("Tells the kitchen to make this check first.")},
+            {u"allergies"_s, QT_TR_NOOP("Marks what the guest is allergic to: the kitchen sees it, and items with it are marked.")},
             {u"vip"_s, QT_TR_NOOP("Marks this check VIP for the kitchen.")},
             {u"fireCourse"_s, QT_TR_NOOP("Tells the kitchen to start the next course.")},
             {u"toggleBreak"_s, QT_TR_NOOP("Starts or ends your break.")},

@@ -55,6 +55,7 @@ struct OrderLine {
     // How the kitchen sees it (copied from the menu item when ordered).
     std::string kitchenName;     // instead of the name ("BCN BGR")
     std::string kitchenColor;    // highlight on the kitchen screen: red, orange...
+    std::vector<std::string> allergens;   // its item's, when ordered
     bool kitchenHide = false;    // nothing for the kitchen (water, merchandise)
     bool noDiscount = false;      // from the menu item: discounts leave it out
     bool noStaffDiscount = false; // ...and staff meals
@@ -223,6 +224,7 @@ struct Check {
     bool training = false;            // a practice check: not a sale, never to the kitchen             // loyalty points it gave its customer (taken back on reopen)
     bool rush = false;                // the kitchen does it first
     bool vip = false;                 // the kitchen takes extra care
+    std::vector<std::string> allergies;   // the guest's (allergen ids): the kitchen sees them
     bool kiosk = false;               // a guest ordered it on the self-order kiosk
     // An order for later: ready at this time (epoch ms; 0 = now). It goes to
     // the kitchen by itself shortly before (PosSettings::laterLeadMinutes).

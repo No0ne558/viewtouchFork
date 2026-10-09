@@ -311,7 +311,7 @@ Rectangle {
                 }
                 Line { label: qsTr("Tax"); value: d.totals.tax ?? "" }
                 Line { label: qsTr("Gratuity"); value: d.totals.gratuity ?? ""; visible: d.totals.hasGratuity ?? false }
-                Line { label: qsTr("Tip"); value: d.prompt.tip || d.totals.tips; visible: (d.prompt.tipChosen ?? false) || (d.totals.hasTips ?? false) }
+                Line { label: qsTr("Tip"); value: d.prompt.tip || d.totals.tips || ""; visible: (d.prompt.tipChosen ?? false) || (d.totals.hasTips ?? false) }
                 Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 2; color: "#2c3442" }
                 Line { label: qsTr("Total"); value: d.totals.total ?? ""; size: 2.3 }
                 Line { label: qsTr("Paid"); value: d.totals.paid ?? ""; visible: d.hasCheck && d.pos.payments.length > 0 }

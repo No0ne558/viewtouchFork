@@ -484,7 +484,8 @@ QVariantList PosService::menuItems() const
                                {u"onIt"_s, onItOf(m)}, {u"taxClass"_s, qs(toString(m.taxClass))},
                                {u"printer"_s, qs(m.printer)}, {u"station"_s, qs(m.station)},
                                {u"description"_s, qs(m.description)}, {u"kioskHide"_s, m.kioskHide},
-                               {u"availableSet"_s, m.available}, {u"favorite"_s, m.favorite}});
+                               {u"availableSet"_s, m.available}, {u"favorite"_s, m.favorite},
+                               {u"allergens"_s, [&m] { QStringList a; for (const std::string &x : m.allergens) a << qs(x); return a; }()}});
     }
     return out;
 }

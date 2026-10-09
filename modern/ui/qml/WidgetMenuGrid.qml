@@ -37,6 +37,11 @@ Item {
     readonly property var items: pos ? pos.menuItems.filter(i => !i.modifier) : []
     // The menu's categories with items, in their order (Menu Builder).
     readonly property var categories: pos ? pos.menuCategories.filter(c => c.count > 0) : []
+    // The guest's allergies (the check's): items that contain one are marked.
+    readonly property var allergies: pos && pos.hasCheck ? (pos.check.allergies ?? []) : []
+    function allergyHits(item) { return (item.allergens ?? []).filter(a => allergies.includes(a)) }
+    readonly property var allergenNames: pos ? pos.allergenList() : []
+    function allergenName(id) { return (allergenNames.find(a => a.id === id) ?? { name: id }).name }
     // ★ Favorites first: the items marked so, then today's best sellers (12 in all).
     readonly property var favorites: {
         const out = items.filter(i => i.favorite)
@@ -166,8 +171,33 @@ Item {
                     color: !cell.modelData.available ? "#3a3f48"
                          : press.pressed ? (st.keyLitFill ?? "#4c8dff") : (cell.itemColor || (st.keyFill ?? "#343c49"))
                     readonly property bool isPicked: w.arranging && w.picked === cell.modelData.id
-                    border.color: isPicked ? "#f5b940" : Qt.darker(color, 1.4)
-                    border.width: isPicked ? 6 : 2
+                    readonly property var hits: w.allergyHits(cell.modelData)
+                    border.color: isPicked ? "#f5b940" : hits.length ? "#ff3b3b" : Qt.darker(color, 1.4)
+                    border.width: isPicked ? 6 : hits.length ? 6 : 2
+                    // Has something the guest is allergic to.
+                    Rectangle {
+                        objectName: "allergyMark-" + cell.modelData.id
+                        visible: parent.hits.length > 0
+                        z: 3
+                        anchors.bottom: parent.bottom
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottomMargin: 4
+                        width: Math.min(parent.width - 8, hitText.implicitWidth + 14)
+                        height: hitText.implicitHeight + 4
+                        radius: height / 2
+                        color: "#c62828"
+                        Text {
+                            id: hitText
+                            anchors.centerIn: parent
+                            width: Math.min(implicitWidth, parent.parent.width - 22)
+                            elide: Text.ElideRight
+                            text: "⚠ " + parent.parent.hits.map(a => w.allergenName(a)).join(", ")
+                            color: "white"
+                            font.family: w.face
+                            font.pixelSize: Math.max(15, Math.min(cell.height * 0.09, 22))
+                            font.bold: true
+                        }
+                    }
                     opacity: cell.modelData.available ? 1 : 0.55
                     // Running low: "5 left".
                     readonly property int itemsLeft: w.pos ? (w.pos.stockLeft[cell.modelData.id] ?? -1) : -1

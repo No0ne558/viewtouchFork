@@ -287,6 +287,27 @@ Item {
                             font.pixelSize: 20
                             font.bold: isArmed
                         }
+                        // The guest's allergies: big, on red, before anything else is read.
+                        Rectangle {
+                            objectName: "kdsAllergy"
+                            visible: (card.modelData.allergies ?? []).length > 0
+                            width: parent.width
+                            height: allergyText.implicitHeight + 12
+                            radius: 6
+                            color: "#c62828"
+                            Text {
+                                id: allergyText
+                                anchors.centerIn: parent
+                                width: parent.width - 16
+                                horizontalAlignment: Text.AlignHCenter
+                                wrapMode: Text.WordWrap
+                                text: qsTr("ALLERGY: %1").arg((card.modelData.allergies ?? []).join(", ").toUpperCase())
+                                color: "white"
+                                font.family: w.face
+                                font.pixelSize: 26
+                                font.bold: true
+                            }
+                        }
                         Text {
                             visible: !!card.modelData.note
                             width: parent.width
@@ -318,7 +339,7 @@ Item {
                                     font.family: w.face
                                     font.pixelSize: 26
                                     font.bold: true
-                                    font.italic: line.modelData.comment
+                                    font.italic: line.modelData.comment === true
                                 }
                                 Repeater {
                                     model: line.modelData.modifiers
@@ -330,6 +351,15 @@ Item {
                                         font.family: w.face
                                         font.pixelSize: 22
                                     }
+                                }
+                                Text {
+                                    visible: (line.modelData.contains ?? []).length > 0
+                                    leftPadding: 28
+                                    text: qsTr("!! CONTAINS %1").arg((line.modelData.contains ?? []).join(", ").toUpperCase())
+                                    color: "#c62828"
+                                    font.family: w.face
+                                    font.pixelSize: 22
+                                    font.bold: true
                                 }
                             }
                         }
