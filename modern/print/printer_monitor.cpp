@@ -54,8 +54,11 @@ public:
     {
         printers_.clear();
         for (core::PrinterConfig &p : printers)
-            if (p.type == "network" && p.effectiveFormat() == "escpos" && p.watch && !p.host.empty())
+            if (p.type == "network" && p.effectiveFormat() == "escpos" && p.watch && !p.host.empty()) {
+                if (p.reportsStatus)
+                    answered_.insert(QString::fromStdString(p.id));   // known from before
                 printers_.push_back(std::move(p));
+            }
         // Printers no longer watched: whatever they had is cleared.
         for (auto it = problems_.begin(); it != problems_.end();) {
             const bool still = std::ranges::any_of(printers_, [&](const core::PrinterConfig &p) {
@@ -119,7 +122,11 @@ private:
                 if (answered_.contains(id))
                     problem = ++silent_[id] >= 2 ? (wasPaper ? u"offlinePaper"_s : u"silent"_s) : before;
             } else {
-                answered_.insert(id);
+                if (!answered_.contains(id)) {
+                    answered_.insert(id);
+                    if (!p.reportsStatus)
+                        emit owner->answersStatus(id);
+                }
                 silent_[id] = 0;
             }
             s.disconnectFromHost();

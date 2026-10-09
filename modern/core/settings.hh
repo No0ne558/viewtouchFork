@@ -28,6 +28,10 @@ struct PrinterConfig {
     // Network ESC/POS: every screen says when it's out of paper, its cover
     // is open, or it stops answering.
     bool watch = true;
+    // It has answered a status question (learned; kept across restarts):
+    // when it then goes silent, something's wrong with it. Some printers
+    // never answer; they're not warned about.
+    bool reportsStatus = false;
 
     std::string effectiveFormat() const { return !format.empty() ? format : type == "network" ? "escpos" : "text"; }
     bool operator==(const PrinterConfig &) const = default;

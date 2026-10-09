@@ -896,6 +896,15 @@ int runStore(const Args &cli, const Options &o)
             if (a.toMap().value(u"id"_s).toString() == id)
                 qWarning().noquote() << "printer:" << a.toMap().value(u"text"_s).toString();
     });
+    // It answers status questions: remembered, so silence from it later
+    // (even right after a restart) is a warning.
+    QObject::connect(&printerMonitor, &vt::print::PrinterMonitor::answersStatus, shared, [shared](const QString &id) {
+        for (vt::core::PrinterConfig &p : shared->settings.printers)
+            if (QString::fromStdString(p.id) == id && !p.reportsStatus) {
+                p.reportsStatus = true;
+                shared->saveSettings();
+            }
+    });
     // A ticket that didn't go: ask that printer what's wrong now.
     QObject::connect(&spooler, &vt::print::PrintSpooler::jobFailed, &printerMonitor, [&printerMonitor] { printerMonitor.checkNow(); });
     if (writer) {

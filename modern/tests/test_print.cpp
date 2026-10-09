@@ -756,3 +756,31 @@ TEST_CASE("Printer status: paper low, then printed to the end (connected, silent
     printer.paper = 0x12;
     REQUIRE(waitFor(u"kitchen="_s));
 }
+
+TEST_CASE("Printer status: learned that it answers; silent from the start after a restart", "[print][status][learned]")
+{
+    FakeStatusPrinter printer;
+    QStringList learned, seen;
+    {
+        PrinterMonitor monitor;
+        monitor.setTimings(150, 200);
+        QObject::connect(&monitor, &PrinterMonitor::answersStatus, [&](const QString &id) { learned << id; });
+        monitor.setPrinters({printer.config()});
+        for (int i = 0; i < 50 && learned.isEmpty(); ++i)
+            QTest::qWait(20);
+        QTest::qWait(400);
+        CHECK(learned == QStringList{u"kitchen"_s});   // once
+    }
+    // The next day it's stuck before the screens start.
+    printer.quiet = true;
+    core::PrinterConfig known = printer.config();
+    known.reportsStatus = true;
+    PrinterMonitor monitor;
+    monitor.setTimings(150, 200);
+    QObject::connect(&monitor, &PrinterMonitor::statusChanged,
+                     [&](const QString &id, const QString &problem) { seen << id + u'=' + problem; });
+    monitor.setPrinters({known});
+    for (int i = 0; i < 150 && !seen.contains(u"kitchen=silent"_s); ++i)
+        QTest::qWait(20);
+    CHECK(seen.contains(u"kitchen=silent"_s));
+}

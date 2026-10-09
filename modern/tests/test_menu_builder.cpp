@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "pos_fixture.hh"
+#include "app/pos_json.hh"
 #include "storage/pos_store.hh"
 #include "qt_catch.hh"
 
@@ -444,4 +445,25 @@ TEST_CASE("Ready to go: a store's database", "[.][problemsdb]")
     PosService pos(std::move(*data), nullptr);
     for (const QVariant &p : pos.menuProblems())
         WARN((p.toMap()[u"serious"_s].toBool() ? "SERIOUS " : "note ") << p.toMap()[u"text"_s].toString().toStdString());
+}
+
+TEST_CASE("Printers: what was learned about one is kept, until its address changes", "[print][learned]")
+{
+    PosService pos(test::seedPosData(true), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    auto &printers = pos.shared()->settings.printers;
+    REQUIRE_FALSE(printers.empty());
+    const int at = 0;
+    printers[at].type = "network";
+    printers[at].host = "192.168.1.101";
+    printers[at].reportsStatus = true;
+    CHECK(app::settingsFromJson(app::toJson(pos.shared()->settings)).printers[at].reportsStatus);   // stored
+    QVariantMap record = app::toJson(printers[at]).toVariantMap();
+    record.remove(u"reportsStatus"_s);                    // the form doesn't have it
+    record[u"name"_s] = u"Kitchen Epson"_s;
+    REQUIRE(pos.adminSave(u"printers"_s, at, record));
+    CHECK(printers[at].reportsStatus);                    // renamed: the same printer
+    record[u"host"_s] = u"192.168.88.40"_s;
+    REQUIRE(pos.adminSave(u"printers"_s, at, record));
+    CHECK_FALSE(printers[at].reportsStatus);              // another address: maybe another printer
 }

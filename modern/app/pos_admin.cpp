@@ -1790,7 +1790,10 @@ bool PosService::savePrinterRecord(int index, const QVariantMap &record)
     if (p.type == "file" && p.path.empty())
         return fail(tr("Choose a file to print into."));
     if (index >= 0) {
-        p.id = s_->settings.printers[index].id;
+        const PrinterConfig &was = s_->settings.printers[index];
+        p.id = was.id;
+        // Learned about this printer; a new address may be another printer.
+        p.reportsStatus = was.reportsStatus && was.type == p.type && was.host == p.host && was.port == p.port;
         s_->settings.printers[index] = p;
     } else {
         const QString wanted = record.value(u"id"_s).toString().trimmed();

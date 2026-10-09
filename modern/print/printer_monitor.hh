@@ -44,6 +44,8 @@ public:
 
 signals:
     void statusChanged(const QString &printerId, const QString &problem);
+    // The first time a printer (PrinterConfig::reportsStatus false) answers.
+    void answersStatus(const QString &printerId);
 
 private:
     class Worker;
