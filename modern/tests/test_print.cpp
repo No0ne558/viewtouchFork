@@ -711,3 +711,24 @@ TEST_CASE("Printer status: one that stops responding while still connected", "[p
     seen.clear();
     REQUIRE(waitFor(u"kitchen="_s));
 }
+
+TEST_CASE("Printer status: paper low, then no connections: probably out of paper", "[print][status][offlinepaper]")
+{
+    FakeStatusPrinter printer;
+    PrinterMonitor monitor;
+    monitor.setTimings(150, 300);
+    QStringList seen;
+    QObject::connect(&monitor, &PrinterMonitor::statusChanged,
+                     [&](const QString &id, const QString &problem) { seen << id + u'=' + problem; });
+    const auto waitFor = [&](const QString &what) {
+        for (int i = 0; i < 150 && !seen.contains(what); ++i)
+            QTest::qWait(20);
+        return seen.contains(what);
+    };
+    printer.paper = 0x1E;                 // near the end of the roll
+    monitor.setPrinters({printer.config()});
+    REQUIRE(waitFor(u"kitchen=paperLow"_s));
+    printer.server.close();               // out: like an Epson, it takes no connections
+    REQUIRE(waitFor(u"kitchen=offlinePaper"_s));
+    CHECK_FALSE(seen.contains(u"kitchen=offline"_s));
+}

@@ -98,7 +98,11 @@ private:
         QString problem;
         if (!s.waitForConnected(timeoutMs)) {
             // Not answering twice in a row: offline (one miss can be a busy printer).
-            problem = ++failures_[id] >= 2 ? u"offline"_s : problems_.value(id);
+            // Many Epsons take no connections once out of paper or in error:
+            // if its paper was low (or out) just before, that's the likely why.
+            const QString before = problems_.value(id);
+            const bool paper = before == u"paperLow" || before == u"paperOut" || before == u"offlinePaper";
+            problem = ++failures_[id] >= 2 ? (paper ? u"offlinePaper"_s : u"offline"_s) : before;
         } else {
             failures_[id] = 0;
             const QByteArray offline = ask(s, 2);
