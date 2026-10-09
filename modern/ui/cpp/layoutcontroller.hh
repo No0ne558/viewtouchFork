@@ -189,6 +189,13 @@ public:
     // A button for the item on that page, like its other item buttons, in
     // the next free place; saved like the page editor saves.
     Q_INVOKABLE bool addItemButton(const QString &pageId, const QString &itemId, const QString &label);
+    // An item taken off the menu: its buttons on pages built by hand go too
+    // (saved like the page editor saves). Returns how many.
+    Q_INVOKABLE int removeItemButtons(const QString &itemId);
+    // Something a panel keeps while this screen shows other pages (a card
+    // not saved yet); take() hands it back once and forgets it.
+    Q_INVOKABLE void keep(const QString &key, const QVariant &value) { if (value.isValid()) kept_.insert(key, value); else kept_.remove(key); }
+    Q_INVOKABLE QVariant take(const QString &key) { return kept_.take(key); }
     QString menuCategory() const { return menuCategory_; }
     void setMenuCategory(const QString &id);
     // Holding a button: what it does, in plain words, instead of doing it.
@@ -319,6 +326,7 @@ private:
     bool mealPeriodFixed_ = false;
     void updateMealPeriod();
     Saver saver_;
+    QVariantMap kept_;
     CardReader cardReader_;
     int readerTokenSeq_ = 0;   // the last connection token handed to the reader
     void takeCard(const QString &tenderId, Done done);

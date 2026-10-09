@@ -47,7 +47,29 @@ Item {
     property string dragId: ""
     property int dropIndex: -1
 
-    Component.onCompleted: if (categories.length) categoryId = categories[0].id
+    Component.onCompleted: {
+        if (categories.length) categoryId = categories[0].id
+        // A card left unsaved when this page was left: back as it was.
+        const k = zone && zone.controller ? zone.controller.take("menuBuilder") : undefined
+        if (k) {
+            mode = k.mode
+            if (k.categoryId) categoryId = k.categoryId
+            draft = k.draft
+            itemId = k.draft.id ?? ""
+            returnToItem = k.returnToItem ?? null
+            editingItem = k.editingItem
+            editingCategory = k.editingCategory
+            editingGroup = k.editingGroup
+            stage = "card"
+        }
+    }
+    Component.onDestruction: {
+        if (zone && zone.controller)
+            zone.controller.keep("menuBuilder", unsaved()
+                ? { mode: mode, categoryId: categoryId, draft: draft, returnToItem: returnToItem,
+                    editingItem: editingItem, editingCategory: editingCategory, editingGroup: editingGroup }
+                : undefined)
+    }
     // A new category, once saved, is the one shown.
     property string waitingForCategory: ""
     onCategoriesChanged: {
@@ -1070,6 +1092,13 @@ Item {
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 14 }
                     visible: w.editingItem || w.editingCategory || w.editingGroup
                     height: visible ? implicitHeight : 0
+                    Label {
+                        objectName: "builderNotSaved"
+                        visible: w.unsaved()
+                        text: qsTr("● Not saved yet")
+                        color: "#f5b940"
+                        font.pixelSize: 14
+                    }
                     RowLayout {
                         Layout.fillWidth: true
                         visible: w.editingGroup
@@ -1505,6 +1534,7 @@ Item {
         Label { text: qsTr("It comes off every menu screen. Checks it's already on keep it.") }
         onAccepted: {
             w.pos.deleteMenuItemCard(w.draft.id)
+            w.zone.controller.removeItemButtons(w.draft.id)
             w.editingItem = false
             w.stage = "items"
         }

@@ -909,6 +909,30 @@ bool LayoutController::addItemButton(const QString &pageId, const QString &itemI
     return true;
 }
 
+int LayoutController::removeItemButtons(const QString &itemId)
+{
+    if (!pos_ || editing() || itemId.isEmpty() || !pos_->can(QString::fromLatin1(vt::core::perm::EditLayout)))
+        return 0;
+    Layout l = layout_;
+    int removed = 0;
+    for (vt::layout::Page &p : l.pages)
+        removed += int(p.zones.removeIf([&](const vt::layout::Zone &z) {
+            // Only buttons that do nothing else.
+            return orders(z) == itemId && z.actions.size() == 1;
+        }));
+    if (removed == 0)
+        return 0;
+    if (saver_) {
+        QString error;
+        if (!saver_(l, &error)) {
+            setStatus(tr("Could not save: %1").arg(error));
+            return 0;
+        }
+    }
+    replaceLayout(l);
+    return removed;
+}
+
 bool LayoutController::menuScreensHandBuilt() const
 {
     return vt::layout::hasHandBuiltMenu(layout_);

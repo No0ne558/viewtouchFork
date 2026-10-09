@@ -2462,11 +2462,18 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"adminDelete"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.adminDelete(a.value(0).toString(), a.value(1).toInt())); }},
         // Queries (remote terminals fetch these).
+        // Sales, settings, pay rates, customers: managers only, whatever a
+        // screen sends (the pages showing them are managers' too).
         {u"report"_s, [](PosService &p, const QVariantList &a) {
+             if (!p.can(QString::fromLatin1(perm::Manager)))
+                 return QVariant(QVariantMap{{u"title"_s, PosService::tr("Reports are for managers.")}, {u"rows"_s, QVariantList()}});
              return QVariant(p.report(a.value(0).toString(), a.value(1).toLongLong())); }},
-        {u"adminFields"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.adminFields(a.value(0).toString())); }},
-        {u"adminRecords"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.adminRecords(a.value(0).toString())); }},
-        {u"adminNewRecord"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.adminNewRecord(a.value(0).toString())); }},
+        {u"adminFields"_s, [](PosService &p, const QVariantList &a) {
+             return p.can(QString::fromLatin1(perm::Manager)) ? QVariant(p.adminFields(a.value(0).toString())) : QVariant(QVariantList()); }},
+        {u"adminRecords"_s, [](PosService &p, const QVariantList &a) {
+             return p.can(QString::fromLatin1(perm::Manager)) ? QVariant(p.adminRecords(a.value(0).toString())) : QVariant(QVariantList()); }},
+        {u"adminNewRecord"_s, [](PosService &p, const QVariantList &a) {
+             return p.can(QString::fromLatin1(perm::Manager)) ? QVariant(p.adminNewRecord(a.value(0).toString())) : QVariant(QVariantMap()); }},
     };
     const auto it = table.constFind(method);
     if (it == table.cend()) {

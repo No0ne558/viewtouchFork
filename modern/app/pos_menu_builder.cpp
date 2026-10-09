@@ -220,6 +220,10 @@ bool PosService::deleteCategory(const QString &id)
     std::vector<MenuCategory> list = s_->categories();
     std::erase_if(list, [&](const MenuCategory &c) { return qs(c.id) == id; });
     s_->settings.menuCategories = list;
+    // Screens that started orders on it: the meal's categories again.
+    for (TerminalConfig &t : s_->settings.terminals)
+        if (qs(t.startCategory) == id)
+            t.startCategory.clear();
     settingsChanged();
     menuChanged();
     emit notice(tr("Category removed"));

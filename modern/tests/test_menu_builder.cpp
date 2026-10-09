@@ -467,3 +467,22 @@ TEST_CASE("Printers: what was learned about one is kept, until its address chang
     REQUIRE(pos.adminSave(u"printers"_s, at, record));
     CHECK_FALSE(printers[at].reportsStatus);              // another address: maybe another printer
 }
+
+TEST_CASE("Sent by a screen: reports and settings only for managers", "[security][managersonly]")
+{
+    PosService pos(test::seedPosData(true), nullptr);
+    const auto ask = [&](const QString &m, const QVariantList &a) {
+        QVariant out;
+        pos.invoke(m, a, [&](const QVariant &v) { out = v; });
+        return out;
+    };
+    REQUIRE(pos.loginWithPin(u"2222"_s));   // a server
+    CHECK(ask(u"adminRecords"_s, {u"employees"_s}).toList().isEmpty());
+    CHECK(ask(u"adminFields"_s, {u"store"_s}).toList().isEmpty());
+    CHECK(ask(u"adminNewRecord"_s, {u"employees"_s}).toMap().isEmpty());
+    CHECK(ask(u"report"_s, {u"sales"_s, 0}).toMap().value(u"rows"_s).toList().isEmpty());
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"1234"_s));   // a manager
+    CHECK_FALSE(ask(u"adminRecords"_s, {u"employees"_s}).toList().isEmpty());
+    CHECK_FALSE(ask(u"report"_s, {u"sales"_s, 0}).toMap().value(u"title"_s).toString().contains(u"managers"_s));
+}

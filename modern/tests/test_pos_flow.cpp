@@ -5400,3 +5400,70 @@ TEST_CASE("Flow: a menu exported at one store, imported at another", "[flow][men
     // Not a menu.
     CHECK(b.c.readMenuFile(QUrl::fromLocalFile(dir.filePath(u"x.json"_s))).contains(u"error"_s));
 }
+
+TEST_CASE("UI: a card not saved is kept while the Menu Builder is left", "[flow][ui][menubuild][keptcard]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto shown = [&](const QString &name) { QQuickItem *i = by(name); return i && i->isVisible(); };
+    s.tapItem(by(u"builderCategory-burgers"_s));
+    QTest::qWait(60);
+    s.tapItem(by(u"builderItem-classic-burger"_s));
+    QTest::qWait(60);
+    CHECK_FALSE(shown(u"builderNotSaved"_s));
+    QQuickItem *price = by(u"builderPrice"_s);
+    s.tapItem(price);
+    QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
+    for (const char *ch = "15.5"; *ch; ++ch)
+        QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+    QTest::qWait(60);
+    CHECK(shown(u"builderNotSaved"_s));
+    // Off to another page, then back.
+    REQUIRE(s.c.jumpTo(u"manager"_s));
+    QTest::qWait(100);
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(150);
+    root = s.window->contentItem();
+    REQUIRE(by(u"builderPrice"_s));
+    CHECK(by(u"builderPrice"_s)->property("text").toString() == u"15.5"_s);
+    CHECK(shown(u"builderNotSaved"_s));
+    s.tapItem(by(u"builderSave"_s));
+    QTest::qWait(150);
+    for (const QVariant &m : s.pos.menuItems())
+        if (m.toMap()[u"id"_s] == u"classic-burger"_s)
+            CHECK(m.toMap()[u"price"_s] == u"$15.50"_s);
+    CHECK_FALSE(shown(u"builderNotSaved"_s));
+    // Saved: nothing kept the next time.
+    REQUIRE(s.c.jumpTo(u"manager"_s));
+    QTest::qWait(100);
+    CHECK_FALSE(s.c.take(u"menuBuilder"_s).isValid());
+}
+
+TEST_CASE("Flow: an item taken off the menu takes its hand-placed buttons; a category gone, the screen's start too", "[flow][leftbehind]")
+{
+    Session s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.saveMenuItemCard({{u"name"_s, u"Patty Melt"_s}, {u"price"_s, u"12.75"_s}, {u"family"_s, u"burgers"_s}}));
+    QString melt;
+    for (const QVariant &m : s.pos.menuItems())
+        if (m.toMap()[u"name"_s] == u"Patty Melt"_s)
+            melt = m.toMap()[u"id"_s].toString();
+    REQUIRE(s.c.addItemButton(u"items-burgers"_s, melt, u"Patty Melt"_s));
+    REQUIRE(s.c.activeLayout().page(u"items-burgers"_s)->zone(u"item-"_s + melt));
+    REQUIRE(s.pos.deleteMenuItemCard(melt));
+    CHECK(s.c.removeItemButtons(melt) == 1);
+    CHECK_FALSE(s.c.activeLayout().page(u"items-burgers"_s)->zone(u"item-"_s + melt));
+    CHECK(s.c.activeLayout().page(u"items-burgers"_s)->zone(u"item-1"_s));   // the others stay
+
+    REQUIRE(s.pos.saveCategory({{u"name"_s, u"Desserts"_s}}));
+    core::TerminalConfig t;
+    t.name = s.pos.terminalName().toStdString();
+    t.startCategory = "desserts";
+    s.pos.shared()->settings.terminals.push_back(t);
+    REQUIRE(s.pos.deleteCategory(u"desserts"_s));
+    CHECK(s.pos.shared()->settings.terminals.back().startCategory.empty());
+}
