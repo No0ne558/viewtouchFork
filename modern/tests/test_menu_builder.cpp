@@ -626,3 +626,32 @@ TEST_CASE("Colors the store mixed: newest first, a dozen kept, stored", "[menubu
     REQUIRE(pos.loginWithPin(u"2222"_s));
     CHECK_FALSE(pos.addCustomColor(u"#ffffff"_s));
 }
+
+TEST_CASE("Menu Builder: a category's buttons: their size, photos, prices", "[menubuilder][categorylook]")
+{
+    test::RecordingSink sink;
+    PosService pos(test::seedPosData(), &sink);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.saveCategory({{u"id"_s, u"burgers"_s}, {u"name"_s, u"Burgers"_s}, {u"buttonSize"_s, u"large"_s},
+                              {u"photos"_s, true}, {u"hidePrice"_s, true}}));
+    const QVariantMap c = category(pos, u"burgers"_s);
+    CHECK(c[u"buttonSize"_s] == u"large"_s);
+    CHECK(c[u"photos"_s].toBool());
+    CHECK(c[u"hidePrice"_s].toBool());
+    CHECK_FALSE(pos.saveCategory({{u"id"_s, u"burgers"_s}, {u"name"_s, u"Burgers"_s}, {u"buttonSize"_s, u"huge"_s}}));
+    // Kept with the store's settings, and in a menu file for another store.
+    const auto back = app::settingsFromJson(app::toJson(pos.shared()->settings));
+    const auto it = std::ranges::find_if(back.menuCategories, [](const core::MenuCategory &x) { return x.id == "burgers"; });
+    REQUIRE(it != back.menuCategories.end());
+    CHECK(it->buttonSize == "large");
+    CHECK(it->photos);
+    CHECK(it->hidePrice);
+    bool exported = false;
+    for (const QVariant &x : pos.menuExport()[u"categories"_s].toList())
+        if (x.toMap()[u"id"_s] == u"burgers"_s)
+            exported = x.toMap()[u"buttonSize"_s] == u"large"_s && x.toMap()[u"hidePrice"_s].toBool();
+    CHECK(exported);
+    // Back to fitting.
+    REQUIRE(pos.saveCategory({{u"id"_s, u"burgers"_s}, {u"name"_s, u"Burgers"_s}, {u"buttonSize"_s, u""_s}}));
+    CHECK(category(pos, u"burgers"_s)[u"buttonSize"_s] == u""_s);
+}

@@ -1206,6 +1206,39 @@ TEST_CASE("UI: colors: the store's, picked by touch; one mixed is kept for the s
         s.window->grabWindow().save(qEnvironmentVariable("VTM_SHOTS") + u"/color-category.png"_s);
 }
 
+TEST_CASE("UI: a category's buttons on the order screen: small or large, prices or not", "[flow][ui][categorylook]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"menu-all"_s));
+    s.c.setMenuCategory(u"burgers"_s);
+    QTest::qWait(80);
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    const auto widthOf = [&] {
+        QQuickItem *b = find(u"menuItem-classic-burger"_s);
+        return b ? b->width() : 0.0;
+    };
+    const auto look = [&](const QString &size, bool hidePrice) {
+        REQUIRE(s.pos.saveCategory({{u"id"_s, u"burgers"_s}, {u"name"_s, u"Burgers"_s}, {u"buttonSize"_s, size},
+                                    {u"hidePrice"_s, hidePrice}}));
+        QTest::qWait(80);
+    };
+    look(u"small"_s, false);
+    const double small = widthOf();
+    REQUIRE(find(u"menuPrice-classic-burger"_s));
+    look(u"large"_s, true);
+    const double large = widthOf();
+    CHECK(small > 0);
+    CHECK(large > small * 1.6);
+    CHECK_FALSE(find(u"menuPrice-classic-burger"_s));      // no price on it
+    s.shot("79-category-large");
+    // Sold out still says so.
+    REQUIRE(s.pos.setAvailable(u"classic-burger"_s, false));
+    QTest::qWait(60);
+    CHECK(find(u"menuPrice-classic-burger"_s));
+}
+
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
 {
     Screen s;

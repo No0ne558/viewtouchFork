@@ -196,6 +196,16 @@ bool PosService::saveCategory(const QVariantMap &record)
         c.station = ss(record.value(u"station"_s).toString());
     if (record.contains(u"taxClass"_s))
         c.taxClass = ss(record.value(u"taxClass"_s).toString());
+    if (record.contains(u"buttonSize"_s)) {
+        const QString size = record.value(u"buttonSize"_s).toString();
+        if (!QStringList{QString(), u"small"_s, u"medium"_s, u"large"_s}.contains(size))
+            return fail(tr("Button size is small, medium or large."));
+        c.buttonSize = ss(size);
+    }
+    if (record.contains(u"photos"_s))
+        c.photos = record.value(u"photos"_s).toBool();
+    if (record.contains(u"hidePrice"_s))
+        c.hidePrice = record.value(u"hidePrice"_s).toBool();
     if (it != list.end())
         *it = c;
     else
@@ -950,7 +960,8 @@ int PosService::importMenuFile(const QVariantMap &file)
             if (std::ranges::any_of(s_->settings.mealPeriods, [&](const MealPeriod &m) { return m.id == p; }))
                 periods << qs(p);
         if (!saveCategory({{u"name"_s, qs(c.name)}, {u"color"_s, qs(c.color)}, {u"periods"_s, periods},
-                           {u"printer"_s, qs(c.printer)}, {u"station"_s, qs(c.station)}, {u"taxClass"_s, qs(c.taxClass)}}))
+                           {u"printer"_s, qs(c.printer)}, {u"station"_s, qs(c.station)}, {u"taxClass"_s, qs(c.taxClass)},
+                           {u"buttonSize"_s, qs(c.buttonSize)}, {u"photos"_s, c.photos}, {u"hidePrice"_s, c.hidePrice}}))
             return 0;
         for (const MenuCategory &x : s_->categories())
             if (sameName(x.name, qs(c.name)))

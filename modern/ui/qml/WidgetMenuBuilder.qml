@@ -114,9 +114,10 @@ Item {
     }
     function categoryDraft(c) {
         return c ? { id: c.id, name: c.name, color: c.color, periods: c.periods.slice(), printer: c.printer,
-                     station: c.station, taxClass: c.taxClass }
+                     station: c.station, taxClass: c.taxClass, buttonSize: c.buttonSize ?? "", photos: c.photos === true,
+                     hidePrice: c.hidePrice === true }
                  : { id: "", name: "", color: StoreColors.starters[categories.length % StoreColors.starters.length], periods: [],
-                     printer: "kitchen", station: "", taxClass: "food" }
+                     printer: "kitchen", station: "", taxClass: "food", buttonSize: "", photos: false, hidePrice: false }
     }
     function groupDraft(g) {
         const kind = !g ? "one" : g.max === 1 ? "one" : g.max === 0 ? "any" : "upTo"
@@ -1339,6 +1340,56 @@ Item {
                                             onClicked: w.toggleIn("periods", modelData.id)
                                         }
                                     }
+                                }
+                            }
+                            // How its items look on the order screen.
+                            Label { text: qsTr("Its buttons on the order screen"); font.pixelSize: 16; font.bold: true }
+                            GridLayout {
+                                Layout.fillWidth: true
+                                columns: 2
+                                columnSpacing: 10
+                                rowSpacing: 8
+                                Label { text: qsTr("Size") }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    Repeater {
+                                        model: [{ id: "", name: qsTr("Fit") }, { id: "small", name: qsTr("Small") },
+                                                { id: "medium", name: qsTr("Medium") }, { id: "large", name: qsTr("Large") }]
+                                        delegate: TouchButton {
+                                            required property var modelData
+                                            objectName: "builderButtonSize-" + (modelData.id || "fit")
+                                            Layout.fillWidth: true
+                                            Layout.preferredWidth: 1
+                                            font.pixelSize: 15
+                                            checkable: true
+                                            checked: (w.draft.buttonSize ?? "") === modelData.id
+                                            highlighted: checked
+                                            text: modelData.name
+                                            onClicked: w.set("buttonSize", modelData.id)
+                                        }
+                                    }
+                                }
+                                Label {
+                                    Layout.columnSpan: 2
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WordWrap
+                                    opacity: 0.7
+                                    font.pixelSize: 13
+                                    text: (w.draft.buttonSize ?? "") === "" ? qsTr("Fit: as big as they can be with all of them showing.")
+                                        : qsTr("Many small ones for drinks, a few large ones for plates; more scroll.")
+                                }
+                                Label { text: qsTr("Photos") }
+                                Switch {
+                                    objectName: "builderCategoryPhotos"
+                                    checked: w.draft.photos === true
+                                    onToggled: w.set("photos", checked)
+                                }
+                                Label { text: qsTr("Prices") }
+                                Switch {
+                                    objectName: "builderCategoryPrices"
+                                    checked: w.draft.hidePrice !== true
+                                    onToggled: w.set("hidePrice", !checked)
                                 }
                             }
                             Label { text: qsTr("New items in it start with"); font.pixelSize: 16; font.bold: true }

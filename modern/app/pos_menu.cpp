@@ -483,7 +483,8 @@ QVariantList PosService::menuCategories() const
                                {u"periods"_s, periods}, {u"count"_s, qint64(count)},
                                {u"now"_s, c.periods.empty() || std::ranges::find(c.periods, period) != c.periods.end()},
                                {u"printer"_s, qs(c.printer)}, {u"station"_s, qs(c.station)},
-                               {u"taxClass"_s, qs(c.taxClass)}});
+                               {u"taxClass"_s, qs(c.taxClass)}, {u"buttonSize"_s, qs(c.buttonSize)},
+                               {u"photos"_s, c.photos}, {u"hidePrice"_s, c.hidePrice}});
     }
     return out;
 }

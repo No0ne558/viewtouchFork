@@ -138,6 +138,12 @@ struct MenuCategory {
     std::string printer;                // their kitchen ticket ("kitchen", "bar")
     std::string station;                // made at (kitchen screen)
     std::string taxClass;               // "food", "alcohol"...; empty: food
+    // Its items' buttons on the order screen: their size ("small", "medium",
+    // "large"; empty: as many as fit, as big as they can be), with photos,
+    // without prices.
+    std::string buttonSize;
+    bool photos = false;
+    bool hidePrice = false;
 
     bool operator==(const MenuCategory &) const = default;
 };

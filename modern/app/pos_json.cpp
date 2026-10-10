@@ -784,7 +784,9 @@ QJsonObject toJson(const PosSettings &s)
                      periods.append(qs(p));
                  out.append(QJsonObject{{u"id"_s, qs(c.id)}, {u"name"_s, qs(c.name)}, {u"color"_s, qs(c.color)},
                                         {u"periods"_s, periods}, {u"printer"_s, qs(c.printer)},
-                                        {u"station"_s, qs(c.station)}, {u"taxClass"_s, qs(c.taxClass)}});
+                                        {u"station"_s, qs(c.station)}, {u"taxClass"_s, qs(c.taxClass)},
+                                        {u"buttonSize"_s, qs(c.buttonSize)}, {u"photos"_s, c.photos},
+                                        {u"hidePrice"_s, c.hidePrice}});
              }
              return out;
          }()},
@@ -1174,6 +1176,9 @@ PosSettings settingsFromJson(const QJsonObject &o)
         cat.printer = ss(c.value(u"printer").toString());
         cat.station = ss(c.value(u"station").toString());
         cat.taxClass = ss(c.value(u"taxClass").toString());
+        cat.buttonSize = ss(c.value(u"buttonSize").toString());
+        cat.photos = c.value(u"photos").toBool();
+        cat.hidePrice = c.value(u"hidePrice").toBool();
         if (!cat.id.empty())
             s.menuCategories.push_back(std::move(cat));
     }

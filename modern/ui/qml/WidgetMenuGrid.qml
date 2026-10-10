@@ -16,7 +16,14 @@ Item {
     // Columns: set, or (none set) as many as fit the items without scrolling,
     // as big as they can be.
     readonly property int setColumns: zone && zone.props && zone.props.columns > 0 ? zone.props.columns : 0
-    readonly property int columns: setColumns > 0 ? setColumns : fitColumns
+    // The category shown: its own button size, photos, prices (Menu Builder).
+    readonly property var shownCategory: !search && !popular && family !== "★" ? categoryOf(family) : ({})
+    readonly property string buttonSize: shownCategory.buttonSize ?? ""
+    readonly property bool hidePrice: shownCategory.hidePrice === true
+    // A size chosen: as many of that width as fit across (rows scroll).
+    readonly property real sizeWidth: ({ small: 190, medium: 270, large: 400 })[buttonSize] ?? 0
+    readonly property int columns: sizeWidth > 0 ? Math.max(1, Math.round(grid.width / sizeWidth))
+                                 : setColumns > 0 ? setColumns : fitColumns
     readonly property int fitColumns: {
         const n = Math.max(1, shown.length)
         const W = grid.width, H = grid.height
@@ -29,7 +36,7 @@ Item {
         }
         return best
     }
-    readonly property bool photos: zone && zone.props && zone.props.photos === true
+    readonly property bool photos: (zone && zone.props && zone.props.photos === true) || shownCategory.photos === true
     readonly property bool search: zone && zone.props && zone.props.search === true
     readonly property bool popular: zone && zone.props && zone.props.popular === true
     readonly property string typed: pos && search ? pos.textEntry.trim().toLowerCase() : ""
@@ -145,7 +152,8 @@ Item {
             model: w.shown
             cellWidth: width / w.columns
             // Set columns: as before. Fitted: as tall as the rows allow.
-            cellHeight: w.setColumns > 0 ? Math.min(cellWidth * (w.photos ? 0.9 : 0.6), Math.max(110, height / 3))
+            cellHeight: w.sizeWidth > 0 ? cellWidth * (w.photos ? 0.95 : ({ small: 0.62, medium: 0.68, large: 0.72 })[w.buttonSize])
+                      : w.setColumns > 0 ? Math.min(cellWidth * (w.photos ? 0.9 : 0.6), Math.max(110, height / 3))
                                         : Math.max(90, Math.min(cellWidth * (w.photos ? 0.9 : 0.75),
                                                                 height / Math.ceil(Math.max(1, w.shown.length) / w.columns)))
             boundsBehavior: Flickable.StopAtBounds
@@ -267,11 +275,15 @@ Item {
                         }
                         Text {
                             id: price
+                            objectName: "menuPrice-" + cell.modelData.id
+                            visible: !w.hidePrice || !cell.modelData.available
+                            height: visible ? implicitHeight : 0
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             text: !cell.modelData.available ? qsTr("SOLD OUT")
                                 : cell.modelData.price + (cell.modelData.byWeight ? " / " + cell.modelData.unit : "")
-                            color: !cell.modelData.available ? "#ff6b6b" : Qt.rgba(1, 1, 1, 0.75)
+                            color: !cell.modelData.available ? "#ff6b6b" : name.color
+                            opacity: cell.modelData.available ? 0.8 : 1
                             font.family: card.st.keyFont ?? w.face
                             font.pixelSize: Math.max(12, name.font.pixelSize * 0.8)
                         }
