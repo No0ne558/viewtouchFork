@@ -147,6 +147,14 @@ public:
 
     // Save the report on screen as "csv" or "pdf" in the export folder.
     Q_INVOKABLE void exportReport(const QVariantMap &report, const QString &format);
+    // A menu to print (Menu Builder -> Print Menu…), from the menu as it is
+    // now. options: {title, subtitle, categories: [ids] (empty: all),
+    // columns, pictures, descriptions, soldOut (list them too), paper:
+    // "letter" | "a4"}. Saved as a PDF in the exports folder; returns it.
+    Q_INVOKABLE QString printMenu(const QVariantMap &options);
+    // Its first page as a picture to look at (a file: url), and how many pages.
+    Q_INVOKABLE QString menuPreview(const QVariantMap &options, int width);
+    Q_INVOKABLE int menuPages(const QVariantMap &options);
     void setExportDirectory(const QString &dir) { exportDir_ = dir; }
 
     // Change the choices of an unsent item: opens the Choose page for it.

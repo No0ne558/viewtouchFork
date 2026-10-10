@@ -201,6 +201,7 @@ if(Qt6_FOUND)
             ui/cpp/editorcontroller.hh ui/cpp/editorcontroller.cpp
             ui/cpp/joincontroller.hh ui/cpp/joincontroller.cpp
             ui/cpp/reportexport.hh ui/cpp/reportexport.cpp
+            ui/cpp/menuprint.hh ui/cpp/menuprint.cpp
             ui/cpp/cardreader.hh ui/cpp/cardreader.cpp
             ui/cpp/posforeign.hh
     )

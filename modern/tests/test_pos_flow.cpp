@@ -11,6 +11,7 @@
 #include <QRegularExpression>
 #include <QPainter>
 #include <QTemporaryDir>
+#include "menuprint.hh"
 #include "app/i18n.hh"
 #include "language.hh"
 #include "fake_stripe.hh"
@@ -1523,6 +1524,86 @@ TEST_CASE("UI: Menu Builder: a color theme for every category", "[flow][ui][them
     CHECK(cats[0].toMap()[u"color"_s] == u"#e53935"_s);
     CHECK(cats[1].toMap()[u"color"_s] == u"#fb8c00"_s);
     CHECK(s.pos.menuUndoText() == u"Category colors"_s);
+}
+
+TEST_CASE("Printed menu: pictures, sizes, page breaks", "[printmenu]")
+{
+    MenuPrint m;
+    m.title = u"Tacos"_s;
+    QImage red(200, 120, QImage::Format_RGB32);
+    red.fill(Qt::red);
+    MenuPrintCategory c;
+    c.name = u"Tacos"_s;
+    c.items << MenuPrintItem{u"Al Pastor"_s, u"Pork, pineapple"_s, QString(), {u"Small $3.00"_s, u"Large $5.00"_s}, {}, red};
+    m.categories << c;
+    const QImage page = menuPreview(m, 600);
+    int reds = 0;
+    for (int y = 0; y < page.height(); y += 2)
+        for (int x = 0; x < page.width(); x += 2)
+            reds += page.pixel(x, y) == qRgb(255, 0, 0);
+    CHECK(reds > 100);
+    m.pictures = false;
+    const QImage plain = menuPreview(m, 600);
+    reds = 0;
+    for (int y = 0; y < plain.height(); y += 2)
+        for (int x = 0; x < plain.width(); x += 2)
+            reds += plain.pixel(x, y) == qRgb(255, 0, 0);
+    CHECK(reds == 0);
+    // Many items: more pages.
+    for (int i = 0; i < 200; ++i)
+        m.categories[0].items << MenuPrintItem{u"Taco %1"_s.arg(i), {}, u"$3.00"_s, {}, {}, {}};
+    CHECK(menuPageCount(m) > 1);
+}
+
+TEST_CASE("UI: Menu Builder: a printed menu, as a PDF", "[flow][ui][printmenu]")
+{
+    Screen s(false, 1280, 800);
+    QTemporaryDir dir;
+    s.c.setExportDirectory(dir.path());
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto tap = [&](const QString &name) {
+        QQuickItem *it = by(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(60);
+    };
+    s.shot("89-builder-print-key");
+    tap(u"builderPrintMenu"_s);
+    QQuickItem *preview = nullptr;
+    for (int i = 0; i < 100 && !(preview && !preview->property("source").toString().isEmpty()
+                                 && preview->property("status").toInt() == 1); ++i) {   // Image.Ready
+        QTest::qWait(30);
+        preview = by(u"printPreview"_s);
+    }
+    REQUIRE(preview);
+    CHECK(preview->property("status").toInt() == 1);
+    s.shot("88-printed-menu");
+    tap(u"printOneColumn"_s);
+    CHECK(by(u"printOneColumn"_s)->property("text").toString().startsWith(u"✓"_s));
+    CHECK_FALSE(by(u"printTwoColumns"_s)->property("text").toString().startsWith(u"✓"_s));
+    tap(u"printOneColumn"_s);                                   // still chosen
+    CHECK(by(u"printOneColumn"_s)->property("text").toString().startsWith(u"✓"_s));
+    tap(u"printTwoColumns"_s);
+
+    // One column takes more pages than two.
+    const int two = s.c.menuPages({{u"columns"_s, 2}});
+    CHECK(two >= 1);
+    CHECK(s.c.menuPages({{u"columns"_s, 1}}) >= two);
+    // Only one category.
+    const QString first = s.pos.menuCategories()[0].toMap()[u"id"_s].toString();
+    CHECK(s.c.menuPages({{u"categories"_s, QStringList{first}}}) == 1);
+
+    tap(u"printSave"_s);
+    const QStringList files = QDir(dir.path()).entryList({u"menu-*.pdf"_s});
+    REQUIRE(files.size() == 1);
+    QFile pdf(QDir(dir.path()).filePath(files[0]));
+    REQUIRE(pdf.open(QIODevice::ReadOnly));
+    CHECK(pdf.read(5) == "%PDF-");
+    CHECK(pdf.size() > 2000);
 }
 
 TEST_CASE("UI: Menu Builder: an item's sizes", "[flow][ui][sizes]")

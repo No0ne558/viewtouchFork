@@ -21,6 +21,7 @@
 #include "layout/menu_screens.hh"
 #include "layout/reflow.hh"
 #include "layout/schema.hh"
+#include "menuprint.hh"
 #include "reportexport.hh"
 #include "storage/layout_store.hh"
 
@@ -622,6 +623,108 @@ void LayoutController::exportReport(const QVariantMap &report, const QString &fo
     QString error;
     const QString file = format == u"pdf" ? exportReportPdf(report, dir, &error) : exportReportCsv(report, dir, &error);
     setStatus(file.isEmpty() ? tr("Could not save the report: %1").arg(error) : tr("Saved to %1").arg(file));
+}
+
+namespace {
+
+MenuPrint menuToPrint(const PosSession &pos, const QVariantMap &o)
+{
+    MenuPrint m;
+    m.title = o.value(u"title"_s, pos.storeName()).toString();
+    m.subtitle = o.value(u"subtitle"_s).toString();
+    m.columns = o.value(u"columns"_s, 2).toInt();
+    m.pictures = o.value(u"pictures"_s, true).toBool();
+    m.descriptions = o.value(u"descriptions"_s, true).toBool();
+    m.page = QPageSize(o.value(u"paper"_s).toString() == u"a4" ? QPageSize::A4 : QPageSize::Letter);
+    const QStringList only = o.value(u"categories"_s).toStringList();
+    const bool soldOut = o.value(u"soldOut"_s, false).toBool();
+    const QVariantList items = pos.menuItems();
+    for (const QVariant &cv : pos.menuCategories()) {
+        const QVariantMap c = cv.toMap();
+        const QString id = c.value(u"id"_s).toString();
+        if (!only.isEmpty() && !only.contains(id))
+            continue;
+        MenuPrintCategory cat;
+        cat.name = c.value(u"name"_s).toString();
+        cat.color = QColor(c.value(u"color"_s).toString());
+        for (const QVariant &iv : items) {
+            const QVariantMap i = iv.toMap();
+            if (i.value(u"family"_s).toString() != id || i.value(u"modifier"_s).toBool())
+                continue;
+            if (!soldOut && !i.value(u"availableSet"_s, true).toBool())
+                continue;
+            MenuPrintItem item;
+            item.name = i.value(u"name"_s).toString();
+            item.description = i.value(u"description"_s).toString();
+            item.section = i.value(u"section"_s).toString();
+            const QVariantList sizes = i.value(u"sizes"_s).toList();
+            for (const QVariant &sv : sizes) {
+                const QVariantMap sz = sv.toMap();
+                item.sizes << sz.value(u"name"_s).toString() + u" "_s + sz.value(u"priceText"_s).toString();
+            }
+            if (sizes.isEmpty() && i.value(u"priceValue"_s).toDouble() > 0) {   // free (water): no price
+                item.price = i.value(u"regularPrice"_s).toString();
+                if (i.value(u"byWeight"_s).toBool())
+                    item.price += u" / "_s + i.value(u"unit"_s).toString();
+            }
+            if (m.pictures) {
+                // A picture of its own (not an emoji drawn for it: those are for buttons).
+                const QString ref = i.value(u"image"_s).toString();
+                const QUrl url(pos.imageUrl(ref));
+                if (!ref.isEmpty() && !ref.startsWith(u"store:emoji-"_s))
+                    item.picture = QImage(url.isLocalFile() ? url.toLocalFile()
+                                          : url.scheme() == u"qrc" ? u":"_s + url.path() : QString());
+            }
+            cat.items << item;
+        }
+        if (!cat.items.isEmpty())
+            m.categories << cat;
+    }
+    return m;
+}
+
+} // namespace
+
+QString LayoutController::printMenu(const QVariantMap &options)
+{
+    if (!pos_)
+        return {};
+    const QString dir = exportDir_.isEmpty() ? QDir::home().filePath(u"ViewTouch Exports"_s) : exportDir_;
+    if (!QDir().mkpath(dir)) {
+        setStatus(tr("Could not save the menu: %1").arg(tr("Cannot create %1").arg(dir)));
+        return {};
+    }
+    const QString file = QDir(dir).filePath(u"menu-%1.pdf"_s.arg(QDateTime::currentDateTime().toString(u"yyyyMMdd-HHmmss"_s)));
+    QString error;
+    if (!exportMenuPdf(menuToPrint(*pos_, options), file, &error)) {
+        setStatus(tr("Could not save the menu: %1").arg(error));
+        return {};
+    }
+    setStatus(tr("Saved to %1").arg(file));
+    return file;
+}
+
+QString LayoutController::menuPreview(const QVariantMap &options, int width)
+{
+    if (!pos_)
+        return {};
+    const QImage img = ::menuPreview(menuToPrint(*pos_, options), std::clamp(width, 100, 2000));
+    // A new name each time, so the screen shows the new one.
+    static int serial = 0;
+    const QString dir = QDir::temp().filePath(u"viewtouch-menu-preview"_s);
+    QDir().mkpath(dir);
+    const QString mine = u"page-%1-"_s.arg(QCoreApplication::applicationPid());
+    for (const QString &old : QDir(dir).entryList({mine + u"*.png"_s}, QDir::Files))
+        QFile::remove(QDir(dir).filePath(old));
+    const QString file = QDir(dir).filePath(mine + QString::number(++serial) + u".png"_s);
+    if (!img.save(file))
+        return {};
+    return QUrl::fromLocalFile(file).toString();
+}
+
+int LayoutController::menuPages(const QVariantMap &options)
+{
+    return pos_ ? menuPageCount(menuToPrint(*pos_, options)) : 0;
 }
 
 void LayoutController::chooseLine(qint64 lineId)

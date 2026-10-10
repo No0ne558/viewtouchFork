@@ -472,7 +472,8 @@ QVariantList PosService::sizesOf(const MenuItem &m) const
     if (const ModifierGroup *g = s_->settings.modifierGroup("size-" + m.id))
         for (const ModifierOption &o : g->options)
             out.append(QVariantMap{{u"name"_s, qs(o.name)},
-                                   {u"price"_s, QString::number(double(m.price.cents() + o.price.cents()) / 100.0, 'f', 2)}});
+                                   {u"price"_s, QString::number(double(m.price.cents() + o.price.cents()) / 100.0, 'f', 2)},
+                                   {u"priceText"_s, format(m.price + o.price)}});
     return out;
 }
 
@@ -549,6 +550,7 @@ QVariantList PosService::menuItems() const
     for (const MenuItem &m : s_->menu) {
         out.append(QVariantMap{{u"id"_s, qs(m.id)}, {u"name"_s, qs(m.name)}, {u"family"_s, qs(m.family)},
                                {u"price"_s, format(m.priceDuring(period))}, {u"modifier"_s, m.isModifier},
+                               {u"regularPrice"_s, format(m.price)},
                                {u"available"_s, m.available && ticketsLeft(m) != 0}, {u"image"_s, qs(m.image)},
                                {u"color"_s, qs(m.kitchenColor)}, {u"byWeight"_s, m.byWeight},
                                {u"unit"_s, qs(m.weightUnit)}, {u"number"_s, qs(m.number)},
