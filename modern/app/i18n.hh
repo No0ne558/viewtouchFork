@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QJsonObject>
+#include <QLocale>
 #include <QString>
 #include <QStringList>
 
@@ -34,6 +35,9 @@ void install(const QString &overridesDir = {});
 QString current();
 // This screen's language. Returns whether it changed.
 bool setLanguage(const QString &code);
+// Dates, weekdays and numbers in a language (the region stays the
+// computer's: es in the US writes 3:15 p.m. and 1,234.50). Empty: current().
+QLocale locale(const QString &code = {});
 // The customer display, receipts and tickets: the store's language.
 QString guestLanguage();
 void setGuestLanguage(const QString &code);

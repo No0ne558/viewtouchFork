@@ -1,6 +1,7 @@
 // PosService: business day, cash drawer, reports, receipts, split checks.
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
 #include "app/pos_service.hh"
 
 #include <QDateTime>
@@ -17,7 +18,24 @@ namespace {
 
 QString clockText(std::int64_t ms)
 {
-    return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
+    return i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
+}
+
+// A report's words in the screen's language: its title, columns, and each
+// cell that is a phrase on its own ("Net sales"; amounts and names stay).
+QString reportWords(const std::string &text)
+{
+    const QString english = qs(text);
+    const QString t = english.isEmpty() ? QString() : i18n::lookup(i18n::current(), english);
+    if (!t.isEmpty())
+        return t;
+    // "Voided items (3)": the words before the count.
+    if (const qsizetype open = english.indexOf(u" ("_s); open > 0) {
+        const QString head = i18n::lookup(i18n::current(), english.left(open + 2));
+        if (!head.isEmpty())
+            return head + english.mid(open + 2);
+    }
+    return english;
 }
 
 QVariantMap toVariant(const Report &r)
@@ -26,7 +44,7 @@ QVariantMap toVariant(const Report &r)
     for (const ReportRow &row : r.rows) {
         QStringList cells;
         for (const std::string &c : row.cells)
-            cells << qs(c);
+            cells << reportWords(c);
         QString kind = u"line"_s;
         if (row.kind == ReportRow::Kind::Section) kind = u"section"_s;
         else if (row.kind == ReportRow::Kind::Total) kind = u"total"_s;
@@ -35,8 +53,8 @@ QVariantMap toVariant(const Report &r)
     }
     QStringList columns;
     for (const std::string &c : r.columns)
-        columns << qs(c);
-    return {{u"id"_s, qs(r.id)}, {u"title"_s, qs(r.title)}, {u"subtitle"_s, qs(r.subtitle)},
+        columns << reportWords(c);
+    return {{u"id"_s, qs(r.id)}, {u"title"_s, reportWords(r.title)}, {u"subtitle"_s, reportWords(r.subtitle)},
             {u"columns"_s, columns}, {u"rows"_s, rows}};
 }
 
@@ -57,7 +75,7 @@ void PosShared::startDay()
 QString PosService::dayLabel(const BusinessDay &day) const
 {
     const QDateTime opened = QDateTime::fromMSecsSinceEpoch(day.openedAt);
-    return QLocale().toString(opened.date(), QLocale::ShortFormat) + u"  "_s + clockText(day.openedAt);
+    return i18n::locale().toString(opened.date(), QLocale::ShortFormat) + u"  "_s + clockText(day.openedAt);
 }
 
 ReportContext PosService::reportContext(const QString &period) const
@@ -71,7 +89,7 @@ ReportContext PosService::reportContext(const QString &period) const
                          [](std::int64_t ms) { return int(QDateTime::fromMSecsSinceEpoch(ms).date().toJulianDay()); },
                          weekStart,
                          [](std::int64_t ms) {
-                             return ss(QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).date(), u"MMM d"_s));
+                             return ss(i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(ms).date(), u"MMM d"_s));
                          }};
 }
 
@@ -1042,7 +1060,7 @@ QVariantMap PosService::dayInfo() const
         const bool today = day == QDateTime::fromMSecsSinceEpoch(now()).date();
         clockedIn.append(QVariantMap{
             {u"id"_s, qint64(p.id)}, {u"name"_s, e ? qs(e->name) : qs(p.employeeId)},
-            {u"since"_s, today ? clockText(p.clockIn) : QLocale().toString(day, u"ddd"_s) + u' ' + clockText(p.clockIn)},
+            {u"since"_s, today ? clockText(p.clockIn) : i18n::locale().toString(day, u"ddd"_s) + u' ' + clockText(p.clockIn)},
             {u"overTwelve"_s, now() - p.clockIn > 12LL * 3'600'000}, {u"onBreak"_s, p.onBreak()},
         });
     }
@@ -1333,9 +1351,9 @@ bool PosService::requestRangeReport(const QString &id, const QString &period, co
             return fail(tr("Choose at most a year at a time."));
     }
     const auto startOf = [](QDate d) { return QDateTime(d, QTime(0, 0)).toMSecsSinceEpoch(); };
-    const QString label = from == to ? QLocale().toString(from, u"ddd MMM d, yyyy"_s)
-                                     : tr("%1 - %2").arg(QLocale().toString(from, u"MMM d"_s),
-                                                         QLocale().toString(to, u"MMM d, yyyy"_s));
+    const QString label = from == to ? i18n::locale().toString(from, u"ddd MMM d, yyyy"_s)
+                                     : tr("%1 - %2").arg(i18n::locale().toString(from, u"MMM d"_s),
+                                                         i18n::locale().toString(to, u"MMM d, yyyy"_s));
     const QString beforeLabel = from.addYears(-1).year() == to.addYears(-1).year()
                                     ? QString::number(from.year() - 1) : tr("A year before");
     const std::int64_t a = startOf(from), b = startOf(to.addDays(1));

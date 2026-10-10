@@ -20,7 +20,7 @@ constexpr int kMaxGuests = 99;
 
 QString timeOfDay(std::int64_t ms)
 {
-    return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
+    return i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
 }
 
 QDate dateOf(std::int64_t ms)
@@ -672,7 +672,7 @@ bool PosService::clockOutFor(const Employee &employee)
     const double hours = double(p->workedMs(p->clockOut, s_->settings.paidBreaks)) / 3'600'000.0;
     emit sessionChanged();
     emit s_->dayChanged();
-    emit notice(tr("%1 clocked out (%2 hours)").arg(qs(e->name), QLocale().toString(hours, 'f', 2)));
+    emit notice(tr("%1 clocked out (%2 hours)").arg(qs(e->name), i18n::locale().toString(hours, 'f', 2)));
     return true;
 }
 
@@ -970,7 +970,7 @@ bool PosService::addItem(const QString &idOrName)
         MenuItem priced = *item;   // the price for this meal period (dinner, happy hour...) and order type
         priced.price = extra(item->priceFor(currentMealPeriod(), c.type == CheckType::Takeout, c.type == CheckType::Delivery));
         if (item->eventAt > 0)   // the ticket says when
-            priced.name += " (" + ss(QLocale().toString(QDateTime::fromMSecsSinceEpoch(item->eventAt),
+            priced.name += " (" + ss(i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(item->eventAt),
                                                          u"ddd MMM d, h:mm AP"_s)) + ")";
         OrderLine &line = c.addItem(priced, q);
         if (const auto hits = allergyHits(c, line); !hits.empty())
@@ -1246,7 +1246,7 @@ QString PosService::dueText(std::int64_t at) const
         return timeOfDay(at);
     if (day == today.addDays(1))
         return tr("tomorrow %1").arg(timeOfDay(at));
-    return tr("%1, %2").arg(QLocale().toString(day, u"ddd MMM d"_s), timeOfDay(at));
+    return tr("%1, %2").arg(i18n::locale().toString(day, u"ddd MMM d"_s), timeOfDay(at));
 }
 
 bool PosService::waitingForLater(const Check &c) const
@@ -1794,9 +1794,15 @@ QVariantMap PosService::totals() const
     const Totals t = c->totals(s_->settings.tax);
     QVariantList taxLines;
     for (const auto &[cls, amount] : t.taxByClass) {
-        QString name = qs(toString(cls));
-        name[0] = name[0].toUpper();
-        taxLines.append(QVariantMap{{u"name"_s, tr("%1 tax").arg(name)}, {u"amount"_s, format(amount)}});
+        QString name;
+        switch (cls) {
+        case TaxClass::Food: name = tr("Food tax"); break;
+        case TaxClass::Alcohol: name = tr("Alcohol tax"); break;
+        case TaxClass::Merchandise: name = tr("Merchandise tax"); break;
+        case TaxClass::Room: name = tr("Room tax"); break;
+        case TaxClass::None: name = tr("Tax"); break;
+        }
+        taxLines.append(QVariantMap{{u"name"_s, name}, {u"amount"_s, format(amount)}});
     }
     return {
         {u"items"_s, format(t.items)}, {u"discounts"_s, format(-t.discounts)},

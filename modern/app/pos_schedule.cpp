@@ -3,6 +3,7 @@
 // scheduled shift, with a manager able to clock someone in anyway.
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
 #include "app/pos_service.hh"
 
 #include <QDateTime>
@@ -22,7 +23,7 @@ constexpr std::int64_t kMinute = 60'000;
 QString hourText(std::int64_t ms)
 {
     const QTime t = QDateTime::fromMSecsSinceEpoch(ms).time();
-    return t.minute() ? t.toString(u"h:mm AP"_s) : t.toString(u"h AP"_s);
+    return t.minute() ? i18n::locale().toString(t, u"h:mm AP"_s) : i18n::locale().toString(t, u"h AP"_s);
 }
 
 // "2026-10-02 16:00" or epoch ms.
@@ -61,7 +62,7 @@ QString PosService::nextShift() const
         return {};
     const QDate day = QDateTime::fromMSecsSinceEpoch(next->start).date();
     const QDate today = QDateTime::fromMSecsSinceEpoch(now()).date();
-    const QString when = day == today ? tr("today") : day == today.addDays(1) ? tr("tomorrow") : day.toString(u"ddd MMM d"_s);
+    const QString when = day == today ? tr("today") : day == today.addDays(1) ? tr("tomorrow") : i18n::locale().toString(day, u"ddd MMM d"_s);
     return tr("%1 %2 - %3").arg(when, hourText(next->start), hourText(next->end));
 }
 
@@ -93,12 +94,12 @@ QVariantMap PosService::overtimeFor(const std::string &employeeId) const
         const std::int64_t daily = (st.overtimeDailyHours * 60 * kMinute - todayMs) / kMinute;
         left = left ? std::min(*left, daily) : daily;
     }
-    QVariantMap out{{u"weekHours"_s, QLocale().toString(double(weekMs) / (60.0 * kMinute), 'f', 1)},
-                    {u"todayHours"_s, QLocale().toString(double(todayMs) / (60.0 * kMinute), 'f', 1)},
+    QVariantMap out{{u"weekHours"_s, i18n::locale().toString(double(weekMs) / (60.0 * kMinute), 'f', 1)},
+                    {u"todayHours"_s, i18n::locale().toString(double(todayMs) / (60.0 * kMinute), 'f', 1)},
                     {u"state"_s, u"ok"_s}};
     if (left) {
         out.insert(u"leftMinutes"_s, qint64(*left));
-        out.insert(u"left"_s, *left > 0 ? QLocale().toString(double(*left) / 60.0, 'f', 1) : QString());
+        out.insert(u"left"_s, *left > 0 ? i18n::locale().toString(double(*left) / 60.0, 'f', 1) : QString());
         out.insert(u"state"_s, *left <= 0 ? u"over"_s : *left <= 120 ? u"soon"_s : u"ok"_s);
     }
     return out;
@@ -198,17 +199,17 @@ QVariantMap PosService::timeClock() const
         shifts.append(QVariantMap{
             {u"id"_s, qint64(s->id)}, {u"givingAway"_s, givingAway}, {u"future"_s, s->start > t},
             {u"day"_s, day == today ? tr("Today") : day == today.addDays(1) ? tr("Tomorrow")
-                                                                            : QLocale().toString(day, u"ddd MMM d"_s)},
+                                                                            : i18n::locale().toString(day, u"ddd MMM d"_s)},
             {u"hours"_s, tr("%1 - %2").arg(hourText(s->start), hourText(s->end))},
-            {u"length"_s, QLocale().toString(s->hours(), 'f', 1)},
+            {u"length"_s, i18n::locale().toString(s->hours(), 'f', 1)},
             {u"note"_s, qs(s->note)},
             {u"now"_s, s->start <= t && t < s->end},
         });
     }
     return {{u"name"_s, qs(e->name)}, {u"status"_s, status}, {u"since"_s, since}, {u"job"_s, job},
-            {u"breakSince"_s, breakSince}, {u"todayHours"_s, QLocale().toString(double(workedMs) / 3'600'000.0, 'f', 2)},
+            {u"breakSince"_s, breakSince}, {u"todayHours"_s, i18n::locale().toString(double(workedMs) / 3'600'000.0, 'f', 2)},
             {u"punches"_s, punches}, {u"shifts"_s, shifts},
-            {u"weekHours"_s, QLocale().toString(weekHours, 'f', 1)}, {u"overtime"_s, overtimeFor(e->id)},
+            {u"weekHours"_s, i18n::locale().toString(weekHours, 'f', 1)}, {u"overtime"_s, overtimeFor(e->id)},
             {u"choosingJob"_s, jobChoice_ == e->id}, {u"requests"_s, requestsFor(e->id)}};
 }
 
@@ -246,7 +247,7 @@ bool PosService::addShift(const QVariantMap &r)
     std::ranges::sort(s_->shifts, {}, &Shift::start);
     if (s_->sink)
         s_->sink->saveShift(s);
-    emit notice(tr("%1: %2 %3 - %4").arg(qs(e->name), QDateTime::fromMSecsSinceEpoch(s.start).toString(u"ddd"_s),
+    emit notice(tr("%1: %2 %3 - %4").arg(qs(e->name), i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(s.start), u"ddd"_s),
                                          hourText(s.start), hourText(s.end)));
     emit s_->staffChanged();
     return true;
@@ -316,7 +317,7 @@ QVariantMap PosService::scheduleInfo() const
             hours[s.employeeId] += s.hours();
         }
         days.append(QVariantMap{{u"date"_s, date.toString(u"yyyy-MM-dd"_s)},
-                                {u"label"_s, date.toString(u"ddd M/d"_s)}, {u"today"_s, date == today},
+                                {u"label"_s, i18n::locale().toString(date, u"ddd M/d"_s)}, {u"today"_s, date == today},
                                 {u"shifts"_s, list}});
     }
     QVariantList totals;
@@ -332,7 +333,7 @@ QVariantMap PosService::scheduleInfo() const
     }
     return {
         {u"week"_s, scheduleWeek_}, {u"title"_s, scheduleWeek_ == 0 ? tr("This week") : scheduleWeek_ == 1 ? tr("Next week")
-                                                  : tr("Week of %1").arg(first.toString(u"MMM d"_s))},
+                                                  : tr("Week of %1").arg(i18n::locale().toString(first, u"MMM d"_s))},
         {u"days"_s, days}, {u"totals"_s, totals}, {u"staff"_s, staff},
         {u"required"_s, s_->settings.scheduleRequired},
     };

@@ -7,6 +7,7 @@
 #include "qt_catch.hh"
 
 #include <QCoreApplication>
+#include <QDate>
 #include <QSignalSpy>
 
 using namespace Qt::StringLiterals;
@@ -154,4 +155,32 @@ TEST_CASE("The page editor's fields in Spanish", "[i18n][editori18n]")
     for (const QVariant &o : find(e.pageFields(), u"kind"_s)[u"options"_s].toList())
         kindOption |= o.toMap()[u"value"_s] == u"library"_s && o.toMap()[u"text"_s] == u"Biblioteca de botones"_s;
     CHECK(kindOption);
+}
+
+TEST_CASE("Spanish: reports, the tax line, dates and the staff list", "[i18n]")
+{
+    Spanish es;
+    app::PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const i18n::Scope spanish(u"es"_s);
+    // A report's title, columns and whole-phrase rows; the count stays.
+    const QVariantMap sales = pos.report(u"sales"_s);
+    CHECK(sales[u"title"_s] == u"Resumen de ventas"_s);
+    bool netSales = false;
+    for (const QVariant &row : sales[u"rows"_s].toList())
+        netSales = netSales || row.toMap()[u"cells"_s].toStringList().value(0) == u"Ventas netas"_s;
+    CHECK(netSales);
+    // The tax on a check, by its kind.
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(u"cobb"_s);
+    const QVariantList taxes = pos.totals()[u"taxLines"_s].toList();
+    REQUIRE_FALSE(taxes.isEmpty());
+    CHECK(taxes[0].toMap()[u"name"_s] == u"Impuesto de comida"_s);
+    // Dates in Spanish.
+    CHECK(i18n::locale(u"es"_s).toString(QDate(2026, 10, 10), u"dddd"_s) == u"sábado"_s);
+    // Jobs in the staff list.
+    bool server = false;
+    for (const QVariant &r : pos.adminRecords(u"employees"_s))
+        server = server || r.toMap()[u"_detail"_s].toString().startsWith(u"Mesero"_s);
+    CHECK(server);
 }

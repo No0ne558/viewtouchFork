@@ -161,7 +161,7 @@ Item {
                     id: staffBox
                     Layout.columnSpan: w.narrow ? 2 : 1
                     Layout.fillWidth: w.narrow
-                    Layout.preferredWidth: 220
+                    Layout.preferredWidth: 170   // names are short: the note gets the room
                     textRole: "name"
                     valueRole: "id"
                     model: w.info.staff ?? []
@@ -172,6 +172,8 @@ Item {
                 Label { Layout.columnSpan: w.narrow ? 2 : 1; text: w.days[w.dayIndex] ? w.days[w.dayIndex].label : "" ; font.bold: true }
                 TextField {
                     implicitWidth: 90
+                    Layout.preferredWidth: 90
+                    Layout.fillWidth: false
                     text: w.start
                     placeholderText: "16:00"
                     inputMethodHints: Qt.ImhPreferNumbers
@@ -180,6 +182,8 @@ Item {
                 Label { text: "–" }
                 TextField {
                     implicitWidth: 90
+                    Layout.preferredWidth: 90
+                    Layout.fillWidth: false
                     text: w.end
                     placeholderText: "22:00"
                     inputMethodHints: Qt.ImhPreferNumbers

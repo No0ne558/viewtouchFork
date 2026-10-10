@@ -3,6 +3,7 @@
 // times, who's on the clock, the best sellers and what's running low.
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
 #include "app/pos_service.hh"
 
 #include <QDateTime>
@@ -22,7 +23,7 @@ constexpr std::int64_t kHour = 3'600'000;
 
 QString clock(std::int64_t ms)
 {
-    return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
+    return i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
 }
 
 } // namespace
@@ -61,7 +62,7 @@ QVariantMap PosService::dashboard() const
     }
     QVariantMap sales{{u"net"_s, format(net)}, {u"checks"_s, checks}, {u"guests"_s, guests},
                       {u"average"_s, checks ? format(Money::fromCents(net.cents() / checks)) : format(Money())},
-                      {u"lastWeekDay"_s, QLocale().toString(weekAgo.date(), u"ddd MMM d"_s)}};
+                      {u"lastWeekDay"_s, i18n::locale().toString(weekAgo.date(), u"ddd MMM d"_s)}};
     if (lastWeekChecks_ >= 0 && s_->history) {
         sales.insert(u"lastWeek"_s, format(lastWeekNet_));
         if (lastWeekNet_.cents() > 0)
@@ -121,7 +122,7 @@ QVariantMap PosService::dashboard() const
         kitchen(c);
     QVariantMap kitchenInfo{{u"waiting"_s, waiting}, {u"oldestMinutes"_s, int(oldestWait / 60'000)}};
     if (made > 0)
-        kitchenInfo.insert(u"averageMinutes"_s, QLocale().toString(double(madeMs) / made / 60'000.0, 'f', 1));
+        kitchenInfo.insert(u"averageMinutes"_s, i18n::locale().toString(double(madeMs) / made / 60'000.0, 'f', 1));
 
     // Best sellers today (how many of each).
     std::map<std::string, int> sold;
@@ -153,7 +154,7 @@ QVariantMap PosService::dashboard() const
     for (const Ingredient &g : s_->ingredients)
         if (g.low())
             low.append(QVariantMap{{u"name"_s, qs(g.name)},
-                                   {u"left"_s, QLocale().toString(std::max(0.0, g.onHand), 'g', 4) + u' ' + qs(g.unit)},
+                                   {u"left"_s, i18n::locale().toString(std::max(0.0, g.onHand), 'g', 4) + u' ' + qs(g.unit)},
                                    {u"out"_s, g.onHand <= 0}});
     for (const MenuItem &m : s_->menu)
         if (!m.available && !m.isModifier)

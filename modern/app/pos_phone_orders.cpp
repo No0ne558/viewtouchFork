@@ -4,6 +4,7 @@
 // took which orders out, and when they were back.
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
 #include "app/pos_service.hh"
 
 #include <QDateTime>
@@ -23,7 +24,7 @@ constexpr std::int64_t kMinute = 60'000;
 
 QString clock(std::int64_t ms)
 {
-    return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
+    return i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
 }
 
 bool phoneOrder(const Check &c) { return c.type == CheckType::Takeout || c.type == CheckType::Delivery; }

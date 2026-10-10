@@ -4,6 +4,7 @@
 // (PosSettings::punchChanges), for the Labor report.
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
 #include "app/pos_service.hh"
 
 #include <QDateTime>
@@ -39,7 +40,7 @@ std::int64_t parseStamp(const QString &text)
 
 QString timeOfDay(std::int64_t ms)
 {
-    return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
+    return i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
 }
 
 QString hm(std::int64_t ms)
@@ -116,10 +117,10 @@ QVariantList PosService::punchRecords()
     for (const TimePunch *p : punchList()) {
         const Employee *e = s_->employee(p->employeeId);
         const double hours = double(p->workedMs(now(), s_->settings.paidBreaks)) / 3'600'000.0;
-        const QString day = QLocale().toString(QDateTime::fromMSecsSinceEpoch(p->clockIn).date(), u"ddd MMM d"_s);
+        const QString day = i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(p->clockIn).date(), u"ddd MMM d"_s);
         const QString span = p->open() ? tr("%1 - still clocked in").arg(timeOfDay(p->clockIn))
                                        : tr("%1 - %2  ·  %3 h").arg(timeOfDay(p->clockIn), timeOfDay(p->clockOut))
-                                             .arg(QLocale().toString(hours, 'f', 2));
+                                             .arg(i18n::locale().toString(hours, 'f', 2));
         out.append(QVariantMap{
             {u"id"_s, qint64(p->id)}, {u"employeeId"_s, qs(p->employeeId)}, {u"job"_s, qs(p->job)},
             {u"clockIn"_s, stamp(p->clockIn)}, {u"clockOut"_s, stamp(p->clockOut)}, {u"breaks"_s, breaksText(*p)},

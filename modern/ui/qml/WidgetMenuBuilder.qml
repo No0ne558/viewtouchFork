@@ -809,29 +809,52 @@ Item {
                 Layout.fillWidth: w.narrow
                 Layout.fillHeight: true
                 spacing: 8
-                RowLayout {
+                // The category's name: beside its keys, or above them when
+                // it's too long to read there.
+                TextMetrics {
+                    id: categoryName
+                    font.pixelSize: 22
+                    font.bold: true
+                    text: w.category ? w.category.name : ""
+                }
+                Label {
+                    objectName: "builderCategoryNameAbove"
+                    visible: !categoryHeader.nameFits && text !== ""
                     Layout.fillWidth: true
-                    TouchButton { visible: w.narrow; text: qsTr("‹ Categories"); onClicked: w.stage = "categories" }
+                    text: categoryName.text
+                    font: categoryName.font
+                    elide: Text.ElideRight
+                }
+                RowLayout {
+                    id: categoryHeader
+                    readonly property bool nameFits: categoryName.advanceWidth + 12
+                        <= width - (backKey.visible ? backKey.implicitWidth + spacing : 0)
+                           - pricesKey.implicitWidth - severalKey.implicitWidth - editCategoryKey.implicitWidth - 3 * spacing
+                    Layout.fillWidth: true
+                    TouchButton { id: backKey; visible: w.narrow; text: qsTr("‹ Categories"); onClicked: w.stage = "categories" }
                     Label {
                         Layout.fillWidth: true
-                        text: w.category ? w.category.name : ""
+                        text: categoryHeader.nameFits ? categoryName.text : ""
                         font.pixelSize: 22
                         font.bold: true
                         elide: Text.ElideRight
                     }
                     TouchButton {
+                        id: pricesKey
                         objectName: "builderPrices"
                         visible: !!w.category
                         text: qsTr("Prices…")
                         onClicked: w.leave(() => pricesDialog.open())
                     }
                     TouchButton {
+                        id: severalKey
                         objectName: "builderAddSeveral"
                         visible: !!w.category
                         text: qsTr("Add Several…")
                         onClicked: severalDialog.open()
                     }
                     TouchButton {
+                        id: editCategoryKey
                         objectName: "builderEditCategory"
                         visible: !!w.category
                         text: qsTr("Edit Category")
@@ -3049,6 +3072,7 @@ Item {
         anchors.centerIn: parent
         modal: true
         standardButtons: Dialog.Yes | Dialog.Cancel
+        onAboutToShow: DialogWords.apply(this)
         Label { text: qsTr("They come off every menu screen. Checks they're already on keep them.") }
         onAccepted: {
             const ids = w.selected
@@ -3104,6 +3128,7 @@ Item {
         anchors.centerIn: parent
         modal: true
         standardButtons: Dialog.Yes | Dialog.Cancel
+        onAboutToShow: DialogWords.apply(this)
         Label {
             text: w.editedGroup && w.editedGroup.usedBy.length
                   ? qsTr("%1 stop asking for it.").arg(w.editedGroup.usedBy.join(", ")) : qsTr("No item asks for it.")
@@ -3123,6 +3148,7 @@ Item {
         anchors.centerIn: parent
         modal: true
         standardButtons: Dialog.Yes | Dialog.Cancel
+        onAboutToShow: DialogWords.apply(this)
         Label { text: qsTr("It comes off every menu screen. Checks it's already on keep it.") }
         onAccepted: {
             w.pos.deleteMenuItemCard(w.draft.id)

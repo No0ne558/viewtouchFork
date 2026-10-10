@@ -75,9 +75,27 @@ def page_phrases():
     return out
 
 
+def report_phrases():
+    """Reports are written in English (core/report.cpp, and the reports
+    PosService builds); the screen shows each title, column and cell that is
+    a phrase on its own in the screen's language."""
+    texts = [(ROOT / "core/report.cpp").read_text()]
+    for name in ["app/pos_day.cpp", "app/pos_inventory.cpp", "app/pos_dashboard.cpp"]:
+        src = (ROOT / name).read_text()
+        texts += [m.group(0) for m in re.finditer(r'\nReport PosService::\w+\(.*?\n\}\n', src, re.S)]
+    out = []
+    for text in texts:
+        for run in re.finditer(rf'{STR}(?:\s*{STR})*', text):
+            p = joined(run.group(0))
+            if (re.search(r"[A-Za-z]{2}", p) and p == p.strip() and (p[:1].isupper() or p[:1] in "(*")
+                    and "%" not in p and "{" not in p):
+                out.append(p)
+    return out
+
+
 def phrases():
     seen, out = set(), []
-    for p in source_phrases() + page_phrases():
+    for p in source_phrases() + page_phrases() + report_phrases():
         if p.strip() and p not in seen and re.search(r"[A-Za-z]", p):
             seen.add(p)
             out.append(p)

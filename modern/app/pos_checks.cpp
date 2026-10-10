@@ -2,6 +2,7 @@
 // table, merge two checks, reopen a closed one; and each check's history.
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
 #include "app/pos_service.hh"
 
 #include <QDateTime>
@@ -16,7 +17,7 @@ namespace vt::app {
 namespace {
 QString timeOf(std::int64_t ms)
 {
-    return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
+    return i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat);
 }
 } // namespace
 
@@ -257,7 +258,7 @@ bool PosService::fireCourseIn(int minutes)
     if (c->heldCount() == 0)
         return fail(tr("No course is on hold."));
     c->fireAt = now() + std::int64_t(std::min(minutes, 120)) * 60'000;
-    emit notice(tr("The next course fires at %1.").arg(QLocale().toString(QDateTime::fromMSecsSinceEpoch(c->fireAt).time(), QLocale::ShortFormat)));
+    emit notice(tr("The next course fires at %1.").arg(i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(c->fireAt).time(), QLocale::ShortFormat)));
     changed(*c);
     return true;
 }

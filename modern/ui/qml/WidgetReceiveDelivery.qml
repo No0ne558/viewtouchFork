@@ -123,6 +123,10 @@ Item {
                             font.pixelSize: 16
                             font.bold: true
                             color: row.modelData.low ? "#f5b940" : "white"
+                            // Two lines before it's cut: "Veggie Patties" whole.
+                            wrapMode: Text.WordWrap
+                            maximumLineCount: 2
+                            lineHeight: 0.9
                             elide: Text.ElideRight
                         }
                         Label {

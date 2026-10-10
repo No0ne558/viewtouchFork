@@ -3,6 +3,7 @@
 // house accounts (charged to the store, paid later).
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
 #include "app/pos_service.hh"
 
 #include <QDateTime>
@@ -19,7 +20,7 @@ namespace {
 
 QString whenText(std::int64_t ms)
 {
-    return ms ? QDateTime::fromMSecsSinceEpoch(ms).toString(u"MMM d, h:mm AP"_s) : QString();
+    return ms ? i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(ms), u"MMM d, h:mm AP"_s) : QString();
 }
 
 // Card numbers: digits only (a swiped or typed "6012 3456-7890" is one card).

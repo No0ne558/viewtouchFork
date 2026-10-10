@@ -187,6 +187,7 @@ Popup {
         modal: true
         title: qsTr("Replace every page?")
         standardButtons: Dialog.Cancel | Dialog.Ok
+        onAboutToShow: DialogWords.apply(this)
         Label {
             width: 420
             wrapMode: Text.WordWrap

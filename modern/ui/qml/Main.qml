@@ -314,6 +314,7 @@ ApplicationWindow {
         modal: true
         width: 420
         standardButtons: Dialog.Save | Dialog.Discard | Dialog.Cancel
+        onAboutToShow: DialogWords.apply(this)
 
         Label {
             width: parent.width
@@ -672,7 +673,7 @@ ApplicationWindow {
                     repeat: true
                     triggeredOnStart: true
                     running: screenSaver.visible
-                    onTriggered: saverClock.text = Qt.formatTime(new Date(), "h:mm AP")
+                    onTriggered: saverClock.text = new Date().toLocaleTimeString(Qt.locale(), Locale.ShortFormat)
                 }
             }
             Text {

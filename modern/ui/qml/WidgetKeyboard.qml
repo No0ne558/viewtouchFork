@@ -41,7 +41,7 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 16
                 verticalAlignment: Text.AlignVCenter
-                text: w.pos && w.pos.textEntry !== "" ? w.pos.textEntry + "▏" : (w.zone && w.zone.props && w.zone.props.placeholder ? w.zone.props.placeholder : qsTr("Type a note…"))
+                text: w.pos && w.pos.textEntry !== "" ? w.pos.textEntry + "▏" : (w.zone && w.zone.props && w.zone.props.placeholder ? qsTranslate("Page", w.zone.props.placeholder) : qsTr("Type a note…"))
                 color: w.pos && w.pos.textEntry !== "" ? "white" : "#8a94a6"
                 font.family: w.zone.st.font ?? "DejaVu Sans"
                 font.pixelSize: parent.height * 0.45

@@ -2,6 +2,7 @@
 // seating) and reservations (booked, checked in, seated or no-show).
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
 #include "app/pos_service.hh"
 
 #include <QDateTime>
@@ -17,17 +18,17 @@ namespace {
 
 constexpr std::int64_t kMinute = 60'000;
 
-QString clock(std::int64_t ms) { return QDateTime::fromMSecsSinceEpoch(ms).toString(u"h:mm AP"_s); }
+QString clock(std::int64_t ms) { return i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(ms), u"h:mm AP"_s); }
 
 QString dayAndTime(std::int64_t ms, std::int64_t now)
 {
     const QDateTime t = QDateTime::fromMSecsSinceEpoch(ms);
     const QDate today = QDateTime::fromMSecsSinceEpoch(now).date();
     if (t.date() == today)
-        return t.toString(u"h:mm AP"_s);
+        return i18n::locale().toString(t, u"h:mm AP"_s);
     if (t.date() == today.addDays(1))
-        return QObject::tr("Tomorrow %1").arg(t.toString(u"h:mm AP"_s));
-    return t.toString(u"ddd MMM d, h:mm AP"_s);
+        return QObject::tr("Tomorrow %1").arg(i18n::locale().toString(t, u"h:mm AP"_s));
+    return i18n::locale().toString(t, u"ddd MMM d, h:mm AP"_s);
 }
 
 } // namespace

@@ -27,11 +27,12 @@ TicketContext TicketPrinter::context(const PosSettings &settings) const
 {
     return TicketContext{
         settings,
-        [](std::int64_t ms) {
-            return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms), QLocale::ShortFormat).toStdString();
+        // In the store's language, like the rest of what's printed.
+        [loc = i18n::locale(QString::fromStdString(settings.language))](std::int64_t ms) {
+            return loc.toString(QDateTime::fromMSecsSinceEpoch(ms), QLocale::ShortFormat).toStdString();
         },
-        [](std::int64_t ms) {
-            return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat).toStdString();
+        [loc = i18n::locale(QString::fromStdString(settings.language))](std::int64_t ms) {
+            return loc.toString(QDateTime::fromMSecsSinceEpoch(ms).time(), QLocale::ShortFormat).toStdString();
         },
         now_(),
         nullptr,

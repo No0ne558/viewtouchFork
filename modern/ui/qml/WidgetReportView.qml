@@ -14,7 +14,25 @@ Item {
     readonly property bool narrow: zone ? zone.narrow : false
     readonly property real unit: narrow ? Math.max(12, Math.min(40, w.width * 0.038))
                                         : Math.max(12, Math.min(26, w.width * 0.022))
-    readonly property int reportColumns: narrow ? 4 : Math.ceil(reportIds.length / 2)
+    // Two rows of names, or more when the longest (in this language) would
+    // have to shrink to fit its key.
+    readonly property int reportColumns: {
+        if (narrow)
+            return 4
+        const gap = w.unit * 0.3
+        for (let rows = 2; rows < 5; ++rows) {
+            const cols = Math.ceil(reportIds.length / rows)
+            if ((w.width - w.unit * 1.2 - (cols - 1) * gap) / cols >= longestName.width + 14)
+                return cols
+        }
+        return Math.ceil(reportIds.length / 5)
+    }
+    TextMetrics {
+        id: longestName
+        font.pixelSize: Math.max(10, w.keyH * 0.36)
+        font.bold: true
+        text: w.reportIds.reduce((a, r) => r.label.length > a.length ? r.label : a, "")
+    }
     readonly property real keyH: Math.max(w.unit * 2.2, w.zone ? w.zone.touch(46) : 0)
 
     readonly property var reportIds: [
@@ -77,7 +95,7 @@ Item {
         anchors.margins: w.unit * 0.6
         spacing: w.unit * 0.5
 
-        // Two rows (on a phone, four columns), so each name has room to be read.
+        // Two rows or more (on a phone, four columns), so each name has room to be read.
         GridLayout {
             readonly property int keyRows: Math.ceil(w.reportIds.length / w.reportColumns)
             Layout.fillWidth: true

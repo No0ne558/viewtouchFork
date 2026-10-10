@@ -827,7 +827,7 @@ Report drawerReport(const std::vector<DrawerSession> &drawers, const std::vector
         r.section(d.name);
         r.line({"Opened by " + d.openedBy, ctx.clock(d.openedAt)});
         r.line({"Starting cash", ctx.money(d.startingCash)});
-        r.line({"Cash sales (" + count(checks) + " checks)", ctx.money(cash)});
+        r.line({"Cash sales (" + count(checks) + ")", ctx.money(cash)});   // (how many checks)
         std::int64_t noSales = 0;
         for (const CashMovement &m : d.movements) {
             if (m.kind == CashMovement::Kind::NoSale) {

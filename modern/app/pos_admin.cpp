@@ -632,14 +632,15 @@ QVariantList PosService::adminRecords(const QString &panel)
                          e.allow.contains(p) ? u"allow"_s : e.deny.contains(p) ? u"deny"_s : QString());
             const QString cash = e.cashMode == "serverBank" ? tr(" · own bank")
                                  : e.cashMode == "drawer"   ? tr(" · drawer") : QString();
-            add(r, qs(e.name), qs(e.role) + cash + (e.active ? QString() : tr(" · inactive")));
+            add(r, qs(e.name), roleName(qs(e.role)) + cash + (e.active ? QString() : tr(" · inactive")));
         }
     } else if (panel == u"tenders") {
         for (const Tender &t : s_->settings.tenders) {
             QVariantMap r{{u"id"_s, qs(t.id)}, {u"name"_s, qs(t.name)}, {u"kind"_s, qs(toString(t.kind))},
                           {u"percent"_s, double(t.percentBp) / 100.0}, {u"staffMeal"_s, t.staffMeal}};
-            add(r, qs(t.name), t.kind == TenderKind::Discount ? u"%1%"_s.arg(double(t.percentBp) / 100.0)
-                                                                : qs(toString(t.kind)));
+            const QString kind = t.kind == TenderKind::Cash ? tr("Cash") : t.kind == TenderKind::Card ? tr("Card")
+                               : t.kind == TenderKind::GiftCard ? tr("Gift card") : tr("House account");
+            add(r, qs(t.name), t.kind == TenderKind::Discount ? u"%1%"_s.arg(double(t.percentBp) / 100.0) : kind);
         }
     } else if (panel == u"printers") {
         for (const PrinterConfig &p : s_->settings.printers) {
@@ -649,7 +650,9 @@ QVariantList PosService::adminRecords(const QString &panel)
                     r.insert(QString::fromUtf16(k), QString());
             }
             r.insert(u"port"_s, p.port);
-            add(r, qs(p.name), qs(p.type) + (p.host.empty() ? QString() : u" · "_s + qs(p.host)));
+            const QString how = p.type == "network" ? tr("Network") : p.type == "cups" ? tr("CUPS queue")
+                              : p.type == "file" ? tr("Text file") : p.type == "none" ? tr("Off") : qs(p.type);
+            add(r, qs(p.name), how + (p.host.empty() ? QString() : u" · "_s + qs(p.host)));
         }
     } else if (panel == u"taxes") {
         const TaxRates &t = s_->settings.tax;
@@ -2056,7 +2059,7 @@ QVariantMap PosService::pairingInfo() const
     const PosShared::Pairing *p = s_->activePairing();
     if (!p || !can(QString::fromLatin1(perm::Manager)))
         return {{u"active"_s, false}};
-    const QString until = QLocale().toString(QDateTime::fromMSecsSinceEpoch(p->expires).time(), QLocale::ShortFormat);
+    const QString until = i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(p->expires).time(), QLocale::ShortFormat);
     return {{u"active"_s, true}, {u"code"_s, p->code}, {u"until"_s, until}};
 }
 

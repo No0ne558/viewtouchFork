@@ -113,7 +113,18 @@ bool setLanguage(const QString &code)
     if (c == screenLanguage())
         return false;
     screenLanguage() = c;
+    // The screen's dates and weekdays too (QML's Qt.locale(), QLocale()).
+    QLocale::setDefault(locale(c));
     return true;
+}
+
+QLocale locale(const QString &code)
+{
+    const QLocale wanted(code.isEmpty() ? current() : code);
+    const QLocale system = QLocale::system();
+    if (wanted.language() == system.language())
+        return system;
+    return QLocale(wanted.language(), system.territory());
 }
 
 QString guestLanguage()

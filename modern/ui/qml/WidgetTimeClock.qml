@@ -250,7 +250,7 @@ Item {
                                 objectName: "offDay-" + index
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: w.unit * 2.2
-                                text: Qt.formatDate(day, "ddd") + "\n" + Qt.formatDate(day, "MMM d")
+                                text: day.toLocaleDateString(Qt.locale(), "ddd") + "\n" + day.toLocaleDateString(Qt.locale(), "MMM d")
                                 accent: w.offDay === iso
                                 fontScale: 0.28
                                 onClicked: { w.touched(); w.offDay = iso }

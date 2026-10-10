@@ -13,7 +13,7 @@ Item {
     readonly property bool serving: net.role === "main"
     readonly property var standby: net.standby ?? null
 
-    function time(ms) { return ms ? Qt.formatTime(new Date(ms), "h:mm AP") : "" }
+    function time(ms) { return ms ? new Date(ms).toLocaleTimeString(Qt.locale(), Locale.ShortFormat) : "" }
 
     component Dot: Rectangle {
         property string state: "unknown"

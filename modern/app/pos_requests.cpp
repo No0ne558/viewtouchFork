@@ -4,6 +4,7 @@
 // approves and the shift is theirs.
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
 #include "app/pos_service.hh"
 
 #include <QDateTime>
@@ -21,12 +22,12 @@ namespace {
 QString hourText(std::int64_t ms)
 {
     const QTime t = QDateTime::fromMSecsSinceEpoch(ms).time();
-    return t.minute() ? t.toString(u"h:mm AP"_s) : t.toString(u"h AP"_s);
+    return t.minute() ? i18n::locale().toString(t, u"h:mm AP"_s) : i18n::locale().toString(t, u"h AP"_s);
 }
 
 QString dayText(std::int64_t ms)
 {
-    return QLocale().toString(QDateTime::fromMSecsSinceEpoch(ms).date(), u"ddd MMM d"_s);
+    return i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(ms).date(), u"ddd MMM d"_s);
 }
 
 } // namespace

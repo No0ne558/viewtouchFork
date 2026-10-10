@@ -2,6 +2,7 @@
 // amount, table, customer, server, item or gift card - and reprinting it.
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
 #include "app/pos_service.hh"
 
 #include <QDateTime>
@@ -169,7 +170,7 @@ QVariantMap PosService::checkSearch() const
     if (checkSearch_.isEmpty())
         return {};
     const auto when = [](std::int64_t ms) {
-        return ms ? QDateTime::fromMSecsSinceEpoch(ms).toString(u"ddd MMM d, h:mm AP"_s) : QString();
+        return ms ? i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(ms), u"ddd MMM d, h:mm AP"_s) : QString();
     };
     const auto statusText = [this](const Check &c) {
         return c.status == CheckStatus::Open ? tr("open") : c.status == CheckStatus::Merged ? tr("merged") : tr("closed");

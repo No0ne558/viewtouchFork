@@ -11,6 +11,7 @@
 #include <QRegularExpression>
 #include <QPainter>
 #include <QTemporaryDir>
+#include <QFontMetricsF>
 #include "menuprint.hh"
 #include "app/i18n.hh"
 #include "language.hh"
@@ -3651,6 +3652,145 @@ TEST_CASE("UI: clocking in with two jobs asks which one", "[flow][ui][pay]")
     CHECK((!server || !server->isVisible()));   // the choice is gone
     REQUIRE_FALSE(s.pos.shared()->punches.empty());
     CHECK(s.pos.shared()->punches.back().job == "server");
+}
+
+// Every page and its dialogs, in English and Spanish: the labels that don't
+// fit (a key's words wider than the key, a text cut off or shrunk a lot) and,
+// in Spanish, words still in English. An audit, not run with the rest:
+//   VTM_FIT_OUT=<dir> vtm_tests "[.fit]"   (writes en.txt, es.txt and a picture of each)
+namespace {
+// English phrases with a Spanish translation (set for the Spanish pass).
+QSet<QString> gEnglishPhrases;
+
+QStringList labelsCutOff(Screen &s, const QString &where)
+{
+    QStringList out;
+    std::function<void(QQuickItem *)> walk = [&](QQuickItem *item) {
+        if (!item->isVisible() || item->opacity() == 0)
+            return;
+        const QMetaObject *mo = item->metaObject();
+        const QString text = item->property("text").toString();
+        if (gEnglishPhrases.contains(text.trimmed()))
+            out << u"%1 | still English | %2"_s.arg(where, text.left(80));
+        if (mo->indexOfProperty("placeholderText") >= 0 && gEnglishPhrases.contains(item->property("placeholderText").toString().trimmed()))
+            out << u"%1 | still English | %2"_s.arg(where, item->property("placeholderText").toString().left(80));
+        if (!text.trimmed().isEmpty()) {
+            if (mo->indexOfProperty("implicitContentWidth") >= 0 && mo->indexOfProperty("availableWidth") >= 0
+                && item->inherits("QQuickAbstractButton")) {
+                const qreal need = item->property("implicitContentWidth").toReal();
+                const qreal room = item->property("availableWidth").toReal();
+                if (room > 0 && need > room + 1)
+                    out << u"%1 | key | %2 | %3 > %4"_s.arg(where, text).arg(qRound(need)).arg(qRound(room));
+            } else if (item->inherits("QQuickText")) {
+                const qreal w = item->width();
+                const QFont font = item->property("font").value<QFont>();
+                const qreal wide = QFontMetricsF(font).horizontalAdvance(text);
+                const bool oneLine = item->property("wrapMode").toInt() == 0 && !text.contains(u'\n');
+                if (item->property("truncated").toBool())
+                    out << u"%1 | text cut | %2"_s.arg(where, text.left(80));
+                else if (oneLine && item->property("fontSizeMode").toInt() != 0 && w > 0 && wide > w * 1.25)
+                    // Shrunk to fit: to less than 80% of its size.
+                    out << u"%1 | text shrunk to %2% | %3"_s.arg(where).arg(qRound(100 * w / wide)).arg(text.left(80));
+                else if (oneLine && item->property("elide").toInt() == 0 && item->property("fontSizeMode").toInt() == 0
+                         && w > 0 && item->property("contentWidth").toReal() > w + 2)
+                    out << u"%1 | text spills over | %2"_s.arg(where, text.left(80));
+            }
+        }
+        for (QQuickItem *child : item->childItems())
+            walk(child);
+    };
+    walk(s.window->contentItem());
+    return out;
+}
+} // namespace
+
+TEST_CASE("Audit: labels that don't fit, every page and dialog, English and Spanish", "[.fit]")
+{
+    const QString outDir = qEnvironmentVariable("VTM_FIT_OUT");
+    QSet<QString> english;
+    {
+        QFile f(QStringLiteral(VTM_SEED_DIR "/../i18n/es.json"));
+        REQUIRE(f.open(QIODevice::ReadOnly));
+        const QJsonObject es = QJsonDocument::fromJson(f.readAll()).object();
+        for (auto it = es.begin(); it != es.end(); ++it)
+            if (it.value().isString() && it.value().toString() != it.key() && it.key().contains(QRegularExpression(u"[A-Za-z]{3}"_s)))
+                english.insert(it.key());
+    }
+    for (const char *lang : {"en", "es"}) {
+        gEnglishPhrases = std::string(lang) == "es" ? english : QSet<QString>();
+        Screen s(false, 1280, 800);
+        vt::i18n::install();
+        vt::ui::followLanguage(&s.engine, &s.c);
+        for (core::Employee &e : s.pos.shared()->employees)
+            e.language = lang;
+        REQUIRE(s.pos.loginWithPin(u"1234"_s));
+        s.pos.clockIn();
+        REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+        s.pos.addItem(u"cobb"_s);
+        s.pos.addItem(u"soda"_s);
+        QStringList found;
+        for (const QVariant &v : s.c.pageChoices()) {
+            const QString page = v.toMap()[u"value"_s].toString();
+            if (page.isEmpty() || !s.c.jumpTo(page))
+                continue;
+            QTest::qWait(120);
+            const QStringList onPage = labelsCutOff(s, page);
+            found << onPage;
+            if (!outDir.isEmpty())
+                s.window->grabWindow().save(u"%1/%2-%3.png"_s.arg(outDir, QString::fromLatin1(lang), page));
+            // Its dialogs, one at a time.
+            // Dialogs belong to the items they're declared in (not always
+            // found through QObject children from the window).
+            QList<QObject *> popups;
+            std::function<void(QQuickItem *)> collect = [&](QQuickItem *item) {
+                if (!item->isVisible())
+                    return;
+                for (QObject *o : item->children())
+                    if (o->inherits("QQuickPopup"))
+                        popups << o;
+                for (QQuickItem *child : item->childItems())
+                    collect(child);
+            };
+            collect(s.window->contentItem());
+            for (QObject *root : s.engine.rootObjects())
+                for (QObject *o : root->children())
+                    if (o->inherits("QQuickPopup"))
+                        popups << o;
+            std::set<QObject *> seen;
+            for (QObject *o : popups) {
+                if (!seen.insert(o).second)
+                    continue;
+                if (!o->inherits("QQuickPopup") || o->property("opened").toBool())
+                    continue;
+                // Only the dialogs of what's on screen.
+                QObject *owner = o->parent();
+                while (owner && !qobject_cast<QQuickItem *>(owner))
+                    owner = owner->parent();
+                if (!owner || !qobject_cast<QQuickItem *>(owner)->isVisible())
+                    continue;
+                QMetaObject::invokeMethod(o, "open");
+                QTest::qWait(60);
+                if (o->property("opened").toBool() || o->property("visible").toBool()) {
+                    const QString name = o->objectName().isEmpty() ? QString::fromLatin1(o->metaObject()->className()) : o->objectName();
+                    for (const QString &x : labelsCutOff(s, page + u" / "_s + name))
+                        if (!onPage.contains(QString(x).replace(u" / "_s + name, QString())))
+                            found << x;
+                    if (!outDir.isEmpty() && !o->objectName().isEmpty())
+                        s.window->grabWindow().save(u"%1/%2-%3--%4.png"_s.arg(outDir, QString::fromLatin1(lang), page, o->objectName()));
+                }
+                QMetaObject::invokeMethod(o, "close");
+                QTest::qWait(30);
+            }
+        }
+        found.removeDuplicates();
+        if (!outDir.isEmpty()) {
+            QFile f(u"%1/%2.txt"_s.arg(outDir, QString::fromLatin1(lang)));
+            REQUIRE(f.open(QIODevice::WriteOnly | QIODevice::Text));
+            f.write(found.join(u'\n').toUtf8() + '\n');
+        }
+        WARN(lang << ": " << found.size() << " labels don't fit");
+        vt::i18n::setLanguage(u"en"_s);
+    }
 }
 
 TEST_CASE("UI: Menu Builder keys fit, in English and Spanish", "[flow][ui][i18n][printmenu]")

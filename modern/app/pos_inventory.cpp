@@ -3,6 +3,7 @@
 // themselves when their stock runs short, low-stock alerts, food cost.
 
 #include "app/pos_json.hh"
+#include "app/i18n.hh"
 #include "app/pos_service.hh"
 
 #include <algorithm>
@@ -413,7 +414,7 @@ QVariantMap PosService::receiving() const
                                        {u"vendor"_s, qs(g.vendor)}, {u"low"_s, g.low()}});
     QVariantList recent;
     for (auto it = s_->deliveries.rbegin(); it != s_->deliveries.rend() && recent.size() < 15; ++it)
-        recent.append(QVariantMap{{u"when"_s, QDateTime::fromMSecsSinceEpoch(it->at).toString(u"ddd M/d h:mm AP"_s)},
+        recent.append(QVariantMap{{u"when"_s, i18n::locale().toString(QDateTime::fromMSecsSinceEpoch(it->at), u"ddd M/d h:mm AP"_s)},
                                   {u"vendor"_s, qs(it->vendorName)}, {u"invoice"_s, qs(it->invoice)},
                                   {u"items"_s, int(it->lines.size())}, {u"total"_s, format(it->total())},
                                   {u"by"_s, qs(it->by)}});

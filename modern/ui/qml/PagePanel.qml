@@ -101,6 +101,7 @@ Rectangle {
         anchors.centerIn: parent
         modal: true
         standardButtons: Dialog.Ok | Dialog.Cancel
+        onAboutToShow: DialogWords.apply(this)
         width: 380
 
         onOpened: {
@@ -152,6 +153,7 @@ Rectangle {
         anchors.centerIn: parent
         modal: true
         standardButtons: Dialog.Yes | Dialog.Cancel
+        onAboutToShow: DialogWords.apply(this)
         width: 420
         onAccepted: panel.editor.deletePage()
 
