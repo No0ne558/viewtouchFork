@@ -1344,6 +1344,59 @@ TEST_CASE("UI: a manager changes or adds an item right on the order screen", "[f
     CHECK(find(u"builderName"_s)->property("text").toString() == u"Cheeseburger"_s);
 }
 
+TEST_CASE("UI: Menu Builder: several items at once; an item dragged onto another category", "[flow][ui][menubuild][several]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto tap = [&](const QString &name) {
+        QQuickItem *it = by(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(60);
+    };
+    tap(u"builderCategory-burgers"_s);
+    tap(u"builderSelect"_s);
+    tap(u"builderItem-classic-burger"_s);
+    tap(u"builderItem-bacon-burger"_s);
+    CHECK_FALSE(by(u"builderName"_s));                         // choosing, not opening
+    s.shot("81-builder-select");
+    tap(u"builderSelectColor"_s);
+    tap(u"color-15"_s);
+    CHECK(s.pos.findItem(u"bacon-burger"_s)->buttonColor == "#2b62b0");
+    CHECK(s.pos.findItem(u"classic-burger"_s)->buttonColor == "#2b62b0");
+    CHECK(s.pos.findItem(u"cheeseburger"_s)->buttonColor.empty());
+    tap(u"builderSelectMove"_s);
+    tap(u"builderMoveTo-salads"_s);
+    CHECK(s.pos.findItem(u"bacon-burger"_s)->family == "salads");
+    CHECK(s.pos.findItem(u"classic-burger"_s)->family == "salads");
+    tap(u"builderSelect"_s);                                   // Done
+    CHECK_FALSE(by(u"builderSelectBar"_s));
+
+    // Held, dragged onto Breakfast on the left.
+    QQuickItem *tile = by(u"builderItem-cheeseburger"_s);
+    QQuickItem *plates = by(u"builderCategory-breakfast"_s);
+    REQUIRE(tile);
+    REQUIRE(plates);
+    const QPoint from = tile->mapToScene(QPointF(tile->width() / 2, tile->height() / 2)).toPoint();
+    const QPoint to = plates->mapToScene(QPointF(plates->width() / 2, plates->height() / 2)).toPoint();
+    QTest::mousePress(s.window, Qt::LeftButton, {}, from);
+    QTest::qWait(500);
+    for (int i = 1; i <= 10; ++i) {
+        QTest::mouseMove(s.window, from + (to - from) * i / 10);
+        QTest::qWait(15);
+    }
+    CHECK(by(u"builderDropOn-breakfast"_s));
+    s.shot("82-builder-drag-category");
+    QTest::mouseRelease(s.window, Qt::LeftButton, {}, to);
+    QTest::qWait(80);
+    CHECK(s.pos.findItem(u"cheeseburger"_s)->family == "breakfast");
+    CHECK_FALSE(by(u"builderGhost"_s));
+}
+
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
 {
     Screen s;

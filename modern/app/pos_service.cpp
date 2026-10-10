@@ -2437,6 +2437,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"saveMenuItemCard"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.saveMenuItemCard(a.value(0).toMap())); }},
         {u"deleteMenuItemCard"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.deleteMenuItemCard(a.value(0).toString())); }},
         {u"saveChoiceGroup"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.saveChoiceGroup(a.value(0).toMap())); }},
+        {u"changeMenuItems"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.changeMenuItems(a.value(0).toStringList(), a.value(1).toMap())); }},
+        {u"removeMenuItems"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.removeMenuItems(a.value(0).toStringList())); }},
         {u"setMenuPrices"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setMenuPrices(a.value(0).toList())); }},
         {u"duplicateMenuItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.duplicateMenuItem(a.value(0).toString())); }},
         {u"applyMenuTemplate"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.applyMenuTemplate(a.value(0).toString())); }},

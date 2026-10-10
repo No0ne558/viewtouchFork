@@ -655,3 +655,36 @@ TEST_CASE("Menu Builder: a category's buttons: their size, photos, prices", "[me
     REQUIRE(pos.saveCategory({{u"id"_s, u"burgers"_s}, {u"name"_s, u"Burgers"_s}, {u"buttonSize"_s, u""_s}}));
     CHECK(category(pos, u"burgers"_s)[u"buttonSize"_s] == u""_s);
 }
+
+TEST_CASE("Menu Builder: several items changed or removed at once, one Undo", "[menubuilder][several]")
+{
+    test::RecordingSink sink;
+    PosService pos(test::seedPosData(), &sink);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const QStringList two{u"classic-burger"_s, u"cheeseburger"_s};
+    REQUIRE(pos.changeMenuItems(two, {{u"family"_s, u"salads"_s}, {u"buttonColor"_s, u"#123456"_s}}));
+    for (const QString &id : two) {
+        CHECK(pos.findItem(id)->family == "salads");
+        CHECK(pos.findItem(id)->buttonColor == "#123456");
+    }
+    CHECK(pos.menuUndoText() == u"Change 2 items"_s);
+    REQUIRE(pos.changeMenuItems(two, {{u"available"_s, false}}));
+    CHECK_FALSE(pos.findItem(u"cheeseburger"_s)->available);
+    REQUIRE(pos.undoMenuChange());
+    REQUIRE(pos.undoMenuChange());
+    CHECK(pos.findItem(u"cheeseburger"_s)->family == "burgers");
+    CHECK(pos.findItem(u"cheeseburger"_s)->buttonColor.empty());
+    // One not there: nothing changes.
+    CHECK_FALSE(pos.changeMenuItems({u"classic-burger"_s, u"no-such"_s}, {{u"family"_s, u"salads"_s}}));
+    CHECK(pos.findItem(u"classic-burger"_s)->family == "burgers");
+    CHECK_FALSE(pos.removeMenuItems({u"classic-burger"_s, u"no-such"_s}));
+    CHECK(pos.findItem(u"classic-burger"_s));
+
+    REQUIRE(pos.removeMenuItems(two));
+    CHECK_FALSE(pos.findItem(u"classic-burger"_s));
+    CHECK_FALSE(pos.findItem(u"cheeseburger"_s));
+    CHECK(pos.menuUndoText() == u"Remove 2 items"_s);
+    REQUIRE(pos.undoMenuChange());
+    CHECK(pos.findItem(u"classic-burger"_s));
+    CHECK(pos.findItem(u"cheeseburger"_s));
+}

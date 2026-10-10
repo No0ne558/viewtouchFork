@@ -206,6 +206,10 @@
  "%1; %2 on hold for a later course": "%1; %2 en espera para un tiempo posterior",
  "%1m": "%1m",
  "%n changed": "%n cambiado(s)",
+ "%n chosen": {
+  "one": "%n elegido",
+  "other": "%n elegidos"
+ },
  "%n closing task(s) not done yet": {
   "one": "%n tarea de cierre sin hacer",
   "other": "%n tareas de cierre sin hacer"
@@ -218,8 +222,16 @@
   "one": "%n artículo",
   "other": "%n artículos"
  },
+ "%n item(s) changed": {
+  "one": "%n artículo cambiado",
+  "other": "%n artículos cambiados"
+ },
  "%n item(s) go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2": "%n artículo(s) van a la impresora %1, que no está configurada, y no hay impresora de cocina: sus tickets no se imprimen en ninguna parte: %2",
  "%n item(s) go to the printer %1, which isn't set up, so they print in the kitchen: %2": "%n artículo(s) van a la impresora %1, que no está configurada, así que se imprimen en la cocina: %2",
+ "%n item(s) removed from the menu": {
+  "one": "%n artículo quitado del menú",
+  "other": "%n artículos quitados del menú"
+ },
  "%n more": "%n más",
  "%n option(s)": "%n opción(es)",
  "%n order(s) out with %1": {
@@ -674,6 +686,10 @@
  "Centered, as is": "Centrada, tal cual",
  "Change": "Cambio",
  "Change %1": "Cambiar %1",
+ "Change %n item(s)": {
+  "one": "Cambiar %n artículo",
+  "other": "Cambiar %n artículos"
+ },
  "Change %n price(s)": {
   "one": "Cambiar %n precio",
   "other": "Cambiar %n precios"
@@ -1075,6 +1091,7 @@
  "Food tax %": "Impuesto de comida %",
  "For Here": "Para comer aquí",
  "For Reports -> Accounting (its CSV goes to QuickBooks or your accountant). One per line, like \"sales:burgers = 4010 Burger sales\". Keys: sales, sales:<family>, tax, tax:<food|alcohol...>, gratuity, tips, discounts, staffMeals, rounding, giftCardsSold, tender:<payment type id>.": "Para Informes -> Contabilidad (su CSV va a QuickBooks o a su contador). Una por línea, como \"sales:burgers = 4010 Ventas de hamburguesas\". Claves: sales, sales:<familia>, tax, tax:<food|alcohol...>, gratuity, tips, discounts, staffMeals, rounding, giftCardsSold, tender:<id del tipo de pago>.",
+ "For Sale": "A la venta",
  "For a serious allergy, please also tell our staff.": "Si es una alergia grave, por favor avise también a nuestro personal.",
  "For a week": "Por una semana",
  "For combos: each option is the menu item of that name (\"Soda\", \"Fries\"). It uses up that item's stock, can't be chosen while it's sold out, and shows on the Items report.": "Para combos: cada opción es el artículo del menú con ese nombre (\"Soda\", \"Fries\"). Usa el inventario de ese artículo, no se puede elegir mientras está agotado y aparece en el informe de Artículos.",
@@ -1171,6 +1188,7 @@
  "Hold any button to see what it does. Touch here to close.": "Mantenga presionado cualquier botón para ver qué hace. Toque aquí para cerrar.",
  "Hold for Them": "Apartar para Ellos",
  "Hold one and drag it to move it (the order screen follows).": "Mantenga uno presionado y arrástrelo para moverlo (la pantalla de pedidos lo sigue).",
+ "Hold one and drag it to move it, or onto a category.": "Mantenga uno y arrástrelo para moverlo, o sobre una categoría.",
  "Home": "Inicio",
  "Host": "Recepción",
  "Host Stand": "Recepción",
@@ -1398,6 +1416,10 @@
  "More…": "Más…",
  "Most choices allowed": "Máximo de opciones",
  "Move %1 to…": "Mover %1 a…",
+ "Move %n item(s) to": {
+  "one": "Mover %n artículo a",
+  "other": "Mover %n artículos a"
+ },
  "Move Check": "Mover cuenta",
  "Move a category": "Mover una categoría",
  "Move an item": "Mover un artículo",
@@ -1405,6 +1427,7 @@
  "Move or remove its items first.": "Primero mueva o quite sus artículos.",
  "Move this check to table…": "Mover esta cuenta a la mesa…",
  "Move to Another Table…": "Mover a otra mesa…",
+ "Move to…": "Mover a…",
  "Moved %1 to check #%2": "Se movió %1 a la cuenta #%2",
  "Moved from %1 to %2": "Movida de %1 a %2",
  "Moves this check there": "Mueve esta cuenta allí",
@@ -1953,6 +1976,14 @@
  "Remove": "Quitar",
  "Remove %1 from the menu?": "¿Quitar %1 del menú?",
  "Remove %1?": "¿Quitar %1?",
+ "Remove %n item(s)": {
+  "one": "Quitar %n artículo",
+  "other": "Quitar %n artículos"
+ },
+ "Remove %n item(s) from the menu?": {
+  "one": "¿Quitar %n artículo del menú?",
+  "other": "¿Quitar %n artículos del menú?"
+ },
  "Remove It": "Quitarlo",
  "Remove Shift": "Quitar turno",
  "Remove a category": "Quitar una categoría",
@@ -2067,6 +2098,7 @@
  "Select three or more zones to distribute.": "Seleccione tres o más zonas para repartir.",
  "Select two or more zones to align.": "Seleccione dos o más zonas para alinear.",
  "Select two or more zones; the first one sets the size.": "Seleccione dos o más zonas; la primera fija el tamaño.",
+ "Select…": "Seleccionar…",
  "Self-Order Kiosk": "Quiosco de autoservicio",
  "Self-filling menu screens": "Pantallas del menú automáticas",
  "Self-order kiosk": "Quiosco de autoservicio",
@@ -2154,6 +2186,7 @@
  "Snap grid": "Cuadrícula",
  "Soda": "Soda",
  "Soft or strong": "Suave o intenso",
+ "Sold Out": "Agotado",
  "Sold Out (86)": "Agotados (86)",
  "Sold Out (86)…": "Agotados (86)…",
  "Sold by weight": "Se vende por peso",
@@ -2547,6 +2580,7 @@
  "There's already a category called %1.": "Ya hay una categoría llamada %1.",
  "There's no starter menu '%1'.": "No hay un menú de ejemplo '%1'.",
  "These buttons lead here and will stop working:\n• %1\n\nYou can undo this.": "Estos botones llevan aquí y dejarán de funcionar:\n• %1\n\nPuede deshacerlo.",
+ "They come off every menu screen. Checks they're already on keep them.": "Salen de todas las pantallas del menú. Las cuentas que ya los tienen los conservan.",
  "They're Here": "Ya llegaron",
  "They're not clocked in anymore.": "Ya no tiene entrada marcada.",
  "They're on the schedule that day (%1 - %2): change it in the Schedule.": "Está en el horario ese día (%1 - %2): cámbielo en el Horario.",
@@ -2636,8 +2670,10 @@
  "Touch an item to change it, or + Add Item.": "Toque un artículo para cambiarlo, o + Agregar artículo.",
  "Touch an item to mark it sold out, or back on": "Toque un artículo para marcarlo agotado, o disponible otra vez",
  "Touch behavior": "Al tocarlo",
+ "Touch items to choose them (in any category), then move, color, sell out or remove them together.": "Toque artículos para elegirlos (de cualquier categoría) y luego muévalos, coloréelos, márquelos agotados o quítelos juntos.",
  "Touch menu items to add them.": "Toque artículos del menú para agregarlos.",
  "Touch something on the menu to add it.": "Toque algo del menú para agregarlo.",
+ "Touch the items to change together.": "Toque los artículos que quiere cambiar juntos.",
  "Touch the orders going out together, then the driver.": "Toque las órdenes que salen juntas, luego el repartidor.",
  "Touch to Order": "Toque para ordenar",
  "Touch to wake": "Toque para despertar",

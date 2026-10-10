@@ -7,6 +7,10 @@
   "one": "%n changed",
   "other": "%n changed"
  },
+ "%n chosen": {
+  "one": "%n chosen",
+  "other": "%n chosen"
+ },
  "%n closing task(s) not done yet": {
   "one": "%n closing task not done yet",
   "other": "%n closing tasks not done yet"
@@ -19,6 +23,10 @@
   "one": "%n item",
   "other": "%n items"
  },
+ "%n item(s) changed": {
+  "one": "%n item changed",
+  "other": "%n items changed"
+ },
  "%n item(s) go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2": {
   "one": "%n item goes to the printer %1, which isn't set up, and there's no kitchen printer: its tickets print nowhere: %2",
   "other": "%n items go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2"
@@ -26,6 +34,10 @@
  "%n item(s) go to the printer %1, which isn't set up, so they print in the kitchen: %2": {
   "one": "%n item goes to the printer %1, which isn't set up, so it prints in the kitchen: %2",
   "other": "%n items go to the printer %1, which isn't set up, so they print in the kitchen: %2"
+ },
+ "%n item(s) removed from the menu": {
+  "one": "%n item removed from the menu",
+  "other": "%n items removed from the menu"
  },
  "%n more": {
   "one": "%n more",
@@ -87,6 +99,10 @@
   "one": "Avoiding %n",
   "other": "Avoiding %n"
  },
+ "Change %n item(s)": {
+  "one": "Change %n item",
+  "other": "Change %n items"
+ },
  "Change %n price(s)": {
   "one": "Change %n price",
   "other": "Change %n prices"
@@ -107,6 +123,10 @@
   "one": "It took over from another main server once.",
   "other": "It took over from another main server %n times."
  },
+ "Move %n item(s) to": {
+  "one": "Move %n item to",
+  "other": "Move %n items to"
+ },
  "Move or remove its %n item(s) first.": {
   "one": "Move or remove its item first.",
   "other": "Move or remove its %n items first."
@@ -122,6 +142,14 @@
  "Received %n item(s): %1": {
   "one": "Received %n item: %1",
   "other": "Received %n items: %1"
+ },
+ "Remove %n item(s)": {
+  "one": "Remove %n item",
+  "other": "Remove %n items"
+ },
+ "Remove %n item(s) from the menu?": {
+  "one": "Remove %n item from the menu?",
+  "other": "Remove %n items from the menu?"
  },
  "Same as last time: %n item(s)": {
   "one": "Same as last time: %n item",

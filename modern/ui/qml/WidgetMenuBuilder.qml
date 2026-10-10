@@ -45,6 +45,25 @@ Item {
     // Dragging an item tile or a category (hold, then drag): which, and where to.
     property string dragId: ""
     property int dropIndex: -1
+    // An item dragged onto a category on the left: moved there.
+    property string dropCategory: ""
+    property int listScroll: 0
+    Timer {
+        interval: 30
+        repeat: true
+        running: w.dragId !== "" && w.listScroll !== 0
+        onTriggered: categoryList.contentY = Math.max(0, Math.min(categoryList.contentHeight - categoryList.height,
+                                                                  categoryList.contentY + 14 * w.listScroll))
+    }
+    // Select: several items, then one change for all of them.
+    property bool selecting: false
+    property var selected: []
+    function toggleSelected(id) {
+        selected = selected.includes(id) ? selected.filter(x => x !== id) : selected.concat([id])
+    }
+    function changeSelected(changes) {
+        pos.changeMenuItems(selected, changes)
+    }
 
     Component.onCompleted: {
         if (categories.length) categoryId = categories[0].id
@@ -97,7 +116,7 @@ Item {
 
     function copy(o) { return JSON.parse(JSON.stringify(o)) }
     function pickCategory(id) {
-        categoryId = id
+        categoryId = id   // chosen items stay chosen (Select works across categories)
         editingItem = false
         editingCategory = false
         stage = "items"
@@ -417,7 +436,7 @@ Item {
                         Layout.fillWidth: true
                         text: qsTr("Choice Groups")
                         highlighted: w.mode === "choices"
-                        onClicked: w.leave(() => { w.mode = "choices"; w.editingItem = false; w.editingCategory = false })
+                        onClicked: w.leave(() => { w.mode = "choices"; w.editingItem = false; w.editingCategory = false; w.selecting = false; w.selected = [] })
                     }
                 }
                 // Ready to go? What would trip up service. And the last change, taken back.
@@ -605,6 +624,16 @@ Item {
                                 }
                             }
                         }
+                        // An item dragged onto it.
+                        Rectangle {
+                            objectName: "builderDropOn-" + modelData.id
+                            anchors.fill: parent
+                            visible: w.dropCategory === modelData.id
+                            color: "#33f5b940"
+                            radius: parent.radius
+                            border.color: "#f5b940"
+                            border.width: 4
+                        }
                         Rectangle {
                             anchors.fill: parent
                             visible: w.dragId !== "" && w.dropIndex === index && w.dragId !== modelData.id && w.mode === "menu"
@@ -733,11 +762,102 @@ Item {
                         onClicked: w.leave(() => w.editCategory(w.category))
                     }
                 }
-                Label {
-                    visible: w.items.length > 1
-                    text: qsTr("Hold one and drag it to move it (the order screen follows).")
-                    opacity: 0.6
-                    font.pixelSize: 13
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        text: w.selecting ? qsTr("Touch the items to change together.")
+                            : w.items.length > 1 ? (w.narrow ? qsTr("Hold one and drag it to move it (the order screen follows).")
+                                                             : qsTr("Hold one and drag it to move it, or onto a category."))
+                            : ""
+                        opacity: 0.6
+                        font.pixelSize: 13
+                    }
+                    TouchButton {
+                        objectName: "builderSelect"
+                        visible: !!w.category && w.items.length > 0
+                        implicitHeight: 44
+                        font.pixelSize: 14
+                        highlighted: w.selecting
+                        text: w.selecting ? qsTr("Done") : qsTr("Select…")
+                        onClicked: {
+                            if (w.selecting) {
+                                w.selecting = false
+                                w.selected = []
+                            } else {
+                                const b = w
+                                b.leave(() => { b.editingItem = false; b.editingCategory = false; b.selecting = true; b.selected = [] })
+                            }
+                        }
+                    }
+                }
+                // What to do with the chosen ones.
+                Flow {
+                    objectName: "builderSelectBar"
+                    visible: w.selecting
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Label {
+                        height: 44
+                        verticalAlignment: Text.AlignVCenter
+                        text: qsTr("%n chosen", "", w.selected.length)
+                        font.bold: true
+                        font.pixelSize: 15
+                    }
+                    TouchButton {
+                        objectName: "builderSelectAll"
+                        implicitHeight: 44
+                        font.pixelSize: 14
+                        readonly property bool all: w.items.length > 0 && w.items.every(i => w.selected.includes(i.id))
+                        text: all ? qsTr("None") : qsTr("All")
+                        onClicked: {
+                            const here = w.items.map(i => i.id)
+                            w.selected = all ? w.selected.filter(id => !here.includes(id))
+                                             : w.selected.concat(here.filter(id => !w.selected.includes(id)))
+                        }
+                    }
+                    TouchButton {
+                        objectName: "builderSelectMove"
+                        implicitHeight: 44
+                        font.pixelSize: 14
+                        enabled: w.selected.length > 0
+                        text: qsTr("Move to…")
+                        onClicked: moveSeveral.open()
+                    }
+                    TouchButton {
+                        objectName: "builderSelectColor"
+                        implicitHeight: 44
+                        font.pixelSize: 14
+                        enabled: w.selected.length > 0
+                        text: qsTr("Color…")
+                        onClicked: colorSeveral.open()
+                    }
+                    TouchButton {
+                        objectName: "builderSelectSoldOut"
+                        implicitHeight: 44
+                        font.pixelSize: 14
+                        enabled: w.selected.length > 0
+                        text: qsTr("Sold Out")
+                        onClicked: w.changeSelected({ available: false })
+                    }
+                    TouchButton {
+                        objectName: "builderSelectForSale"
+                        implicitHeight: 44
+                        font.pixelSize: 14
+                        enabled: w.selected.length > 0
+                        text: qsTr("For Sale")
+                        onClicked: w.changeSelected({ available: true })
+                    }
+                    TouchButton {
+                        objectName: "builderSelectRemove"
+                        implicitHeight: 44
+                        font.pixelSize: 14
+                        enabled: w.selected.length > 0
+                        text: qsTr("Remove…")
+                        onClicked: removeSeveral.open()
+                    }
                 }
                 GridView {
                     id: itemGrid
@@ -762,8 +882,10 @@ Item {
                                                           : (modelData.buttonColor || (w.category ? w.category.color : "") || "#343c49")
                             color: tint
                             opacity: modelData.add || modelData.availableSet ? 1 : 0.5
-                            border.color: !modelData.add && w.editingItem && w.itemId === modelData.id ? "#f5b940" : Qt.darker(tint, 1.3)
-                            border.width: !modelData.add && w.editingItem && w.itemId === modelData.id ? 4 : 1
+                            readonly property bool marked: !modelData.add && (w.selecting ? w.selected.includes(modelData.id)
+                                                                                           : w.editingItem && w.itemId === modelData.id)
+                            border.color: marked ? "#f5b940" : Qt.darker(tint, 1.3)
+                            border.width: marked ? 4 : 1
                             Column {
                                 anchors.centerIn: parent
                                 width: parent.width - 16
@@ -802,14 +924,18 @@ Item {
                                 property bool dragging: false
                                 preventStealing: dragging
                                 onClicked: {
+                                    if (w.selecting) {
+                                        if (!modelData.add) w.toggleSelected(modelData.id)
+                                        return
+                                    }
                                     // Taken now: after a Save in the prompt this tile (and
                                     // what it can see) may be gone.
                                     const item = modelData.add ? null : modelData, b = w
                                     b.leave(() => b.editItem(item))
                                 }
-                                // Held: dragged to another place in the category.
+                                // Held: dragged to another place in the category, or onto another.
                                 onPressAndHold: m => {
-                                    if (modelData.add) return
+                                    if (modelData.add || w.selecting) return
                                     dragging = true
                                     w.dragId = modelData.id
                                     ghost.text = modelData.name
@@ -819,6 +945,15 @@ Item {
                                 function moved(m) {
                                     const p = mapToItem(itemGrid, m.x, m.y)
                                     w.dropIndex = itemGrid.indexAt(p.x + itemGrid.contentX, p.y + itemGrid.contentY)
+                                    // Over the categories: onto one.
+                                    const c = mapToItem(categoryList, m.x, m.y)
+                                    const onList = categoryList.visible && c.x >= 0 && c.y >= 0 && c.x < categoryList.width && c.y < categoryList.height
+                                    // Near its top or bottom: it scrolls, for categories out of view.
+                                    const overColumn = categoryList.visible && c.x >= 0 && c.x < categoryList.width
+                                    w.listScroll = !overColumn ? 0 : c.y < 48 ? -1 : c.y > categoryList.height - 48 ? 1 : 0
+                                    const at = onList ? categoryList.indexAt(c.x + categoryList.contentX, c.y + categoryList.contentY) : -1
+                                    w.dropCategory = at >= 0 && w.categories[at].id !== w.categoryId ? w.categories[at].id : ""
+                                    if (w.dropCategory !== "") w.dropIndex = -1
                                     const g = mapToItem(ghost.parent, m.x, m.y)
                                     ghost.x = g.x - ghost.width / 2
                                     ghost.y = g.y - ghost.height / 2
@@ -829,13 +964,27 @@ Item {
                                     dragging = false
                                     // Cleared first: the move rebuilds the tiles (this one too).
                                     const to = w.dropIndex - 1   // the first tile is + Add Item
-                                    const id = w.dragId
+                                    const id = w.dragId, onto = w.dropCategory, name = modelData.name
                                     w.dragId = ""
                                     w.dropIndex = -1
-                                    if (to >= 0 && to < w.items.length && w.items[to].id !== id)
+                                    w.dropCategory = ""
+                                    w.listScroll = 0
+                                    if (onto !== "")
+                                        w.pos.saveMenuItemCard({ id: id, name: name, family: onto })
+                                    else if (to >= 0 && to < w.items.length && w.items[to].id !== id)
                                         w.pos.moveMenuItemTo(id, to)
                                 }
-                                onCanceled: { dragging = false; w.dragId = ""; w.dropIndex = -1 }
+                                onCanceled: { dragging = false; w.dragId = ""; w.dropIndex = -1; w.dropCategory = ""; w.listScroll = 0 }
+                            }
+                            // Chosen (Select).
+                            Rectangle {
+                                visible: w.selecting && !modelData.add && w.selected.includes(modelData.id)
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 6
+                                width: 30; height: 30; radius: 15
+                                color: "#f5b940"
+                                Label { anchors.centerIn: parent; text: "✓"; color: "#14171c"; font.bold: true; font.pixelSize: 18 }
                             }
                         }
                     }
@@ -856,7 +1005,8 @@ Item {
                     wrapMode: Text.WordWrap
                     horizontalAlignment: Text.AlignHCenter
                     text: w.mode === "choices" ? qsTr("Touch a choice group to change it, or + Choice Group.")
-                                               : qsTr("Touch an item to change it, or + Add Item.")
+                        : w.selecting ? qsTr("Touch items to choose them (in any category), then move, color, sell out or remove them together.")
+                        : qsTr("Touch an item to change it, or + Add Item.")
                     opacity: 0.6
                     font.pixelSize: 18
                 }
@@ -1968,6 +2118,73 @@ Item {
                     onClicked: pricesDialog.close()
                 }
             }
+        }
+    }
+
+    // Select -> Move to…: the categories.
+    Popup {
+        id: moveSeveral
+        objectName: "builderMoveSeveral"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent ? parent.width - 32 : 520, 520)
+        modal: true
+        padding: 16
+        contentItem: ColumnLayout {
+            spacing: 6
+            Label { text: qsTr("Move %n item(s) to", "", w.selected.length); font.pixelSize: 20; font.bold: true }
+            Repeater {
+                model: w.categories
+                delegate: TouchButton {
+                    required property var modelData
+                    objectName: "builderMoveTo-" + modelData.id
+                    Layout.fillWidth: true
+                    text: modelData.name
+                    palette.button: modelData.color || "#343c49"
+                    palette.buttonText: StoreColors.ink(modelData.color || "#343c49")
+                    onClicked: {
+                        // Closed first: the move rebuilds these buttons (this one too).
+                        const id = modelData.id, b = w
+                        moveSeveral.close()
+                        b.changeSelected({ family: id })
+                    }
+                }
+            }
+            TouchButton { Layout.fillWidth: true; text: qsTr("Cancel"); onClicked: moveSeveral.close() }
+        }
+    }
+    Popup {
+        id: colorSeveral
+        objectName: "builderColorSeveral"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent ? parent.width - 32 : 600, 600)
+        modal: true
+        padding: 16
+        contentItem: ColorPicker {
+            pos: w.pos
+            noneText: qsTr("Category's")
+            onPicked: c => {
+                colorSeveral.close()
+                w.changeSelected({ buttonColor: c })
+            }
+        }
+    }
+    Dialog {
+        id: removeSeveral
+        objectName: "builderRemoveSeveral"
+        title: qsTr("Remove %n item(s) from the menu?", "", w.selected.length)
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        modal: true
+        standardButtons: Dialog.Yes | Dialog.Cancel
+        Label { text: qsTr("They come off every menu screen. Checks they're already on keep them.") }
+        onAccepted: {
+            const ids = w.selected
+            w.pos.removeMenuItems(ids)
+            for (const id of ids)
+                w.zone.controller.removeItemButtons(id)
+            w.selected = []
         }
     }
 

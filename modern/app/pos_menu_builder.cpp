@@ -1062,6 +1062,42 @@ int PosService::importMenuFile(const QVariantMap &file)
     return added;
 }
 
+// Several items at once (the Menu Builder's Select): the same change to
+// each ({family, buttonColor, available}), or removed; one Undo step.
+bool PosService::changeMenuItems(const QStringList &ids, const QVariantMap &changes)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    for (const QString &id : ids)
+        if (!findItem(id))
+            return fail(tr("'%1' is not on the menu.").arg(id));
+    const MenuStep step(this, tr("Change %n item(s)", "", int(ids.size())));
+    for (const QString &id : ids) {
+        QVariantMap card = changes;
+        card.insert(u"id"_s, id);
+        card.insert(u"name"_s, qs(findItem(id)->name));
+        if (!saveMenuItemCard(card))
+            return false;
+    }
+    emit notice(tr("%n item(s) changed", "", int(ids.size())));
+    return true;
+}
+
+bool PosService::removeMenuItems(const QStringList &ids)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    for (const QString &id : ids)
+        if (!findItem(id))
+            return fail(tr("'%1' is not on the menu.").arg(id));
+    const MenuStep step(this, tr("Remove %n item(s)", "", int(ids.size())));
+    for (const QString &id : ids)
+        if (!deleteMenuItemCard(id))
+            return false;
+    emit notice(tr("%n item(s) removed from the menu", "", int(ids.size())));
+    return true;
+}
+
 bool PosService::deleteMenuItemCard(const QString &id)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
