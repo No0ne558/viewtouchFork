@@ -737,12 +737,20 @@ Item {
                     TouchButton { Layout.preferredWidth: 44; text: "▲"; enabled: !!w.category; onClicked: w.pos.moveCategory(w.categoryId, -1) }
                     TouchButton { Layout.preferredWidth: 44; text: "▼"; enabled: !!w.category; onClicked: w.pos.moveCategory(w.categoryId, 1) }
                 }
-                // Many at once: from a spreadsheet, or a starter menu.
-                RowLayout {
+                // Many at once: from a spreadsheet, or a starter menu; the
+                // printed menu. One row, or two when the words are longer
+                // (Spanish) than the keys.
+                GridLayout {
                     visible: w.mode === "menu"
                     Layout.fillWidth: true
-                    spacing: 6
+                    columnSpacing: 6
+                    rowSpacing: 6
+                    // (Each label and its padding: a key's own minimum is wider than needed.)
+                    function room(k) { return k.implicitContentWidth + k.leftPadding + k.rightPadding }
+                    columns: room(importKey) + room(exportKey) + room(startersKey) + room(printKey)
+                             + 3 * columnSpacing <= width ? 4 : 2
                     TouchButton {
+                        id: importKey
                         objectName: "builderImport"
                         font.pixelSize: 13
                         leftPadding: 2
@@ -755,6 +763,7 @@ Item {
                         onClicked: importFile.open()
                     }
                     TouchButton {
+                        id: exportKey
                         objectName: "builderExport"
                         font.pixelSize: 13
                         leftPadding: 2
@@ -767,6 +776,7 @@ Item {
                         onClicked: w.zone.controller.exportMenu()
                     }
                     TouchButton {
+                        id: startersKey
                         objectName: "builderTemplates"
                         font.pixelSize: 13
                         leftPadding: 2
@@ -777,6 +787,7 @@ Item {
                         onClicked: templateDialog.open()
                     }
                     TouchButton {
+                        id: printKey
                         objectName: "builderPrintMenu"
                         font.pixelSize: 13
                         leftPadding: 2

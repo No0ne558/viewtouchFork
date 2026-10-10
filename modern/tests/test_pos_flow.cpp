@@ -3653,6 +3653,32 @@ TEST_CASE("UI: clocking in with two jobs asks which one", "[flow][ui][pay]")
     CHECK(s.pos.shared()->punches.back().job == "server");
 }
 
+TEST_CASE("UI: Menu Builder keys fit, in English and Spanish", "[flow][ui][i18n][printmenu]")
+{
+    for (const char *lang : {"en", "es"}) {
+        Screen s(false, 1280, 800);
+        vt::i18n::install();
+        vt::ui::followLanguage(&s.engine, &s.c);
+        for (core::Employee &e : s.pos.shared()->employees)
+            e.language = lang;
+        REQUIRE(s.pos.loginWithPin(u"1234"_s));
+        REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+        QTest::qWait(150);
+        QQuickItem *root = s.window->contentItem();
+        if (std::string(lang) == "es")
+            CHECK(Screen::findBy(root, "text", u"Imprimir…"_s));
+        for (const QString name : {u"builderImport"_s, u"builderExport"_s, u"builderTemplates"_s, u"builderPrintMenu"_s}) {
+            QQuickItem *key = Screen::findBy(root, "objectName", name);
+            REQUIRE(key);
+            INFO(lang << ": " << key->property("text").toString().toStdString());
+            // The label's whole width, inside the key's padding.
+            CHECK(key->property("implicitContentWidth").toReal() <= key->property("availableWidth").toReal() + 0.5);
+        }
+        s.shot(std::string(lang) == "es" ? "89-builder-keys-es" : "89-builder-keys-en");
+        vt::i18n::setLanguage(u"en"_s);
+    }
+}
+
 TEST_CASE("UI: the screen speaks the language of whoever logs in", "[flow][ui][i18n]")
 {
     Screen s;
