@@ -446,7 +446,7 @@ QJsonObject toJson(const Employee &e)
     return {
         {u"id"_s, qs(e.id)}, {u"name"_s, qs(e.name)}, {u"role"_s, qs(e.role)},
         {u"pinSalt"_s, qs(e.pinSalt)}, {u"pinHash"_s, qs(e.pinHash)}, {u"active"_s, e.active}, {u"training"_s, e.training}, {u"sample"_s, e.sample},
-        {u"cashMode"_s, qs(e.cashMode)}, {u"requireName"_s, qs(e.requireName)}, {u"checkout"_s, qs(e.checkout)}, {u"language"_s, qs(e.language)},
+        {u"cashMode"_s, qs(e.cashMode)}, {u"requireName"_s, qs(e.requireName)}, {u"checkout"_s, qs(e.checkout)}, {u"tipPool"_s, qs(e.tipPool)}, {u"language"_s, qs(e.language)},
         {u"textSize"_s, e.textSize}, {u"leftHanded"_s, e.leftHanded}, {u"startPage"_s, qs(e.startPage)},
         {u"payRate"_s, e.payRate.cents() / 100.0}, {u"otherJobs"_s, [&] {
              QJsonArray jobs;
@@ -470,6 +470,7 @@ Employee employeeFromJson(const QJsonObject &o)
     e.cashMode = ss(o.value(u"cashMode").toString());
     e.requireName = ss(o.value(u"requireName").toString());
     e.checkout = ss(o.value(u"checkout").toString());
+    e.tipPool = ss(o.value(u"tipPool").toString());
     e.language = ss(o.value(u"language").toString());
     e.textSize = std::clamp(o.value(u"textSize").toInt(100), 80, 160);
     e.leftHanded = o.value(u"leftHanded").toBool(false);
@@ -509,7 +510,7 @@ QJsonObject toJson(const TimePunch &p)
         breaks.append(QJsonObject{{u"start"_s, qint64(b.start)}, {u"end"_s, qint64(b.end)}});
     return {{u"id"_s, qint64(p.id)}, {u"employeeId"_s, qs(p.employeeId)}, {u"clockIn"_s, qint64(p.clockIn)},
             {u"clockOut"_s, qint64(p.clockOut)}, {u"breaks"_s, breaks}, {u"job"_s, qs(p.job)},
-            {u"rate"_s, qint64(p.rate.cents())}};
+            {u"rate"_s, qint64(p.rate.cents())}, {u"cashTips"_s, p.cashTipsDeclared ? qint64(p.cashTips.cents()) : qint64(-1)}};
 }
 
 TimePunch punchFromJson(const QJsonObject &o)
@@ -520,6 +521,9 @@ TimePunch punchFromJson(const QJsonObject &o)
         p.breaks.push_back({i64(b.toObject().value(u"start")), i64(b.toObject().value(u"end"))});
     p.job = ss(o.value(u"job").toString());
     p.rate = Money::fromCents(i64(o.value(u"rate")));
+    const std::int64_t cash = o.contains(u"cashTips") ? i64(o.value(u"cashTips")) : -1;
+    p.cashTipsDeclared = cash >= 0;
+    p.cashTips = Money::fromCents(std::max<std::int64_t>(0, cash));
     return p;
 }
 
@@ -917,6 +921,13 @@ QJsonObject toJson(const PosSettings &s)
              return a;
          }()},
         {u"scheduleRequired"_s, s.scheduleRequired}, {u"clockInEarlyMinutes"_s, s.clockInEarlyMinutes},
+        {u"tipPool"_s, [&] {
+             QJsonObject o;
+             for (const auto &[role, share] : s.tipPool)
+                 o.insert(qs(role), share);
+             return o;
+         }()},
+        {u"declareCashTips"_s, s.declareCashTips},
         {u"tipOuts"_s, [&] {
              QJsonArray a;
              for (const PosSettings::TipOut &t : s.tipOuts)
@@ -1131,6 +1142,13 @@ PosSettings settingsFromJson(const QJsonObject &o)
     }
     s.scheduleRequired = o.value(u"scheduleRequired").toBool(false);
     s.clockInEarlyMinutes = std::clamp(o.value(u"clockInEarlyMinutes").toInt(15), 0, 240);
+    {
+        const QJsonObject pool = o.value(u"tipPool").toObject();
+        for (auto it = pool.begin(); it != pool.end(); ++it)
+            if (const int share = std::clamp(it.value().toInt(), 0, 1000); share > 0)
+                s.tipPool[ss(it.key())] = share;
+    }
+    s.declareCashTips = o.value(u"declareCashTips").toBool();
     for (const QJsonValue &v : o.value(u"tipOuts").toArray()) {
         const QJsonObject t = v.toObject();
         const std::int64_t bp = std::llround(t.value(u"percent").toDouble() * 100.0);

@@ -580,6 +580,34 @@ void PosService::cancelClockIn()
     emit sessionChanged();
 }
 
+QVariantMap PosService::cashTipsAsk() const
+{
+    for (const TimePunch &p : s_->punches)
+        if (p.id == cashTipsPunch_)
+            if (const Employee *e = s_->employee(p.employeeId))
+                return {{u"who"_s, qs(e->name)}, {u"punchId"_s, qint64(p.id)}};
+    return {};
+}
+
+bool PosService::declareCashTips(const QString &amount)
+{
+    const auto p = std::ranges::find_if(s_->punches, [&](const TimePunch &x) { return x.id == cashTipsPunch_; });
+    if (cashTipsPunch_ == 0 || p == s_->punches.end())
+        return fail(tr("Nobody just clocked out here."));
+    const qint64 cents = amount.trimmed().isEmpty() ? 0 : priceCents(amount, qs(s_->settings.currencySymbol));
+    if (cents < 0 || cents > 1'000'000)
+        return fail(tr("Type the cash tips, like 42.00 (or 0)."));
+    p->cashTipsDeclared = true;
+    p->cashTips = Money::fromCents(cents);
+    if (s_->sink)
+        s_->sink->savePunch(*p);
+    cashTipsPunch_ = 0;
+    emit sessionChanged();
+    emit s_->dayChanged();
+    emit notice(cents ? tr("Cash tips: %1").arg(format(p->cashTips)) : tr("No cash tips"));
+    return true;
+}
+
 QVariantMap PosService::clockInJobs() const
 {
     const Employee *e = s_->employee(jobChoice_);
@@ -633,6 +661,9 @@ bool PosService::clockOutFor(const Employee &employee)
         p->breaks.back().end = p->clockOut;
     if (s_->sink)
         s_->sink->savePunch(*p);
+    // Tipped jobs: the cash tips they kept (asked on this screen next).
+    if (s_->settings.declareCashTips && p->job != "manager" && p->job != "admin")
+        cashTipsPunch_ = p->id;
     const double hours = double(p->workedMs(p->clockOut, s_->settings.paidBreaks)) / 3'600'000.0;
     emit sessionChanged();
     emit s_->dayChanged();
@@ -2274,6 +2305,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"setExpenseCategory"_s, [](PosService &p, const QVariantList &a) { p.setExpenseCategory(a.value(0).toString()); return QVariant(true); }},
         {u"clockInAs"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.clockInAs(a.value(0).toString())); }},
         {u"cancelClockIn"_s, [](PosService &p, const QVariantList &) { p.cancelClockIn(); return QVariant(true); }},
+        {u"declareCashTips"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.declareCashTips(a.value(0).toString())); }},
         {u"clockOut"_s, [](PosService &p, const QVariantList &) { return QVariant(p.clockOut()); }},
         {u"selectTable"_s, [](PosService &p, const QVariantList &a) { return QVariant(int(p.selectTable(a.value(0).toString()))); }},
         {u"startCheck"_s, [](PosService &p, const QVariantList &a) {

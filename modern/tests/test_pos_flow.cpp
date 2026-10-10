@@ -1613,6 +1613,38 @@ TEST_CASE("UI: Menu Builder: a ready-made picture for an item, on the order scre
     s.shot("88-menu-pictures");
 }
 
+TEST_CASE("UI: clocking out, asked for the cash tips kept", "[flow][ui][cashtips]")
+{
+    Screen s;
+    s.pos.shared()->settings.declareCashTips = true;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.clockInEmployee(u"jo"_s));
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"4444"_s));
+    REQUIRE(s.pos.clockOut());
+    QTest::qWait(80);
+    QQuickItem *root = s.window->contentItem();
+    const auto find = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto tap = [&](const QString &name) {
+        QQuickItem *it = find(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(30);
+    };
+    REQUIRE(find(u"cashTipsSave"_s));
+    for (const char *k : {"1", "2", ".", "5", "0", "0"})                     // the last 0: two decimals at most
+        tap(u"cashTipsKey-"_s + QLatin1String(k));
+    CHECK(find(u"cashTipsAmount"_s)->property("text").toString() == u"$12.50"_s);
+    s.shot("89-cash-tips");
+    tap(u"cashTipsSave"_s);
+    QTest::qWait(60);
+    CHECK_FALSE(find(u"cashTipsSave"_s));
+    const auto p = std::ranges::find_if(s.pos.shared()->punches, [](const core::TimePunch &x) { return x.employeeId == "jo"; });
+    REQUIRE(p != s.pos.shared()->punches.end());
+    CHECK(p->cashTipsDeclared);
+    CHECK(p->cashTips.cents() == 1250);
+}
+
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
 {
     Screen s;

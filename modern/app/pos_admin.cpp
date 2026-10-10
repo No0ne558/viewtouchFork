@@ -275,6 +275,10 @@ QVariantList PosService::adminFields(const QString &panel)
                                                          ? tr("close all checks first") : tr("allowed"))),
                  u"options"_s, options({{"", "Store setting"}, {"closeChecks", "Must close all checks first"},
                                         {"anyTime", "May leave checks open"}})),
+            with(field(u"tipPool"_s, tr("Tip pool"), u"enum"_s,
+                       tr("By their job: the store's tip pool shares (Store Settings).")),
+                 u"options"_s, options({{"", "By their job"}, {"in", "In the pool (a full share)"},
+                                        {"out", "Keeps their own tips"}})),
         };
     }
     if (panel == u"tenders") {
@@ -371,6 +375,18 @@ QVariantList PosService::adminFields(const QString &panel)
                   tr("One per line: role, percent, tips or sales - e.g. \"busser 15 tips\" or \"bartender 2 sales\". "
                      "Shared by everyone of that role who worked today, by hours. Roles: busser, bartender, host, "
                      "server, cashier.")),
+            // The tip pool: each job's share for an hour worked.
+            with(with(field(u"tipPool:server"_s, tr("Tip pool: servers' share an hour (%)"), u"int"_s,
+                            tr("Everyone in the pool puts in their tips (after tip-outs) and takes out by hours worked "
+                               "times their job's share: 100 a full share, 50 half. 0: not in the pool. Someone's own "
+                               "setting (Staff) can put them in or keep them out.")), u"min"_s, 0), u"max"_s, 200),
+            with(with(field(u"tipPool:bartender"_s, tr("Tip pool: bartenders' share an hour (%)"), u"int"_s), u"min"_s, 0), u"max"_s, 200),
+            with(with(field(u"tipPool:busser"_s, tr("Tip pool: bussers' share an hour (%)"), u"int"_s), u"min"_s, 0), u"max"_s, 200),
+            with(with(field(u"tipPool:host"_s, tr("Tip pool: hosts' share an hour (%)"), u"int"_s), u"min"_s, 0), u"max"_s, 200),
+            with(with(field(u"tipPool:cashier"_s, tr("Tip pool: cashiers' share an hour (%)"), u"int"_s), u"min"_s, 0), u"max"_s, 200),
+            with(with(field(u"tipPool:driver"_s, tr("Tip pool: drivers' share an hour (%)"), u"int"_s), u"min"_s, 0), u"max"_s, 200),
+            field(u"declareCashTips"_s, tr("Ask for cash tips at clock out"), u"bool"_s,
+                  tr("They count with card tips in the Tips report and the tip pool.")),
             with(with(field(u"kitchenWarnMinutes"_s, tr("Kitchen: ticket turns yellow after (minutes)"), u"int"_s),
                       u"min"_s, 1), u"max"_s, 120),
             with(with(field(u"kitchenLateMinutes"_s, tr("Kitchen: ticket is late (red) after (minutes)"), u"int"_s,
@@ -610,7 +626,7 @@ QVariantList PosService::adminRecords(const QString &panel)
                                    lines << u"%1 %2"_s.arg(qs(j.role), QString::number(j.rate.cents() / 100.0, 'f', 2));
                                return lines.join(u'\n');
                            }()},
-                          {u"checkout"_s, qs(e.checkout)}};
+                          {u"checkout"_s, qs(e.checkout)}, {u"tipPool"_s, qs(e.tipPool)}};
             for (const char *p : AllPermissions)
                 r.insert(u"perm:"_s + QString::fromLatin1(p),
                          e.allow.contains(p) ? u"allow"_s : e.deny.contains(p) ? u"deny"_s : QString());
@@ -642,6 +658,10 @@ QVariantList PosService::adminRecords(const QString &panel)
              {u"taxTakeoutFood"_s, t.taxTakeoutFood}, {u"cashRounding"_s, QString::number(t.cashRoundingCents)}},
             tr("Tax rates"), QString());
     } else if (panel == u"store") {
+        const auto poolShare = [&](const char *role) {
+            const auto it = s_->settings.tipPool.find(role);
+            return it == s_->settings.tipPool.end() ? 0 : it->second;
+        };
         add({{u"storeName"_s, qs(s_->settings.storeName)}, {u"language"_s, qs(s_->settings.language)}, {u"currencySymbol"_s, qs(s_->settings.currencySymbol)},
              {u"receiptHeader"_s, qs(s_->settings.receiptHeader)}, {u"receiptFooter"_s, qs(s_->settings.receiptFooter)},
              {u"receiptFreeChoices"_s, s_->settings.receiptFreeChoices},
@@ -705,6 +725,10 @@ QVariantList PosService::adminRecords(const QString &panel)
               }()},
              {u"scheduleRequired"_s, s_->settings.scheduleRequired},
              {u"clockInEarlyMinutes"_s, s_->settings.clockInEarlyMinutes},
+             {u"tipPool:server"_s, poolShare("server")}, {u"tipPool:bartender"_s, poolShare("bartender")},
+             {u"tipPool:busser"_s, poolShare("busser")}, {u"tipPool:host"_s, poolShare("host")},
+             {u"tipPool:cashier"_s, poolShare("cashier")}, {u"tipPool:driver"_s, poolShare("driver")},
+             {u"declareCashTips"_s, s_->settings.declareCashTips},
              {u"tipOuts"_s, [&] {
                   QStringList l;
                   for (const PosSettings::TipOut &t : s_->settings.tipOuts)
@@ -818,7 +842,7 @@ QVariantMap PosService::adminNewRecord(const QString &panel)
                 {u"takeoutPrice"_s, 0.0}, {u"deliveryPrice"_s, 0.0}, {u"noDiscount"_s, false}, {u"noStaffDiscount"_s, false}};
     if (panel == u"employees")
         return {{u"id"_s, QString()}, {u"name"_s, QString()}, {u"role"_s, u"server"_s}, {u"pin"_s, QString()},
-                {u"active"_s, true}, {u"training"_s, false}, {u"cashMode"_s, QString()}, {u"requireName"_s, QString()}, {u"checkout"_s, QString()},
+                {u"active"_s, true}, {u"training"_s, false}, {u"cashMode"_s, QString()}, {u"requireName"_s, QString()}, {u"checkout"_s, QString()}, {u"tipPool"_s, QString()},
                 {u"payRate"_s, 0.0}, {u"otherJobs"_s, QString()}, {u"language"_s, QString()},
                 {u"textSize"_s, u"100"_s}, {u"leftHanded"_s, false}, {u"startPage"_s, QString()},
                 {u"perm:order"_s, QString()}, {u"perm:check.settle"_s, QString()}, {u"perm:check.others"_s, QString()}, {u"perm:check.discount"_s, QString()},
@@ -1109,6 +1133,18 @@ bool PosService::adminSave(const QString &panel, int index, const QVariantMap &r
             s_->settings.scheduleRequired = record.value(u"scheduleRequired"_s).toBool();
         if (record.contains(u"clockInEarlyMinutes"_s))
             s_->settings.clockInEarlyMinutes = std::clamp(record.value(u"clockInEarlyMinutes"_s).toInt(), 0, 240);
+        for (const char *role : {"server", "bartender", "busser", "host", "cashier", "driver"}) {
+            const QString key = u"tipPool:"_s + QLatin1String(role);
+            if (!record.contains(key))
+                continue;
+            const int share = std::clamp(record.value(key).toInt(), 0, 200);
+            if (share > 0)
+                s_->settings.tipPool[role] = share;
+            else
+                s_->settings.tipPool.erase(role);
+        }
+        if (record.contains(u"declareCashTips"_s))
+            s_->settings.declareCashTips = record.value(u"declareCashTips"_s).toBool();
         if (record.contains(u"tipOuts"_s)) {
             std::vector<PosSettings::TipOut> outs;
             for (const QString &line : record.value(u"tipOuts"_s).toString().split(u'\n', Qt::SkipEmptyParts)) {
@@ -1453,6 +1489,9 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     const QString checkout = record.value(u"checkout"_s).toString();
     if (!QStringList{QString(), u"closeChecks"_s, u"anyTime"_s}.contains(checkout))
         return fail(tr("Choose whether this person may check out with open checks."));
+    const QString tipPool = record.value(u"tipPool"_s).toString();
+    if (!QStringList{QString(), u"in"_s, u"out"_s}.contains(tipPool))
+        return fail(tr("Choose whether this person is in the tip pool."));
     const QString language = record.value(u"language"_s).toString();
     if (!language.isEmpty()
         && std::ranges::none_of(i18n::languages(), [&](const i18n::Language &l) { return l.code == language; }))
@@ -1482,6 +1521,7 @@ bool PosService::saveEmployeeRecord(int index, const QVariantMap &record)
     e.cashMode = ss(cashMode);
     e.requireName = ss(requireName);
     e.checkout = ss(checkout);
+    e.tipPool = ss(tipPool);
     e.allow = allow;
     e.deny = deny;
     e.name = ss(name);

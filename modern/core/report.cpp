@@ -858,22 +858,39 @@ Report tipsReport(const std::map<std::string, TipShare> &shares, const ReportCon
     r.id = "tips";
     r.title = "Tips";
     r.subtitle = ctx.period;
-    const bool pooling = !ctx.settings.tipOuts.empty();
-    r.columns = pooling ? std::vector<std::string>{"Staff", "Card tips", "Gratuity", "Tipped out", "From pool", "Paid out", "Owed"}
-                        : std::vector<std::string>{"Server", "Card tips", "Gratuity", "Paid out", "Owed"};
+    const bool outs = !ctx.settings.tipOuts.empty(), pool = !ctx.settings.tipPool.empty();
+    const bool cash = std::ranges::any_of(shares, [](const auto &x) { return x.second.cash.cents() != 0; });
+    // The columns that mean something here: cash told, tip-outs, the pool.
+    const auto row = [&](const std::string &name, const TipShare &x) {
+        std::vector<std::string> cells{name, ctx.money(x.tips)};
+        if (cash) cells.push_back(ctx.money(x.cash));
+        cells.push_back(ctx.money(x.gratuity));
+        if (outs) cells.push_back(ctx.money(x.tipOut));
+        if (pool) cells.push_back(ctx.money(x.toPool));
+        if (outs || pool) cells.push_back(ctx.money(x.fromPool));
+        cells.push_back(ctx.money(x.paid));
+        cells.push_back(ctx.money(x.owed()));
+        return cells;
+    };
+    r.columns = {outs || pool ? "Staff" : "Server", "Card tips"};
+    if (cash) r.columns.push_back("Cash tips");
+    r.columns.push_back("Gratuity");
+    if (outs) r.columns.push_back("Tipped out");
+    if (pool) r.columns.push_back("Into pool");
+    if (outs || pool) r.columns.push_back("From pools");
+    r.columns.push_back("Paid out");
+    r.columns.push_back("Owed");
     TipShare all;
     for (const auto &[id, x] : shares) {
         if (x.earned.cents() == 0 && x.fromPool.cents() == 0 && x.paid.cents() == 0)
             continue;
-        if (pooling)
-            r.line({x.name, ctx.money(x.tips), ctx.money(x.gratuity), ctx.money(x.tipOut), ctx.money(x.fromPool),
-                    ctx.money(x.paid), ctx.money(x.owed())});
-        else
-            r.line({x.name, ctx.money(x.tips), ctx.money(x.gratuity), ctx.money(x.paid), ctx.money(x.owed())});
+        r.line(row(x.name, x));
         all.tips += x.tips;
+        all.cash += x.cash;
         all.gratuity += x.gratuity;
         all.earned += x.earned;
         all.tipOut += x.tipOut;
+        all.toPool += x.toPool;
         all.fromPool += x.fromPool;
         all.paid += x.paid;
     }
@@ -881,11 +898,15 @@ Report tipsReport(const std::map<std::string, TipShare> &shares, const ReportCon
         r.note("No tips yet.");
         return r;
     }
-    if (pooling)
-        r.total({"All staff", ctx.money(all.tips), ctx.money(all.gratuity), ctx.money(all.tipOut),
-                 ctx.money(all.fromPool), ctx.money(all.paid), ctx.money(all.owed())});
-    else
-        r.total({"All staff", ctx.money(all.tips), ctx.money(all.gratuity), ctx.money(all.paid), ctx.money(all.owed())});
+    r.total(row("All staff", all));
+    if (pool) {
+        std::string jobs;
+        for (const auto &[role, share] : ctx.settings.tipPool)
+            jobs += (jobs.empty() ? "" : ", ") + role + "s " + std::to_string(share) + "%";
+        r.note("Tip pool: everyone in it puts in their tips and takes out by hours worked times their share (" + jobs + ").");
+    }
+    if (cash)
+        r.note("Cash tips: told at clock out; already in their pockets, so counted as paid out.");
     for (const PosSettings::TipOut &t : ctx.settings.tipOuts)
         r.note("Tip-out: " + std::to_string(t.percentBp / 100) + (t.percentBp % 100 ? "." + std::to_string(t.percentBp % 100) : "")
                + "% of " + (t.basis == "sales" ? "sales" : "tips") + " to " + t.role + "s, split by hours.");
@@ -894,7 +915,8 @@ Report tipsReport(const std::map<std::string, TipShare> &shares, const ReportCon
 
 std::map<std::string, TipShare> tipShares(const std::vector<Check> &closed, const std::vector<DrawerSession> &drawers,
                                           const PosSettings &settings, const std::vector<Employee> &employees,
-                                          const std::map<std::string, double> &hours)
+                                          const std::map<std::string, double> &hours,
+                                          const std::map<std::string, Money> &cashTips)
 {
     std::map<std::string, TipShare> out;
     std::map<std::string, Money> sales;
@@ -914,6 +936,17 @@ std::map<std::string, TipShare> tipShares(const std::vector<Check> &closed, cons
             out[e.id].name = e.name;
     }
     const auto roleOf = [&](const std::string &id) { return byId.contains(id) ? byId[id]->role : std::string(); };
+    // Cash tips told at clock out: theirs, and already in their pocket.
+    for (const auto &[id, cash] : cashTips) {
+        if (cash.cents() <= 0)
+            continue;
+        TipShare &s = out[id];
+        if (s.name.empty() && byId.contains(id))
+            s.name = byId[id]->name;
+        s.cash += cash;
+        s.earned += cash;
+        s.paid += cash;
+    }
 
     for (const PosSettings::TipOut &rule : settings.tipOuts) {
         // Who shares this pool: that role, worked today.
@@ -958,6 +991,55 @@ std::map<std::string, TipShare> tipShares(const std::vector<Check> &closed, cons
             }
         }
         out[longest].fromPool += pool - given;
+    }
+
+    // The tip pool: everyone in it who worked today puts in their tips (after
+    // tip-outs) and takes out by hours times their job's share. Someone's
+    // own setting wins: "in" (a full share) or "out" (keeps their tips).
+    if (!settings.tipPool.empty()) {
+        const auto shareOf = [&](const std::string &id) {
+            const std::string own = byId.contains(id) ? byId[id]->tipPool : std::string();
+            if (own == "out")
+                return 0;
+            if (own == "in")
+                return 100;
+            const auto it = settings.tipPool.find(roleOf(id));
+            return it == settings.tipPool.end() ? 0 : it->second;
+        };
+        std::vector<std::pair<std::string, double>> members;   // id, hours x share
+        double weight = 0;
+        for (const auto &[id, h] : hours) {
+            if (h <= 0 || shareOf(id) <= 0)
+                continue;
+            members.emplace_back(id, h * shareOf(id));
+            weight += h * shareOf(id);
+        }
+        if (!members.empty() && weight > 0) {
+            Money pool;
+            for (const auto &[id, w] : members) {
+                TipShare &s = out[id];
+                if (s.name.empty() && byId.contains(id))
+                    s.name = byId[id]->name;
+                const Money in = s.earned - s.tipOut;
+                if (in.cents() > 0) {
+                    s.toPool += in;
+                    pool += in;
+                }
+            }
+            Money given;
+            std::string most;
+            double heaviest = -1;
+            for (const auto &[id, w] : members) {
+                const Money part = Money::fromCents(std::int64_t(double(pool.cents()) * w / weight));
+                out[id].fromPool += part;
+                given += part;
+                if (w > heaviest) {
+                    heaviest = w;
+                    most = id;
+                }
+            }
+            out[most].fromPool += pool - given;   // the cents left over
+        }
     }
     for (const DrawerSession &d : drawers) {
         for (const CashMovement &m : d.movements) {

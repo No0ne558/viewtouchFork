@@ -118,7 +118,7 @@ ApplicationWindow {
 
     // Something over the whole screen (see the page's `enabled`).
     readonly property bool pageCovered: selfOrder.visible || root.controller.asleep || cardWait.visible
-                                        || receiptSheet.visible || setupLoader.active || jobChooser.visible
+                                        || receiptSheet.visible || setupLoader.active || jobChooser.visible || cashTipsPrompt.visible
                                         || approvalPad.visible || allergySheet.visible
 
     Loader {
@@ -872,6 +872,13 @@ ApplicationWindow {
 
     JobChooser {
         id: jobChooser
+        anchors.fill: parent
+        z: 59
+        pos: root.controller.pos as PosService
+    }
+
+    CashTipsPrompt {
+        id: cashTipsPrompt
         anchors.fill: parent
         z: 59
         pos: root.controller.pos as PosService

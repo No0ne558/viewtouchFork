@@ -29,6 +29,10 @@
 
 namespace vt::app {
 
+// "11.50", "$11.50", "11,50" (with `symbol`, the currency's): a price in
+// cents; -1 if it isn't one.
+qint64 priceCents(QString text, const QString &symbol);
+
 // Where the service hands off changes. Implementations must not block: the
 // SQLite one queues writes to a worker thread.
 class PosSink {
@@ -362,6 +366,9 @@ public:
     QVariantMap receiving() const override;
     void cancelClockIn();
     QVariantMap clockInJobs() const override;
+    QVariantMap cashTipsAsk() const override;
+    // The cash tips kept on the shift just clocked out ("12.50"; "" or "0": none).
+    bool declareCashTips(const QString &amount);
     QVariantMap timeClock() const override;
     bool timeClockStart(const QString &pin);
     bool timeClockAct(const QString &action);   // "in", "out", "break"
@@ -963,6 +970,7 @@ private:
     // Start a shift: the job and its pay recorded on the punch.
     bool punchIn(const core::Employee &e, const core::Job &job, const QString &by = {});
     std::string jobChoice_;   // waiting for this person to pick a job
+    std::int64_t cashTipsPunch_ = 0;   // waiting for the cash tips kept on this shift
     std::string clockWho_;
     // The dashboard's "same day last week, by this time" (read from the store; kept a few minutes).
     mutable std::int64_t lastWeekAt_ = 0;

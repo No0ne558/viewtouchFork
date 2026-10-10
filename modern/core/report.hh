@@ -64,17 +64,20 @@ Money tipsOwed(const std::string &employeeId, const std::vector<Check> &closed,
                const std::vector<DrawerSession> &drawers, const TaxRates &rates);
 
 // Everyone's tips after tip-outs: what they earned on their checks, what
-// they tipped out (PosSettings::tipOuts), their share of the pools (by
-// hours worked, `hours`: employee id -> hours today), what was paid out.
+// they tipped out (PosSettings::tipOuts), what they put in the tip pool and
+// their share of the pools (by hours worked, `hours`: employee id -> hours
+// today), what was paid out. Cash tips they told at clock out (`cashTips`)
+// count as earned and as paid (they kept them).
 struct TipShare {
     std::string name;
-    Money tips, gratuity;   // card tips and party gratuity on their checks
-    Money earned, tipOut, fromPool, paid;
-    Money owed() const { return earned - tipOut + fromPool - paid; }
+    Money tips, gratuity, cash;   // card tips and party gratuity on their checks; cash tips told
+    Money earned, tipOut, toPool, fromPool, paid;
+    Money owed() const { return earned - tipOut - toPool + fromPool - paid; }
 };
 std::map<std::string, TipShare> tipShares(const std::vector<Check> &closed, const std::vector<DrawerSession> &drawers,
                                           const PosSettings &settings, const std::vector<Employee> &employees,
-                                          const std::map<std::string, double> &hours);
+                                          const std::map<std::string, double> &hours,
+                                          const std::map<std::string, Money> &cashTips = {});
 
 // Refunds: the day's (given), else those on these checks (a range).
 Report salesSummary(const std::vector<Check> &closed, const ReportContext &ctx,

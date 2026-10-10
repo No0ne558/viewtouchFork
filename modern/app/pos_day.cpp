@@ -605,8 +605,11 @@ std::map<std::string, TipShare> PosService::allTipShares() const
     // Hours worked today, for splitting the tip pools.
     std::map<std::string, double> hours;
     std::map<std::string, std::string> jobToday;   // someone who bartended today is in the bar's pool
+    std::map<std::string, Money> cash;             // cash tips told at clock out
     for (const TimePunch &p : s_->punches) {
         hours[p.employeeId] += double(p.workedMs(now(), s_->settings.paidBreaks)) / 3'600'000.0;
+        if (p.cashTipsDeclared)
+            cash[p.employeeId] += p.cashTips;
         if (!p.job.empty())
             jobToday[p.employeeId] = p.job;
     }
@@ -614,7 +617,7 @@ std::map<std::string, TipShare> PosService::allTipShares() const
     for (Employee &e : staff)
         if (const auto it = jobToday.find(e.id); it != jobToday.end())
             e.role = it->second;
-    return core::tipShares(s_->closedToday, s_->drawers, s_->settings, staff, hours);
+    return core::tipShares(s_->closedToday, s_->drawers, s_->settings, staff, hours, cash);
 }
 
 TipShare PosService::tipShareFor(const std::string &employeeId) const

@@ -65,6 +65,9 @@ struct Employee {
     // Checking out with checks still open: "closeChecks" (not allowed),
     // "anyTime" (allowed), or empty for the store's setting.
     std::string checkout;
+    // In the tip pool: "" by their job (PosSettings::tipPool), "in" always
+    // (a full share), "out" never (they keep their own tips).
+    std::string tipPool;
 
     // Per-person changes to the role's permissions.
     std::set<std::string> allow;
@@ -107,6 +110,9 @@ struct TimePunch {
     // doesn't change what this shift cost).
     std::string job;
     Money rate;
+    // Cash tips they kept, told at clock out (PosSettings::declareCashTips).
+    bool cashTipsDeclared = false;
+    Money cashTips;
 
     bool open() const { return clockOut == 0; }
     bool onBreak() const { return !breaks.empty() && breaks.back().end == 0; }

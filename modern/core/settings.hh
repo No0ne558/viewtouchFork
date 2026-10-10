@@ -248,6 +248,13 @@ struct PosSettings {
         bool operator==(const TipOut &) const = default;
     };
     std::vector<TipOut> tipOuts;
+    // The tip pool: each job's share for an hour worked (100: a full share;
+    // none: not in the pool). Everyone in it puts in their tips (after
+    // tip-outs) and takes out by hours times share.
+    std::map<std::string, int> tipPool;
+    // Ask at clock out for the cash tips kept (they count toward tips, and
+    // the pool).
+    bool declareCashTips = false;
     // Loyalty: points per dollar spent (after discounts), and what they buy.
     struct Reward {
         int points = 0;

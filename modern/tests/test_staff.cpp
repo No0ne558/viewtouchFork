@@ -294,6 +294,77 @@ TEST_CASE("Tip pooling: tip-outs to bussers and bartenders, split by hours", "[s
     CHECK(pos.tipsOwed() == u"$5.00"_s);                                     // $20 earned, $15 paid
 }
 
+TEST_CASE("Tip pool: everyone's tips in one pot, out by hours and job share; cash tips told", "[staff][tips][tippool]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    qint64 clock = todayAt(17);
+    pos.shared()->setClock([&] { return clock; });
+    pos.shared()->settings.tipPool = {{"server", 100}, {"bartender", 100}, {"busser", 50}};
+    pos.shared()->settings.declareCashTips = true;
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    pos.entryKey(u"10000"_s);
+    REQUIRE(pos.openDrawerSession());
+    for (const char16_t *who : {u"sam", u"jo", u"riley"})
+        REQUIRE(pos.clockInEmployee(QString::fromUtf16(who)));
+    CHECK(pos.cashTipsAsk().isEmpty());
+    pos.logout();
+
+    // Sam: a $20 card tip.
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    for (int i = 0; i < 8; ++i)
+        pos.addItem(u"cobb"_s);
+    REQUIRE(pos.tender(u"credit"_s));
+    pos.entryKey(u"2000"_s);
+    REQUIRE(pos.addTip(0));
+    REQUIRE(pos.closeCheck());
+    pos.logout();
+    clock += 4 * 3'600'000;
+
+    // Jo clocks out after 4 hours: asked for cash tips, kept $10.
+    REQUIRE(pos.loginWithPin(u"4444"_s));
+    REQUIRE(pos.clockOut());
+    REQUIRE(pos.cashTipsAsk()[u"who"_s] == u"Jo"_s);
+    CHECK_FALSE(pos.declareCashTips(u"lots"_s));
+    REQUIRE(pos.declareCashTips(u"10"_s));
+    CHECK(pos.cashTipsAsk().isEmpty());
+    CHECK_FALSE(pos.declareCashTips(u"5"_s));                             // asked once
+    pos.logout();
+
+    // In: Sam's $20 and Jo's $10 cash. Out by hours x share: Sam 4x100,
+    // Jo 4x100, Riley 4x50 -> $12, $12, $6.
+    // Columns: Staff, Card tips, Cash tips, Gratuity, Into pool, From pools, Paid out, Owed.
+    QStringList sam = tipRow(pos, u"Sam"_s), jo = tipRow(pos, u"Jo"_s), riley = tipRow(pos, u"Riley"_s);
+    REQUIRE(sam.size() == 8);
+    CHECK(sam[4] == u"$20.00"_s);
+    CHECK(sam[5] == u"$12.00"_s);
+    CHECK(sam[7] == u"$12.00"_s);
+    CHECK(jo[2] == u"$10.00"_s);
+    CHECK(jo[4] == u"$10.00"_s);
+    CHECK(jo[5] == u"$12.00"_s);
+    CHECK(jo[6] == u"$10.00"_s);                                           // kept in cash
+    CHECK(jo[7] == u"$2.00"_s);
+    CHECK(riley[5] == u"$6.00"_s);
+    CHECK(riley[7] == u"$6.00"_s);
+
+    // Riley keeps their own tips (their own setting): Sam and Jo split it.
+    pos.shared()->employees[2].tipPool = "out";
+    REQUIRE(pos.shared()->employees[2].id == "riley");
+    CHECK(tipRow(pos, u"Sam"_s)[5] == u"$15.00"_s);
+    CHECK(tipRow(pos, u"Jo"_s)[5] == u"$15.00"_s);
+    CHECK(tipRow(pos, u"Riley"_s).isEmpty());
+    // Kept on the shift.
+    const core::TimePunch &p = *std::ranges::find_if(pos.shared()->punches, [](const core::TimePunch &x) { return x.employeeId == "jo"; });
+    const core::TimePunch back = app::punchFromJson(app::toJson(p));
+    CHECK(back.cashTipsDeclared);
+    CHECK(back.cashTips.cents() == 1000);
+    // Settings and the override kept.
+    const auto settings = app::settingsFromJson(app::toJson(pos.shared()->settings));
+    CHECK(settings.tipPool == pos.shared()->settings.tipPool);
+    CHECK(settings.declareCashTips);
+    CHECK(app::employeeFromJson(app::toJson(pos.shared()->employees[2])).tipPool == "out");
+}
+
 TEST_CASE("Manager approval: a manager's PIN lets one void through, on the spot", "[staff][approval]")
 {
     PosService pos(test::seedPosData(), nullptr);

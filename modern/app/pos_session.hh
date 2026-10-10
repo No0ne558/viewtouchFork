@@ -111,6 +111,7 @@ class PosSession : public QObject {
     Q_PROPERTY(QVariantMap kioskMenu READ kioskMenu NOTIFY adminChanged)
     // Clocking in with more than one job: {who, jobs: [{role, name}]}, else empty.
     Q_PROPERTY(QVariantMap clockInJobs READ clockInJobs NOTIFY sessionChanged)
+    Q_PROPERTY(QVariantMap cashTipsAsk READ cashTipsAsk NOTIFY sessionChanged)
     // The Time Clock screen: who typed their PIN (not logged in), their status,
     // today's hours and their shifts; empty until someone does.
     Q_PROPERTY(QVariantMap timeClock READ timeClock NOTIFY sessionChanged)
@@ -290,6 +291,8 @@ public:
     virtual QVariantMap selfOrderInfo() const = 0;
     virtual QVariantMap kioskMenu() const = 0;
     virtual QVariantMap clockInJobs() const = 0;
+    // Just clocked out here: the cash tips they kept? ({who, punchId}; {} none)
+    virtual QVariantMap cashTipsAsk() const = 0;
     virtual QVariantMap timeClock() const = 0;
     virtual QVariantMap receiving() const = 0;
     virtual QVariantMap checkSearch() const = 0;
@@ -490,6 +493,7 @@ public:
     Q_INVOKABLE void selectFoundCheck(qint64 id) { invoke(QStringLiteral("selectFoundCheck"), {id}); }
     Q_INVOKABLE void reprintCheck(qint64 id) { invoke(QStringLiteral("reprintCheck"), {id}); }
     Q_INVOKABLE void cancelClockIn() { invoke(QStringLiteral("cancelClockIn")); }
+    Q_INVOKABLE void declareCashTips(const QString &amount) { invoke(QStringLiteral("declareCashTips"), {amount}); }
     Q_INVOKABLE void kioskStart(bool toGo) { invoke(QStringLiteral("kioskStart"), {toGo}); }
     Q_INVOKABLE void kioskAdd(const QString &itemId) { invoke(QStringLiteral("kioskAdd"), {itemId}); }
     Q_INVOKABLE void kioskRemove(qint64 lineId) { invoke(QStringLiteral("kioskRemove"), {lineId}); }

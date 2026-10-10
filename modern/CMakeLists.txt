@@ -150,6 +150,7 @@ if(Qt6_FOUND)
             ui/qml/TouchScrollColumn.qml
             ui/qml/SelfOrder.qml
             ui/qml/JobChooser.qml
+            ui/qml/CashTipsPrompt.qml
             ui/qml/TouchKeyboard.qml
             ui/qml/ApprovalPad.qml
             ui/qml/MessageBanner.qml

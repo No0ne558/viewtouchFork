@@ -62,19 +62,6 @@ bool isOwnGroup(const std::string &groupId)
 }
 
 // A list, or typed: "lettuce, tomato, onion".
-// "11.50", "$11.50", "11,50": a price in cents; -1 if it isn't one.
-qint64 priceCents(QString text, const QString &symbol)
-{
-    text = text.remove(symbol).trimmed();
-    if (!text.contains(u'.') && text.count(u',') == 1)
-        text.replace(u',', u'.');           // 3,50
-    else
-        text.remove(u',');                  // 1,250.00
-    bool ok = false;
-    const double v = text.toDouble(&ok);
-    return ok && v >= 0 ? std::llround(v * 100.0) : -1;
-}
-
 QStringList strings(const QVariant &v)
 {
     QStringList out;
@@ -91,6 +78,19 @@ QStringList strings(const QVariant &v)
 }
 
 } // namespace
+
+// "11.50", "$11.50", "11,50": a price in cents; -1 if it isn't one.
+qint64 priceCents(QString text, const QString &symbol)
+{
+    text = text.remove(symbol).trimmed();
+    if (!text.contains(u'.') && text.count(u',') == 1)
+        text.replace(u',', u'.');           // 3,50
+    else
+        text.remove(u',');                  // 1,250.00
+    bool ok = false;
+    const double v = text.toDouble(&ok);
+    return ok && v >= 0 ? std::llround(v * 100.0) : -1;
+}
 
 PosShared::MenuState PosService::menuState() const
 {

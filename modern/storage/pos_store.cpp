@@ -235,6 +235,11 @@ bool PosStore::open(QString *error)
             || !run(q, u"UPDATE meta SET value = '12' WHERE key = 'pos_schema_version'"_s, error))
             return false;
     }
+    if (version < 13) {   // cash tips told at clock out (-1: not told)
+        if (!run(q, u"ALTER TABLE time_punches ADD COLUMN cash_tips INTEGER NOT NULL DEFAULT -1"_s, error)
+            || !run(q, u"UPDATE meta SET value = '13' WHERE key = 'pos_schema_version'"_s, error))
+            return false;
+    }
     return true;
 }
 
@@ -445,7 +450,7 @@ std::vector<TimePunch> PosStore::punches() const
 {
     std::vector<TimePunch> out;
     QSqlQuery q(QSqlDatabase::database(connection_));
-    if (!q.exec(u"SELECT id, employee_id, clock_in, clock_out, breaks, job, rate FROM time_punches ORDER BY id"_s))
+    if (!q.exec(u"SELECT id, employee_id, clock_in, clock_out, breaks, job, rate, cash_tips FROM time_punches ORDER BY id"_s))
         return out;
     while (q.next()) {
         TimePunch p{q.value(0).toLongLong(), q.value(1).toString().toStdString(), q.value(2).toLongLong(),
@@ -454,6 +459,8 @@ std::vector<TimePunch> PosStore::punches() const
             p.breaks.push_back({b.toObject().value(u"start").toInteger(), b.toObject().value(u"end").toInteger()});
         p.job = q.value(5).toString().toStdString();
         p.rate = Money::fromCents(q.value(6).toLongLong());
+        p.cashTipsDeclared = q.value(7).toLongLong() >= 0;
+        p.cashTips = Money::fromCents(std::max<qint64>(0, q.value(7).toLongLong()));
         out.push_back(std::move(p));
     }
     return out;
@@ -585,6 +592,7 @@ void SqlPosSink::savePunch(const TimePunch &p)
         {u"clock_in"_s, qint64(p.clockIn)}, {u"clock_out"_s, qint64(p.clockOut)},
         {u"breaks"_s, QString::fromUtf8(QJsonDocument(app::toJson(p).value(u"breaks").toArray()).toJson(QJsonDocument::Compact))},
         {u"job"_s, qs(p.job)}, {u"rate"_s, qint64(p.rate.cents())},
+        {u"cash_tips"_s, p.cashTipsDeclared ? qint64(p.cashTips.cents()) : qint64(-1)},
     });
 }
 
@@ -703,7 +711,7 @@ std::vector<TimePunch> punchesBetween(const QString &dbPath, std::int64_t from, 
         db.setConnectOptions(u"QSQLITE_BUSY_TIMEOUT=5000"_s);
         if (db.open()) {
             QSqlQuery q(db);
-            q.prepare(u"SELECT id, employee_id, clock_in, clock_out, breaks, job, rate FROM time_punches "
+            q.prepare(u"SELECT id, employee_id, clock_in, clock_out, breaks, job, rate, cash_tips FROM time_punches "
                       "WHERE clock_in >= ? AND clock_in < ? ORDER BY clock_in"_s);
             q.addBindValue(qint64(from));
             q.addBindValue(qint64(to));
@@ -715,6 +723,8 @@ std::vector<TimePunch> punchesBetween(const QString &dbPath, std::int64_t from, 
                         p.breaks.push_back({b.toObject().value(u"start").toInteger(), b.toObject().value(u"end").toInteger()});
                     p.job = q.value(5).toString().toStdString();
                     p.rate = Money::fromCents(q.value(6).toLongLong());
+                    p.cashTipsDeclared = q.value(7).toLongLong() >= 0;
+                    p.cashTips = Money::fromCents(std::max<qint64>(0, q.value(7).toLongLong()));
                     out.push_back(std::move(p));
                 }
             db.close();
