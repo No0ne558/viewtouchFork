@@ -231,7 +231,9 @@ Flickable {
                                     anchors.right: parent.right
                                     anchors.margins: 6
                                     height: parent.height * 0.55
-                                    fillMode: Image.PreserveAspectCrop
+                                    // A ready-made picture whole; a photo filling the space.
+                                    fillMode: !cell.isGap && (cell.modelData.image ?? "").startsWith("store:emoji-")
+                                              ? Image.PreserveAspectFit : Image.PreserveAspectCrop
                                     asynchronous: true
                                     source: mb.photos && !cell.isGap ? mb.img(cell.modelData.image) : ""
                                 }

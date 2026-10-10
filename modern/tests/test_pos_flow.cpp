@@ -1564,6 +1564,55 @@ TEST_CASE("UI: Menu Builder: an item's sizes", "[flow][ui][sizes]")
     CHECK_FALSE(shown(u"builderNotSaved"_s));
 }
 
+TEST_CASE("UI: Menu Builder: a ready-made picture for an item, on the order screen", "[flow][ui][readypicture]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto tap = [&](const QString &name) {
+        QQuickItem *it = by(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(60);
+    };
+    tap(u"builderCategory-burgers"_s);
+    tap(u"builderItem-classic-burger"_s);
+    tap(u"builderReadyPicture"_s);
+    s.shot("87-builder-pictures");
+    tap(u"builderPicture-4"_s);                                // 🍔
+    tap(u"builderSave"_s);
+    QTest::qWait(60);
+    const std::string ref = s.pos.findItem(u"classic-burger"_s)->image;
+    CHECK(ref == "store:emoji-1f354.png");
+    // Drawn: in color, not blank.
+    REQUIRE(s.pos.shared()->images.contains("emoji-1f354.png"));
+    const QImage img = QImage::fromData(s.pos.shared()->images.at("emoji-1f354.png"));
+    REQUIRE_FALSE(img.isNull());
+    QSet<QRgb> colors;
+    int drawn = 0;
+    for (int y = 0; y < img.height(); y += 4)
+        for (int x = 0; x < img.width(); x += 4) {
+            const QColor c = img.pixelColor(x, y);
+            if (c.alpha() > 200) {
+                ++drawn;
+                colors.insert(qRgb(c.red() / 32, c.green() / 32, c.blue() / 32));
+            }
+        }
+    CHECK(drawn > 400);
+    CHECK(colors.size() > 4);
+
+    // Photos on for Burgers: on the order screen.
+    REQUIRE(s.pos.saveCategory({{u"id"_s, u"burgers"_s}, {u"name"_s, u"Burgers"_s}, {u"photos"_s, true}}));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"menu-all"_s));
+    s.c.setMenuCategory(u"burgers"_s);
+    QTest::qWait(300);
+    s.shot("88-menu-pictures");
+}
+
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
 {
     Screen s;

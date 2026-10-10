@@ -7,6 +7,7 @@
 #include <climits>
 #include <QFontDatabase>
 #include <QImage>
+#include <QPainter>
 
 #include "app/looks.hh"
 #include <QUrl>
@@ -794,6 +795,36 @@ QVariantMap LayoutController::readMenuFile(const QUrl &file) const
         items.append(row);
     }
     return {{u"items"_s, items}, {u"problems"_s, read.problems}, {u"columns"_s, read.columns}, {u"photos"_s, photos}};
+}
+
+QString LayoutController::emojiPicture(const QString &emoji)
+{
+    if (!pos_ || emoji.isEmpty())
+        return {};
+    QStringList code;
+    for (const char32_t c : emoji.toUcs4())
+        if (c != 0xfe0f)
+            code << QString::number(c, 16);
+    const QString name = u"emoji-"_s + code.join(u'-') + u".png"_s;
+    QImage img(256, 256, QImage::Format_ARGB32_Premultiplied);
+    img.fill(Qt::transparent);
+    {
+        QPainter p(&img);
+        p.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
+        QFont f(u"Noto Color Emoji"_s);
+        f.setFamilies({u"Noto Color Emoji"_s, u"Apple Color Emoji"_s, u"Segoe UI Emoji"_s, u"Noto Emoji"_s});
+        f.setPixelSize(196);
+        p.setFont(f);
+        p.drawText(img.rect(), Qt::AlignCenter, emoji);
+    }
+    const QString dir = QDir::temp().filePath(u"viewtouch-pictures"_s);
+    QDir().mkpath(dir);
+    const QString path = QDir(dir).filePath(name);
+    if (!img.save(path, "PNG"))
+        return {};
+    const QString ref = pos_->addImageFile(path);
+    QFile::remove(path);
+    return ref;
 }
 
 void LayoutController::exportMenu()

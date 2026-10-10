@@ -235,7 +235,10 @@ Rectangle {
                     anchors.fill: parent
                     visible: !!card.modelData.image
                     source: k.img(card.modelData.image)
-                    fillMode: Image.PreserveAspectCrop
+                    // A ready-made picture whole; a photo filling the space.
+                    readonly property bool icon: (card.modelData.image ?? "").startsWith("store:emoji-")
+                    anchors.margins: icon ? parent.height * 0.12 : 0
+                    fillMode: icon ? Image.PreserveAspectFit : Image.PreserveAspectCrop
                     asynchronous: true
                     sourceSize.width: 600
                 }
@@ -365,7 +368,7 @@ Rectangle {
         onVisibleChanged: if (visible) k.avoid = []   // the next guest starts afresh
         // The store's slides (Store Settings → Customer display), then dishes with photos.
         readonly property var slides: (k.brand.slides ?? []).concat(
-            (k.menu.items ?? []).filter(i => !!i.image && i.available).map(i => ({ image: i.image, text: i.name, price: i.price })))
+            (k.menu.items ?? []).filter(i => !!i.image && !i.image.startsWith("store:emoji-") && i.available).map(i => ({ image: i.image, text: i.name, price: i.price })))
         property int index: 0
         readonly property var current: slides.length ? slides[index % slides.length] : null
         readonly property string picture: !current ? ""

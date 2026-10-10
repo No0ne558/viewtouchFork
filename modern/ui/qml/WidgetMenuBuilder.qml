@@ -1224,6 +1224,28 @@ Item {
                                     onCommit: v => w.set("image", v ?? "")
                                     onReset: w.set("image", "")
                                 }
+                                // No photo of it? A ready-made picture.
+                                Item { width: 1; height: 1 }
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    TouchButton {
+                                        objectName: "builderReadyPicture"
+                                        implicitHeight: 44
+                                        font.pixelSize: 14
+                                        text: qsTr("🌮 Ready-Made Picture…")
+                                        onClicked: pictureDialog.open()
+                                    }
+                                    Label {
+                                        visible: !!w.draft.image && !!w.category && w.category.photos !== true
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                        opacity: 0.7
+                                        font.pixelSize: 13
+                                        text: qsTr("Turn on Photos for %1 (Edit Category) to show pictures on the order screen; the kiosk shows them always.")
+                                              .arg(w.category ? w.category.name : "")
+                                    }
+                                }
                                 Label { text: qsTr("Sold out") }
                                 Switch {
                                     checked: !(w.draft.available ?? true)
@@ -2546,6 +2568,61 @@ Item {
                 }
                 TouchButton { Layout.preferredWidth: 140; text: qsTr("Cancel"); onClicked: sizesDialog.close() }
             }
+        }
+    }
+
+    // Ready-made pictures: food and drink, drawn for the store.
+    Popup {
+        id: pictureDialog
+        objectName: "builderPictureDialog"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent ? parent.width - 32 : 640, 640)
+        modal: true
+        padding: 16
+        readonly property var pictures: ["🌮", "🌯", "🫔", "🥙", "🍔", "🌭", "🍕", "🥪", "🥗", "🍟", "🍗", "🍖",
+                                         "🥩", "🥓", "🍳", "🥞", "🧇", "🥐", "🍞", "🥯", "🧀", "🍝", "🍜", "🍲",
+                                         "🍛", "🍣", "🍱", "🍤", "🐟", "🦀", "🍚", "🥟", "🌶️", "🥑", "🌽", "🥔",
+                                         "🥕", "🍅", "🍰", "🎂", "🧁", "🍩", "🍪", "🍦", "🍨", "🥧", "🍫", "🍎",
+                                         "🍓", "🍌", "🍉", "🥤", "🧃", "🧋", "☕", "🍵", "🥛", "🍺", "🍷", "🍸",
+                                         "🍹", "🥃", "🍾", "💧"]
+        contentItem: ColumnLayout {
+            spacing: 10
+            Label { text: qsTr("A picture for %1").arg(w.draft.name || qsTr("it")); font.pixelSize: 20; font.bold: true }
+            Grid {
+                columns: 8
+                spacing: 6
+                Layout.alignment: Qt.AlignHCenter
+                Repeater {
+                    model: pictureDialog.pictures
+                    delegate: Rectangle {
+                        required property string modelData
+                        required property int index
+                        objectName: "builderPicture-" + index
+                        width: 64
+                        height: 64
+                        radius: 10
+                        color: "#232933"
+                        border.color: "#3a424f"
+                        Text {
+                            anchors.centerIn: parent
+                            text: parent.modelData
+                            font.family: "Noto Color Emoji"
+                            font.pixelSize: 38
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                const e = parent.modelData, b = w
+                                pictureDialog.close()
+                                const ref = b.zone.controller.emojiPicture(e)
+                                if (ref !== "") b.set("image", ref)
+                            }
+                        }
+                    }
+                }
+            }
+            TouchButton { Layout.fillWidth: true; text: qsTr("Cancel"); onClicked: pictureDialog.close() }
         }
     }
 

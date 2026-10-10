@@ -183,6 +183,9 @@ public:
     // The whole menu as a file (Exports, or the folder set for them), for
     // Import... at another store.
     Q_INVOKABLE void exportMenu();
+    // A ready-made picture for an item: the emoji drawn big into a PNG the
+    // store keeps ("store:emoji-1f32e.png"); "" if it can't be.
+    Q_INVOKABLE QString emojiPicture(const QString &emoji);
     // Pages of buttons placed by hand that an item's button can go on:
     // [{id, name, has}] (has: one for `itemId` is there already).
     Q_INVOKABLE QVariantList handBuiltPages(const QString &itemId) const;
