@@ -1499,6 +1499,71 @@ TEST_CASE("UI: the order screen: sections, a new row, shades; the Menu Builder's
     CHECK(find(u"builderName"_s)->property("text").toString() == u"Veggie Burger"_s);
 }
 
+TEST_CASE("UI: Menu Builder: a color theme for every category", "[flow][ui][themes]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto tap = [&](const QString &name) {
+        QQuickItem *it = by(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(60);
+    };
+    tap(u"builderThemes"_s);
+    CHECK_FALSE(by(u"builderThemeUse"_s)->isEnabled());       // a theme first
+    tap(u"builderTheme-bright"_s);
+    s.shot("85-builder-themes");
+    tap(u"builderThemeUse"_s);
+    const QVariantList cats = s.pos.menuCategories();
+    REQUIRE(cats.size() >= 2);
+    CHECK(cats[0].toMap()[u"color"_s] == u"#e53935"_s);
+    CHECK(cats[1].toMap()[u"color"_s] == u"#fb8c00"_s);
+    CHECK(s.pos.menuUndoText() == u"Category colors"_s);
+}
+
+TEST_CASE("UI: Menu Builder: an item's sizes", "[flow][ui][sizes]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto shown = [&](const QString &name) { QQuickItem *i = by(name); return i && i->isVisible(); };
+    const auto tap = [&](const QString &name) {
+        QQuickItem *it = by(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(60);
+    };
+    const auto type = [&](const QString &field, const char *text) {
+        tap(field);
+        QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
+        for (const char *ch = text; *ch; ++ch)
+            QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+        QTest::qWait(30);
+    };
+    tap(u"builderCategory-burgers"_s);
+    tap(u"builderItem-kids-burger"_s);
+    CHECK(by(u"builderSizesText"_s)->property("text").toString() == u"One size"_s);
+    tap(u"builderSizes"_s);
+    REQUIRE(shown(u"builderSizesSave"_s));
+    REQUIRE(by(u"builderSizeName-1"_s));                       // Small and Large to start
+    type(u"builderSizePrice-0"_s, "7.00");
+    type(u"builderSizePrice-1"_s, "9.25");
+    s.shot("86-builder-sizes");
+    tap(u"builderSizesSave"_s);
+    QTest::qWait(60);
+    CHECK(s.pos.findItem(u"kids-burger"_s)->price.cents() == 700);
+    CHECK(by(u"builderSizesText"_s)->property("text").toString() == u"Small 7.00  ·  Large 9.25"_s);
+    CHECK(by(u"builderPrice"_s)->property("text").toString() == u"7.00"_s);
+    CHECK_FALSE(shown(u"builderNotSaved"_s));
+}
+
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
 {
     Screen s;

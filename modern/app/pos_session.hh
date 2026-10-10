@@ -444,6 +444,8 @@ public:
     Q_INVOKABLE void saveMenuItemCard(const QVariantMap &card) { invoke(QStringLiteral("saveMenuItemCard"), {card}); }
     Q_INVOKABLE void deleteMenuItemCard(const QString &id) { invoke(QStringLiteral("deleteMenuItemCard"), {id}); }
     Q_INVOKABLE void saveChoiceGroup(const QVariantMap &record) { invoke(QStringLiteral("saveChoiceGroup"), {record}); }
+    Q_INVOKABLE void setItemSizes(const QString &itemId, const QVariantList &sizes) { invoke(QStringLiteral("setItemSizes"), {itemId, QVariant(sizes)}); }
+    Q_INVOKABLE void setCategoryColors(const QVariantMap &colors) { invoke(QStringLiteral("setCategoryColors"), QVariantList{QVariant(colors)}); }
     Q_INVOKABLE void changeMenuItems(const QStringList &ids, const QVariantMap &changes) { invoke(QStringLiteral("changeMenuItems"), {ids, changes}); }
     Q_INVOKABLE void removeMenuItems(const QStringList &ids) { invoke(QStringLiteral("removeMenuItems"), QVariantList{QVariant(ids)}); }
     Q_INVOKABLE void setMenuPrices(const QVariantList &prices) { invoke(QStringLiteral("setMenuPrices"), QVariantList{QVariant(prices)}); }

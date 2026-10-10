@@ -414,7 +414,7 @@ QStringList groupsOf(const MenuItem &m)
 {
     QStringList out;
     for (const std::string &g : m.modifierGroups)
-        if (g != "on-" + m.id)
+        if (g != "on-" + m.id && g != "size-" + m.id)
             out << QString::fromStdString(g);
     return out;
 }
@@ -428,6 +428,17 @@ QStringList PosService::onItOf(const MenuItem &m) const
     if (const ModifierGroup *g = s_->settings.modifierGroup("on-" + m.id))
         for (const ModifierOption &o : g->options)
             out << qs(o.name);
+    return out;
+}
+
+// Its sizes with their whole prices ([{name, price: "4.50"}]); none: [].
+QVariantList PosService::sizesOf(const MenuItem &m) const
+{
+    QVariantList out;
+    if (const ModifierGroup *g = s_->settings.modifierGroup("size-" + m.id))
+        for (const ModifierOption &o : g->options)
+            out.append(QVariantMap{{u"name"_s, qs(o.name)},
+                                   {u"price"_s, QString::number(double(m.price.cents() + o.price.cents()) / 100.0, 'f', 2)}});
     return out;
 }
 
@@ -450,7 +461,7 @@ QVariantList PosService::choiceGroups() const
                              : g.min > 0 ? tr("%1 to %2").arg(g.min).arg(g.max) : tr("Up to %1").arg(g.max);
         out.append(QVariantMap{{u"id"_s, qs(g.id)}, {u"name"_s, qs(g.name)}, {u"min"_s, g.min}, {u"max"_s, g.max},
                                {u"rule"_s, rule}, {u"askHow"_s, g.askHow}, {u"menuItems"_s, g.menuItems},
-                               {u"own"_s, g.id.starts_with("on-")}, {u"options"_s, options}, {u"usedBy"_s, usedBy}});
+                               {u"own"_s, g.id.starts_with("on-") || g.id.starts_with("size-")}, {u"options"_s, options}, {u"usedBy"_s, usedBy}});
     }
     return out;
 }
@@ -504,7 +515,7 @@ QVariantList PosService::menuItems() const
                                {u"buttonColor"_s, qs(m.buttonColor)},
                                // The Menu Builder's card.
                                {u"priceValue"_s, double(m.price.cents()) / 100.0}, {u"groups"_s, groupsOf(m)},
-                               {u"onIt"_s, onItOf(m)}, {u"taxClass"_s, qs(toString(m.taxClass))},
+                               {u"onIt"_s, onItOf(m)}, {u"sizes"_s, sizesOf(m)}, {u"taxClass"_s, qs(toString(m.taxClass))},
                                {u"printer"_s, qs(m.printer)}, {u"station"_s, qs(m.station)},
                                {u"description"_s, qs(m.description)}, {u"kioskHide"_s, m.kioskHide},
                                {u"availableSet"_s, m.available}, {u"favorite"_s, m.favorite},

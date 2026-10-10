@@ -713,3 +713,78 @@ TEST_CASE("Menu Builder: an item's section and what comes before it", "[menubuil
     REQUIRE(pos.saveCategory({{u"id"_s, u"burgers"_s}, {u"name"_s, u"Burgers"_s}, {u"shades"_s, true}}));
     CHECK(category(pos, u"burgers"_s)[u"shades"_s].toBool());
 }
+
+TEST_CASE("Colors…: every category's color at once, one Undo", "[menubuilder][themes]")
+{
+    test::RecordingSink sink;
+    PosService pos(test::seedPosData(), &sink);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const QString before = category(pos, u"salads"_s)[u"color"_s].toString();
+    REQUIRE(pos.setCategoryColors({{u"burgers"_s, u"#E53935"_s}, {u"salads"_s, u"#43a047"_s}}));
+    CHECK(category(pos, u"burgers"_s)[u"color"_s] == u"#e53935"_s);
+    CHECK(category(pos, u"salads"_s)[u"color"_s] == u"#43a047"_s);
+    CHECK(pos.menuUndoText() == u"Category colors"_s);
+    CHECK_FALSE(pos.setCategoryColors({{u"burgers"_s, u"red"_s}}));
+    CHECK_FALSE(pos.setCategoryColors({{u"nope"_s, u"#000000"_s}}));
+    REQUIRE(pos.undoMenuChange());
+    CHECK(category(pos, u"salads"_s)[u"color"_s] == before);
+}
+
+TEST_CASE("Menu Builder: sizes in one step, asked when it's ordered", "[menubuilder][sizes]")
+{
+    test::RecordingSink sink;
+    PosService pos(test::seedPosData(), &sink);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    // An item that asks for nothing yet.
+    QString id;
+    for (const core::MenuItem &m : pos.shared()->menu)
+        if (!m.isModifier && m.modifierGroups.empty() && m.available && !m.byWeight && m.ticketCapacity == 0) {
+            id = QString::fromStdString(m.id);
+            break;
+        }
+    REQUIRE_FALSE(id.isEmpty());
+    const QString name = QString::fromStdString(pos.findItem(id)->name);
+    CHECK_FALSE(pos.setItemSizes(id, {QVariantMap{{u"name"_s, u"Large"_s}, {u"price"_s, u"4"_s}}}));   // one isn't sizes
+    CHECK_FALSE(pos.setItemSizes(id, {QVariantMap{{u"name"_s, u"Large"_s}, {u"price"_s, u"4"_s}},
+                                      QVariantMap{{u"name"_s, u"large"_s}, {u"price"_s, u"5"_s}}}));
+    REQUIRE(pos.setItemSizes(id, {QVariantMap{{u"name"_s, u"Small"_s}, {u"price"_s, u"3.00"_s}},
+                                  QVariantMap{{u"name"_s, u"Large"_s}, {u"price"_s, u"4.50"_s}},
+                                  QVariantMap{{u"name"_s, u""_s}, {u"price"_s, u""_s}}}));   // an empty row: left out
+    const core::MenuItem *m = pos.findItem(id);
+    CHECK(m->price.cents() == 300);
+    REQUIRE(m->modifierGroups.size() == 1);
+    CHECK(m->modifierGroups.front() == "size-" + m->id);
+    const QVariantMap shown = item(pos, name);
+    CHECK(shown[u"groups"_s].toStringList().isEmpty());                      // not one of the shared ones
+    REQUIRE(shown[u"sizes"_s].toList().size() == 2);
+    CHECK(shown[u"sizes"_s].toList()[1].toMap()[u"price"_s] == u"4.50"_s);
+    for (const QVariant &g : pos.choiceGroups())
+        if (g.toMap()[u"id"_s] == u"size-"_s + id)
+            CHECK(g.toMap()[u"own"_s].toBool());
+    // Its card saved with other choices: the size is still asked first.
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, id}, {u"name"_s, name}, {u"onIt"_s, u"ice"_s}}));
+    CHECK(pos.findItem(id)->modifierGroups.front() == "size-" + id.toStdString());
+
+    // Ordered: the size asked; Large is 4.50.
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(id);
+    pos.chooseOption(u"size-"_s + id, 1);
+    pos.finishChoosing();
+    REQUIRE(pos.lines().size() == 1);
+    CHECK(pos.totals()[u"subtotal"_s].toString() == u"$4.50"_s);
+    pos.releaseCheck();
+
+    // Copied: its own sizes; removed: they go too.
+    REQUIRE(pos.duplicateMenuItem(id));
+    const core::MenuItem *copy = pos.findItem(name + u" 2"_s);
+    REQUIRE(copy);
+    CHECK(copy->modifierGroups.front() == "size-" + copy->id);
+    CHECK(pos.shared()->settings.modifierGroup("size-" + copy->id));
+    const std::string copyId = copy->id;
+    REQUIRE(pos.deleteMenuItemCard(QString::fromStdString(copyId)));
+    CHECK_FALSE(pos.shared()->settings.modifierGroup("size-" + copyId));
+    // None again: one size.
+    REQUIRE(pos.setItemSizes(id, {}));
+    CHECK_FALSE(pos.shared()->settings.modifierGroup("size-" + id.toStdString()));
+    CHECK(pos.findItem(id)->price.cents() == 300);
+}

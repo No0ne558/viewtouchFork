@@ -13,6 +13,7 @@
 #include <QRegularExpression>
 
 #include <algorithm>
+#include <ranges>
 
 using namespace Qt::StringLiterals;
 using namespace vt::core;
@@ -46,6 +47,18 @@ std::string freeId(const QString &wanted, Taken taken)
 std::string onItGroupId(const std::string &itemId)
 {
     return "on-" + itemId;
+}
+
+// Its sizes (Small, Large...): its own choice group, asked first.
+std::string sizeGroupId(const std::string &itemId)
+{
+    return "size-" + itemId;
+}
+
+// One item's own groups (what's on it, its sizes): not on the Choice Groups list.
+bool isOwnGroup(const std::string &groupId)
+{
+    return groupId.starts_with("on-") || groupId.starts_with("size-");
 }
 
 // A list, or typed: "lettuce, tomato, onion".
@@ -219,6 +232,30 @@ bool PosService::saveCategory(const QVariantMap &record)
     return true;
 }
 
+// Colors…: every category's color at once ({id: "#rrggbb"}); one Undo step.
+bool PosService::setCategoryColors(const QVariantMap &colors)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    static const QRegularExpression hex(u"^#[0-9a-fA-F]{6}$"_s);
+    std::vector<MenuCategory> list = s_->categories();
+    for (auto c = colors.begin(); c != colors.end(); ++c) {
+        if (!hex.match(c.value().toString()).hasMatch())
+            return fail(tr("That isn't a color."));
+        if (std::ranges::none_of(list, [&](const MenuCategory &x) { return qs(x.id) == c.key(); }))
+            return fail(tr("There is no category '%1'.").arg(c.key()));
+    }
+    const MenuStep step(this, tr("Category colors"));
+    for (MenuCategory &c : list)
+        if (colors.contains(qs(c.id)))
+            c.color = ss(colors.value(qs(c.id)).toString().toLower());
+    s_->settings.menuCategories = list;
+    settingsChanged();
+    menuChanged();
+    emit notice(tr("Saved"));
+    return true;
+}
+
 bool PosService::moveCategory(const QString &id, int by)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
@@ -364,7 +401,7 @@ QVariantList PosService::menuProblems() const
                         .arg(it.key(), names.join(u", "_s)), firstOf.value(it.key()));
     }
     for (const ModifierGroup &g : s_->settings.modifierGroups) {
-        if (g.id.starts_with("on-"))
+        if (isOwnGroup(g.id))
             continue;
         if (g.options.empty())
             problem(tr("The choice group %1 has no options.").arg(qs(g.name)), {}, qs(g.id));
@@ -610,13 +647,16 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
         for (const QString &g : strings(card.value(u"groups"_s))) {
             if (!s_->settings.modifierGroup(ss(g)))
                 return fail(tr("There is no choice group '%1'.").arg(g));
-            if (ss(g) != onIt)
+            if (ss(g) != onIt && ss(g) != sizeGroupId(item.id))
                 groups.push_back(ss(g));
         }
         const bool hadOnIt = std::ranges::find(item.modifierGroups, onIt) != item.modifierGroups.end();
+        const bool hadSizes = std::ranges::find(item.modifierGroups, sizeGroupId(item.id)) != item.modifierGroups.end();
         item.modifierGroups = groups;
         if (hadOnIt)
             item.modifierGroups.insert(item.modifierGroups.begin(), onIt);
+        if (hadSizes)
+            item.modifierGroups.insert(item.modifierGroups.begin(), sizeGroupId(item.id));
     }
     // What's on it: "lettuce, tomato, onion" -> its own group, each one that
     // comes on it (No, Lite, Extra, on the Side).
@@ -641,6 +681,9 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
             groups.push_back(std::move(g));
             item.modifierGroups.insert(item.modifierGroups.begin(), onIt);
         }
+        // Its size is still asked first.
+        if (std::erase(item.modifierGroups, sizeGroupId(item.id)) > 0)
+            item.modifierGroups.insert(item.modifierGroups.begin(), sizeGroupId(item.id));
         settingsChanged();
     }
 
@@ -661,6 +704,63 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
     }
     menuChanged();
     emit notice(adding ? tr("%1 added").arg(name) : tr("Saved"));
+    return true;
+}
+
+// Sizes…: [{name, price}] for an item (Small 3.00, Large 4.50): its own
+// choice group, asked first; the item's price is the smallest, each size adds
+// the rest. Empty: one size again.
+bool PosService::setItemSizes(const QString &itemId, const QVariantList &sizes)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    const auto it = std::ranges::find_if(s_->menu, [&](const MenuItem &m) { return qs(m.id) == itemId; });
+    if (it == s_->menu.end())
+        return fail(tr("'%1' is not on the menu.").arg(itemId));
+    std::vector<std::pair<QString, qint64>> list;
+    for (const QVariant &v : sizes) {
+        const QVariantMap m = v.toMap();
+        const QString name = m.value(u"name"_s).toString().simplified();
+        const qint64 cents = priceCents(m.value(u"price"_s).toString(), qs(s_->settings.currencySymbol));
+        if (name.isEmpty() && m.value(u"price"_s).toString().trimmed().isEmpty())
+            continue;   // a row left empty
+        if (name.isEmpty())
+            return fail(tr("Each size needs a name."));
+        if (cents < 0)
+            return fail(tr("Type %1's price, like 4.50.").arg(name));
+        if (std::ranges::any_of(list, [&](const auto &x) { return QString::compare(x.first, name, Qt::CaseInsensitive) == 0; }))
+            return fail(tr("%1 is there twice.").arg(name));
+        list.emplace_back(name, cents);
+    }
+    if (list.size() == 1)
+        return fail(tr("Two sizes or more (or none)."));
+    const MenuStep step(this, tr("Sizes for %1").arg(qs(it->name)));
+    const std::string id = sizeGroupId(it->id);
+    auto &groups = s_->settings.modifierGroups;
+    std::erase_if(groups, [&](const ModifierGroup &g) { return g.id == id; });
+    std::erase(it->modifierGroups, id);
+    if (!list.empty()) {
+        const qint64 base = std::ranges::min(list | std::views::transform([](const auto &x) { return x.second; }));
+        ModifierGroup g;
+        g.id = id;
+        g.name = ss(tr("Size"));
+        g.min = 1;
+        g.max = 1;
+        for (const auto &[name, cents] : list) {
+            ModifierOption o;
+            o.name = ss(name);
+            o.price = Money::fromCents(cents - base);
+            g.options.push_back(std::move(o));
+        }
+        groups.push_back(std::move(g));
+        it->modifierGroups.insert(it->modifierGroups.begin(), id);
+        it->price = Money::fromCents(base);
+    }
+    if (s_->sink)
+        s_->sink->saveMenuItem(*it, int(it - s_->menu.begin()));
+    settingsChanged();
+    menuChanged();
+    emit notice(list.empty() ? tr("One size") : tr("Sizes saved"));
     return true;
 }
 
@@ -746,6 +846,16 @@ bool PosService::duplicateMenuItem(const QString &id)
     if (const ModifierGroup *g = s_->settings.modifierGroup(oldOnIt)) {
         ModifierGroup own = *g;
         own.id = newOnIt;
+        s_->settings.modifierGroups.push_back(std::move(own));
+        settingsChanged();
+    }
+    // And its sizes.
+    for (std::string &g : copy.modifierGroups)
+        if (g == sizeGroupId(it->id))
+            g = sizeGroupId(copy.id);
+    if (const ModifierGroup *g = s_->settings.modifierGroup(sizeGroupId(it->id))) {
+        ModifierGroup own = *g;
+        own.id = sizeGroupId(copy.id);
         s_->settings.modifierGroups.push_back(std::move(own));
         settingsChanged();
     }
@@ -1014,11 +1124,11 @@ int PosService::importMenuFile(const QVariantMap &file)
         return g;
     };
     for (const ModifierGroup &g : read.modifierGroups) {
-        if (g.id.starts_with("on-"))
+        if (isOwnGroup(g.id))
             continue;
         auto &list = s_->settings.modifierGroups;
         if (const auto it = std::ranges::find_if(list, [&](const ModifierGroup &x) {
-                return !x.id.starts_with("on-") && sameName(x.name, qs(g.name)); });
+                return !isOwnGroup(x.id) && sameName(x.name, qs(g.name)); });
             it != list.end()) {
             groupOf[g.id] = it->id;
             continue;
@@ -1047,15 +1157,15 @@ int PosService::importMenuFile(const QVariantMap &file)
         }
         std::vector<std::string> groups;
         for (const std::string &g : item.modifierGroups) {
-            if (g == onItGroupId(oldId)) {
+            if (g == onItGroupId(oldId) || g == sizeGroupId(oldId)) {
                 const auto own = std::ranges::find_if(read.modifierGroups, [&](const ModifierGroup &x) { return x.id == g; });
                 if (own == read.modifierGroups.end())
                     continue;
                 ModifierGroup copy = withItems(*own);
-                copy.id = onItGroupId(item.id);
+                copy.id = g == sizeGroupId(oldId) ? sizeGroupId(item.id) : onItGroupId(item.id);
                 std::erase_if(s_->settings.modifierGroups, [&](const ModifierGroup &x) { return x.id == copy.id; });
+                groups.push_back(copy.id);
                 s_->settings.modifierGroups.push_back(std::move(copy));
-                groups.push_back(onItGroupId(item.id));
             } else if (groupOf.contains(g)) {
                 groups.push_back(groupOf.value(g));
             }
@@ -1119,11 +1229,11 @@ bool PosService::deleteMenuItemCard(const QString &id)
     if (it == menu.end())
         return fail(tr("'%1' is not on the menu.").arg(id));
     const QString name = qs(it->name);
-    const std::string onIt = onItGroupId(it->id);
+    const std::string onIt = onItGroupId(it->id), sizes = sizeGroupId(it->id);
     menu.erase(it);
     if (s_->sink)
         s_->sink->deleteMenuItem(ss(id));
-    if (std::erase_if(s_->settings.modifierGroups, [&](const ModifierGroup &g) { return g.id == onIt; }) > 0)
+    if (std::erase_if(s_->settings.modifierGroups, [&](const ModifierGroup &g) { return g.id == onIt || g.id == sizes; }) > 0)
         settingsChanged();
     menuChanged();
     emit notice(tr("%1 removed from the menu").arg(name));

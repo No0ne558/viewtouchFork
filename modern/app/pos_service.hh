@@ -636,6 +636,8 @@ public:
     bool saveMenuItemCard(const QVariantMap &card);
     bool deleteMenuItemCard(const QString &id);
     bool setMenuPrices(const QVariantList &prices);
+    bool setItemSizes(const QString &itemId, const QVariantList &sizes);   // [{name, price}]
+    bool setCategoryColors(const QVariantMap &colors);   // {id: color}: one Undo step
     bool changeMenuItems(const QStringList &ids, const QVariantMap &changes);   // one Undo step
     bool removeMenuItems(const QStringList &ids);   // [{id, price}]: one Undo step
     bool duplicateMenuItem(const QString &id);   // "Fish Tacos 2", right after it
@@ -1005,6 +1007,7 @@ private:
     bool mayManage(const core::Check &c, const QString &action);
     bool mayOpen(const core::Check &c) const;
     QStringList onItOf(const core::MenuItem &m) const;
+    QVariantList sizesOf(const core::MenuItem &m) const;
     core::ReportContext reportContext(const QString &period) const;
     QString dayLabel(const core::BusinessDay &day) const;
     bool saveMenuRecord(int index, const QVariantMap &record);

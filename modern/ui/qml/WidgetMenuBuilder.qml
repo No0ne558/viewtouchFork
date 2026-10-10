@@ -116,6 +116,8 @@ Item {
     }
 
     function copy(o) { return JSON.parse(JSON.stringify(o)) }
+    // The open card's item as saved.
+    readonly property var savedItem: editingItem && draft.id ? (allItems.find(i => i.id === draft.id) ?? null) : null
     function pickCategory(id) {
         categoryId = id   // chosen items stay chosen (Select works across categories)
         editingItem = false
@@ -361,7 +363,13 @@ Item {
     property string waitingFor: ""
     // Duplicate: the item that wasn't there before is the one shown.
     property var idsBefore: null
+    property string syncPrice: ""
     onAllItemsChanged: {
+        if (syncPrice !== "" && editingItem && draft.id === syncPrice) {
+            const i = allItems.find(x => x.id === syncPrice)
+            if (i) set("price", i.priceValue.toFixed(2))
+            syncPrice = ""
+        }
         if (idsBefore) {
             const copy = allItems.find(i => !idsBefore.includes(i.id))
             if (copy) {
@@ -702,8 +710,16 @@ Item {
                         text: qsTr("+ Category")
                         onClicked: w.leave(() => w.editCategory(null))
                     }
-                    TouchButton { text: "▲"; enabled: !!w.category; onClicked: w.pos.moveCategory(w.categoryId, -1) }
-                    TouchButton { text: "▼"; enabled: !!w.category; onClicked: w.pos.moveCategory(w.categoryId, 1) }
+                    TouchButton {
+                        objectName: "builderThemes"
+                        Layout.preferredWidth: 44
+                        text: "🎨"
+                        ToolTip.visible: hovered
+                        ToolTip.text: qsTr("Colors for every category at once")
+                        onClicked: themeDialog.open()
+                    }
+                    TouchButton { Layout.preferredWidth: 44; text: "▲"; enabled: !!w.category; onClicked: w.pos.moveCategory(w.categoryId, -1) }
+                    TouchButton { Layout.preferredWidth: 44; text: "▼"; enabled: !!w.category; onClicked: w.pos.moveCategory(w.categoryId, 1) }
                 }
                 // Many at once: from a spreadsheet, or a starter menu.
                 RowLayout {
@@ -1123,6 +1139,32 @@ Item {
                                     inputMethodHints: Qt.ImhFormattedNumbersOnly
                                     placeholderText: "0.00"
                                     onTextEdited: w.set("price", text)
+                                }
+                                // Sizes (Small, Large…): asked first when it's ordered.
+                                Label { text: qsTr("Sizes") }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    readonly property var sizes: w.savedItem ? (w.savedItem.sizes ?? []) : []
+                                    Label {
+                                        objectName: "builderSizesText"
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                        opacity: parent.sizes.length ? 1 : 0.6
+                                        text: parent.sizes.length ? parent.sizes.map(z => z.name + " " + z.price).join("  ·  ")
+                                            : w.draft.id ? qsTr("One size") : qsTr("One size (add it first for more)")
+                                    }
+                                    TouchButton {
+                                        objectName: "builderSizes"
+                                        implicitHeight: 44
+                                        font.pixelSize: 14
+                                        enabled: !!w.draft.id
+                                        text: qsTr("Sizes…")
+                                        onClicked: {
+                                            const b = w
+                                            b.leave(() => sizesDialog.openFor(b.savedItem))
+                                        }
+                                    }
                                 }
                                 Label { text: qsTr("Category") }
                                 ComboBox {
@@ -2300,6 +2342,210 @@ Item {
                 }
             }
             TouchButton { Layout.fillWidth: true; text: qsTr("Cancel"); onClicked: likeDialog.close() }
+        }
+    }
+
+    // 🎨: every category recolored from a theme, shown first.
+    Popup {
+        id: themeDialog
+        objectName: "builderThemeDialog"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent ? parent.width - 32 : 720, 720)
+        height: Math.min(parent ? parent.height - 32 : 640, 640)
+        modal: true
+        padding: 16
+        property string theme: ""
+        onOpened: theme = ""
+        readonly property var chosen: StoreColors.themes.find(t => t.id === theme) ?? null
+        function colorFor(index) { return chosen ? chosen.colors[index % chosen.colors.length] : w.categories[index].color }
+        contentItem: ColumnLayout {
+            spacing: 10
+            Label { text: qsTr("Colors for every category"); font.pixelSize: 20; font.bold: true }
+            Flow {
+                Layout.fillWidth: true
+                spacing: 8
+                Repeater {
+                    model: StoreColors.themes
+                    delegate: Rectangle {
+                        required property var modelData
+                        objectName: "builderTheme-" + modelData.id
+                        width: 150
+                        height: 76
+                        radius: 8
+                        color: "#232933"
+                        border.color: themeDialog.theme === modelData.id ? "#f5b940" : "#3a424f"
+                        border.width: themeDialog.theme === modelData.id ? 3 : 1
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 6
+                            Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.name; font.pixelSize: 15; font.bold: true }
+                            Row {
+                                spacing: 3
+                                Repeater {
+                                    model: modelData.colors.slice(0, 6)
+                                    delegate: Rectangle { required property string modelData; width: 18; height: 18; radius: 3; color: modelData }
+                                }
+                            }
+                        }
+                        MouseArea { anchors.fill: parent; onClicked: themeDialog.theme = modelData.id }
+                    }
+                }
+            }
+            // The categories as they'd be.
+            ListView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 4
+                model: w.categories
+                delegate: Rectangle {
+                    required property var modelData
+                    required property int index
+                    width: ListView.view.width
+                    height: 40
+                    radius: 6
+                    color: themeDialog.colorFor(index) || "#4a5260"
+                    Label {
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: 12
+                        text: modelData.name
+                        color: StoreColors.ink(parent.color.toString())
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                TouchButton {
+                    objectName: "builderThemeUse"
+                    Layout.fillWidth: true
+                    highlighted: true
+                    enabled: !!themeDialog.chosen
+                    text: qsTr("Use These Colors")
+                    onClicked: {
+                        const colors = {}
+                        w.categories.forEach((c, i) => colors[c.id] = themeDialog.colorFor(i))
+                        themeDialog.close()
+                        w.pos.setCategoryColors(colors)
+                    }
+                }
+                TouchButton { Layout.preferredWidth: 160; text: qsTr("Cancel"); onClicked: themeDialog.close() }
+            }
+        }
+    }
+
+    // Sizes…: a name and a whole price each; the item's price becomes the smallest.
+    Popup {
+        id: sizesDialog
+        objectName: "builderSizesDialog"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent ? parent.width - 32 : 600, 600)
+        modal: true
+        padding: 16
+        property var item: null
+        property var rows: []
+        function openFor(i) {
+            item = i
+            rows = (i.sizes ?? []).length ? i.sizes.map(z => ({ name: z.name, price: z.price })) : []
+            if (rows.length === 0) preset([qsTr("Small"), qsTr("Large")])
+            open()
+        }
+        function preset(names) {
+            const base = item ? item.priceValue : 0
+            rows = names.map((n, k) => ({ name: n, price: (base + k * 1).toFixed(2) }))
+        }
+        function setRow(k, key, value) {
+            const r = JSON.parse(JSON.stringify(rows))
+            r[k][key] = value
+            rows = r
+        }
+        contentItem: ColumnLayout {
+            spacing: 8
+            Label { text: qsTr("Sizes of %1").arg(sizesDialog.item ? sizesDialog.item.name : ""); font.pixelSize: 20; font.bold: true }
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                opacity: 0.75
+                text: qsTr("Each size with its whole price. Ordering it asks for the size; the smallest is its price.")
+            }
+            Flow {
+                Layout.fillWidth: true
+                spacing: 6
+                Repeater {
+                    model: [[qsTr("Small"), qsTr("Large")], [qsTr("Small"), qsTr("Medium"), qsTr("Large")],
+                            [qsTr("Regular"), qsTr("Large")]]
+                    delegate: TouchButton {
+                        required property var modelData
+                        implicitHeight: 44
+                        font.pixelSize: 14
+                        text: modelData.join(" / ")
+                        onClicked: sizesDialog.preset(modelData)
+                    }
+                }
+            }
+            // Counted: typing changes the rows, not how many (the fields stay).
+            Repeater {
+                model: sizesDialog.rows.length
+                delegate: RowLayout {
+                    id: sizeRow
+                    required property int index
+                    readonly property var modelData: sizesDialog.rows[index] ?? ({})
+                    Layout.fillWidth: true
+                    spacing: 6
+                    TextField {
+                        objectName: "builderSizeName-" + sizeRow.index
+                        Layout.fillWidth: true
+                        implicitHeight: 48
+                        font.pixelSize: 16
+                        text: sizeRow.modelData.name
+                        placeholderText: qsTr("e.g. Large")
+                        onTextEdited: sizesDialog.setRow(sizeRow.index, "name", text)
+                    }
+                    TextField {
+                        objectName: "builderSizePrice-" + sizeRow.index
+                        Layout.preferredWidth: 110
+                        implicitHeight: 48
+                        font.pixelSize: 16
+                        text: sizeRow.modelData.price
+                        placeholderText: "0.00"
+                        inputMethodHints: Qt.ImhFormattedNumbersOnly
+                        onTextEdited: sizesDialog.setRow(sizeRow.index, "price", text)
+                    }
+                    TouchButton {
+                        implicitHeight: 48
+                        text: "✕"
+                        onClicked: sizesDialog.rows = sizesDialog.rows.filter((r, k) => k !== sizeRow.index)
+                    }
+                }
+            }
+            TouchButton {
+                implicitHeight: 44
+                font.pixelSize: 14
+                text: qsTr("+ Size")
+                onClicked: sizesDialog.rows = sizesDialog.rows.concat([{ name: "", price: "" }])
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                TouchButton {
+                    objectName: "builderSizesSave"
+                    Layout.fillWidth: true
+                    highlighted: true
+                    enabled: sizesDialog.rows.length !== 1
+                    text: sizesDialog.rows.length ? qsTr("Save Sizes") : qsTr("One Size Only")
+                    onClicked: {
+                        const id = sizesDialog.item.id, rows = sizesDialog.rows
+                        sizesDialog.close()
+                        w.syncPrice = id   // its price may change: the open card follows
+                        w.pos.setItemSizes(id, rows)
+                    }
+                }
+                TouchButton { Layout.preferredWidth: 140; text: qsTr("Cancel"); onClicked: sizesDialog.close() }
+            }
         }
     }
 
