@@ -57,6 +57,7 @@ Item {
     }
     // Select: several items, then one change for all of them.
     property bool selecting: false
+    property bool preview: false
     property var selected: []
     function toggleSelected(id) {
         selected = selected.includes(id) ? selected.filter(x => x !== id) : selected.concat([id])
@@ -135,10 +136,12 @@ Item {
                      allergens: (i.allergens ?? []).slice(), kitchenName: i.kitchenName, number: i.number,
                      buttonColor: i.buttonColor, prepMinutes: i.prepMinutes ? String(i.prepMinutes) : "",
                      takeoutPrice: i.takeoutPrice, periodPrices: Object.assign({}, i.periodPrices),
-                     taxClass: i.taxClass, printer: i.printer, station: i.station }
+                     taxClass: i.taxClass, printer: i.printer, station: i.station,
+                     section: i.section ?? "", breakBefore: i.breakBefore ?? "" }
                  : { id: "", name: "", price: "", family: categoryId, image: "", groups: [], onIt: "",
                      available: true, kioskHide: false, description: "", favorite: false, allergens: [],
                      kitchenName: "", number: "", buttonColor: "", prepMinutes: "", takeoutPrice: "", periodPrices: {},
+                     section: "", breakBefore: "",
                      // what its category's items start with
                      taxClass: category ? (category.taxClass || "food") : "food",
                      printer: category ? (category.printer || "kitchen") : "kitchen", station: category ? category.station : "" }
@@ -146,9 +149,9 @@ Item {
     function categoryDraft(c) {
         return c ? { id: c.id, name: c.name, color: c.color, periods: c.periods.slice(), printer: c.printer,
                      station: c.station, taxClass: c.taxClass, buttonSize: c.buttonSize ?? "", photos: c.photos === true,
-                     hidePrice: c.hidePrice === true }
+                     hidePrice: c.hidePrice === true, shades: c.shades === true }
                  : { id: "", name: "", color: StoreColors.starters[categories.length % StoreColors.starters.length], periods: [],
-                     printer: "kitchen", station: "", taxClass: "food", buttonSize: "", photos: false, hidePrice: false }
+                     printer: "kitchen", station: "", taxClass: "food", buttonSize: "", photos: false, hidePrice: false, shades: false }
     }
     function groupDraft(g) {
         const kind = !g ? "one" : g.max === 1 ? "one" : g.max === 0 ? "any" : "upTo"
@@ -784,6 +787,18 @@ Item {
                         opacity: 0.6
                         font.pixelSize: 13
                     }
+                    // The order screen's buttons, as they'll look.
+                    TouchButton {
+                        objectName: "builderPreview"
+                        visible: !!w.category && w.items.length > 0 && !w.selecting
+                        implicitHeight: 44
+                        font.pixelSize: 14
+                        checkable: true
+                        checked: w.preview
+                        highlighted: checked
+                        text: qsTr("👁 Preview")
+                        onClicked: w.preview = checked
+                    }
                     TouchButton {
                         objectName: "builderSelect"
                         visible: !!w.category && w.items.length > 0
@@ -868,8 +883,34 @@ Item {
                         onClicked: removeSeveral.open()
                     }
                 }
+                // Preview: this category on the order screen (its menu area, scaled down).
+                Rectangle {
+                    objectName: "builderPreviewPane"
+                    visible: w.preview && !w.selecting
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    color: "#14171c"
+                    radius: 8
+                    clip: true
+                    readonly property real design: 1300
+                    MenuButtons {
+                        width: parent.design
+                        height: parent.height * parent.design / Math.max(1, parent.width)
+                        scale: parent.width / parent.design
+                        transformOrigin: Item.TopLeft
+                        items: w.items
+                        category: w.category ?? ({})
+                        categories: w.categories
+                        pos: w.pos
+                        onItemTapped: item => {
+                            const b = w
+                            b.leave(() => b.editItem(item))
+                        }
+                    }
+                }
                 GridView {
                     id: itemGrid
+                    visible: !w.preview || w.selecting
                     interactive: w.dragId === ""
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -911,7 +952,8 @@ Item {
                                     width: parent.width
                                     horizontalAlignment: Text.AlignHCenter
                                     visible: !modelData.add
-                                    text: modelData.add ? "" : (modelData.availableSet ? modelData.price : qsTr("sold out"))
+                                    text: modelData.add ? "" : (modelData.section ? modelData.section + "  ·  " : "")
+                                                               + (modelData.availableSet ? modelData.price : qsTr("sold out"))
                                     color: StoreColors.ink(parent.parent.tint)
                                     opacity: 0.8
                                     font.pixelSize: 15
@@ -1096,6 +1138,39 @@ Item {
                                             w.draft = d
                                         }
                                         w.set("family", c.id)
+                                    }
+                                }
+                                // Under a heading on the order screen ("Tacos", "Burritos").
+                                Label { text: qsTr("Section") }
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    readonly property var known: [...new Set(w.allItems.filter(i => i.family === w.draft.family && i.section)
+                                                                                     .map(i => i.section))]
+                                    TextField {
+                                        objectName: "builderSection"
+                                        Layout.fillWidth: true
+                                        text: w.draft.section ?? ""
+                                        placeholderText: qsTr("None, or a heading like Tacos")
+                                        onTextEdited: w.set("section", text)
+                                    }
+                                    Flow {
+                                        visible: parent.known.length > 0
+                                        Layout.fillWidth: true
+                                        spacing: 4
+                                        Repeater {
+                                            model: parent.parent.known
+                                            delegate: TouchButton {
+                                                required property string modelData
+                                                implicitHeight: 40
+                                                font.pixelSize: 14
+                                                checkable: true
+                                                checked: (w.draft.section ?? "") === modelData
+                                                highlighted: checked
+                                                text: modelData
+                                                onClicked: w.set("section", checked ? modelData : "")
+                                            }
+                                        }
                                     }
                                 }
                                 Label { text: qsTr("Photo") }
@@ -1293,6 +1368,27 @@ Item {
                                             placeholderText: qsTr("Empty: the same")
                                             inputMethodHints: Qt.ImhFormattedNumbersOnly
                                             onTextEdited: w.setPeriodPrice(modelData.id, text)
+                                        }
+                                    }
+                                }
+                                Label { text: qsTr("Before it"); Layout.preferredWidth: 110 }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    Repeater {
+                                        model: [{ id: "", name: qsTr("Nothing") }, { id: "space", name: qsTr("A space") },
+                                                { id: "row", name: qsTr("A new row") }]
+                                        delegate: TouchButton {
+                                            required property var modelData
+                                            objectName: "builderBreak-" + (modelData.id || "none")
+                                            Layout.fillWidth: true
+                                            Layout.preferredWidth: 1
+                                            font.pixelSize: 14
+                                            checkable: true
+                                            checked: (w.draft.breakBefore ?? "") === modelData.id
+                                            highlighted: checked
+                                            text: modelData.name
+                                            onClicked: w.set("breakBefore", modelData.id)
                                         }
                                     }
                                 }
@@ -1566,6 +1662,14 @@ Item {
                                     objectName: "builderCategoryPhotos"
                                     checked: w.draft.photos === true
                                     onToggled: w.set("photos", checked)
+                                }
+                                Label { text: qsTr("Shades") }
+                                Switch {
+                                    objectName: "builderCategoryShades"
+                                    checked: w.draft.shades === true
+                                    onToggled: w.set("shades", checked)
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("Its items take shades of its color, each a little different (an item's own color still wins).")
                                 }
                                 Label { text: qsTr("Prices") }
                                 Switch {

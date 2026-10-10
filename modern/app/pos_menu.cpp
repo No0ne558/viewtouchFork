@@ -484,7 +484,7 @@ QVariantList PosService::menuCategories() const
                                {u"now"_s, c.periods.empty() || std::ranges::find(c.periods, period) != c.periods.end()},
                                {u"printer"_s, qs(c.printer)}, {u"station"_s, qs(c.station)},
                                {u"taxClass"_s, qs(c.taxClass)}, {u"buttonSize"_s, qs(c.buttonSize)},
-                               {u"photos"_s, c.photos}, {u"hidePrice"_s, c.hidePrice}});
+                               {u"photos"_s, c.photos}, {u"hidePrice"_s, c.hidePrice}, {u"shades"_s, c.shades}});
     }
     return out;
 }
@@ -509,6 +509,7 @@ QVariantList PosService::menuItems() const
                                {u"description"_s, qs(m.description)}, {u"kioskHide"_s, m.kioskHide},
                                {u"availableSet"_s, m.available}, {u"favorite"_s, m.favorite},
                                {u"kitchenName"_s, qs(m.kitchenName)}, {u"prepMinutes"_s, m.prepMinutes},
+                               {u"section"_s, qs(m.section)}, {u"breakBefore"_s, qs(m.breakBefore)},
                                {u"takeoutPrice"_s, m.takeoutPrice.cents() ? QString::number(double(m.takeoutPrice.cents()) / 100.0, 'f', 2) : QString()},
                                {u"deliveryPrice"_s, m.deliveryPrice.cents() ? QString::number(double(m.deliveryPrice.cents()) / 100.0, 'f', 2) : QString()},
                                {u"periodPrices"_s, [&m] { QVariantMap p; for (const auto &[k, v] : m.periodPrices) p.insert(qs(k), QString::number(double(v.cents()) / 100.0, 'f', 2)); return p; }()},

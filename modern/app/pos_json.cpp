@@ -286,6 +286,8 @@ QJsonObject toJson(const MenuItem &m)
     if (!m.number.empty()) o.insert(u"number"_s, qs(m.number));
     if (m.prepMinutes > 0) o.insert(u"prepMinutes"_s, m.prepMinutes);
     if (!m.buttonColor.empty()) o.insert(u"buttonColor"_s, qs(m.buttonColor));
+    if (!m.section.empty()) o.insert(u"section"_s, qs(m.section));
+    if (!m.breakBefore.empty()) o.insert(u"breakBefore"_s, qs(m.breakBefore));
     if (m.isModifier) o.insert(u"modifier"_s, true);
     if (!m.printer.empty()) o.insert(u"printer"_s, qs(m.printer));
     if (!m.station.empty()) o.insert(u"station"_s, qs(m.station));
@@ -363,6 +365,8 @@ MenuItem menuItemFromJson(const QJsonObject &o)
     m.number = ss(o.value(u"number").toVariant().toString().trimmed());
     m.prepMinutes = std::clamp(o.value(u"prepMinutes").toVariant().toInt(), 0, 240);
     m.buttonColor = ss(o.value(u"buttonColor").toString());
+    m.section = ss(o.value(u"section").toString());
+    m.breakBefore = ss(o.value(u"breakBefore").toString());
     m.price = Money::fromCents(centsFromDecimal(o.value(u"price").toDouble()));
     m.taxClass = taxClassFromString(ss(o.value(u"taxClass").toString(u"food"_s)));
     m.isModifier = o.value(u"modifier").toBool();
@@ -786,7 +790,7 @@ QJsonObject toJson(const PosSettings &s)
                                         {u"periods"_s, periods}, {u"printer"_s, qs(c.printer)},
                                         {u"station"_s, qs(c.station)}, {u"taxClass"_s, qs(c.taxClass)},
                                         {u"buttonSize"_s, qs(c.buttonSize)}, {u"photos"_s, c.photos},
-                                        {u"hidePrice"_s, c.hidePrice}});
+                                        {u"hidePrice"_s, c.hidePrice}, {u"shades"_s, c.shades}});
              }
              return out;
          }()},
@@ -1179,6 +1183,7 @@ PosSettings settingsFromJson(const QJsonObject &o)
         cat.buttonSize = ss(c.value(u"buttonSize").toString());
         cat.photos = c.value(u"photos").toBool();
         cat.hidePrice = c.value(u"hidePrice").toBool();
+        cat.shades = c.value(u"shades").toBool();
         if (!cat.id.empty())
             s.menuCategories.push_back(std::move(cat));
     }

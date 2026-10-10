@@ -1443,6 +1443,62 @@ TEST_CASE("UI: Menu Builder: a new item like another", "[flow][ui][menubuild][li
     CHECK(onIt == QStringList{u"lettuce"_s, u"tomato"_s});
 }
 
+TEST_CASE("UI: the order screen: sections, a new row, shades; the Menu Builder's preview", "[flow][ui][sections]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    for (const char *id : {"classic-burger", "cheeseburger", "bacon-burger"})
+        REQUIRE(s.pos.saveMenuItemCard({{u"id"_s, QString::fromLatin1(id)}, {u"name"_s, QString::fromStdString(s.pos.findItem(QString::fromLatin1(id))->name)},
+                                        {u"section"_s, u"Beef"_s}}));
+    REQUIRE(s.pos.saveMenuItemCard({{u"id"_s, u"veggie-burger"_s}, {u"name"_s, u"Veggie Burger"_s}, {u"section"_s, u"Meatless"_s}}));
+    REQUIRE(s.pos.saveMenuItemCard({{u"id"_s, u"bacon-burger"_s}, {u"name"_s, u"Bacon Burger"_s}, {u"breakBefore"_s, u"row"_s}}));
+    REQUIRE(s.pos.saveCategory({{u"id"_s, u"burgers"_s}, {u"name"_s, u"Burgers"_s}, {u"shades"_s, true}}));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"menu-all"_s));
+    s.c.setMenuCategory(u"burgers"_s);
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto find = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    REQUIRE(find(u"menuSection-Beef"_s));
+    REQUIRE(find(u"menuSection-Meatless"_s));
+    const auto at = [&](const QString &id) {
+        QQuickItem *b = find(u"menuItem-"_s + id);
+        REQUIRE(b);
+        return b->mapToScene(QPointF(0, 0));
+    };
+    // Beef's under its heading, Meatless under its own, after.
+    CHECK(at(u"veggie-burger"_s).y() > find(u"menuSection-Meatless"_s)->mapToScene(QPointF(0, 0)).y());
+    CHECK(at(u"veggie-burger"_s).y() > at(u"cheeseburger"_s).y());
+    // Bacon Burger starts a row: at the left, below the first two.
+    CHECK(at(u"bacon-burger"_s).x() == Catch::Approx(at(u"classic-burger"_s).x()));
+    CHECK(at(u"bacon-burger"_s).y() > at(u"classic-burger"_s).y());
+    // Shades: the same category, not quite the same color.
+    const QColor a = find(u"menuItem-classic-burger"_s)->property("color").value<QColor>();
+    const QColor b = find(u"menuItem-cheeseburger"_s)->property("color").value<QColor>();
+    CHECK(a != b);
+    s.shot("83-menu-sections");
+    s.pos.releaseCheck();
+
+    // The Menu Builder: the same, small; touching one opens its card.
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    root = s.window->contentItem();
+    s.tapItem(find(u"builderCategory-burgers"_s));
+    QTest::qWait(60);
+    s.tapItem(find(u"builderPreview"_s));
+    QTest::qWait(80);
+    QQuickItem *pane = find(u"builderPreviewPane"_s);
+    REQUIRE(pane);
+    QQuickItem *veggie = Screen::findBy(pane, "objectName", u"menuItem-veggie-burger"_s);
+    REQUIRE(veggie);
+    REQUIRE(Screen::findBy(pane, "objectName", u"menuSection-Meatless"_s));
+    s.shot("84-builder-preview");
+    s.tapItem(veggie);
+    QTest::qWait(60);
+    REQUIRE(find(u"builderName"_s));
+    CHECK(find(u"builderName"_s)->property("text").toString() == u"Veggie Burger"_s);
+}
+
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
 {
     Screen s;
@@ -5400,17 +5456,7 @@ TEST_CASE("UI: the menu screen's buttons fit their category, and Favorites come 
     QQuickItem *root = s.window->contentItem();
     QQuickItem *grid = nullptr;
     const auto findGrid = [&] {
-        std::function<void(QQuickItem *)> walk = [&](QQuickItem *it) {
-            for (QQuickItem *c : it->childItems()) {
-                if (c->isVisible() && QByteArray(c->metaObject()->className()).contains("GridView")
-                    && c->parentItem() && c->parentItem()->parentItem()
-                    && QByteArray(c->parentItem()->parentItem()->metaObject()->className()).contains("WidgetMenuGrid"))
-                    grid = c;
-                walk(c);
-            }
-        };
-        grid = nullptr;
-        walk(root);
+        grid = Screen::findBy(root, "objectName", u"menuButtons"_s);
         return grid;
     };
     // Every category's items on the screen at once, as big as fits.

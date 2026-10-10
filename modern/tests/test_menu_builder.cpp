@@ -688,3 +688,28 @@ TEST_CASE("Menu Builder: several items changed or removed at once, one Undo", "[
     CHECK(pos.findItem(u"classic-burger"_s));
     CHECK(pos.findItem(u"cheeseburger"_s));
 }
+
+TEST_CASE("Menu Builder: an item's section and what comes before it", "[menubuilder][sections]")
+{
+    test::RecordingSink sink;
+    PosService pos(test::seedPosData(), &sink);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, u"veggie-burger"_s}, {u"name"_s, u"Veggie Burger"_s},
+                                  {u"section"_s, u"  Meatless  "_s}, {u"breakBefore"_s, u"row"_s}}));
+    CHECK(pos.findItem(u"veggie-burger"_s)->section == "Meatless");
+    CHECK(pos.findItem(u"veggie-burger"_s)->breakBefore == "row");
+    CHECK(item(pos, u"Veggie Burger"_s)[u"section"_s] == u"Meatless"_s);
+    CHECK_FALSE(pos.saveMenuItemCard({{u"id"_s, u"veggie-burger"_s}, {u"name"_s, u"Veggie Burger"_s}, {u"breakBefore"_s, u"page"_s}}));
+    const core::MenuItem back = app::menuItemFromJson(app::toJson(*pos.findItem(u"veggie-burger"_s)));
+    CHECK(back.section == "Meatless");
+    CHECK(back.breakBefore == "row");
+    // A copy: its section, not the space before.
+    REQUIRE(pos.duplicateMenuItem(u"veggie-burger"_s));
+    for (const core::MenuItem &m : pos.shared()->menu)
+        if (m.name == "Veggie Burger 2") {
+            CHECK(m.section == "Meatless");
+            CHECK(m.breakBefore.empty());
+        }
+    REQUIRE(pos.saveCategory({{u"id"_s, u"burgers"_s}, {u"name"_s, u"Burgers"_s}, {u"shades"_s, true}}));
+    CHECK(category(pos, u"burgers"_s)[u"shades"_s].toBool());
+}

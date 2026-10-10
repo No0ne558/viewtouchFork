@@ -66,6 +66,10 @@ struct MenuItem {
     int prepMinutes = 0;
     // Its button color in the self-filling menu ("#a86a12"); empty: the panel's.
     std::string buttonColor;
+    // On the order screen: under a heading in its category ("Tacos"), and
+    // what comes before it: nothing, a space ("space"), a new row ("row").
+    std::string section;
+    std::string breakBefore;
     bool kioskHide = false;
     // What's in it that guests may be allergic to (allergenIds()).
     std::vector<std::string> allergens;
@@ -144,6 +148,9 @@ struct MenuCategory {
     std::string buttonSize;
     bool photos = false;
     bool hidePrice = false;
+    // Its items without their own color: shades of its color, each a little
+    // different.
+    bool shades = false;
 
     bool operator==(const MenuCategory &) const = default;
 };

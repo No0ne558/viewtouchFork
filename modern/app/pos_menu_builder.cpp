@@ -206,6 +206,8 @@ bool PosService::saveCategory(const QVariantMap &record)
         c.photos = record.value(u"photos"_s).toBool();
     if (record.contains(u"hidePrice"_s))
         c.hidePrice = record.value(u"hidePrice"_s).toBool();
+    if (record.contains(u"shades"_s))
+        c.shades = record.value(u"shades"_s).toBool();
     if (it != list.end())
         *it = c;
     else
@@ -545,6 +547,14 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
         item.station = ss(card.value(u"station"_s).toString());
     if (card.contains(u"kitchenName"_s))
         item.kitchenName = ss(card.value(u"kitchenName"_s).toString().trimmed());
+    if (card.contains(u"section"_s))
+        item.section = ss(card.value(u"section"_s).toString().simplified());
+    if (card.contains(u"breakBefore"_s)) {
+        const QString b = card.value(u"breakBefore"_s).toString();
+        if (!QStringList{QString(), u"space"_s, u"row"_s}.contains(b))
+            return fail(tr("Before an item: nothing, a space or a new row."));
+        item.breakBefore = ss(b);
+    }
     if (card.contains(u"buttonColor"_s))
         item.buttonColor = ss(card.value(u"buttonColor"_s).toString().trimmed());
     if (card.contains(u"prepMinutes"_s)) {
@@ -725,6 +735,7 @@ bool PosService::duplicateMenuItem(const QString &id)
     }
     copy.name = ss(name);
     copy.number.clear();   // numbers are one item's
+    copy.breakBefore.clear();   // one space or new row is enough
     copy.ticketsSoldBefore = 0;
     copy.id = freeId(name, [&](const std::string &x) { return std::ranges::any_of(menu, [&](const MenuItem &m) { return m.id == x; }); });
     // Its own What's on it, copied too.
@@ -961,7 +972,7 @@ int PosService::importMenuFile(const QVariantMap &file)
                 periods << qs(p);
         if (!saveCategory({{u"name"_s, qs(c.name)}, {u"color"_s, qs(c.color)}, {u"periods"_s, periods},
                            {u"printer"_s, qs(c.printer)}, {u"station"_s, qs(c.station)}, {u"taxClass"_s, qs(c.taxClass)},
-                           {u"buttonSize"_s, qs(c.buttonSize)}, {u"photos"_s, c.photos}, {u"hidePrice"_s, c.hidePrice}}))
+                           {u"buttonSize"_s, qs(c.buttonSize)}, {u"photos"_s, c.photos}, {u"hidePrice"_s, c.hidePrice}, {u"shades"_s, c.shades}}))
             return 0;
         for (const MenuCategory &x : s_->categories())
             if (sameName(x.name, qs(c.name)))
