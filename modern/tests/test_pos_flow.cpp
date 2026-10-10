@@ -1239,6 +1239,111 @@ TEST_CASE("UI: a category's buttons on the order screen: small or large, prices 
     CHECK(find(u"menuPrice-classic-burger"_s));
 }
 
+TEST_CASE("UI: a manager changes or adds an item right on the order screen", "[flow][ui][quickedit]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"menu-all"_s));
+    s.c.setMenuCategory(u"burgers"_s);
+    QTest::qWait(80);
+    QQuickItem *root = s.window->contentItem();
+    const auto find = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto tap = [&](const QString &name) {
+        QQuickItem *it = find(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(60);
+    };
+    const auto type = [&](const QString &field, const char *text) {
+        tap(field);
+        QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
+        for (const char *ch = text; *ch; ++ch)
+            QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+        QTest::qWait(30);
+    };
+    const auto hold = [&](const QString &name) {
+        QQuickItem *it = find(name);
+        REQUIRE(it);
+        const QPoint at = it->mapToScene(QPointF(it->width() / 2, it->height() / 2)).toPoint();
+        QTest::mousePress(s.window, Qt::LeftButton, {}, at);
+        QTest::qWait(900);
+        QTest::mouseRelease(s.window, Qt::LeftButton, {}, at);
+        QTest::qWait(60);
+    };
+
+    // Held: its card, not an order.
+    hold(u"menuItem-classic-burger"_s);
+    CHECK(s.pos.lines().isEmpty());
+    REQUIRE(find(u"quickPrice"_s));
+    CHECK(find(u"quickPrice"_s)->property("text").toString() == u"11.50"_s);
+    type(u"quickPrice"_s, "12.25");
+    QQuickItem *picker = find(u"quickColor"_s);
+    REQUIRE(picker);
+    s.tapItem(Screen::findBy(picker, "objectName", u"color-0"_s));
+    s.shot("80-quick-edit");
+    tap(u"quickSave"_s);
+    CHECK_FALSE(find(u"quickSave"_s));
+    CHECK(s.pos.findItem(u"classic-burger"_s)->price.cents() == 1225);
+    CHECK(s.pos.findItem(u"classic-burger"_s)->buttonColor == "#7a1f1f");
+    // Sold out from here, and back.
+    hold(u"menuItem-bacon-burger"_s);
+    tap(u"quickSoldOut"_s);
+    tap(u"quickSave"_s);
+    CHECK_FALSE(s.pos.findItem(u"bacon-burger"_s)->available);
+    hold(u"menuItem-bacon-burger"_s);                            // held, though it can't be ordered
+    tap(u"quickForSale"_s);
+    tap(u"quickSave"_s);
+    CHECK(s.pos.findItem(u"bacon-burger"_s)->available);
+    tap(u"menuItem-classic-burger"_s);                          // a touch still orders
+    CHECK(s.pos.lines().size() == 1);
+
+    // A server holding one: nothing.
+    s.pos.releaseCheck();
+    s.pos.logout();
+    REQUIRE(s.pos.loginWithPin(u"2222"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"menu-all"_s));
+    s.c.setMenuCategory(u"burgers"_s);
+    QTest::qWait(80);
+    hold(u"menuItem-cheeseburger"_s);
+    CHECK_FALSE(find(u"quickPrice"_s));
+    s.pos.releaseCheck();
+    s.pos.logout();
+
+    // Arrange -> + New Item: added to the category shown.
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.startCheck(core::CheckType::Takeout));
+    REQUIRE(s.c.jumpTo(u"menu-all"_s));
+    s.c.setMenuCategory(u"burgers"_s);
+    QTest::qWait(80);
+    tap(u"menuArrange"_s);
+    tap(u"arrangeAdd"_s);
+    REQUIRE(find(u"quickName"_s));
+    CHECK_FALSE(find(u"quickSave"_s)->isEnabled());             // a name and a price first
+    type(u"quickName"_s, "Patty Melt");
+    type(u"quickPrice"_s, "13");
+    tap(u"quickSave"_s);
+    const core::MenuItem *melt = nullptr;
+    for (const core::MenuItem &m : s.pos.shared()->menu)
+        if (m.name == "Patty Melt")
+            melt = &m;
+    REQUIRE(melt);
+    CHECK(melt->family == "burgers");
+    CHECK(melt->price.cents() == 1300);
+    CHECK(find(u"menuItem-"_s + QString::fromStdString(melt->id)));
+
+    // Picked, Edit…, All Settings…: the Menu Builder with it open.
+    tap(u"menuItem-cheeseburger"_s);
+    tap(u"arrangeEdit"_s);
+    tap(u"quickAll"_s);
+    QTest::qWait(150);
+    CHECK(s.c.pageId() == u"menu-builder"_s);
+    root = s.window->contentItem();
+    REQUIRE(find(u"builderName"_s));
+    CHECK(find(u"builderName"_s)->property("text").toString() == u"Cheeseburger"_s);
+}
+
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
 {
     Screen s;

@@ -292,11 +292,16 @@ Item {
                     MouseArea {
                         id: press
                         anchors.fill: parent
-                        enabled: cell.modelData.available || w.arranging
+                        enabled: cell.modelData.available || w.arranging || w.mayArrange
+                        pressAndHoldInterval: 700
+                        // A manager holds one: changed right here.
+                        onPressAndHold: {
+                            if (w.mayArrange) quickCard.edit(cell.modelData)
+                        }
                         // Searching: the typed text is cleared too, ready for the next one.
                         // Arranging: it's picked instead.
                         onClicked: w.arranging ? w.pick(cell.modelData.id)
-                                               : w.zone.controller.orderItem(cell.modelData.id, w.search)
+                                   : cell.modelData.available ? w.zone.controller.orderItem(cell.modelData.id, w.search) : undefined
                     }
                 }
             }
@@ -338,6 +343,27 @@ Item {
                 baseColor: item && item.buttonColor ? item.buttonColor : "#343c49"
                 fontScale: 0.32
                 onClicked: colorPopup.open()
+            }
+            WidgetKey {
+                objectName: "arrangeEdit"
+                enabled: w.picked !== ""
+                opacity: enabled ? 1 : 0.4
+                Layout.preferredWidth: 140; Layout.preferredHeight: parent.keyH
+                text: qsTr("Edit…")
+                fontScale: 0.32
+                onClicked: {
+                    const i = w.items.find(x => x.id === w.picked)
+                    if (i) quickCard.edit(i)
+                }
+            }
+            // A new one, in the category shown.
+            WidgetKey {
+                objectName: "arrangeAdd"
+                visible: w.family !== "" && w.family !== "★"
+                Layout.preferredWidth: 170; Layout.preferredHeight: parent.keyH
+                text: qsTr("+ New Item")
+                fontScale: 0.32
+                onClicked: quickCard.add(w.family)
             }
             Item { Layout.fillWidth: true }
             WidgetKey {
@@ -382,5 +408,11 @@ Item {
                 colorPopup.close()
             }
         }
+    }
+
+    QuickItemCard {
+        id: quickCard
+        pos: w.pos
+        controller: w.zone ? w.zone.controller : null
     }
 }

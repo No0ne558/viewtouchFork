@@ -130,6 +130,7 @@ if(Qt6_FOUND)
             ui/qml/EditorStyle.qml
             ui/qml/StoreColors.qml
             ui/qml/ColorPicker.qml
+            ui/qml/QuickItemCard.qml
             ui/qml/TouchGuard.qml
             ui/qml/EditLayer.qml
             ui/qml/EditorToolbar.qml

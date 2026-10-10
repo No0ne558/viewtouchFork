@@ -48,6 +48,18 @@ Item {
 
     Component.onCompleted: {
         if (categories.length) categoryId = categories[0].id
+        // Sent from the order screen's quick card (All Settings…): that item.
+        const open = zone && zone.controller ? zone.controller.take("menuBuilderOpen") : undefined
+        if (open) {
+            const i = allItems.find(x => x.id === open || x.name.toLowerCase() === String(open).toLowerCase())
+            if (i) {
+                categoryId = i.family
+                editItem(i)
+            } else {
+                waitingFor = String(open)   // not here yet: opened when it is
+            }
+            return
+        }
         // A card left unsaved when this page was left: back as it was.
         const k = zone && zone.controller ? zone.controller.take("menuBuilder") : undefined
         if (k) {
