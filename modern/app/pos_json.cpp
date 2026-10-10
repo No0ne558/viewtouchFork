@@ -124,6 +124,11 @@ QJsonObject toJson(const Check &c)
             lo.insert(u"served"_s, true);
             lo.insert(u"servedAt"_s, qint64(l.servedAt));
         }
+        if (l.isShare()) {
+            lo.insert(u"share"_s, l.share);
+            lo.insert(u"shareOf"_s, l.shareOf);
+            lo.insert(u"shareGroup"_s, qint64(l.shareGroup));
+        }
         lines.append(lo);
     }
     QJsonArray payments;
@@ -211,6 +216,9 @@ std::optional<Check> checkFromJson(const QJsonObject &o)
         l.noStaffDiscount = lo.value(u"noStaffDiscount").toBool();
         l.served = lo.value(u"served").toBool();
         l.servedAt = i64(lo.value(u"servedAt"));
+        l.share = lo.value(u"share").toInt();
+        l.shareOf = lo.value(u"shareOf").toInt();
+        l.shareGroup = i64(lo.value(u"shareGroup"));
         for (const QJsonValue &mv : lo.value(u"modifiers").toArray()) {
             const QJsonObject mo = mv.toObject();
             l.modifiers.push_back({ss(mo.value(u"itemId").toString()), ss(mo.value(u"name").toString()),

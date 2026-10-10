@@ -2571,6 +2571,59 @@ TEST_CASE("UI: a table split by seat, a line moved, and back together", "[flow][
     CHECK_FALSE(s.pos.splitBySeat());
 }
 
+TEST_CASE("UI: split check one at a time, a shared item, evenly", "[flow][ui][split]")
+{
+    Screen s;
+    REQUIRE(s.pos.loginWithPin(u"1111"_s));
+    REQUIRE(s.pos.selectTable(u"T6"_s) == app::PosService::TableNeedsGuests);
+    REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
+    s.pos.addItem(u"cobb"_s);
+    const qint64 cobb = s.pos.lines()[0].toMap()[u"id"_s].toLongLong();
+    REQUIRE(s.pos.setLineQuantity(cobb, 2));
+    s.pos.addItem(u"soda"_s);
+    REQUIRE(s.c.jumpTo(u"split"_s));
+    QTest::qWait(60);
+    const auto find = [&](const QString &name) { return Screen::findBy(s.window->contentItem(), "objectName", name); };
+    const auto tapName = [&](const QString &name) {
+        QQuickItem *it = find(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(50);
+    };
+    const auto tapText = [&](const QString &text) {
+        QQuickItem *it = Screen::findBy(s.window->contentItem(), "text", text);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(50);
+    };
+
+    s.pos.selectLine(cobb);
+    QTest::qWait(40);
+    QQuickItem *howMany = find(u"splitHowMany"_s);
+    REQUIRE(howMany);
+    CHECK(howMany->isVisible());
+    s.shot("60-split-one-or-all");
+    tapText(u"+ New check"_s);                    // one of the two
+    CHECK(s.pos.lines()[0].toMap()[u"quantity"_s].toInt() == 1);
+    CHECK_FALSE(howMany->isVisible());
+
+    // The soda, shared 2 ways.
+    s.pos.selectLine(s.pos.lines()[1].toMap()[u"id"_s].toLongLong());
+    QTest::qWait(40);
+    tapName(u"splitShare"_s);
+    tapName(u"splitWays-2"_s);
+    CHECK(s.pos.lines().size() == 3);
+    CHECK(s.pos.lines()[2].toMap()[u"shared"_s].toBool());
+    s.shot("61-split-shared");
+    tapName(u"splitPutBack"_s);
+    CHECK(s.pos.lines().size() == 2);
+
+    // Evenly, 2 ways.
+    tapName(u"splitEvenly"_s);
+    tapName(u"splitWays-2"_s);
+    CHECK(s.pos.tableChecks().size() == 3);
+}
+
 TEST_CASE("UI: separate checks at one table, switched on the order screen", "[flow][ui][tablechecks]")
 {
     Screen s;

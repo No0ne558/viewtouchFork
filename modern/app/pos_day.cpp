@@ -134,7 +134,23 @@ void PosService::setCheckFilter(const QString &label)
     emit openChecksChanged();   // this terminal only
 }
 
-bool PosService::splitLine(qint64 targetCheckId)
+Check &PosService::splitOff(qint64 fromId)
+{
+    const Check &from = s_->open.at(fromId);
+    Check n;
+    n.id = ++s_->lastCheckId;
+    n.type = from.type;
+    n.label = from.label;
+    n.guests = 1;
+    n.serverId = from.serverId;
+    n.serverName = from.serverName;
+    n.openedAt = now();
+    n.training = from.training;
+    const auto id = n.id;
+    return s_->open.emplace(id, std::move(n)).first->second;
+}
+
+bool PosService::splitLine(qint64 targetCheckId, bool all)
 {
     if (!require(perm::Order, tr("Splitting checks")))
         return false;
@@ -157,30 +173,204 @@ bool PosService::splitLine(qint64 targetCheckId)
             return fail(tr("Check #%1 is open on %2.").arg(targetCheckId).arg(holder));
         target = &it->second;
     } else {
-        Check n;
-        n.id = ++s_->lastCheckId;
-        n.type = c->type;
-        n.label = c->label;
-        n.guests = 1;
-        n.serverId = c->serverId;
-        n.serverName = c->serverName;
-        n.openedAt = now();
-        const auto id = n.id;
-        s_->open.emplace(id, std::move(n));
+        target = &splitOff(c->id);
         c = current();   // map insert keeps references, but be explicit
-        target = &s_->open.at(id);
     }
 
-    std::optional<OrderLine> line = c->takeLine(selectedLine_);
+    // One at a time (2 × Cheeseburger: one moves, one stays), or the line.
+    std::optional<OrderLine> line = all ? c->takeLine(selectedLine_) : c->takeOne(selectedLine_);
+    const int moved = line->quantity;
     const QString name = qs(line->displayName());
     target->adoptLine(std::move(*line));
-    selectedLine_ = 0;
+    // What's left of it stays chosen, so another touch moves the next one.
+    if (!c->line(selectedLine_))
+        selectedLine_ = 0;
     if (s_->sink) {
         s_->sink->saveCheck(*target);
         s_->sink->saveCheck(*c);
     }
-    emit notice(tr("Moved %1 to check #%2").arg(name).arg(target->id));
+    emit notice(moved > 1 ? tr("Moved %1 × %2 to check #%3").arg(moved).arg(name).arg(target->id)
+                          : tr("Moved %1 to check #%2").arg(name).arg(target->id));
     emit checkChanged();
+    emit s_->checksChanged();
+    return true;
+}
+
+bool PosService::shareLine(int parts)
+{
+    if (!require(perm::Order, tr("Splitting checks")))
+        return false;
+    Check *c = current();
+    OrderLine *l = c ? c->line(selectedLine_) : nullptr;
+    if (!l)
+        return fail(tr("Touch an item on the check first."));
+    if (!c->payments.empty())
+        return fail(tr("Remove payments before splitting this check."));
+    if (l->isComment() || l->voided)
+        return fail(tr("%1 can't be shared.").arg(qs(l->displayName())));
+    if (l->isShare())
+        return fail(tr("%1 is already shared: Put Back Together first.").arg(qs(l->displayName())));
+    parts = std::clamp(parts, 2, 20);
+    // 2 × Wine: one of them is shared, the other stays as it is.
+    if (l->quantity > 1) {
+        OrderLine one = *c->takeOne(l->id);
+        selectedLine_ = c->adoptLine(std::move(one)).id;
+    }
+    const QString name = qs(c->line(selectedLine_)->displayName());
+    const std::vector<std::int64_t> ids = c->shareLine(selectedLine_, parts, c->id * 1000000 + selectedLine_);
+    if (ids.empty())
+        return fail(tr("%1 can't be shared.").arg(name));
+    noteEvent(*c, tr("%1 shared %2 ways").arg(name).arg(parts), "split");
+    selectedLine_ = ids[1];   // the next one to move
+    changed(*c);
+    emit notice(tr("%1 is in %2 pieces: move each to its check.").arg(name).arg(parts));
+    return true;
+}
+
+bool PosService::splitEvenly(int ways)
+{
+    if (!require(perm::Order, tr("Splitting checks")))
+        return false;
+    Check *c = current();
+    if (!c)
+        return fail(tr("No check is open."));
+    if (!c->payments.empty())
+        return fail(tr("Remove payments before splitting this check."));
+    ways = std::clamp(ways, 2, 20);
+    std::vector<std::int64_t> ids;
+    for (const OrderLine &l : c->lines) {
+        if (l.isShare())
+            return fail(tr("%1 is already shared: Put Back Together first.").arg(qs(l.displayName())));
+        if (!l.voided && !l.isComment())
+            ids.push_back(l.id);
+    }
+    if (ids.empty())
+        return fail(tr("Nothing on this check to split."));
+
+    const std::int64_t here = c->id;
+    std::vector<std::int64_t> checks{here};
+    for (int i = 1; i < ways; ++i)
+        checks.push_back(splitOff(here).id);
+    c = &s_->open.at(here);
+    // Every item split even: whole ones while they go around, the rest in
+    // pieces, one on each check. Which check gets the first piece (and a
+    // leftover cent) turns, so the cents spread out.
+    int turn = 0;
+    for (const std::int64_t id : ids) {
+        // 4 × Tacos 3 ways: a whole one on each check, the last one shared.
+        const int quantity = c->line(id)->quantity;
+        const int each = quantity / ways;
+        for (int k = 0; k < ways && each > 0; ++k) {
+            const qint64 to = checks[k];
+            if (to == here)
+                continue;
+            OrderLine whole = *c->line(id);
+            whole.quantity = each;
+            c->line(id)->quantity -= each;
+            s_->open.at(to).adoptLine(std::move(whole));
+        }
+        std::vector<std::int64_t> ones;
+        if (quantity % ways) {
+            // What's left: one at a time, each in pieces.
+            OrderLine *l = c->line(id);
+            const int rest = quantity % ways;
+            if (each > 0) {
+                l->quantity = each;
+                for (int k = 0; k < rest; ++k) {
+                    OrderLine one = *l;
+                    one.quantity = 1;
+                    ones.push_back(c->adoptLine(std::move(one)).id);
+                }
+            } else {
+                ones.push_back(id);
+                for (int k = 1; k < rest; ++k)
+                    ones.push_back(c->adoptLine(*c->takeOne(id)).id);
+            }
+        }
+        for (const std::int64_t one : ones) {
+            const std::vector<std::int64_t> pieces = c->shareLine(one, ways, here * 1000000 + one);
+            for (int k = 0; k < ways; ++k) {
+                const qint64 to = checks[(k + turn) % ways];
+                if (to == here)
+                    continue;
+                if (std::optional<OrderLine> p = c->takeLine(pieces[k]))
+                    s_->open.at(to).adoptLine(std::move(*p));
+            }
+            ++turn;
+        }
+    }
+    // Courses, seats... stay as they were; the guests spread out.
+    const int guests = c->guests;
+    for (std::size_t i = 0; i < checks.size(); ++i) {
+        Check &k = s_->open.at(checks[i]);
+        k.guests = std::max(1, guests / ways + (int(i) < guests % ways ? 1 : 0));
+        noteEvent(k, i == 0 ? tr("Split evenly %1 ways").arg(ways) : tr("1 of %1 from check #%2").arg(ways).arg(here), "split");
+        if (s_->sink)
+            s_->sink->saveCheck(k);
+    }
+    selectedLine_ = 0;
+    emit notice(tr("%1: split evenly into %2 checks").arg(qs(c->label)).arg(ways));
+    emit checkChanged();
+    emit s_->checksChanged();
+    return true;
+}
+
+bool PosService::unshareLine()
+{
+    if (!require(perm::Order, tr("Splitting checks")))
+        return false;
+    Check *c = current();
+    const OrderLine *l = c ? c->line(selectedLine_) : nullptr;
+    if (!l || !l->isShare())
+        return fail(tr("Touch a shared item first."));
+    const std::int64_t group = l->shareGroup;
+    // Every piece must be at this table, on a check nobody is paying.
+    std::vector<qint64> holding;
+    int found = 0;
+    for (auto &[id, k] : s_->open) {
+        if (std::ranges::none_of(k.lines, [&](const OrderLine &x) { return x.isShare() && x.shareGroup == group; }))
+            continue;
+        if (k.label != c->label)
+            return fail(tr("A piece of it is on check #%1, at %2.").arg(id).arg(qs(k.label)));
+        if (!k.payments.empty())
+            return fail(tr("Remove payments on check #%1 first.").arg(id));
+        if (id != c->id)
+            if (const QString holder = lockHolder(id); !holder.isEmpty())
+                return fail(tr("Check #%1 is open on %2.").arg(id).arg(holder));
+        holding.push_back(id);
+        for (const OrderLine &x : k.lines)
+            if (x.isShare() && x.shareGroup == group) {
+                if (x.voided)
+                    return fail(tr("A piece of it was voided."));
+                ++found;
+            }
+    }
+    // A piece already paid for (its check closed): the rest stay pieces.
+    if (found < l->shareOf)
+        return fail(tr("A piece of it was already paid for."));
+    std::optional<OrderLine> whole;
+    for (const qint64 id : holding) {
+        Check &k = s_->open.at(id);
+        std::vector<std::int64_t> ids;
+        for (const OrderLine &x : k.lines)
+            if (x.isShare() && x.shareGroup == group)
+                ids.push_back(x.id);
+        for (const std::int64_t x : ids) {
+            OrderLine p = *k.takeLine(x);
+            if (!whole || p.share == 1)
+                whole = std::move(p);
+        }
+        if (id != c->id && s_->sink)
+            s_->sink->saveCheck(k);
+    }
+    c = &s_->open.at(c->id);
+    whole->share = 0;
+    whole->shareOf = 0;
+    whole->shareGroup = 0;
+    const QString name = qs(whole->displayName());
+    selectedLine_ = c->adoptLine(std::move(*whole)).id;
+    emit notice(tr("%1 is back together").arg(name));
+    changed(*c);
     emit s_->checksChanged();
     return true;
 }
@@ -946,7 +1136,7 @@ bool PosService::endOfDay()
             if (!c.training)
                 for (const OrderLine &l : c.lines)
                     if (!l.voided && l.itemId == m.id)
-                        today += l.quantity;
+                        today += l.counted();
         if (today > 0) {
             m.ticketsSoldBefore += today;
             if (s_->sink)

@@ -319,7 +319,7 @@ int PosService::ticketsSold(const MenuItem &item) const
             return;
         for (const OrderLine &l : c.lines)
             if (!l.voided && l.itemId == item.id)
-                sold += l.quantity;
+                sold += l.counted();
     };
     for (const auto &[id, c] : s_->open)
         count(c);
@@ -413,7 +413,7 @@ QStringList PosService::popularItems() const
             return;
         for (const OrderLine &l : c.lines)
             if (!l.isComment() && !l.voided && !l.isGiftCard())
-                sold[l.itemId] += std::max(1, l.quantity);
+                sold[l.itemId] += l.counted();
     };
     for (const Check &c : s_->closedToday)
         count(c);

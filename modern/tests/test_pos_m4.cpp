@@ -293,6 +293,106 @@ TEST_CASE("Split check: move items, then choose between checks at the table", "[
     CHECK_FALSE(t.pos.splitLine(0));
 }
 
+TEST_CASE("Split check: one at a time, shared items, evenly", "[m4][split]")
+{
+    // Pieces: even parts, the first ones take the leftover cents.
+    core::Check k;
+    core::OrderLine &wine = k.addItem(core::MenuItem{.id = "wine", .name = "Wine", .price = Money::fromCents(1000)});
+    const std::vector<std::int64_t> pieces = k.shareLine(wine.id, 3, 7);
+    REQUIRE(pieces.size() == 3);
+    CHECK(k.line(pieces[0])->total().cents() == 334);
+    CHECK(k.line(pieces[1])->total().cents() == 333);
+    CHECK(k.line(pieces[2])->total().cents() == 333);
+    CHECK(k.line(pieces[1])->displayName() == "Wine (2/3)");
+    CHECK(k.line(pieces[0])->forKitchen());
+    CHECK_FALSE(k.line(pieces[1])->forKitchen());   // the kitchen makes it once
+    CHECK(k.line(pieces[0])->counted() == 1);
+    CHECK(k.line(pieces[2])->counted() == 0);
+    CHECK(k.shareLine(pieces[0], 2, 8).empty());   // already shared
+
+    Pos t;
+    t.login("1111");
+    REQUIRE(t.pos.selectTable(u"T5"_s) == PosService::TableNeedsGuests);
+    REQUIRE(t.pos.startCheck(core::CheckType::DineIn));
+    t.pos.addItem(u"cobb"_s);
+    const qint64 cobb = t.pos.lines()[0].toMap()[u"id"_s].toLongLong();
+    REQUIRE(t.pos.setLineQuantity(cobb, 3));
+    const qint64 first = t.pos.checkInfo()[u"id"_s].toLongLong();
+    const std::int64_t each = t.pos.findItem(u"cobb"_s)->price.cents();
+    const auto line = [&](int i) { return t.pos.lines()[i].toMap(); };
+
+    // 3 × Cobb: one moves, two stay (and stay chosen, for the next one).
+    t.pos.selectLine(cobb);
+    REQUIRE(t.pos.splitLine(0));
+    CHECK(line(0)[u"quantity"_s].toInt() == 2);
+    CHECK(line(0)[u"selected"_s].toBool());
+    const qint64 second = t.pos.splitTargets()[0].toMap()[u"id"_s].toLongLong();
+    REQUIRE(t.pos.splitLine(second));
+    CHECK(line(0)[u"quantity"_s].toInt() == 1);
+    // ...or all of a line.
+    REQUIRE(t.pos.setLineQuantity(cobb, 2));
+    t.pos.selectLine(cobb);
+    REQUIRE(t.pos.splitLine(second, true));
+    CHECK(t.pos.lines().isEmpty());
+    REQUIRE(t.pos.openCheck(second));
+    int onSecond = 0;
+    for (const QVariant &l : t.pos.lines())
+        onSecond += l.toMap()[u"quantity"_s].toInt();
+    CHECK(onSecond == 4);
+
+    // Share one of them 2 ways: a piece moves to the first check.
+    t.pos.selectLine(t.pos.lines()[0].toMap()[u"id"_s].toLongLong());
+    REQUIRE(t.pos.shareLine(2));
+    int pieces2 = 0;
+    for (const QVariant &l : t.pos.lines())
+        pieces2 += l.toMap()[u"shared"_s].toBool();
+    CHECK(pieces2 == 2);
+    REQUIRE(t.pos.splitLine(first));               // the chosen piece (2/2)
+    REQUIRE(t.pos.openCheck(first));
+    REQUIRE(t.pos.lines().size() == 1);
+    CHECK(line(0)[u"name"_s].toString().endsWith(u"(2/2)"_s));
+    CHECK(t.pos.currentCheck()->lines[0].total().cents() == each / 2);   // the second piece
+    CHECK_FALSE(t.pos.setLineQuantity(line(0)[u"id"_s].toLongLong(), 2));
+
+    // Put back together: whole again, here.
+    t.pos.selectLine(line(0)[u"id"_s].toLongLong());
+    REQUIRE(t.pos.unshareLine());
+    CHECK(t.pos.lines().size() == 1);
+    CHECK_FALSE(line(0)[u"shared"_s].toBool());
+    CHECK(t.pos.totals()[u"items"_s] == t.pos.format(Money::fromCents(each)));
+
+    // Split evenly 3 ways: 4 × Cobb + a soda.
+    REQUIRE(t.pos.openCheck(second));
+    t.pos.addItem(u"soda"_s);
+    const std::int64_t soda = t.pos.findItem(u"soda"_s)->price.cents();
+    const std::int64_t whole = 4 * each + soda;
+    // The cobb back here first, so it's 4 + 1 soda on one check.
+    REQUIRE(t.pos.openCheck(first));
+    t.pos.selectLine(line(0)[u"id"_s].toLongLong());
+    REQUIRE(t.pos.splitLine(second));
+    REQUIRE(t.pos.openCheck(second));
+    REQUIRE(t.pos.splitEvenly(3));
+    std::int64_t sum = 0;
+    std::vector<std::int64_t> amounts;
+    for (const QVariant &v : t.pos.openChecks()) {
+        const QVariantMap c = v.toMap();
+        if (c[u"label"_s] != u"T5"_s)
+            continue;
+        REQUIRE(t.pos.openCheck(c[u"id"_s].toLongLong()));
+        std::int64_t items = 0;
+        for (const core::OrderLine &l : t.pos.currentCheck()->lines)
+            items += l.total().cents();
+        if (t.pos.currentCheck()->lines.empty())
+            continue;   // the first check, emptied above
+        amounts.push_back(items);
+        sum += items;
+    }
+    REQUIRE(amounts.size() == 3);
+    CHECK(sum == whole);
+    for (const std::int64_t a : amounts)
+        CHECK(std::abs(a - whole / 3) <= 2);
+}
+
 TEST_CASE("Admin: menu items", "[m4][admin]")
 {
     Pos t;

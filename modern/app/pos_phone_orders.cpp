@@ -87,6 +87,7 @@ bool PosService::sameAsLastTime()
     QStringList skipped;
     int added = 0;
     for (OrderLine copy : r->lastOrder) {
+        copy.unshare();
         if (!copy.isComment()) {
             const MenuItem *m = findItem(qs(copy.itemId));
             if (!m || !m->available) {

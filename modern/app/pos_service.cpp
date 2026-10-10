@@ -1088,7 +1088,7 @@ bool PosService::setLineQuantity(qint64 lineId, int quantity)
         return fail(tr("Touch an item on the check first."));
     if (l->sent)
         return fail(tr("%1 was sent: Again adds more, Void takes it off.").arg(qs(l->displayName())));
-    if (l->weight > 0 || l->isGiftCard())
+    if (l->weight > 0 || l->isGiftCard() || l->isShare())
         return fail(tr("%1 can't have a quantity.").arg(qs(l->displayName())));
     quantity = std::clamp(quantity, 1, 99);
     if (quantity == l->quantity)
@@ -1148,6 +1148,7 @@ bool PosService::anotherRound()
             continue;
         }
         copy.id = c->nextLineId++;
+        copy.unshare();   // another of it, whole
         copy.sent = copy.voided = copy.made = copy.served = false;
         copy.sentAt = copy.madeAt = copy.servedAt = 0;
         c->lines.push_back(copy);
@@ -1226,6 +1227,7 @@ bool PosService::repeatLine(qint64 lineId)
     OrderLine copy = *l;
     copy.id = c->nextLineId++;
     copy.quantity = 1;
+    copy.unshare();
     copy.sent = copy.voided = copy.made = copy.served = false;
     copy.sentAt = copy.madeAt = copy.servedAt = 0;
     c->lines.push_back(copy);
@@ -1729,8 +1731,9 @@ QVariantList PosService::lines() const
             {u"price"_s, l.isComment() ? QString() : format(l.total())}, {u"comment"_s, l.isComment()},
             {u"sent"_s, l.sent}, {u"voided"_s, l.voided}, {u"modifiers"_s, mods},
             // − / + / Again apply (not a comment, gift card or weighed item).
-            {u"countable"_s, !l.isComment() && !l.isGiftCard() && !l.isFee() && !l.voided && l.weight == 0},
+            {u"countable"_s, !l.isComment() && !l.isGiftCard() && !l.isFee() && !l.voided && l.weight == 0 && !l.isShare()},
             {u"fee"_s, l.isFee()},
+            {u"shared"_s, l.isShare()},
             {u"selected"_s, qint64(l.id) == selectedLine_},
             {u"seat"_s, l.seat}, {u"course"_s, l.course}, {u"held"_s, c->held(l)},
             // Its modifier groups can still be changed / a required one is missing.
@@ -2406,7 +2409,10 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"printReceipt"_s, [](PosService &p, const QVariantList &) { return QVariant(p.printReceipt()); }},
         {u"noSale"_s, [](PosService &p, const QVariantList &) { return QVariant(p.noSale()); }},
         {u"setCustomer"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setCustomer(a.value(0).toMap())); }},
-        {u"splitLine"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.splitLine(a.value(0).toLongLong())); }},
+        {u"splitLine"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.splitLine(a.value(0).toLongLong(), a.value(1).toBool())); }},
+        {u"shareLine"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.shareLine(a.value(0).toInt())); }},
+        {u"splitEvenly"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.splitEvenly(a.value(0).toInt())); }},
+        {u"unshareLine"_s, [](PosService &p, const QVariantList &) { return QVariant(p.unshareLine()); }},
         {u"bumpTicket"_s, [](PosService &p, const QVariantList &a) {
              return QVariant(p.bumpTicket(a.value(0).toLongLong(), a.value(1).toLongLong(), a.value(2).toString())); }},
         {u"recallTicket"_s, [](PosService &p, const QVariantList &) { return QVariant(p.recallTicket()); }},

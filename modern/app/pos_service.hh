@@ -519,7 +519,14 @@ public:
 
     // --- split check -------------------------------------------------------------
     // Move the selected line to another check (0 = a new one at the table).
-    bool splitLine(qint64 targetCheckId);
+    // Moves one of the chosen line's quantity to that check (0: a new one); all: the whole line.
+    bool splitLine(qint64 targetCheckId, bool all = false);
+    // The chosen item in even pieces on this check, to move to other checks.
+    bool shareLine(int parts);
+    // This check into `ways` checks of the same amount.
+    bool splitEvenly(int ways);
+    // The chosen shared item whole again, here (its pieces off the other checks).
+    bool unshareLine();
     // A table's checks: one per seat (lines with no seat stay); every one's
     // receipt; all of them back into this one.
     bool splitBySeat();
@@ -952,6 +959,8 @@ private:
     Money expectedNow(const core::DrawerSession &d) const;
     void connectShared();
     core::Check *current();
+    // A new, empty check at the same table as check `fromId` (same server, type).
+    core::Check &splitOff(qint64 fromId);
     // `noteOn`: the check the approval is noted on (else the open one).
     bool require(const char *permission, const QString &action, core::Check *noteOn = nullptr);
     // The operation running through invoke(), to try again once approved.

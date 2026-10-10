@@ -57,7 +57,7 @@ std::map<std::string, double> PosService::stockUse(const OrderLine &l) const
             use[r.ingredientId] += r.quantity * times;
     };
     // By weight: the recipe is per unit (a pound of brisket), times the weight.
-    const double qty = std::max(1, l.quantity) * (l.weight > 0 ? l.weight / 1000.0 : 1.0);
+    const double qty = l.counted() * (l.weight > 0 ? l.weight / 1000.0 : 1.0);
     add(findItem(qs(l.itemId)), qty * (l.qualifier == Qualifier::No ? 0 : 1));
     for (const Modifier &m : l.modifiers) {
         if (!m.itemId.empty())
@@ -180,7 +180,7 @@ Report PosService::foodCostReport(const std::vector<Check> &closed, const Report
                 continue;
             Row &row = rows[l.itemId];
             row.name = l.name;
-            row.sold += l.quantity;
+            row.sold += l.counted();
             row.sales += l.total();
             row.cost += costOf(l);
         }

@@ -65,6 +65,12 @@ struct OrderLine {
     std::string weightUnit;
     bool served = false;         // the expediter sent it out (after it was made)
     std::int64_t servedAt = 0;
+    // Shared between checks (a bottle of wine for three): piece `share` of
+    // `shareOf`, each an even part of the whole; the first pieces take any
+    // leftover cents. shareGroup ties the pieces together (to put them back).
+    int share = 0;
+    int shareOf = 0;
+    std::int64_t shareGroup = 0;
 
     bool isComment() const { return itemId.empty(); }
     std::string printerOf() const { return printer.empty() ? std::string("kitchen") : printer; }
@@ -73,18 +79,29 @@ struct OrderLine {
         return qualifierPrefix(qualifier) + (kitchenName.empty() ? name : kitchenName) + weightText();
     }
     // Something the kitchen sees (not a gift card or a hidden item).
-    bool forKitchen() const { return !kitchenHide && !itemId.starts_with("giftcard:"); }
+    // (The first piece of a shared item stands for it.)
+    bool forKitchen() const { return !kitchenHide && !itemId.starts_with("giftcard:") && share <= 1; }
+    bool isShare() const { return shareOf > 1; }
+    void unshare() { share = shareOf = 0; shareGroup = 0; }
+    // How many to count in item counts and stock: the first piece of a
+    // shared item counts the whole, the others none.
+    int counted() const { return share > 1 ? 0 : quantity; }
     // Selling or reloading gift card <number>: no kitchen, no tax.
     bool isGiftCard() const { return itemId.starts_with("giftcard:"); }
     // A charge, not food: the delivery fee ("fee:delivery").
     bool isFee() const { return itemId.starts_with("fee:"); }
     std::string giftCardNumber() const { return isGiftCard() ? itemId.substr(9) : std::string(); }
-    std::string displayName() const { return qualifierPrefix(qualifier) + name + weightText(); }
+    std::string displayName() const { return qualifierPrefix(qualifier) + name + weightText() + shareText(); }
     // " 1.25 lb" for an item sold by weight, else empty.
     std::string weightText() const;
+    // " (1/3)" for a piece of a shared item, else empty.
+    std::string shareText() const { return isShare() ? " (" + std::to_string(share) + "/" + std::to_string(shareOf) + ")" : std::string(); }
     // (item + modifiers) x quantity; zero once voided. By weight: the
-    // price per unit times the weight, rounded to the cent.
+    // price per unit times the weight, rounded to the cent. A piece of a
+    // shared item: its part of that.
     Money total() const;
+    // The whole item, before it was shared.
+    Money wholeTotal() const;
     bool operator==(const OrderLine &) const = default;
 };
 
@@ -224,8 +241,8 @@ struct Check {
     bool autoGratuity = false;        // added for a large party (not by hand)
     std::vector<CheckEvent> events;   // oldest first
     int firedCourse = 1;              // courses up to this one go out on Send
-    int pointsEarned = 0;
-    bool training = false;            // a practice check: not a sale, never to the kitchen             // loyalty points it gave its customer (taken back on reopen)
+    int pointsEarned = 0;             // loyalty points it gave its customer (taken back on reopen)
+    bool training = false;            // a practice check: not a sale, never to the kitchen
     bool rush = false;                // the kitchen does it first
     bool vip = false;                 // the kitchen takes extra care
     std::vector<std::string> allergies;   // the guest's (allergen ids): the kitchen sees them
@@ -286,6 +303,13 @@ struct Check {
     // Split checks: remove a line (with its modifiers) / add one under a new id.
     std::optional<OrderLine> takeLine(std::int64_t lineId);
     OrderLine &adoptLine(OrderLine line);
+    // Take one of a line's quantity off as a line of its own (the whole line
+    // when there's only one).
+    std::optional<OrderLine> takeOne(std::int64_t lineId);
+    // Cut a line (quantity 1, not already shared) into `parts` even pieces,
+    // all on this check; returns their ids, or empty when it can't be.
+    // `group` ties them together, `first` is the piece that keeps line's place.
+    std::vector<std::int64_t> shareLine(std::int64_t lineId, int parts, std::int64_t group);
 
     // Merge: everything on `other` (items, payments, guests, customer)
     // comes onto this check; `other` is left empty.

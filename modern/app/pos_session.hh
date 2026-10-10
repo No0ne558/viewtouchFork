@@ -363,7 +363,10 @@ public:
     Q_INVOKABLE void entryKey(const QString &key) { invoke(QStringLiteral("entryKey"), {key}); }
     Q_INVOKABLE void adjustGuests(int delta) { invoke(QStringLiteral("adjustGuests"), {delta}); }
     Q_INVOKABLE void textKey(const QString &key) { invoke(QStringLiteral("textKey"), {key}); }
-    Q_INVOKABLE void splitLine(qint64 targetCheckId) { invoke(QStringLiteral("splitLine"), {targetCheckId}); }
+    Q_INVOKABLE void splitLine(qint64 targetCheckId, bool all = false) { invoke(QStringLiteral("splitLine"), {targetCheckId, all}); }
+    Q_INVOKABLE void shareLine(int parts) { invoke(QStringLiteral("shareLine"), {parts}); }
+    Q_INVOKABLE void splitEvenly(int ways) { invoke(QStringLiteral("splitEvenly"), {ways}); }
+    Q_INVOKABLE void unshareLine() { invoke(QStringLiteral("unshareLine"), {}); }
     Q_INVOKABLE void printReceipt() { invoke(QStringLiteral("printReceipt")); }
     Q_INVOKABLE void noSale() { invoke(QStringLiteral("noSale")); }
     Q_INVOKABLE void openDrawerSession() { invoke(QStringLiteral("openDrawerSession")); }

@@ -211,7 +211,7 @@ Report itemSales(const std::vector<Check> &closed, const std::vector<MenuItem> &
                 continue;
             const auto it = familyOf.find(l.itemId);
             Tally &t = families[it == familyOf.end() ? "other" : it->second][l.name];
-            t.qty += l.quantity;
+            t.qty += l.counted();
             t.sales += l.total();
         }
     }
@@ -247,8 +247,8 @@ Report itemSales(const std::vector<Check> &closed, const std::vector<MenuItem> &
                 if (m.itemId.empty() || m.group.empty() || m.qualifier == Qualifier::No)
                     continue;
                 Tally &t = chosen[m.name];
-                t.qty += l.quantity;
-                t.sales += m.price() * l.quantity;
+                t.qty += l.counted();
+                t.sales += m.price() * l.counted();
             }
         }
     }
@@ -326,10 +326,10 @@ Report categorySales(const std::vector<Check> &closed, const std::vector<MenuIte
                 continue;
             const auto it = familyOf.find(l.itemId);
             Tally &t = families[it == familyOf.end() ? "other" : it->second];
-            t.qty += l.quantity;
+            t.qty += l.counted();
             t.sales += l.total();
             total += l.total();
-            qty += l.quantity;
+            qty += l.counted();
         }
     }
     std::vector<std::pair<std::string, Tally>> sorted(families.begin(), families.end());
@@ -1344,7 +1344,7 @@ Report customersReport(const std::vector<Check> &closed, const ReportContext &ct
         t.last = std::max(t.last, c.closedAt);
         for (const OrderLine &l : c.lines)
             if (!l.voided && !l.isComment())
-                t.items[l.name] += l.quantity;
+                t.items[l.name] += l.counted();
     }
     if (byCustomer.empty()) {
         r.note("No checks with a customer on them (takeout, delivery, or Check... -> Customer).");

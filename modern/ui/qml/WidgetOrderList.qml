@@ -653,9 +653,14 @@ Item {
             mode = ""
             w.pos.fireCourseIn(minutes)
         }
+        // 2 × Cheeseburger: move one of them, or all.
+        property bool moveAll: false
+        readonly property int moveCount: (w.pos.lines.find(l => l.selected)?.quantity) ?? 1
+        onModeChanged: moveAll = false
         function moveTo(checkId) {   // 0: a new check
+            const all = moveAll
             mode = ""
-            w.pos.splitLine(checkId)
+            w.pos.splitLine(checkId, all)
         }
         // Who the order is for: "name" | "phone" | "address".
         readonly property bool asking: mode === "name" || mode === "phone" || mode === "address"
@@ -790,6 +795,25 @@ Item {
                 visible: sheet.mode === "move"
                 width: parent.width
                 spacing: w.unit * 0.3
+                WidgetKey {
+                    objectName: "moveOne"
+                    visible: sheet.moveCount > 1
+                    width: sheet.key * 2.4; height: sheet.key
+                    fontScale: 0.42
+                    text: qsTr("One")
+                    accent: !sheet.moveAll
+                    onClicked: sheet.moveAll = false
+                }
+                WidgetKey {
+                    objectName: "moveAll"
+                    visible: sheet.moveCount > 1
+                    width: sheet.key * 2.4; height: sheet.key
+                    fontScale: 0.42
+                    text: qsTr("All %1").arg(sheet.moveCount)
+                    accent: sheet.moveAll
+                    onClicked: sheet.moveAll = true
+                }
+                Item { visible: sheet.moveCount > 1; width: parent.width; height: 1 }   // then the checks, below
                 Repeater {
                     model: sheet.mode === "move" ? sheet.others : []
                     delegate: WidgetKey {

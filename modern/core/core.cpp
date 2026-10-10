@@ -8,6 +8,7 @@
 #include "core/tax.hh"
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace vt::core {
 
@@ -232,6 +233,19 @@ std::string OrderLine::weightText() const
 
 Money OrderLine::total() const
 {
+    const Money whole = wholeTotal();
+    if (!isShare())
+        return whole;
+    // Even parts; the first |leftover| pieces take a cent more (or less).
+    const std::int64_t cents = whole.cents();
+    const std::int64_t base = cents / shareOf;
+    const std::int64_t left = cents - base * shareOf;
+    const std::int64_t extra = share <= std::abs(left) ? (left > 0 ? 1 : -1) : 0;
+    return Money::fromCents(base + extra);
+}
+
+Money OrderLine::wholeTotal() const
+{
     if (voided)
         return Money();
     Money each = qualifiedPrice(unitPrice, qualifier);
@@ -394,6 +408,40 @@ OrderLine &Check::adoptLine(OrderLine line)
     line.id = nextLineId++;
     lines.push_back(std::move(line));
     return lines.back();
+}
+
+std::optional<OrderLine> Check::takeOne(std::int64_t lineId)
+{
+    OrderLine *l = line(lineId);
+    if (!l)
+        return std::nullopt;
+    if (l->quantity <= 1 || l->isShare())
+        return takeLine(lineId);
+    OrderLine one = *l;
+    one.quantity = 1;
+    --l->quantity;
+    return one;
+}
+
+std::vector<std::int64_t> Check::shareLine(std::int64_t lineId, int parts, std::int64_t group)
+{
+    OrderLine *l = line(lineId);
+    if (!l || l->isComment() || l->voided || l->isShare() || l->quantity != 1 || parts < 2)
+        return {};
+    l->share = 1;
+    l->shareOf = parts;
+    l->shareGroup = group;
+    std::vector<std::int64_t> ids{l->id};
+    const OrderLine first = *l;
+    auto at = std::ranges::find(lines, lineId, &OrderLine::id) + 1;
+    for (int i = 2; i <= parts; ++i) {
+        OrderLine piece = first;
+        piece.id = nextLineId++;
+        piece.share = i;
+        ids.push_back(piece.id);
+        at = lines.insert(at, std::move(piece)) + 1;
+    }
+    return ids;
 }
 
 void Check::absorb(Check &other)

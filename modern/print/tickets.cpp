@@ -74,6 +74,13 @@ Document receipt(const Check &check, const TicketContext &ctx)
             continue;
         if (l.isComment())
             continue;   // kitchen notes are not for the guest
+        if (l.isShare()) {   // its part of the whole, the choices under it unpriced
+            d.columns(l.displayName(), ctx.money(l.total()));
+            for (const Modifier &m : l.modifiers)
+                if (m.price().cents() != 0 || ctx.settings.receiptFreeChoices)
+                    d.text("  " + m.displayName());
+            continue;
+        }
         const std::string qty = l.quantity > 1 ? std::to_string(l.quantity) + " x " : "";
         d.columns(qty + l.displayName(), ctx.money(qualifiedPrice(l.unitPrice, l.qualifier) * l.quantity));
         for (const Modifier &m : l.modifiers) {
@@ -149,6 +156,13 @@ Document orderSlip(const Check &check, bool sent, const TicketContext &ctx)
     for (const OrderLine &l : check.lines) {
         if (l.voided || l.isComment())
             continue;
+        if (l.isShare()) {   // its part of the whole, the choices under it unpriced
+            d.columns(l.displayName(), ctx.money(l.total()));
+            for (const Modifier &m : l.modifiers)
+                if (m.price().cents() != 0 || ctx.settings.receiptFreeChoices)
+                    d.text("  " + m.displayName());
+            continue;
+        }
         const std::string qty = l.quantity > 1 ? std::to_string(l.quantity) + " x " : "";
         d.columns(qty + l.displayName(), ctx.money(qualifiedPrice(l.unitPrice, l.qualifier) * l.quantity));
         for (const Modifier &m : l.modifiers) {
