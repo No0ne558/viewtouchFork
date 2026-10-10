@@ -1334,6 +1334,42 @@ TEST_CASE("UI: a manager changes or adds an item right on the order screen", "[f
     CHECK(melt->price.cents() == 1300);
     CHECK(find(u"menuItem-"_s + QString::fromStdString(melt->id)));
 
+    // + New Item with sizes, a choice and what's on it, in one go.
+    tap(u"arrangeAdd"_s);
+    type(u"quickName"_s, "Slider");
+    tap(u"quickAddSize"_s);                                     // Small and Large
+    CHECK_FALSE(find(u"quickPrice"_s));                          // by size instead
+    CHECK_FALSE(find(u"quickSave"_s)->isEnabled());             // their prices first
+    type(u"quickSizePrice-0"_s, "4");
+    type(u"quickSizePrice-1"_s, "6.50");
+    type(u"quickOnIt"_s, "pickles, onion");
+    type(u"quickKitchenName"_s, "SLD");
+    for (const QVariant &g : s.pos.choiceGroups())
+        if (!g.toMap()[u"own"_s].toBool()) {
+            tap(u"quickGroup-"_s + g.toMap()[u"id"_s].toString());
+            break;
+        }
+    s.shot("81-quick-card-more");
+    REQUIRE(find(u"quickSave"_s)->isEnabled());
+    tap(u"quickSave"_s);
+    const core::MenuItem *slider = nullptr;
+    for (const core::MenuItem &m : s.pos.shared()->menu)
+        if (m.name == "Slider")
+            slider = &m;
+    REQUIRE(slider);
+    CHECK(slider->price.cents() == 400);
+    CHECK(slider->kitchenName == "SLD");
+    const QVariantMap sliderRow = [&] {
+        for (const QVariant &v : s.pos.menuItems())
+            if (v.toMap()[u"name"_s] == u"Slider"_s)
+                return v.toMap();
+        return QVariantMap();
+    }();
+    CHECK(sliderRow[u"sizes"_s].toList().size() == 2);
+    CHECK(sliderRow[u"onIt"_s].toStringList() == QStringList{u"pickles"_s, u"onion"_s});
+    CHECK(sliderRow[u"groups"_s].toStringList().size() == 1);
+    CHECK(s.pos.menuUndoText() == u"Slider"_s);                  // one Undo for all of it
+
     // Picked, Edit…, All Settings…: the Menu Builder with it open.
     tap(u"menuItem-cheeseburger"_s);
     tap(u"arrangeEdit"_s);

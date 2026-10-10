@@ -963,6 +963,9 @@ private:
     void connectShared();
     core::Check *current();
     // A new, empty check at the same table as check `fromId` (same server, type).
+    // Sizes typed in ([{name, price}]): checked (empty rows dropped), or
+    // nullopt having said what's wrong.
+    std::optional<std::vector<std::pair<QString, qint64>>> sizeList(const QVariantList &sizes);
     core::Check &splitOff(qint64 fromId);
     // `noteOn`: the check the approval is noted on (else the open one).
     bool require(const char *permission, const QString &action, core::Check *noteOn = nullptr);

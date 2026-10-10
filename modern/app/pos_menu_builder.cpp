@@ -528,8 +528,13 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
     const QString name = card.value(u"name"_s).toString().trimmed();
     if (name.isEmpty())
         return fail(tr("The item needs a name."));
+    // Sizes on the card (the quick card): checked first, put on once it's saved.
+    std::optional<std::vector<std::pair<QString, qint64>>> sizes;
+    if (card.contains(u"sizes"_s) && !(sizes = sizeList(card.value(u"sizes"_s).toList())))
+        return false;
+    const bool sized = sizes && !sizes->empty();
     const qint64 price = priceCents(card.value(u"price"_s).toString(), qs(s_->settings.currencySymbol));
-    if (card.contains(u"price"_s) && price < 0)
+    if (card.contains(u"price"_s) && price < 0 && !sized)
         return fail(tr("Type the price, like 11.50."));
     const std::string id = ss(card.value(u"id"_s).toString());
     auto &menu = s_->menu;
@@ -570,7 +575,7 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
     }
     item.name = ss(name);
     item.family = family;
-    if (card.contains(u"price"_s))
+    if (card.contains(u"price"_s) && price >= 0)
         item.price = Money::fromCents(price);
     if (card.contains(u"image"_s))
         item.image = ss(card.value(u"image"_s).toString());
@@ -718,6 +723,9 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
             s_->sink->saveMenuItem(*it, int(it - menu.begin()));
     }
     menuChanged();
+    const bool hadSizes = s_->settings.modifierGroup(sizeGroupId(item.id)) != nullptr;
+    if (card.contains(u"sizes"_s) && (sized || hadSizes) && !setItemSizes(qs(item.id), card.value(u"sizes"_s).toList()))
+        return false;   // (checked above: not expected)
     emit notice(adding ? tr("%1 added").arg(name) : tr("Saved"));
     return true;
 }
@@ -725,13 +733,8 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
 // Sizes…: [{name, price}] for an item (Small 3.00, Large 4.50): its own
 // choice group, asked first; the item's price is the smallest, each size adds
 // the rest. Empty: one size again.
-bool PosService::setItemSizes(const QString &itemId, const QVariantList &sizes)
+std::optional<std::vector<std::pair<QString, qint64>>> PosService::sizeList(const QVariantList &sizes)
 {
-    if (!require(perm::Manager, tr("Changing the menu")))
-        return false;
-    const auto it = std::ranges::find_if(s_->menu, [&](const MenuItem &m) { return qs(m.id) == itemId; });
-    if (it == s_->menu.end())
-        return fail(tr("'%1' is not on the menu.").arg(itemId));
     std::vector<std::pair<QString, qint64>> list;
     for (const QVariant &v : sizes) {
         const QVariantMap m = v.toMap();
@@ -739,16 +742,38 @@ bool PosService::setItemSizes(const QString &itemId, const QVariantList &sizes)
         const qint64 cents = priceCents(m.value(u"price"_s).toString(), qs(s_->settings.currencySymbol));
         if (name.isEmpty() && m.value(u"price"_s).toString().trimmed().isEmpty())
             continue;   // a row left empty
-        if (name.isEmpty())
-            return fail(tr("Each size needs a name."));
-        if (cents < 0)
-            return fail(tr("Type %1's price, like 4.50.").arg(name));
-        if (std::ranges::any_of(list, [&](const auto &x) { return QString::compare(x.first, name, Qt::CaseInsensitive) == 0; }))
-            return fail(tr("%1 is there twice.").arg(name));
+        if (name.isEmpty()) {
+            fail(tr("Each size needs a name."));
+            return std::nullopt;
+        }
+        if (cents < 0) {
+            fail(tr("Type %1's price, like 4.50.").arg(name));
+            return std::nullopt;
+        }
+        if (std::ranges::any_of(list, [&](const auto &x) { return QString::compare(x.first, name, Qt::CaseInsensitive) == 0; })) {
+            fail(tr("%1 is there twice.").arg(name));
+            return std::nullopt;
+        }
         list.emplace_back(name, cents);
     }
-    if (list.size() == 1)
-        return fail(tr("Two sizes or more (or none)."));
+    if (list.size() == 1) {
+        fail(tr("Two sizes or more (or none)."));
+        return std::nullopt;
+    }
+    return list;
+}
+
+bool PosService::setItemSizes(const QString &itemId, const QVariantList &sizes)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    const auto it = std::ranges::find_if(s_->menu, [&](const MenuItem &m) { return qs(m.id) == itemId; });
+    if (it == s_->menu.end())
+        return fail(tr("'%1' is not on the menu.").arg(itemId));
+    const auto checked = sizeList(sizes);
+    if (!checked)
+        return false;
+    const std::vector<std::pair<QString, qint64>> &list = *checked;
     const MenuStep step(this, tr("Sizes for %1").arg(qs(it->name)));
     const std::string id = sizeGroupId(it->id);
     auto &groups = s_->settings.modifierGroups;
