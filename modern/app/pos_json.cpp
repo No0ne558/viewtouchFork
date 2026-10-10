@@ -688,6 +688,12 @@ QJsonArray modifierGroupsToJson(const std::vector<ModifierGroup> &groups)
                 opt.insert(u"item"_s, qs(o.itemId));
             if (o.included)
                 opt.insert(u"included"_s, true);
+            if (!o.sizePrices.empty()) {
+                QJsonObject sizes;
+                for (const auto &[size, price] : o.sizePrices)
+                    sizes.insert(qs(size), decimalFromCents(price.cents()));
+                opt.insert(u"sizePrices"_s, sizes);
+            }
             options.append(opt);
         }
         QJsonObject go{{u"id"_s, qs(g.id)}, {u"name"_s, qs(g.name)}, {u"min"_s, g.min}, {u"max"_s, g.max},
@@ -722,6 +728,9 @@ std::vector<ModifierGroup> modifierGroupsFromJson(const QJsonArray &a)
             m.kitchenHide = opt.value(u"kitchenHide").toBool();
             m.itemId = ss(opt.value(u"item").toString());
             m.included = opt.value(u"included").toBool();
+            const QJsonObject sizes = opt.value(u"sizePrices").toObject();
+            for (auto it = sizes.begin(); it != sizes.end(); ++it)
+                m.sizePrices[ss(it.key().toLower())] = Money::fromCents(centsFromDecimal(it.value().toDouble()));
             g.options.push_back(std::move(m));
         }
         out.push_back(std::move(g));

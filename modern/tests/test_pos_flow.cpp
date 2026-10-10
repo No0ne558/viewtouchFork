@@ -1685,6 +1685,49 @@ TEST_CASE("UI: Menu Builder: prices set to change tomorrow", "[flow][ui][schedul
     CHECK(s.pos.priceChanges().isEmpty());
 }
 
+TEST_CASE("UI: Menu Builder: a choice priced by size", "[flow][ui][sizeprices]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.setItemSizes(u"kids-burger"_s, {QVariantMap{{u"name"_s, u"Small"_s}, {u"price"_s, u"7.50"_s}},
+                                                 QVariantMap{{u"name"_s, u"Large"_s}, {u"price"_s, u"9.50"_s}}}));
+    REQUIRE(s.pos.saveChoiceGroup({{u"name"_s, u"Add"_s}, {u"min"_s, 0}, {u"max"_s, 0},
+                                   {u"options"_s, QVariantList{QVariantMap{{u"name"_s, u"Cheese"_s}, {u"price"_s, u"1.00"_s}}}}}));
+    QString add;
+    for (const QVariant &g : s.pos.choiceGroups())
+        if (g.toMap()[u"name"_s] == u"Add"_s)
+            add = g.toMap()[u"id"_s].toString();
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto tap = [&](const QString &name) {
+        QQuickItem *it = by(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(60);
+    };
+    tap(u"builderModeChoices"_s);
+    QQuickItem *groups = by(u"builderGroups"_s);
+    REQUIRE(groups);
+    groups->setProperty("contentY", groups->property("contentHeight").toReal() - groups->height());
+    QTest::qWait(60);
+    tap(u"builderGroupRow-"_s + add);
+    QQuickItem *large = by(u"builderSizePrice-0-Large"_s);
+    REQUIRE(large);
+    QQuickItem *card = by(u"builderCard"_s);
+    card->setProperty("contentY", card->property("contentHeight").toReal() - card->height());
+    QTest::qWait(30);
+    s.tapItem(large);
+    for (const char *ch = "1.75"; *ch; ++ch)
+        QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+    QTest::qWait(30);
+    s.shot("91-choice-size-prices");
+    tap(u"builderSaveGroup"_s);
+    QTest::qWait(60);
+    CHECK(s.pos.shared()->settings.modifierGroup(add.toStdString())->options[0].sizePrices.at("large").cents() == 175);
+}
+
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
 {
     Screen s;

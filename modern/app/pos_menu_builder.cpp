@@ -463,6 +463,20 @@ bool PosService::saveChoiceGroup(const QVariantMap &record)
         opt.included = o.value(u"included"_s).toBool();
         if (o.contains(u"kitchenName"_s))
             opt.kitchenName = ss(o.value(u"kitchenName"_s).toString().trimmed());
+        // By size: {"Large": "1.50"}; empty: its price on that size too.
+        if (o.contains(u"sizePrices"_s)) {
+            opt.sizePrices.clear();
+            const QVariantMap sizes = o.value(u"sizePrices"_s).toMap();
+            for (auto s = sizes.begin(); s != sizes.end(); ++s) {
+                const QString text = s.value().toString().trimmed();
+                if (text.isEmpty())
+                    continue;
+                const qint64 cents = priceCents(text, qs(s_->settings.currencySymbol));
+                if (cents < 0)
+                    return fail(tr("%1 on a %2: type its price, like 1.50 (or leave it empty).").arg(optName, s.key()));
+                opt.sizePrices[ss(s.key().toLower())] = Money::fromCents(cents);
+            }
+        }
         options.push_back(std::move(opt));
     }
     if (options.empty())

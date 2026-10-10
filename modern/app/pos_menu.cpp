@@ -56,7 +56,7 @@ QVariantMap PosService::choosingInfo() const
             const bool chosen = it != l->modifiers.end();
             const MenuItem *linked = o.itemId.empty() ? nullptr : findItem(qs(o.itemId));
             options.append(QVariantMap{{u"index"_s, i}, {u"name"_s, qs(o.name)},
-                                       {u"price"_s, o.price.cents() ? format(o.price) : QString()},
+                                       {u"price"_s, optionPrice(o, *l).cents() ? format(optionPrice(o, *l)) : QString()},
                                        {u"chosen"_s, chosen}, {u"soldOut"_s, linked && !linked->available},
                                        // "No", "Extra"...: how it was chosen (and the price that way)
                                        {u"qualifier"_s, chosen ? qs(qualifierPrefix(it->qualifier)).trimmed() : QString()},
@@ -160,7 +160,7 @@ bool PosService::chooseOption(const QString &groupId, int index)
         if (linked)
             m.station = linked->station;   // made at the fryer, say
         m.name = o.name;
-        m.unitPrice = q == Qualifier::Extra ? s_->settings.withExtra(o.price) : o.price;
+        m.unitPrice = q == Qualifier::Extra ? s_->settings.withExtra(optionPrice(o, *l)) : optionPrice(o, *l);
         m.qualifier = q;
         m.group = g->id;
         m.kitchenName = o.kitchenName;
@@ -175,8 +175,41 @@ bool PosService::chooseOption(const QString &groupId, int index)
         // Keep the group's choices together, in the order of the groups.
         l->modifiers.push_back(m);
     }
+    repriceForSize(*l);   // a size chosen (or changed): its choices' prices follow
     changed(*c);
     return true;
+}
+
+// The size chosen on this line (its item's own Size choice), lower case; "" none.
+std::string PosService::sizeOf(const OrderLine &l) const
+{
+    for (const Modifier &m : l.modifiers)
+        if (m.group.starts_with("size-"))
+            return QString::fromStdString(m.name).toLower().toStdString();
+    return {};
+}
+
+Money PosService::optionPrice(const ModifierOption &o, const OrderLine &l) const
+{
+    if (o.sizePrices.empty())
+        return o.price;
+    const auto it = o.sizePrices.find(sizeOf(l));
+    return it == o.sizePrices.end() ? o.price : it->second;
+}
+
+void PosService::repriceForSize(OrderLine &l) const
+{
+    for (Modifier &m : l.modifiers) {
+        if (m.group.starts_with("size-"))
+            continue;
+        const ModifierGroup *g = s_->settings.modifierGroup(m.group);
+        const auto o = g ? std::ranges::find_if(g->options, [&](const ModifierOption &x) { return x.name == m.name; })
+                         : std::vector<ModifierOption>::const_iterator{};
+        if (!g || o == g->options.end() || o->sizePrices.empty())
+            continue;
+        const Money base = optionPrice(*o, l);
+        m.unitPrice = m.qualifier == Qualifier::Extra ? s_->settings.withExtra(base) : base;
+    }
 }
 
 bool PosService::chooseOptionAs(const QString &groupId, int index, const QString &qualifier)
@@ -205,6 +238,7 @@ bool PosService::setChoice(const QString &groupId, int index, const QString &how
     const auto same = [&](const Modifier &m) { return m.group == g->id && m.name == o.name; };
     if (how == u"off") {   // as it comes (or not added)
         std::erase_if(l->modifiers, same);
+        repriceForSize(*l);
         changed(*c);
         return true;
     }
@@ -450,7 +484,13 @@ QVariantList PosService::choiceGroups() const
         for (const ModifierOption &o : g.options)
             options.append(QVariantMap{{u"name"_s, qs(o.name)}, {u"price"_s, double(o.price.cents()) / 100.0},
                                        {u"included"_s, o.included}, {u"kitchenName"_s, qs(o.kitchenName)},
-                                       {u"kitchenHide"_s, o.kitchenHide}});
+                                       {u"kitchenHide"_s, o.kitchenHide},
+                                       {u"sizePrices"_s, [&o] {
+                                            QVariantMap m;
+                                            for (const auto &[size, price] : o.sizePrices)
+                                                m.insert(qs(size), QString::number(double(price.cents()) / 100.0, 'f', 2));
+                                            return m;
+                                        }()}});
         QStringList usedBy;
         for (const MenuItem &m : s_->menu)
             if (std::ranges::find(m.modifierGroups, g.id) != m.modifierGroups.end())

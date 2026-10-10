@@ -831,3 +831,55 @@ TEST_CASE("Prices set for later: put on the menu when they're due", "[menubuilde
     REQUIRE(pos.loginWithPin(u"1111"_s));
     CHECK_FALSE(pos.schedulePrices(up, clock + 86'400'000, u"x"_s));
 }
+
+TEST_CASE("Choices priced by size: extra cheese costs more on a Large", "[menubuilder][sizeprices]")
+{
+    test::RecordingSink sink;
+    PosService pos(test::seedPosData(), &sink);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    QString id;
+    for (const core::MenuItem &m : pos.shared()->menu)
+        if (!m.isModifier && m.modifierGroups.empty() && m.available && !m.byWeight && m.ticketCapacity == 0) {
+            id = QString::fromStdString(m.id);
+            break;
+        }
+    REQUIRE_FALSE(id.isEmpty());
+    const QString name = QString::fromStdString(pos.findItem(id)->name);
+    REQUIRE(pos.setItemSizes(id, {QVariantMap{{u"name"_s, u"Small"_s}, {u"price"_s, u"8.00"_s}},
+                                  QVariantMap{{u"name"_s, u"Large"_s}, {u"price"_s, u"10.00"_s}}}));
+    CHECK_FALSE(pos.saveChoiceGroup({{u"name"_s, u"Add"_s}, {u"min"_s, 0}, {u"max"_s, 0},
+                                     {u"options"_s, QVariantList{QVariantMap{{u"name"_s, u"Cheese"_s}, {u"price"_s, u"1"_s},
+                                                                             {u"sizePrices"_s, QVariantMap{{u"Large"_s, u"lots"_s}}}}}}}));
+    REQUIRE(pos.saveChoiceGroup({{u"name"_s, u"Add"_s}, {u"min"_s, 0}, {u"max"_s, 0},
+                                 {u"options"_s, QVariantList{QVariantMap{{u"name"_s, u"Cheese"_s}, {u"price"_s, u"1.00"_s},
+                                                                         {u"sizePrices"_s, QVariantMap{{u"Large"_s, u"1.50"_s}, {u"Small"_s, u""_s}}}},
+                                                             QVariantMap{{u"name"_s, u"Bacon"_s}, {u"price"_s, u"2.00"_s}}}}}));
+    QString add;
+    for (const QVariant &g : pos.choiceGroups())
+        if (g.toMap()[u"name"_s] == u"Add"_s) {
+            add = g.toMap()[u"id"_s].toString();
+            CHECK(g.toMap()[u"options"_s].toList()[0].toMap()[u"sizePrices"_s].toMap() == QVariantMap{{u"large"_s, u"1.50"_s}});
+        }
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, id}, {u"name"_s, name}, {u"groups"_s, QStringList{add}}}));
+    // Kept with the store's settings.
+    const auto back = app::settingsFromJson(app::toJson(pos.shared()->settings));
+    CHECK(back.modifierGroup(add.toStdString())->options[0].sizePrices.at("large").cents() == 150);
+
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    pos.addItem(id);
+    const QString size = u"size-"_s + id;
+    pos.chooseOption(add, 0);                                     // cheese before the size: $1.00
+    CHECK(pos.totals()[u"subtotal"_s].toString() == u"$9.00"_s);
+    pos.chooseOption(size, 1);                                    // Large: $10 + cheese $1.50
+    CHECK(pos.totals()[u"subtotal"_s].toString() == u"$11.50"_s);
+    pos.chooseOption(add, 1);                                     // bacon: the same on every size
+    CHECK(pos.totals()[u"subtotal"_s].toString() == u"$13.50"_s);
+    pos.chooseOption(size, 0);                                    // back to Small: cheese $1.00
+    CHECK(pos.totals()[u"subtotal"_s].toString() == u"$11.00"_s);
+    // The choices screen shows the price for the size chosen.
+    pos.chooseOption(size, 1);
+    for (const QVariant &g : pos.choosingInfo()[u"groups"_s].toList())
+        if (g.toMap()[u"id"_s] == add)
+            CHECK(g.toMap()[u"options"_s].toList()[0].toMap()[u"price"_s] == u"$1.50"_s);
+    REQUIRE(pos.finishChoosing());
+}

@@ -1021,6 +1021,11 @@ private:
     bool mayManage(const core::Check &c, const QString &action);
     bool mayOpen(const core::Check &c) const;
     QStringList onItOf(const core::MenuItem &m) const;
+    // Choices priced by size: the size on a line, an option's price on it,
+    // and its choices' prices brought in line with it.
+    std::string sizeOf(const core::OrderLine &l) const;
+    Money optionPrice(const core::ModifierOption &o, const core::OrderLine &l) const;
+    void repriceForSize(core::OrderLine &l) const;
     QVariantList sizesOf(const core::MenuItem &m) const;
     core::ReportContext reportContext(const QString &period) const;
     QString dayLabel(const core::BusinessDay &day) const;

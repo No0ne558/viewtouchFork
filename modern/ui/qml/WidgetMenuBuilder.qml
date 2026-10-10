@@ -159,7 +159,8 @@ Item {
         const kind = !g ? "one" : g.max === 1 ? "one" : g.max === 0 ? "any" : "upTo"
         return g ? { id: g.id, name: g.name, kind: kind, upTo: g.max > 1 ? g.max : 3, required: g.min > 0,
                      atLeast: Math.max(1, g.min), askHow: g.askHow, options: g.options.map(o => ({ name: o.name,
-                     price: o.price ? o.price.toFixed(2) : "", included: o.included, kitchenName: o.kitchenName })) }
+                     price: o.price ? o.price.toFixed(2) : "", included: o.included, kitchenName: o.kitchenName,
+                     sizePrices: Object.assign({}, o.sizePrices ?? {}) })) }
                  : { id: "", name: "", kind: "one", upTo: 3, required: true, atLeast: 1, askHow: false,
                      options: [{ name: "", price: "", included: false }, { name: "", price: "", included: false }] }
     }
@@ -294,6 +295,20 @@ Item {
     function setOption(i, key, value) {
         const d = copy(draft)
         d.options[i][key] = value
+        draft = d
+    }
+    // The sizes the store's items come in (Small, Large…), each once.
+    readonly property var sizeNames: {
+        const out = []
+        for (const i of allItems)
+            for (const z of (i.sizes ?? []))
+                if (!out.some(n => n.toLowerCase() === z.name.toLowerCase())) out.push(z.name)
+        return out
+    }
+    function setSizePrice(i, size, value) {
+        const d = copy(draft)
+        d.options[i].sizePrices = Object.assign({}, d.options[i].sizePrices ?? {})
+        d.options[i].sizePrices[size.toLowerCase()] = value
         draft = d
     }
     function moveOption(i, by) {
@@ -563,6 +578,7 @@ Item {
                 // Choice groups: every one, its rule and who uses it.
                 ListView {
                     id: groupList
+                    objectName: "builderGroups"
                     visible: w.mode === "choices"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -1629,6 +1645,61 @@ Item {
                                     const d = w.copy(w.draft)
                                     d.options.push({ name: "", price: "", included: false })
                                     w.draft = d
+                                }
+                            }
+                            // An option can cost more on a bigger size (extra cheese on a Large).
+                            ColumnLayout {
+                                visible: w.sizeNames.length > 0 && (w.draft.options ?? []).some(o => (o.name ?? "").trim() !== "")
+                                Layout.fillWidth: true
+                                spacing: 6
+                                Label { text: qsTr("Prices by size"); font.pixelSize: 18; font.bold: true }
+                                Label {
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WordWrap
+                                    opacity: 0.7
+                                    font.pixelSize: 14
+                                    text: qsTr("On an item with sizes. Empty: the price above.")
+                                }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+                                    Item { Layout.fillWidth: true }
+                                    Repeater {
+                                        model: w.sizeNames
+                                        delegate: Label {
+                                            required property string modelData
+                                            Layout.preferredWidth: 84
+                                            text: modelData
+                                            opacity: 0.7
+                                            font.pixelSize: 13
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                }
+                                // Counted: typing changes the draft, not the rows.
+                                Repeater {
+                                    model: (w.draft.options ?? []).length
+                                    delegate: RowLayout {
+                                        id: sizedRow
+                                        required property int index
+                                        readonly property var option: (w.draft.options ?? [])[index] ?? ({})
+                                        visible: (option.name ?? "").trim() !== "" && !option.included
+                                        Layout.fillWidth: true
+                                        spacing: 6
+                                        Label { Layout.fillWidth: true; text: sizedRow.option.name ?? ""; elide: Text.ElideRight }
+                                        Repeater {
+                                            model: w.sizeNames
+                                            delegate: TextField {
+                                                required property string modelData
+                                                objectName: "builderSizePrice-" + sizedRow.index + "-" + modelData
+                                                Layout.preferredWidth: 84
+                                                text: (sizedRow.option.sizePrices ?? {})[modelData.toLowerCase()] ?? ""
+                                                placeholderText: sizedRow.option.price || "0.00"
+                                                inputMethodHints: Qt.ImhFormattedNumbersOnly
+                                                onTextEdited: w.setSizePrice(sizedRow.index, modelData, text)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             Label {

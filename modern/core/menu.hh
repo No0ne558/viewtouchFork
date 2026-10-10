@@ -126,6 +126,9 @@ struct ModifierOption {
     // It comes on the item (a burger's lettuce, onion, mayo): nothing to
     // choose, but it can be had No, Lite, Extra or on the Side.
     bool included = false;
+    // Its price on an item of this size (by the size's name, lower case:
+    // "large" -> 1.50); a size not here: `price`.
+    std::map<std::string, Money> sizePrices;
 
     bool operator==(const ModifierOption &) const = default;
 };
