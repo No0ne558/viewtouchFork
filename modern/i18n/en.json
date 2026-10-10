@@ -3,9 +3,17 @@
   "one": "%1 for %n guest",
   "other": "%1 for %n guests"
  },
+ "%1: added %n item(s). Change any of it as you like.": {
+  "one": "%1: added %n item. Change any of it as you like.",
+  "other": "%1: added %n items. Change any of it as you like."
+ },
  "%n changed": {
   "one": "%n changed",
   "other": "%n changed"
+ },
+ "%n choice(s)": {
+  "one": "%n choice",
+  "other": "%n choices"
  },
  "%n chosen": {
   "one": "%n chosen",

@@ -206,6 +206,10 @@
  "%1; %2 on hold for a later course": "%1; %2 en espera para un tiempo posterior",
  "%1m": "%1m",
  "%n changed": "%n cambiado(s)",
+ "%n choice(s)": {
+  "one": "%n opción",
+  "other": "%n opciones"
+ },
  "%n chosen": {
   "one": "%n elegido",
   "other": "%n elegidos"
@@ -1313,6 +1317,8 @@
  "Like 2026-10-06 17:30. Empty: still clocked in.": "Como 2026-10-06 17:30. Vacío: sigue con entrada marcada.",
  "Like 2026-10-09 19:00. On the ticket and the receipt; it can't be sold after.": "Como 2026-10-09 19:00. En el boleto y el recibo; no se puede vender después.",
  "Like 8.25. Other tax rates and cash rounding: Manager -> Taxes.": "Como 8.25. Otros impuestos y el redondeo en efectivo: Gerente -> Impuestos.",
+ "Like which item? Its choices, what's on it, allergens, kitchen, tax and color are copied here; then change anything.": "¿Como cuál artículo? Sus opciones, lo que lleva, alérgenos, cocina, impuesto y color se copian aquí; luego cambie lo que quiera.",
+ "Like…": "Como…",
  "Limit $": "Límite $",
  "Lists": "Muestra",
  "Lite": "Poco",
@@ -3038,5 +3044,6 @@
  "✓ Ready": "✓ Listo",
  "✓ Ready (%n note(s))": "✓ Listo (%n nota(s))",
  "✓ Ready to go": "✓ Listo para servir",
+ "🔍 Find an item": "🔍 Buscar un artículo",
  "🔍 Find an item (name or number)": "🔍 Buscar un artículo (nombre o número)"
 }

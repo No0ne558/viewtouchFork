@@ -1397,6 +1397,52 @@ TEST_CASE("UI: Menu Builder: several items at once; an item dragged onto another
     CHECK_FALSE(by(u"builderGhost"_s));
 }
 
+TEST_CASE("UI: Menu Builder: a new item like another", "[flow][ui][menubuild][like]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.pos.saveMenuItemCard({{u"id"_s, u"cheeseburger"_s}, {u"name"_s, u"Cheeseburger"_s}, {u"allergens"_s, QStringList{u"dairy"_s}},
+                                    {u"onIt"_s, u"lettuce, tomato"_s}, {u"prepMinutes"_s, u"9"_s}}));
+    const core::MenuItem cheese = *s.pos.findItem(u"cheeseburger"_s);
+    REQUIRE_FALSE(cheese.modifierGroups.empty());
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto tap = [&](const QString &name) {
+        QQuickItem *it = by(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(60);
+    };
+    tap(u"builderCategory-burgers"_s);
+    tap(u"builderAddItem"_s);
+    tap(u"builderLike"_s);
+    tap(u"builderLike-cheeseburger"_s);
+    tap(u"builderName"_s);
+    for (const char *ch = "Patty Melt"; *ch; ++ch)
+        QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+    tap(u"builderPrice"_s);
+    for (const char *ch = "13.50"; *ch; ++ch)
+        QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+    QTest::qWait(30);
+    tap(u"builderSave"_s);
+    QTest::qWait(60);
+    const core::MenuItem *melt = s.pos.findItem(u"Patty Melt"_s);
+    REQUIRE(melt);
+    CHECK(melt->price.cents() == 1350);
+    CHECK(melt->allergens == cheese.allergens);
+    CHECK(melt->prepMinutes == 9);
+    CHECK(melt->printer == cheese.printer);
+    // The same choices, and its own What's on it (lettuce, tomato).
+    CHECK(melt->modifierGroups.size() == cheese.modifierGroups.size());
+    QStringList onIt;
+    for (const QVariant &m : s.pos.menuItems())
+        if (m.toMap()[u"name"_s] == u"Patty Melt"_s)
+            onIt = m.toMap()[u"onIt"_s].toStringList();
+    CHECK(onIt == QStringList{u"lettuce"_s, u"tomato"_s});
+}
+
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
 {
     Screen s;

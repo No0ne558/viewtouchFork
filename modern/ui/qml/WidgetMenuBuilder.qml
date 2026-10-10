@@ -334,6 +334,15 @@ Item {
         if (t === "") return []
         return allItems.filter(i => i.name.toLowerCase().includes(t) || (i.number !== "" && i.number === t)).slice(0, 30)
     }
+    // Like…: another item's choices, what's on it, allergens, kitchen and
+    // tax, kitchen time and color (not its name, price, number or photo).
+    function copyFrom(i) {
+        const d = copy(draft)
+        Object.assign(d, { groups: i.groups.slice(), onIt: i.onIt.join(", "), allergens: (i.allergens ?? []).slice(),
+                           printer: i.printer, station: i.station, taxClass: i.taxClass,
+                           prepMinutes: i.prepMinutes ? String(i.prepMinutes) : "", buttonColor: i.buttonColor })
+        draft = d
+    }
     function set(key, value) {
         const d = copy(draft)
         d[key] = value
@@ -1039,7 +1048,18 @@ Item {
                             visible: w.editingItem
                             Layout.fillWidth: true
                             spacing: 10
-                            Label { text: w.draft.id ? qsTr("Item") : qsTr("New item"); font.pixelSize: 22; font.bold: true }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Label { Layout.fillWidth: true; text: w.draft.id ? qsTr("Item") : qsTr("New item"); font.pixelSize: 22; font.bold: true }
+                                // Most new tacos are like the other tacos.
+                                TouchButton {
+                                    objectName: "builderLike"
+                                    implicitHeight: 44
+                                    font.pixelSize: 14
+                                    text: qsTr("Like…")
+                                    onClicked: likeDialog.open()
+                                }
+                            }
                             GridLayout {
                                 Layout.fillWidth: true
                                 columns: 2
@@ -2118,6 +2138,64 @@ Item {
                     onClicked: pricesDialog.close()
                 }
             }
+        }
+    }
+
+    // Like…: the item to copy from; this category's first.
+    Popup {
+        id: likeDialog
+        objectName: "builderLikeDialog"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent ? parent.width - 32 : 560, 560)
+        height: Math.min(parent ? parent.height - 32 : 640, 640)
+        modal: true
+        padding: 16
+        property string find: ""
+        onOpened: find = ""
+        readonly property var choices: {
+            const t = find.trim().toLowerCase()
+            const others = w.allItems.filter(i => i.id !== w.draft.id && (t === "" || i.name.toLowerCase().includes(t)))
+            return others.filter(i => i.family === w.draft.family).concat(others.filter(i => i.family !== w.draft.family))
+        }
+        contentItem: ColumnLayout {
+            spacing: 8
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: qsTr("Like which item? Its choices, what's on it, allergens, kitchen, tax and color are copied here; then change anything.")
+                font.pixelSize: 15
+            }
+            TextField {
+                objectName: "builderLikeFind"
+                Layout.fillWidth: true
+                implicitHeight: 48
+                font.pixelSize: 16
+                placeholderText: qsTr("🔍 Find an item")
+                text: likeDialog.find
+                onTextEdited: likeDialog.find = text
+            }
+            ListView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 6
+                model: likeDialog.choices
+                delegate: TouchButton {
+                    required property var modelData
+                    objectName: "builderLike-" + modelData.id
+                    width: ListView.view.width
+                    readonly property var cat: w.categories.find(c => c.id === modelData.family)
+                    text: modelData.name + (cat ? "  ·  " + cat.name : "")
+                          + (modelData.groups.length ? "  ·  " + qsTr("%n choice(s)", "", modelData.groups.length) : "")
+                    onClicked: {
+                        const i = modelData, b = w
+                        likeDialog.close()
+                        b.copyFrom(i)
+                    }
+                }
+            }
+            TouchButton { Layout.fillWidth: true; text: qsTr("Cancel"); onClicked: likeDialog.close() }
         }
     }
 
