@@ -37,6 +37,7 @@ class PosSession : public QObject {
     Q_PROPERTY(QString storeName READ storeName NOTIFY adminChanged)
     Q_PROPERTY(QString currencySymbol READ currencySymbol NOTIFY adminChanged)
     Q_PROPERTY(QStringList customColors READ customColors NOTIFY adminChanged)
+    Q_PROPERTY(QVariantList priceChanges READ priceChanges NOTIFY adminChanged)
 
     Q_PROPERTY(int pinLength READ pinLength NOTIFY entryChanged)
     Q_PROPERTY(QString entry READ entry NOTIFY entryChanged)
@@ -229,6 +230,8 @@ public:
     virtual QString storeName() const = 0;
     virtual QString currencySymbol() const = 0;
     virtual QStringList customColors() const = 0;
+    // Price changes set for later: [{id, when ("Mon Oct 12, 6:00 AM"), label, count}].
+    virtual QVariantList priceChanges() const = 0;
     virtual int pinLength() const = 0;
     virtual QString entry() const = 0;
     virtual QString entryAmount() const = 0;
@@ -451,6 +454,8 @@ public:
     Q_INVOKABLE void setCategoryColors(const QVariantMap &colors) { invoke(QStringLiteral("setCategoryColors"), QVariantList{QVariant(colors)}); }
     Q_INVOKABLE void changeMenuItems(const QStringList &ids, const QVariantMap &changes) { invoke(QStringLiteral("changeMenuItems"), {ids, changes}); }
     Q_INVOKABLE void removeMenuItems(const QStringList &ids) { invoke(QStringLiteral("removeMenuItems"), QVariantList{QVariant(ids)}); }
+    Q_INVOKABLE void schedulePrices(const QVariantList &prices, qint64 at, const QString &label) { invoke(QStringLiteral("schedulePrices"), {QVariant(prices), at, label}); }
+    Q_INVOKABLE void cancelPriceChange(qint64 id) { invoke(QStringLiteral("cancelPriceChange"), {id}); }
     Q_INVOKABLE void setMenuPrices(const QVariantList &prices) { invoke(QStringLiteral("setMenuPrices"), QVariantList{QVariant(prices)}); }
     Q_INVOKABLE void duplicateMenuItem(const QString &id) { invoke(QStringLiteral("duplicateMenuItem"), {id}); }
     Q_INVOKABLE void applyMenuTemplate(const QString &id) { invoke(QStringLiteral("applyMenuTemplate"), {id}); }

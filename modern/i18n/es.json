@@ -247,6 +247,18 @@
   "one": "%n orden elegida",
   "other": "%n órdenes elegidas"
  },
+ "%n price changes set for later": {
+  "one": "%n cambio de precios programado",
+  "other": "%n cambios de precios programados"
+ },
+ "%n price(s)": {
+  "one": "%n precio",
+  "other": "%n precios"
+ },
+ "%n price(s) change %1": {
+  "one": "%n precio cambia %1",
+  "other": "%n precios cambian %1"
+ },
  "%n price(s) changed": {
   "one": "%n precio cambiado",
   "other": "%n precios cambiados"
@@ -644,6 +656,7 @@
  "Cancel": "Cancelar",
  "Cancel Booking": "Cancelar reservación",
  "Cancel Changes": "Cancelar cambios",
+ "Cancel It": "Cancelarlo",
  "Cancel Item": "Cancelar artículo",
  "Cancel the item being chosen": "Cancelar el artículo que se está eligiendo",
  "Cancel weighing": "Cancelar el pesado",
@@ -712,6 +725,10 @@
   "one": "Cambiar %n precio",
   "other": "Cambiar %n precios"
  },
+ "Change %n price(s) %1": {
+  "one": "Cambiar %n precio %1",
+  "other": "Cambiar %n precios %1"
+ },
  "Change due: %1": "Cambio: %1",
  "Change prices": "Cambiar precios",
  "Changes are a draft: Undo takes them back, Save keeps them.": "Los cambios son un borrador: Deshacer los quita, Guardar los conserva.",
@@ -771,6 +788,7 @@
  "Choose a store above, or type the server's address.": "Elija una tienda arriba, o escriba la dirección del servidor.",
  "Choose a table first.": "Primero elija una mesa.",
  "Choose a table.": "Elija una mesa.",
+ "Choose a time still to come.": "Elija una hora que aún no haya pasado.",
  "Choose an amount to sell or reload": "Elija una cantidad para vender o recargar",
  "Choose another check.": "Elija otra cuenta.",
  "Choose at least %1": "Elija al menos %1",
@@ -1322,6 +1340,7 @@
  "Late tickets are counted in the Kitchen report.": "Los tickets tardíos se cuentan en el reporte de cocina.",
  "Later": "Después",
  "Later ▶": "Después ▶",
+ "Later…": "Después…",
  "Layer": "Capa",
  "Layout: %1": "Diseño: %1",
  "Layout: %1 (Undo takes it back; Save keeps it)": "Diseño: %1 (Deshacer lo quita; Guardar lo conserva)",
@@ -1545,6 +1564,7 @@
  "No open checks": "No hay cuentas abiertas",
  "No other open checks": "No hay otras cuentas abiertas",
  "No payment to remove.": "No hay pago que quitar.",
+ "No prices to change.": "No hay precios que cambiar.",
  "No printer is set up.": "No hay impresora configurada.",
  "No printer prints receipts yet (Manager → Printers → Prints receipts).": "Ninguna impresora imprime recibos todavía (Gerente → Impresoras → Imprime recibos).",
  "No printers set up (Manager → Printers).": "No hay impresoras configuradas (Gerente → Impresoras).",
@@ -1888,6 +1908,8 @@
  "Preview…": "Vista previa…",
  "Previous seat": "Asiento anterior",
  "Price": "Precio",
+ "Price change": "Cambio de precios",
+ "Price change canceled": "Cambio de precios cancelado",
  "Prices": "Precios",
  "Prices by meal period": "Precios por horario de comida",
  "Prices cannot be negative.": "Los precios no pueden ser negativos.",
@@ -2468,6 +2490,7 @@
  "That payment isn't on the check.": "Ese pago no está en la cuenta.",
  "That payment was already refunded in full.": "Ese pago ya se reembolsó por completo.",
  "That picture is too big (8 MB at most).": "Esa imagen es demasiado grande (8 MB como máximo).",
+ "That price change is gone.": "Ese cambio de precios ya no existe.",
  "That refund is on its way.": "Ese reembolso va en camino.",
  "That report is one day at a time (pick Day). Showing sales.": "Ese reporte es de un día a la vez (elija Día). Mostrando ventas.",
  "That request is already decided.": "Esa solicitud ya se decidió.",
@@ -2894,6 +2917,7 @@
  "Who it usually comes from (Manager -> Vendors).": "De quién llega normalmente (Gerente -> Proveedores).",
  "Who may open it": "Quién puede abrirla",
  "Whole kitchen": "Toda la cocina",
+ "Whole menu": "Todo el menú",
  "Whole picture": "Imagen completa",
  "Whose party is it? Enter a name.": "¿A nombre de quién? Escriba un nombre.",
  "Why": "Por qué",

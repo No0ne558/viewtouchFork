@@ -9,6 +9,7 @@
 
 #include <QDateTime>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QMap>
 #include <QRegularExpression>
 
@@ -770,6 +771,11 @@ bool PosService::setMenuPrices(const QVariantList &prices)
 {
     if (!require(perm::Manager, tr("Changing the menu")))
         return false;
+    return applyPrices(prices, {});
+}
+
+bool PosService::applyPrices(const QVariantList &prices, const QString &label)
+{
     const QString symbol = qs(s_->settings.currencySymbol);
     const auto cents = [&](const QVariant &v) { return priceCents(v.toString(), symbol); };
     std::vector<std::pair<int, MenuItem>> changes;
@@ -805,7 +811,7 @@ bool PosService::setMenuPrices(const QVariantList &prices)
     }
     if (changes.empty())
         return true;
-    const MenuStep step(this, tr("Change %n price(s)", "", int(changes.size())));
+    const MenuStep step(this, label.isEmpty() ? tr("Change %n price(s)", "", int(changes.size())) : label);
     for (auto &[index, item] : changes) {
         s_->menu[index] = std::move(item);
         if (s_->sink)
@@ -814,6 +820,80 @@ bool PosService::setMenuPrices(const QVariantList &prices)
     menuChanged();
     emit notice(tr("%n price(s) changed", "", int(changes.size())));
     return true;
+}
+
+// Prices… → Later: checked now (every item there, every price a price), put
+// on the menu at `at`.
+bool PosService::schedulePrices(const QVariantList &prices, qint64 at, const QString &label)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    if (at <= now())
+        return fail(tr("Choose a time still to come."));
+    if (prices.isEmpty())
+        return fail(tr("No prices to change."));
+    const QString symbol = qs(s_->settings.currencySymbol);
+    for (const QVariant &v : prices) {
+        const QVariantMap p = v.toMap();
+        if (!findItem(p.value(u"id"_s).toString()))
+            return fail(tr("That item is gone."));
+        if (priceCents(p.value(u"price"_s).toString(), symbol) < 0)
+            return fail(tr("Type the price, like 11.50."));
+    }
+    auto &list = s_->settings.priceChanges;
+    std::int64_t id = 1;
+    for (const PosSettings::PriceChange &c : list)
+        id = std::max(id, c.id + 1);
+    list.push_back({id, at, ss(label.trimmed().isEmpty() ? tr("Price change") : label.trimmed()),
+                    QJsonDocument(QJsonArray::fromVariantList(prices)).toJson(QJsonDocument::Compact).toStdString()});
+    std::ranges::sort(list, {}, &PosSettings::PriceChange::at);
+    settingsChanged();
+    ++s_->adminRevision;
+    emit s_->adminChanged();
+    emit notice(tr("%n price(s) change %1", "", int(prices.size())).arg(dueText(at)));
+    return true;
+}
+
+bool PosService::cancelPriceChange(qint64 id)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    if (std::erase_if(s_->settings.priceChanges, [&](const PosSettings::PriceChange &c) { return c.id == id; }) == 0)
+        return fail(tr("That price change is gone."));
+    settingsChanged();
+    ++s_->adminRevision;
+    emit s_->adminChanged();
+    emit notice(tr("Price change canceled"));
+    return true;
+}
+
+void PosService::applyDuePriceChanges()
+{
+    auto &list = s_->settings.priceChanges;
+    while (!list.empty() && list.front().at <= now()) {
+        const PosSettings::PriceChange c = list.front();
+        list.erase(list.begin());
+        settingsChanged();
+        const QVariantList prices = QJsonDocument::fromJson(QByteArray::fromStdString(c.prices)).array().toVariantList();
+        // Items gone since: the rest still change.
+        QVariantList here;
+        for (const QVariant &p : prices)
+            if (findItem(p.toMap().value(u"id"_s).toString()))
+                here << p;
+        applyPrices(here, qs(c.label));
+        ++s_->adminRevision;
+        emit s_->adminChanged();
+    }
+}
+
+QVariantList PosService::priceChanges() const
+{
+    QVariantList out;
+    for (const PosSettings::PriceChange &c : s_->settings.priceChanges)
+        out.append(QVariantMap{{u"id"_s, qint64(c.id)}, {u"when"_s, dueText(c.at)}, {u"at"_s, qint64(c.at)},
+                               {u"label"_s, qs(c.label)},
+                               {u"count"_s, qint64(QJsonDocument::fromJson(QByteArray::fromStdString(c.prices)).array().size())}});
+    return out;
 }
 
 bool PosService::duplicateMenuItem(const QString &id)

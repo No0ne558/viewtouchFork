@@ -579,6 +579,7 @@ public:
     QString storeName() const override;
     QString currencySymbol() const override;
     QStringList customColors() const override;
+    QVariantList priceChanges() const override;
     int pinLength() const override { return int(pin_.size()); }
     QString entry() const override { return entry_; }
     QString entryAmount() const override;
@@ -642,7 +643,12 @@ public:
     //  taxClass, printer, station, groups: [ids], onIt: [ingredients]}
     bool saveMenuItemCard(const QVariantMap &card);
     bool deleteMenuItemCard(const QString &id);
-    bool setMenuPrices(const QVariantList &prices);
+    bool setMenuPrices(const QVariantList &prices);   // [{id, price, ...}]: one Undo step
+    // The same, at `at` (epoch ms, later than now); applied by itself then.
+    bool schedulePrices(const QVariantList &prices, qint64 at, const QString &label);
+    bool cancelPriceChange(qint64 id);
+    // Those due: put on the menu (every so often, and at start).
+    void applyDuePriceChanges();
     bool setItemSizes(const QString &itemId, const QVariantList &sizes);   // [{name, price}]
     bool setCategoryColors(const QVariantMap &colors);   // {id: color}: one Undo step
     bool changeMenuItems(const QStringList &ids, const QVariantMap &changes);   // one Undo step
@@ -1060,6 +1066,8 @@ private:
     void offerReceipt(const core::Check &c, bool choosePrinter);
     void receiptAfterClosing(const core::Check &c);
     QTimer counterPoll_;
+    QTimer priceClock_;   // price changes set for later
+    bool applyPrices(const QVariantList &prices, const QString &label);
     int counterPolls_ = 0;
     bool counterAsking_ = false;
     void pollCounter();

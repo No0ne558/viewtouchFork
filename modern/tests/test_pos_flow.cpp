@@ -1645,6 +1645,46 @@ TEST_CASE("UI: clocking out, asked for the cash tips kept", "[flow][ui][cashtips
     CHECK(p->cashTips.cents() == 1250);
 }
 
+TEST_CASE("UI: Menu Builder: prices set to change tomorrow", "[flow][ui][scheduledprices]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto tap = [&](const QString &name) {
+        QQuickItem *it = by(name);
+        REQUIRE(it);
+        s.tapItem(it);
+        QTest::qWait(60);
+    };
+    const qint64 classic = s.pos.findItem(u"classic-burger"_s)->price.cents();
+    tap(u"builderCategory-burgers"_s);
+    CHECK_FALSE(by(u"builderPriceChanges"_s));
+    tap(u"builderPrices"_s);
+    tap(u"builderPricesAmount"_s);
+    QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
+    for (const char *ch = "10"; *ch; ++ch)
+        QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+    QTest::qWait(30);
+    tap(u"builderPricesLater"_s);
+    tap(u"builderPricesDay-1"_s);                                   // tomorrow, 6:00 AM
+    s.shot("90-prices-later");
+    tap(u"builderPricesApply"_s);
+    QTest::qWait(60);
+    CHECK(s.pos.findItem(u"classic-burger"_s)->price.cents() == classic);   // not yet
+    REQUIRE(s.pos.priceChanges().size() == 1);
+    const QVariantMap c = s.pos.priceChanges()[0].toMap();
+    CHECK(c[u"label"_s] == u"Burgers +10%"_s);
+    CHECK(QDateTime::fromMSecsSinceEpoch(c[u"at"_s].toLongLong()) == QDateTime(QDate::currentDate().addDays(1), QTime(6, 0)));
+    REQUIRE(by(u"builderPriceChanges"_s));
+    // Canceled from the list.
+    tap(u"builderPriceChanges"_s);
+    tap(u"builderPriceChangeCancel-"_s + QString::number(c[u"id"_s].toLongLong()));
+    CHECK(s.pos.priceChanges().isEmpty());
+}
+
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")
 {
     Screen s;

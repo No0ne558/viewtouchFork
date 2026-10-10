@@ -120,6 +120,11 @@ PosService::~PosService()
 
 void PosService::connectShared()
 {
+    // Price changes set for later: put on the menu when they're due.
+    priceClock_.setInterval(20'000);
+    connect(&priceClock_, &QTimer::timeout, this, &PosService::applyDuePriceChanges);
+    priceClock_.start();
+    QTimer::singleShot(0, this, &PosService::applyDuePriceChanges);
     // A refund recorded (here or on another terminal): checks found here show it.
     connect(s_, &PosShared::refundRecorded, this, [this](const Refund &r, const QString &what) {
         bool shown = false;
@@ -2473,6 +2478,8 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"setCategoryColors"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setCategoryColors(a.value(0).toMap())); }},
         {u"changeMenuItems"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.changeMenuItems(a.value(0).toStringList(), a.value(1).toMap())); }},
         {u"removeMenuItems"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.removeMenuItems(a.value(0).toStringList())); }},
+        {u"schedulePrices"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.schedulePrices(a.value(0).toList(), a.value(1).toLongLong(), a.value(2).toString())); }},
+        {u"cancelPriceChange"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.cancelPriceChange(a.value(0).toLongLong())); }},
         {u"setMenuPrices"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setMenuPrices(a.value(0).toList())); }},
         {u"duplicateMenuItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.duplicateMenuItem(a.value(0).toString())); }},
         {u"applyMenuTemplate"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.applyMenuTemplate(a.value(0).toString())); }},

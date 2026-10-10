@@ -833,6 +833,18 @@ Item {
                         }
                     }
                 }
+                // Prices set to change later.
+                Button {
+                    objectName: "builderPriceChanges"
+                    readonly property var list: w.pos ? w.pos.priceChanges : []
+                    visible: list.length > 0
+                    Layout.fillWidth: true
+                    implicitHeight: 40
+                    font.pixelSize: 14
+                    text: list.length === 1 ? "⏰ " + list[0].label + "  ·  " + list[0].when
+                                            : "⏰ " + qsTr("%n price changes set for later", "", list.length)
+                    onClicked: w.leave(() => pricesDialog.open())
+                }
                 // What to do with the chosen ones.
                 Flow {
                     objectName: "builderSelectBar"
@@ -2164,7 +2176,27 @@ Item {
         property bool percent: true
         property int roundTo: 5          // cents: 1 (exact), 5, 25, 50
         property string amount: ""
-        onOpened: { amount = ""; wholeMenu = false; lower = false }
+        // Now, or later: a day from today (0 today, 1 tomorrow…) at a time.
+        property bool later: false
+        property int dayOffset: 1
+        property string time: "06:00"
+        onOpened: { amount = ""; wholeMenu = false; lower = false; later = false; dayOffset = 1; time = "06:00" }
+        readonly property bool timeOk: /^([01]?\d|2[0-3]):[0-5]\d$/.test(time.trim())
+        readonly property var when: {
+            if (!timeOk) return null
+            const d = new Date()
+            d.setDate(d.getDate() + dayOffset)
+            const hm = time.trim().split(":")
+            d.setHours(Number(hm[0]), Number(hm[1]), 0, 0)
+            return d
+        }
+        readonly property string whenText: !when ? ""
+            : (dayOffset === 0 ? qsTr("today") : dayOffset === 1 ? qsTr("tomorrow")
+               : Qt.locale().dayName(when.getDay(), Locale.LongFormat)) + " " + when.toLocaleTimeString(Qt.locale(), Locale.ShortFormat)
+        // What it's called on the list and in Undo: "Burgers +10%".
+        readonly property string label: (wholeMenu ? qsTr("Whole menu") : (w.category ? w.category.name : ""))
+                                         + " " + (lower ? "−" : "+") + (percent ? amount.trim() + "%"
+                                                                          : (w.pos ? w.pos.currencySymbol : "$") + amount.trim())
         // Each item's new prices: its regular one, and its meal, takeout and
         // delivery prices the same way.
         readonly property var changes: {
@@ -2241,6 +2273,64 @@ Item {
                     }
                 }
             }
+            // When: now, or a day and time to come (they change by themselves then).
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Pick { text: qsTr("Now"); checked: !pricesDialog.later; onClicked: pricesDialog.later = false }
+                Pick { objectName: "builderPricesLater"; text: qsTr("Later…"); checked: pricesDialog.later; onClicked: pricesDialog.later = true }
+            }
+            Flow {
+                visible: pricesDialog.later
+                Layout.fillWidth: true
+                spacing: 6
+                Repeater {
+                    model: 7
+                    delegate: Button {
+                        required property int index
+                        objectName: "builderPricesDay-" + index
+                        implicitHeight: 48
+                        font.pixelSize: 15
+                        checkable: true
+                        checked: pricesDialog.dayOffset === index
+                        highlighted: checked
+                        text: index === 0 ? qsTr("Today") : index === 1 ? qsTr("Tomorrow")
+                            : Qt.locale().dayName(new Date(Date.now() + index * 86400000).getDay(), Locale.LongFormat)
+                        onClicked: pricesDialog.dayOffset = index
+                    }
+                }
+                TextField {
+                    objectName: "builderPricesTime"
+                    width: 110
+                    implicitHeight: 48
+                    font.pixelSize: 18
+                    text: pricesDialog.time
+                    placeholderText: "06:00"
+                    inputMethodHints: Qt.ImhPreferNumbers
+                    onTextEdited: pricesDialog.time = text
+                }
+            }
+            // Set for later already: each can be canceled.
+            Repeater {
+                model: w.pos ? w.pos.priceChanges : []
+                delegate: RowLayout {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Label {
+                        Layout.fillWidth: true
+                        text: "⏰ " + modelData.when + "  ·  " + modelData.label + "  ·  " + qsTr("%n price(s)", "", modelData.count)
+                        elide: Text.ElideRight
+                        font.pixelSize: 15
+                    }
+                    Button {
+                        objectName: "builderPriceChangeCancel-" + modelData.id
+                        implicitHeight: 44
+                        text: qsTr("Cancel It")
+                        onClicked: w.pos.cancelPriceChange(modelData.id)
+                    }
+                }
+            }
             ListView {
                 objectName: "builderPricesPreview"
                 Layout.fillWidth: true
@@ -2278,8 +2368,9 @@ Item {
                     objectName: "builderPricesApply"
                     Layout.fillWidth: true
                     highlighted: true
-                    enabled: pricesDialog.changes.length > 0
-                    text: qsTr("Change %n price(s)", "", pricesDialog.changes.length)
+                    enabled: pricesDialog.changes.length > 0 && (!pricesDialog.later || !!pricesDialog.when && pricesDialog.when > new Date())
+                    text: pricesDialog.later ? qsTr("Change %n price(s) %1", "", pricesDialog.changes.length).arg(pricesDialog.whenText)
+                                             : qsTr("Change %n price(s)", "", pricesDialog.changes.length)
                     onClicked: {
                         // Taken first: the list follows the prices, so it changes as they do.
                         const changes = pricesDialog.changes.map(c => {
@@ -2287,6 +2378,11 @@ Item {
                             for (const k of ["takeoutPrice", "deliveryPrice"]) if (c[k] !== undefined) out[k] = c[k]
                             return out
                         })
+                        if (pricesDialog.later) {
+                            w.pos.schedulePrices(changes, pricesDialog.when.getTime(), pricesDialog.label)
+                            pricesDialog.close()
+                            return
+                        }
                         const open = w.editingItem && w.draft.id ? changes.find(x => x.id === w.draft.id) : null
                         w.pos.setMenuPrices(changes)
                         // The open card shows the new prices.

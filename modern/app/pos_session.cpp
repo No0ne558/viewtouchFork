@@ -19,7 +19,7 @@ const QStringList &PosSession::stateKeys()
 {
     static const QStringList keys = {
         u"terminalName"_s, u"loggedIn"_s, u"userName"_s, u"userRole"_s, u"permissions"_s, u"clockedIn"_s,
-        u"clockedInSince"_s, u"storeName"_s, u"currencySymbol"_s, u"customColors"_s, u"pinLength"_s, u"entry"_s, u"entryAmount"_s,
+        u"clockedInSince"_s, u"storeName"_s, u"currencySymbol"_s, u"customColors"_s, u"priceChanges"_s, u"pinLength"_s, u"entry"_s, u"entryAmount"_s,
         u"entryGuests"_s, u"textEntry"_s, u"pendingQualifier"_s, u"pendingTable"_s, u"hasCheck"_s, u"check"_s, u"tableChecks"_s, u"undoText"_s,
         u"lines"_s, u"totals"_s, u"payments"_s, u"selectedLine"_s, u"selectedPayment"_s, u"openChecks"_s, u"floor"_s, u"deliveries"_s, u"drivers"_s, u"popularItems"_s, u"stockLeft"_s, u"dashboard"_s, u"checklists"_s,
         u"checkFilter"_s, u"kitchenTickets"_s, u"drawer"_s, u"day"_s, u"days"_s, u"adminRevision"_s,
@@ -48,7 +48,7 @@ QVariantMap PosSession::snapshot() const
         {u"terminalName"_s, terminalName()}, {u"loggedIn"_s, loggedIn()}, {u"userName"_s, userName()},
         {u"userRole"_s, userRole()}, {u"permissions"_s, permissions()}, {u"clockedIn"_s, clockedIn()},
         {u"clockedInSince"_s, clockedInSince()}, {u"storeName"_s, storeName()},
-        {u"currencySymbol"_s, currencySymbol()}, {u"customColors"_s, customColors()}, {u"pinLength"_s, pinLength()}, {u"entry"_s, entry()},
+        {u"currencySymbol"_s, currencySymbol()}, {u"customColors"_s, customColors()}, {u"priceChanges"_s, priceChanges()}, {u"pinLength"_s, pinLength()}, {u"entry"_s, entry()},
         {u"entryAmount"_s, entryAmount()}, {u"entryGuests"_s, entryGuests()}, {u"textEntry"_s, textEntry()},
         {u"pendingQualifier"_s, pendingQualifier()}, {u"pendingTable"_s, pendingTable()},
         {u"hasCheck"_s, hasCheck()}, {u"check"_s, checkInfo()}, {u"tableChecks"_s, tableChecks()}, {u"undoText"_s, undoText()}, {u"lines"_s, lines()}, {u"totals"_s, totals()},

@@ -132,6 +132,17 @@ struct PosSettings {
     std::string currencySymbol = "$";
     // Colors the store mixed itself (custom colors), the newest first.
     std::vector<std::string> customColors;
+    // Price changes set for later (Prices… → Later): at `at` (epoch ms) the
+    // prices (as Prices… shows them: a JSON list of {id, price, …}) are put
+    // on the menu, and the change is gone from here.
+    struct PriceChange {
+        std::int64_t id = 0;
+        std::int64_t at = 0;
+        std::string label;     // "Burgers +10%"
+        std::string prices;    // JSON
+        bool operator==(const PriceChange &) const = default;
+    };
+    std::vector<PriceChange> priceChanges;
     TaxRates tax;
     std::vector<Tender> tenders;
     std::vector<PrinterConfig> printers;

@@ -771,6 +771,13 @@ QJsonObject toJson(const PosSettings &s)
         {u"storeName"_s, qs(s.storeName)}, {u"setupDone"_s, s.setupDone},
         {u"currencySymbol"_s, qs(s.currencySymbol)},
         {u"customColors"_s, [&s] { QJsonArray a; for (const std::string &c : s.customColors) a.append(qs(c)); return a; }()},
+        {u"priceChanges"_s, [&s] {
+             QJsonArray a;
+             for (const PosSettings::PriceChange &c : s.priceChanges)
+                 a.append(QJsonObject{{u"id"_s, qint64(c.id)}, {u"at"_s, qint64(c.at)}, {u"label"_s, qs(c.label)},
+                                      {u"prices"_s, qs(c.prices)}});
+             return a;
+         }()},
         {u"tax"_s, QJsonObject{
              {u"food"_s, percentFromPpm(s.tax.foodPpm)}, {u"alcohol"_s, percentFromPpm(s.tax.alcoholPpm)},
              {u"merchandise"_s, percentFromPpm(s.tax.merchandisePpm)}, {u"room"_s, percentFromPpm(s.tax.roomPpm)},
@@ -963,6 +970,11 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.currencySymbol = ss(o.value(u"currencySymbol").toString(qs(s.currencySymbol)));
     for (const QJsonValue &c : o.value(u"customColors").toArray())
         s.customColors.push_back(ss(c.toString()));
+    for (const QJsonValue &v : o.value(u"priceChanges").toArray()) {
+        const QJsonObject c = v.toObject();
+        s.priceChanges.push_back({c.value(u"id").toInteger(), c.value(u"at").toInteger(), ss(c.value(u"label").toString()),
+                                  ss(c.value(u"prices").toString())});
+    }
     const QJsonObject tax = o.value(u"tax").toObject();
     s.tax.foodPpm = ppmFromPercent(tax.value(u"food").toDouble());
     s.tax.alcoholPpm = ppmFromPercent(tax.value(u"alcohol").toDouble());

@@ -63,6 +63,18 @@
   "one": "%n order picked",
   "other": "%n orders picked"
  },
+ "%n price changes set for later": {
+  "one": "%n price change set for later",
+  "other": "%n price changes set for later"
+ },
+ "%n price(s)": {
+  "one": "%n price",
+  "other": "%n prices"
+ },
+ "%n price(s) change %1": {
+  "one": "%n price changes %1",
+  "other": "%n prices change %1"
+ },
  "%n price(s) changed": {
   "one": "%n price changed",
   "other": "%n prices changed"
@@ -114,6 +126,10 @@
  "Change %n price(s)": {
   "one": "Change %n price",
   "other": "Change %n prices"
+ },
+ "Change %n price(s) %1": {
+  "one": "Change %n price %1",
+  "other": "Change %n prices %1"
  },
  "Exported all pages to %1, with %n picture(s) and font(s)": {
   "one": "Exported all pages to %1, with %n picture or font",

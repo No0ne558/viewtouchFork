@@ -788,3 +788,46 @@ TEST_CASE("Menu Builder: sizes in one step, asked when it's ordered", "[menubuil
     CHECK_FALSE(pos.shared()->settings.modifierGroup("size-" + id.toStdString()));
     CHECK(pos.findItem(id)->price.cents() == 300);
 }
+
+TEST_CASE("Prices set for later: put on the menu when they're due", "[menubuilder][scheduledprices]")
+{
+    test::RecordingSink sink;
+    PosService pos(test::seedPosData(), &sink);
+    qint64 clock = QDateTime(QDate::currentDate(), QTime(15, 0)).toMSecsSinceEpoch();
+    pos.shared()->setClock([&] { return clock; });
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const qint64 classic = pos.findItem(u"classic-burger"_s)->price.cents();
+    const qint64 monday = clock + 3 * 86'400'000;
+    const QVariantList up{QVariantMap{{u"id"_s, u"classic-burger"_s}, {u"price"_s, u"20.00"_s}},
+                          QVariantMap{{u"id"_s, u"cheeseburger"_s}, {u"price"_s, u"21.00"_s}}};
+    CHECK_FALSE(pos.schedulePrices(up, clock - 1, u"Too late"_s));
+    CHECK_FALSE(pos.schedulePrices({QVariantMap{{u"id"_s, u"nope"_s}, {u"price"_s, u"1"_s}}}, monday, u"x"_s));
+    REQUIRE(pos.schedulePrices(up, monday, u"Burgers +10%"_s));
+    REQUIRE(pos.priceChanges().size() == 1);
+    CHECK(pos.priceChanges()[0].toMap()[u"label"_s] == u"Burgers +10%"_s);
+    CHECK(pos.priceChanges()[0].toMap()[u"count"_s].toInt() == 2);
+    // Kept with the store's settings.
+    CHECK(app::settingsFromJson(app::toJson(pos.shared()->settings)).priceChanges == pos.shared()->settings.priceChanges);
+
+    pos.applyDuePriceChanges();                                    // not yet
+    CHECK(pos.findItem(u"classic-burger"_s)->price.cents() == classic);
+    // A second one, canceled.
+    REQUIRE(pos.schedulePrices(up, monday + 1000, u"Oops"_s));
+    REQUIRE(pos.cancelPriceChange(pos.priceChanges()[1].toMap()[u"id"_s].toLongLong()));
+    CHECK(pos.priceChanges().size() == 1);
+    // Cheeseburger taken off the menu meanwhile: the rest still change.
+    REQUIRE(pos.deleteMenuItemCard(u"cheeseburger"_s));
+
+    clock = monday + 5000;
+    pos.logout();                                                  // nobody needs to be there
+    pos.applyDuePriceChanges();
+    CHECK(pos.findItem(u"classic-burger"_s)->price.cents() == 2000);
+    CHECK(pos.priceChanges().isEmpty());
+    CHECK(sink.savedMenuIds().contains(u"classic-burger"_s));
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    CHECK(pos.menuUndoText() == u"Burgers +10%"_s);                 // and taken back like any change
+    // Only managers set them.
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"1111"_s));
+    CHECK_FALSE(pos.schedulePrices(up, clock + 86'400'000, u"x"_s));
+}
