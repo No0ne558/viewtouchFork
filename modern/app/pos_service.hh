@@ -633,6 +633,7 @@ public:
     //  taxClass, printer, station, groups: [ids], onIt: [ingredients]}
     bool saveMenuItemCard(const QVariantMap &card);
     bool deleteMenuItemCard(const QString &id);
+    bool setMenuPrices(const QVariantList &prices);   // [{id, price}]: one Undo step
     bool duplicateMenuItem(const QString &id);   // "Fish Tacos 2", right after it
     // "Tacos: Carne Asada 3.50, Al Pastor 3.25" / one per line; returns how many were added.
     int addMenuItemsFromText(const QString &categoryId, const QString &text);

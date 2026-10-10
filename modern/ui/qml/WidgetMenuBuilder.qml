@@ -102,9 +102,16 @@ Item {
         return i ? { id: i.id, name: i.name, price: i.priceValue.toFixed(2), family: i.family, image: i.image,
                      groups: i.groups.slice(), onIt: i.onIt.join(", "), available: i.availableSet,
                      kioskHide: i.kioskHide, description: i.description, favorite: i.favorite,
-                     allergens: (i.allergens ?? []).slice() }
+                     allergens: (i.allergens ?? []).slice(), kitchenName: i.kitchenName, number: i.number,
+                     buttonColor: i.buttonColor, prepMinutes: i.prepMinutes ? String(i.prepMinutes) : "",
+                     takeoutPrice: i.takeoutPrice, periodPrices: Object.assign({}, i.periodPrices),
+                     taxClass: i.taxClass, printer: i.printer, station: i.station }
                  : { id: "", name: "", price: "", family: categoryId, image: "", groups: [], onIt: "",
-                     available: true, kioskHide: false, description: "", favorite: false, allergens: [] }
+                     available: true, kioskHide: false, description: "", favorite: false, allergens: [],
+                     kitchenName: "", number: "", buttonColor: "", prepMinutes: "", takeoutPrice: "", periodPrices: {},
+                     // what its category's items start with
+                     taxClass: category ? (category.taxClass || "food") : "food",
+                     printer: category ? (category.printer || "kitchen") : "kitchen", station: category ? category.station : "" }
     }
     function categoryDraft(c) {
         return c ? { id: c.id, name: c.name, color: c.color, periods: c.periods.slice(), printer: c.printer,
@@ -130,7 +137,10 @@ Item {
             }
             if (v && typeof v === "object") {
                 const o = {}
-                for (const k of Object.keys(v).sort()) o[k] = norm(v[k])
+                for (const k of Object.keys(v).sort()) {
+                    const n = norm(v[k])
+                    if (n !== "") o[k] = n
+                }
                 return o
             }
             if (typeof v === "string") {
@@ -152,7 +162,8 @@ Item {
             const saved = draft.id ? allItems.find(i => i.id === draft.id) : null
             if (draft.id && !saved) return false   // removed meanwhile
             const fresh = itemDraft(saved)
-            if (!draft.id) fresh.family = draft.family
+            if (!draft.id)
+                for (const k of ["family", "taxClass", "printer", "station"]) fresh[k] = draft[k]
             return !same(fresh, draft)
         }
         if (editingCategory) {
@@ -278,6 +289,20 @@ Item {
             Qt.callLater(() => groupList.positionViewAtIndex(groups.findIndex(g => g.id === added.id), ListView.Contain))
         }
     }
+    function setPeriodPrice(period, value) {
+        const p = Object.assign({}, draft.periodPrices ?? {})
+        p[period] = value
+        set("periodPrices", p)
+    }
+    // The card's More settings, open or not (stays so from item to item).
+    property bool moreOpen: false
+    // Find an item anywhere on the menu (its name, or its number).
+    property string search: ""
+    readonly property var found: {
+        const t = search.trim().toLowerCase()
+        if (t === "") return []
+        return allItems.filter(i => i.name.toLowerCase().includes(t) || (i.number !== "" && i.number === t)).slice(0, 30)
+    }
     function set(key, value) {
         const d = copy(draft)
         d[key] = value
@@ -387,33 +412,107 @@ Item {
                         onClicked: w.leave(() => { w.mode = "choices"; w.editingItem = false; w.editingCategory = false })
                     }
                 }
-                // Ready to go? What would trip up service.
-                TouchButton {
-                    objectName: "builderCheck"
-                    readonly property var problems: w.pos ? w.pos.menuProblems : []
-                    readonly property int serious: problems.filter(p => p.serious).length
+                // Ready to go? What would trip up service. And the last change, taken back.
+                RowLayout {
                     Layout.fillWidth: true
-                    text: serious ? qsTr("⚠ %n to fix", "", serious)
-                                  : problems.length ? qsTr("✓ Ready (%n note(s))", "", problems.length) : qsTr("✓ Ready to go")
-                    palette.button: serious ? "#7a2e2e" : "#1f5f3a"
-                    onClicked: checkDialog.open()
-                }
-                // The last change, taken back (the card open closes: it may be gone).
-                TouchButton {
-                    objectName: "builderUndo"
-                    visible: !!w.pos && w.pos.menuUndoText !== ""
-                    Layout.fillWidth: true
-                    text: qsTr("↶ Undo: %1").arg(w.pos ? w.pos.menuUndoText : "")
-                    onClicked: {
-                        w.editingItem = false
-                        w.editingCategory = false
-                        w.editingGroup = false
-                        w.returnToItem = null
-                        w.stage = w.mode === "choices" ? "categories" : "items"
-                        w.pos.undoMenuChange()
+                    spacing: 6
+                    TouchButton {
+                        objectName: "builderCheck"
+                        readonly property var problems: w.pos ? w.pos.menuProblems : []
+                        readonly property int serious: problems.filter(p => p.serious).length
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        // Half the width with Undo beside it: shorter.
+                        text: serious ? qsTr("⚠ %n to fix", "", serious)
+                                      : undoButton.visible ? qsTr("✓ Ready")
+                                      : problems.length ? qsTr("✓ Ready (%n note(s))", "", problems.length) : qsTr("✓ Ready to go")
+                        palette.button: serious ? "#7a2e2e" : "#1f5f3a"
+                        onClicked: checkDialog.open()
+                    }
+                    // (The card open closes: what it shows may be gone.)
+                    TouchButton {
+                        id: undoButton
+                        objectName: "builderUndo"
+                        visible: !!w.pos && w.pos.menuUndoText !== ""
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        font.pixelSize: 14
+                        text: qsTr("↶ Undo") + "\n" + (w.pos ? w.pos.menuUndoText : "")
+                        onClicked: {
+                            w.editingItem = false
+                            w.editingCategory = false
+                            w.editingGroup = false
+                            w.returnToItem = null
+                            w.stage = w.mode === "choices" ? "categories" : "items"
+                            w.pos.undoMenuChange()
+                        }
                     }
                 }
-                Label { visible: w.mode === "menu"; text: qsTr("Categories"); font.pixelSize: 22; font.bold: true }
+                // Anywhere on the menu: its name or number.
+                TextField {
+                    objectName: "builderSearch"
+                    visible: w.mode === "menu"
+                    Layout.fillWidth: true
+                    implicitHeight: 48
+                    font.pixelSize: 16
+                    placeholderText: qsTr("🔍 Find an item (name or number)")
+                    text: w.search
+                    onTextEdited: w.search = text
+                    inputMethodHints: Qt.ImhNoPredictiveText
+                }
+                ListView {
+                    id: foundList
+                    objectName: "builderFound"
+                    visible: w.mode === "menu" && w.search.trim() !== ""
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    spacing: 6
+                    model: w.found
+                    delegate: Rectangle {
+                        required property var modelData
+                        id: foundRow
+                        objectName: "builderFound-" + modelData.id
+                        width: foundList.width
+                        height: 64
+                        radius: 8
+                        color: w.editingItem && w.itemId === modelData.id ? "#2b3a52" : "#232933"
+                        readonly property var cat: w.categories.find(c => c.id === modelData.family)
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 10
+                            Rectangle { width: 18; height: 40; radius: 4; color: foundRow.cat ? foundRow.cat.color || "#4a5260" : "#4a5260" }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 0
+                                Label { text: modelData.name; font.pixelSize: 18; font.bold: true; elide: Text.ElideRight; Layout.fillWidth: true }
+                                Label {
+                                    text: (foundRow.cat ? foundRow.cat.name + "  ·  " : "")
+                                          + (modelData.availableSet ? modelData.price : qsTr("sold out"))
+                                          + (modelData.number !== "" ? "  ·  #" + modelData.number : "")
+                                    font.pixelSize: 13
+                                    opacity: 0.7
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                const item = modelData, b = w
+                                b.leave(() => { b.categoryId = item.family; b.editItem(item) })
+                            }
+                        }
+                    }
+                    Label {
+                        anchors.centerIn: parent
+                        visible: w.found.length === 0
+                        text: qsTr("Nothing on the menu by that name.")
+                        opacity: 0.6
+                    }
+                }
                 // Choice groups: every one, its rule and who uses it.
                 ListView {
                     id: groupList
@@ -462,7 +561,7 @@ Item {
                 }
                 ListView {
                     id: categoryList
-                    visible: w.mode === "menu"
+                    visible: w.mode === "menu" && w.search.trim() === ""
                     interactive: w.dragId === ""
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -608,6 +707,12 @@ Item {
                         elide: Text.ElideRight
                     }
                     TouchButton {
+                        objectName: "builderPrices"
+                        visible: !!w.category
+                        text: qsTr("Prices…")
+                        onClicked: w.leave(() => pricesDialog.open())
+                    }
+                    TouchButton {
                         objectName: "builderAddSeveral"
                         visible: !!w.category
                         text: qsTr("Add Several…")
@@ -750,6 +855,13 @@ Item {
 
                 Flickable {
                     id: cardFlick
+                    objectName: "builderCard"
+                    Timer {
+                        id: moreScroll
+                        property real top: 0
+                        interval: 30
+                        onTriggered: cardFlick.contentY = Math.max(0, Math.min(cardFlick.contentHeight - cardFlick.height, top))
+                    }
                     anchors { left: parent.left; right: parent.right; top: parent.top; bottom: cardButtons.top; margins: 14 }
                     visible: w.editingItem || w.editingCategory || w.editingGroup
                     clip: true
@@ -797,7 +909,16 @@ Item {
                                     Layout.fillWidth: true
                                     model: w.categories.map(c => c.name)
                                     currentIndex: w.categories.findIndex(c => c.id === w.draft.family)
-                                    onActivated: i => w.set("family", w.categories[i].id)
+                                    onActivated: i => {
+                                        const c = w.categories[i]
+                                        // A new one: made and taxed the way that category's items are.
+                                        if (!w.draft.id) {
+                                            const d = w.copy(w.draft)
+                                            Object.assign(d, { taxClass: c.taxClass || "food", printer: c.printer || "kitchen", station: c.station })
+                                            w.draft = d
+                                        }
+                                        w.set("family", c.id)
+                                    }
                                 }
                                 Label { text: qsTr("Photo") }
                                 FieldEditor {
@@ -915,6 +1036,136 @@ Item {
                                 }
                             }
 
+                            // The rest most kitchens set: folded away until wanted.
+                            TouchButton {
+                                objectName: "builderMore"
+                                Layout.fillWidth: true
+                                flat: true
+                                text: (w.moreOpen ? "▾ " : "▸ ") + qsTr("More: kiosk, kitchen, number, other prices")
+                                onClicked: {
+                                    w.moreOpen = !w.moreOpen
+                                    // Opened: scrolled up into view, once laid out.
+                                    if (w.moreOpen) {
+                                        moreScroll.top = y - 8
+                                        moreScroll.restart()
+                                    }
+                                }
+                            }
+                            GridLayout {
+                                visible: w.moreOpen
+                                Layout.fillWidth: true
+                                columns: 2
+                                columnSpacing: 10
+                                rowSpacing: 8
+                                Label { text: qsTr("On the kiosk"); Layout.preferredWidth: 110 }
+                                TextField {
+                                    objectName: "builderDescription"
+                                    Layout.fillWidth: true
+                                    text: w.draft.description ?? ""
+                                    placeholderText: qsTr("A line guests read, e.g. Grilled steak, onion, cilantro")
+                                    onTextEdited: w.set("description", text)
+                                }
+                                Label { text: qsTr("Kitchen name"); Layout.preferredWidth: 110 }
+                                TextField {
+                                    objectName: "builderKitchenName"
+                                    Layout.fillWidth: true
+                                    text: w.draft.kitchenName ?? ""
+                                    placeholderText: qsTr("Shorter, on tickets: e.g. ASADA")
+                                    onTextEdited: w.set("kitchenName", text)
+                                }
+                                Label { text: qsTr("Number"); Layout.preferredWidth: 110 }
+                                TextField {
+                                    objectName: "builderNumber"
+                                    Layout.fillWidth: true
+                                    text: w.draft.number ?? ""
+                                    placeholderText: qsTr("To ring it in by number, e.g. 104")
+                                    inputMethodHints: Qt.ImhDigitsOnly
+                                    onTextEdited: w.set("number", text)
+                                }
+                                Label { text: qsTr("Kitchen time"); Layout.preferredWidth: 110 }
+                                TextField {
+                                    objectName: "builderPrepMinutes"
+                                    Layout.fillWidth: true
+                                    text: w.draft.prepMinutes ?? ""
+                                    placeholderText: qsTr("Minutes; empty: learned from the kitchen")
+                                    inputMethodHints: Qt.ImhDigitsOnly
+                                    onTextEdited: w.set("prepMinutes", text)
+                                }
+                                Label { text: qsTr("Takeout price"); Layout.preferredWidth: 110 }
+                                TextField {
+                                    objectName: "builderTakeoutPrice"
+                                    Layout.fillWidth: true
+                                    text: w.draft.takeoutPrice ?? ""
+                                    placeholderText: qsTr("Empty: the same")
+                                    inputMethodHints: Qt.ImhFormattedNumbersOnly
+                                    onTextEdited: w.set("takeoutPrice", text)
+                                }
+                                Repeater {
+                                    model: w.periods
+                                    delegate: RowLayout {
+                                        required property var modelData
+                                        Layout.columnSpan: 2
+                                        Layout.fillWidth: true
+                                        spacing: 10
+                                        Label { text: qsTr("At %1").arg(modelData.name); Layout.preferredWidth: 110; elide: Text.ElideRight }
+                                        TextField {
+                                            objectName: "builderPeriodPrice-" + modelData.id
+                                            Layout.fillWidth: true
+                                            text: (w.draft.periodPrices ?? {})[modelData.id] ?? ""
+                                            placeholderText: qsTr("Empty: the same")
+                                            inputMethodHints: Qt.ImhFormattedNumbersOnly
+                                            onTextEdited: w.setPeriodPrice(modelData.id, text)
+                                        }
+                                    }
+                                }
+                                Label { text: qsTr("Button color"); Layout.preferredWidth: 110 }
+                                Flow {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+                                    TouchButton {
+                                        checkable: true
+                                        checked: (w.draft.buttonColor ?? "") === ""
+                                        highlighted: checked
+                                        text: qsTr("Category's")
+                                        onClicked: w.set("buttonColor", "")
+                                    }
+                                    Repeater {
+                                        model: w.swatches
+                                        delegate: Rectangle {
+                                            required property string modelData
+                                            width: 52; height: 52; radius: 6
+                                            color: modelData
+                                            border.color: w.draft.buttonColor === modelData ? "white" : "transparent"
+                                            border.width: 3
+                                            MouseArea { anchors.fill: parent; onClicked: w.set("buttonColor", modelData) }
+                                        }
+                                    }
+                                }
+                                Label { text: qsTr("Kitchen ticket"); Layout.preferredWidth: 110 }
+                                ComboBox {
+                                    objectName: "builderItemPrinter"
+                                    Layout.fillWidth: true
+                                    model: w.printers.map(p => p.name)
+                                    currentIndex: w.printers.findIndex(p => p.id === w.draft.printer)
+                                    onActivated: i => w.set("printer", w.printers[i].id)
+                                }
+                                Label { text: qsTr("Made at"); Layout.preferredWidth: 110 }
+                                ComboBox {
+                                    Layout.fillWidth: true
+                                    readonly property var opts: [{ id: "", name: qsTr("(anywhere)") }].concat(w.stations)
+                                    model: opts.map(s => s.name)
+                                    currentIndex: Math.max(0, opts.findIndex(s => s.id === (w.draft.station ?? "")))
+                                    onActivated: i => w.set("station", opts[i].id)
+                                }
+                                Label { text: qsTr("Tax"); Layout.preferredWidth: 110 }
+                                ComboBox {
+                                    objectName: "builderItemTax"
+                                    Layout.fillWidth: true
+                                    model: w.taxes.map(t => t.name)
+                                    currentIndex: Math.max(0, w.taxes.findIndex(t => t.id === (w.draft.taxClass || "food")))
+                                    onActivated: i => w.set("taxClass", w.taxes[i].id)
+                                }
+                            }
 
                         }
 
@@ -1216,8 +1467,11 @@ Item {
                             visible: !!w.draft.id
                             text: qsTr("More…")
                             ToolTip.visible: hovered
-                            ToolTip.text: qsTr("Every setting: kitchen name, prices by meal, takeout price, recipe…")
-                            onClicked: w.zone.controller.jumpTo("admin-menu")
+                            ToolTip.text: qsTr("Every setting: delivery price, recipe, by weight, discounts…")
+                            onClicked: {
+                                const b = w
+                                b.leave(() => b.zone.controller.jumpTo("admin-menu"))
+                            }
                         }
                     }
                     RowLayout {
@@ -1513,6 +1767,167 @@ Item {
                     Layout.preferredWidth: 160
                     text: qsTr("Cancel")
                     onClicked: severalDialog.close()
+                }
+            }
+        }
+    }
+
+    // Prices up or down, a category's or the whole menu's: shown first, then
+    // changed (one Undo).
+    Dialog {
+        id: pricesDialog
+        objectName: "builderPricesDialog"
+        title: qsTr("Change prices")
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 760)
+        height: Math.min(parent.height - 40, 720)
+        modal: true
+        property bool wholeMenu: false
+        property bool lower: false
+        property bool percent: true
+        property int roundTo: 5          // cents: 1 (exact), 5, 25, 50
+        property string amount: ""
+        onOpened: { amount = ""; wholeMenu = false; lower = false }
+        // Each item's new prices: its regular one, and its meal, takeout and
+        // delivery prices the same way.
+        readonly property var changes: {
+            const by = Number(amount.trim().replace(",", "."))
+            if (amount.trim() === "" || isNaN(by) || by <= 0) return []
+            const adjust = text => {
+                const was = Math.round(Number(text) * 100)
+                if (!(was > 0)) return text   // free (or priced when rung in): left alone
+                const now = percent ? was * (lower ? 1 - by / 100 : 1 + by / 100)
+                                    : was + (lower ? -1 : 1) * Math.round(by * 100)
+                return (Math.max(0, Math.round(now / roundTo) * roundTo) / 100).toFixed(2)
+            }
+            const out = []
+            for (const i of (wholeMenu ? w.allItems : w.items)) {
+                const was = i.priceValue.toFixed(2)
+                const c = { id: i.id, name: i.name, was: was, price: adjust(was), periodPrices: {} }
+                let changed = c.price !== was
+                for (const k of ["takeoutPrice", "deliveryPrice"])
+                    if (i[k]) { c[k] = adjust(i[k]); changed = changed || c[k] !== i[k] }
+                for (const p of Object.keys(i.periodPrices ?? {})) {
+                    c.periodPrices[p] = adjust(i.periodPrices[p])
+                    changed = changed || c.periodPrices[p] !== i.periodPrices[p]
+                }
+                c.others = Object.keys(i.periodPrices ?? {}).length + (i.takeoutPrice ? 1 : 0) + (i.deliveryPrice ? 1 : 0)
+                if (changed) out.push(c)
+            }
+            return out
+        }
+        component Pick: Button {
+            implicitHeight: 52
+            font.pixelSize: 16
+            checkable: true
+            highlighted: checked
+            Layout.fillWidth: true
+        }
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 10
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Pick { text: w.category ? w.category.name : ""; checked: !pricesDialog.wholeMenu; onClicked: pricesDialog.wholeMenu = false }
+                Pick { objectName: "builderPricesWhole"; text: qsTr("The whole menu"); checked: pricesDialog.wholeMenu; onClicked: pricesDialog.wholeMenu = true }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Pick { text: qsTr("Raise"); checked: !pricesDialog.lower; onClicked: pricesDialog.lower = false }
+                Pick { objectName: "builderPricesLower"; text: qsTr("Lower"); checked: pricesDialog.lower; onClicked: pricesDialog.lower = true }
+                TextField {
+                    objectName: "builderPricesAmount"
+                    Layout.preferredWidth: 120
+                    implicitHeight: 52
+                    font.pixelSize: 18
+                    text: pricesDialog.amount
+                    placeholderText: pricesDialog.percent ? "5" : "0.50"
+                    inputMethodHints: Qt.ImhFormattedNumbersOnly
+                    onTextEdited: pricesDialog.amount = text
+                }
+                Pick { text: "%"; checked: pricesDialog.percent; onClicked: pricesDialog.percent = true }
+                Pick { objectName: "builderPricesMoney"; text: w.pos ? w.pos.currencySymbol : "$"; checked: !pricesDialog.percent; onClicked: pricesDialog.percent = false }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Label { text: qsTr("Round to") }
+                Repeater {
+                    model: [{ c: 1, t: qsTr("Exact") }, { c: 5, t: "0.05" }, { c: 25, t: "0.25" }, { c: 50, t: "0.50" }]
+                    delegate: Pick {
+                        required property var modelData
+                        text: modelData.t
+                        checked: pricesDialog.roundTo === modelData.c
+                        onClicked: pricesDialog.roundTo = modelData.c
+                    }
+                }
+            }
+            ListView {
+                objectName: "builderPricesPreview"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                model: pricesDialog.changes
+                delegate: RowLayout {
+                    required property var modelData
+                    width: ListView.view.width
+                    height: 34
+                    Label {
+                        Layout.fillWidth: true
+                        text: modelData.name + (modelData.others ? "  " + qsTr("(+%n other price(s))", "", modelData.others) : "")
+                        elide: Text.ElideRight
+                        font.pixelSize: 16
+                    }
+                    Label { text: modelData.was; opacity: 0.6; font.pixelSize: 16 }
+                    Label { text: "→"; opacity: 0.6; font.pixelSize: 16 }
+                    Label { Layout.preferredWidth: 80; horizontalAlignment: Text.AlignRight; text: modelData.price; font.bold: true; font.pixelSize: 16 }
+                }
+                Label {
+                    anchors.centerIn: parent
+                    width: parent.width - 40
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
+                    visible: pricesDialog.changes.length === 0
+                    opacity: 0.6
+                    text: qsTr("Type how much; each new price shows here before anything changes. Items priced 0 are left alone.")
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                TouchButton {
+                    objectName: "builderPricesApply"
+                    Layout.fillWidth: true
+                    highlighted: true
+                    enabled: pricesDialog.changes.length > 0
+                    text: qsTr("Change %n price(s)", "", pricesDialog.changes.length)
+                    onClicked: {
+                        // Taken first: the list follows the prices, so it changes as they do.
+                        const changes = pricesDialog.changes.map(c => {
+                            const out = { id: c.id, price: c.price, periodPrices: c.periodPrices }
+                            for (const k of ["takeoutPrice", "deliveryPrice"]) if (c[k] !== undefined) out[k] = c[k]
+                            return out
+                        })
+                        const open = w.editingItem && w.draft.id ? changes.find(x => x.id === w.draft.id) : null
+                        w.pos.setMenuPrices(changes)
+                        // The open card shows the new prices.
+                        if (open) {
+                            const d = w.copy(w.draft)
+                            d.price = open.price
+                            if (open.takeoutPrice !== undefined) d.takeoutPrice = open.takeoutPrice
+                            d.periodPrices = Object.assign({}, d.periodPrices ?? {}, open.periodPrices)
+                            w.draft = d
+                        }
+                        pricesDialog.close()
+                    }
+                }
+                TouchButton {
+                    Layout.preferredWidth: 160
+                    text: qsTr("Cancel")
+                    onClicked: pricesDialog.close()
                 }
             }
         }

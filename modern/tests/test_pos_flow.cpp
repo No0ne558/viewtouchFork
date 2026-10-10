@@ -5445,6 +5445,96 @@ TEST_CASE("UI: a card not saved is kept while the Menu Builder is left", "[flow]
     CHECK_FALSE(s.c.take(u"menuBuilder"_s).isValid());
 }
 
+TEST_CASE("UI: Menu Builder: find an item, its More settings, prices up for a category", "[flow][ui][menubuild][cardmore]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    // Prices by meal: opening it is not a change.
+    REQUIRE(s.pos.saveMenuItemCard({{u"id"_s, u"cheeseburger"_s}, {u"name"_s, u"Cheeseburger"_s},
+                                    {u"periodPrices"_s, QVariantMap{{u"dinner"_s, u"15.00"_s}}}, {u"number"_s, u"212"_s}}));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto shown = [&](const QString &name) { QQuickItem *i = by(name); return i && i->isVisible(); };
+    const auto type = [&](const char *text) {
+        QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
+        for (const char *ch = text; *ch; ++ch)
+            QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+        QTest::qWait(60);
+    };
+
+    // Found by its number, wherever it is.
+    s.tapItem(by(u"builderSearch"_s));
+    type("212");
+    CHECK(shown(u"builderFound-cheeseburger"_s));
+    CHECK_FALSE(shown(u"builderCategory-burgers"_s));
+    s.tapItem(by(u"builderFound-cheeseburger"_s));
+    QTest::qWait(60);
+    REQUIRE(by(u"builderName"_s));
+    CHECK(by(u"builderName"_s)->property("text").toString() == u"Cheeseburger"_s);
+    CHECK_FALSE(shown(u"builderNotSaved"_s));
+    // More: folded until wanted; a kitchen name typed is a change.
+    CHECK_FALSE(shown(u"builderKitchenName"_s));
+    QQuickItem *card = by(u"builderCard"_s);
+    REQUIRE(card);
+    card->setProperty("contentY", card->property("contentHeight").toReal() - card->height());
+    QTest::qWait(30);
+    s.tapItem(by(u"builderMore"_s));
+    QTest::qWait(60);
+    REQUIRE(shown(u"builderKitchenName"_s));
+    if (qEnvironmentVariableIsSet("VTM_SHOTS"))
+        s.window->grabWindow().save(qEnvironmentVariable("VTM_SHOTS") + u"/builder-more.png"_s);
+    CHECK(by(u"builderPeriodPrice-dinner"_s)->property("text").toString() == u"15.00"_s);
+    s.tapItem(by(u"builderKitchenName"_s));
+    type("CHZ");
+    CHECK(shown(u"builderNotSaved"_s));
+    s.tapItem(by(u"builderSave"_s));
+    QTest::qWait(100);
+    CHECK(s.pos.findItem(u"cheeseburger"_s)->kitchenName == "CHZ");
+    CHECK(s.pos.findItem(u"cheeseburger"_s)->periodPrices.at("dinner").cents() == 1500);
+    CHECK_FALSE(shown(u"builderNotSaved"_s));
+
+    // Prices…: burgers up 10%, to the nickel; shown, then changed.
+    std::map<std::string, qint64> before;
+    for (const core::MenuItem &m : s.pos.shared()->menu)
+        before[m.id] = m.price.cents();
+    s.tapItem(by(u"builderPrices"_s));
+    QTest::qWait(100);
+    REQUIRE(shown(u"builderPricesApply"_s));
+    s.tapItem(by(u"builderPricesAmount"_s));
+    type("10");
+    if (qEnvironmentVariableIsSet("VTM_SHOTS"))
+        s.window->grabWindow().save(qEnvironmentVariable("VTM_SHOTS") + u"/builder-prices.png"_s);
+    QQuickItem *preview = by(u"builderPricesPreview"_s);
+    REQUIRE(preview);
+    CHECK(preview->property("count").toInt() > 1);
+    s.tapItem(by(u"builderPricesApply"_s));
+    QTest::qWait(100);
+    for (const core::MenuItem &m : s.pos.shared()->menu) {
+        const qint64 was = before[m.id];
+        if (m.family == "burgers" && !m.isModifier && was > 0) {
+            CHECK(m.price.cents() == (was * 110 + 250) / 500 * 5);
+        } else {
+            CHECK(m.price.cents() == was);
+        }
+    }
+    CHECK(s.pos.findItem(u"cheeseburger"_s)->periodPrices.at("dinner").cents() == 1650);   // its dinner price too
+    CHECK(s.pos.menuUndoText().startsWith(u"Change "_s));
+    // The open card shows the new price, nothing unsaved.
+    CHECK(by(u"builderPrice"_s)->property("text").toString()
+          == QString::number(double(s.pos.findItem(u"cheeseburger"_s)->price.cents()) / 100.0, 'f', 2));
+    CHECK_FALSE(shown(u"builderNotSaved"_s));
+
+    // More… with a change not saved: asked first.
+    s.tapItem(by(u"builderKitchenName"_s));
+    type("CB");
+    s.tapItem(Screen::findBy(root, "text", u"More…"_s));
+    QTest::qWait(100);
+    CHECK(shown(u"builderLeaveSave"_s));
+    CHECK(s.c.pageId() == u"menu-builder"_s);
+}
+
 TEST_CASE("Flow: an item taken off the menu takes its hand-placed buttons; a category gone, the screen's start too", "[flow][leftbehind]")
 {
     Session s;

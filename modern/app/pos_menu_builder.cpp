@@ -533,6 +533,55 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
         item.printer = ss(card.value(u"printer"_s).toString());
     if (card.contains(u"station"_s))
         item.station = ss(card.value(u"station"_s).toString());
+    if (card.contains(u"kitchenName"_s))
+        item.kitchenName = ss(card.value(u"kitchenName"_s).toString().trimmed());
+    if (card.contains(u"buttonColor"_s))
+        item.buttonColor = ss(card.value(u"buttonColor"_s).toString().trimmed());
+    if (card.contains(u"prepMinutes"_s)) {
+        const QString t = card.value(u"prepMinutes"_s).toString().trimmed();
+        bool ok = t.isEmpty();
+        const int minutes = ok ? 0 : t.toInt(&ok);
+        if (!ok || minutes < 0 || minutes > 240)
+            return fail(tr("Kitchen time is minutes, like 12 (or empty)."));
+        item.prepMinutes = minutes;
+    }
+    if (card.contains(u"number"_s)) {
+        const QString plu = card.value(u"number"_s).toString().trimmed();
+        if (!plu.isEmpty()) {
+            if (plu.size() > 6 || !std::ranges::all_of(plu, [](QChar c) { return c.isDigit(); }))
+                return fail(tr("The number is digits only (up to 6), like 104."));
+            for (const MenuItem &m : menu)
+                if (m.id != item.id && qs(m.number) == plu)
+                    return fail(tr("%1 already has number %2.").arg(qs(m.name), plu));
+        }
+        item.number = ss(plu);
+    }
+    // Other prices: empty is the regular price.
+    const auto otherPrice = [&](const QVariant &v, Money &into) {
+        const QString t = v.toString().trimmed();
+        const qint64 c = t.isEmpty() ? 0 : priceCents(t, qs(s_->settings.currencySymbol));
+        if (c < 0)
+            return false;
+        into = Money::fromCents(c);
+        return true;
+    };
+    if (card.contains(u"takeoutPrice"_s) && !otherPrice(card.value(u"takeoutPrice"_s), item.takeoutPrice))
+        return fail(tr("Type the takeout price, like 11.50, or leave it empty."));
+    if (card.contains(u"periodPrices"_s)) {
+        const QVariantMap wanted = card.value(u"periodPrices"_s).toMap();
+        const QStringList known = periodIds();
+        item.periodPrices.clear();
+        for (auto p = wanted.begin(); p != wanted.end(); ++p) {
+            if (p.value().toString().trimmed().isEmpty())
+                continue;
+            if (!known.contains(p.key()))
+                return fail(tr("There is no meal period '%1'.").arg(p.key()));
+            Money m;
+            if (!otherPrice(p.value(), m))
+                return fail(tr("Type the price, like 11.50, or leave it empty."));
+            item.periodPrices[ss(p.key())] = m;
+        }
+    }
 
     // Its choices: groups picked from the list (its own What's on it first).
     const std::string onIt = onItGroupId(item.id);
@@ -592,6 +641,58 @@ bool PosService::saveMenuItemCard(const QVariantMap &card)
     }
     menuChanged();
     emit notice(adding ? tr("%1 added").arg(name) : tr("Saved"));
+    return true;
+}
+
+// Many prices at once (Prices…): [{id, price, takeoutPrice?, deliveryPrice?,
+// periodPrices?}], exactly as previewed; one Undo step.
+bool PosService::setMenuPrices(const QVariantList &prices)
+{
+    if (!require(perm::Manager, tr("Changing the menu")))
+        return false;
+    const QString symbol = qs(s_->settings.currencySymbol);
+    const auto cents = [&](const QVariant &v) { return priceCents(v.toString(), symbol); };
+    std::vector<std::pair<int, MenuItem>> changes;
+    for (const QVariant &v : prices) {
+        const QVariantMap p = v.toMap();
+        const std::string id = ss(p.value(u"id"_s).toString());
+        const auto it = std::ranges::find_if(s_->menu, [&](const MenuItem &m) { return m.id == id; });
+        if (it == s_->menu.end())
+            return fail(tr("That item is gone."));
+        MenuItem m = *it;
+        const qint64 price = cents(p.value(u"price"_s));
+        if (price < 0)
+            return fail(tr("Type the price, like 11.50."));
+        m.price = Money::fromCents(price);
+        for (const auto &[key, into] : {std::pair{u"takeoutPrice"_s, &m.takeoutPrice}, std::pair{u"deliveryPrice"_s, &m.deliveryPrice}}) {
+            if (!p.contains(key))
+                continue;
+            const qint64 c = cents(p.value(key));
+            if (c < 0)
+                return fail(tr("Type the price, like 11.50."));
+            *into = Money::fromCents(c);
+        }
+        const QVariantMap periods = p.value(u"periodPrices"_s).toMap();
+        for (auto q = periods.begin(); q != periods.end(); ++q) {
+            const auto at = m.periodPrices.find(ss(q.key()));
+            const qint64 c = cents(q.value());
+            if (at == m.periodPrices.end() || c < 0)
+                return fail(tr("Type the price, like 11.50."));
+            at->second = Money::fromCents(c);
+        }
+        if (!(m == *it))
+            changes.emplace_back(int(it - s_->menu.begin()), std::move(m));
+    }
+    if (changes.empty())
+        return true;
+    const MenuStep step(this, tr("Change %n price(s)", "", int(changes.size())));
+    for (auto &[index, item] : changes) {
+        s_->menu[index] = std::move(item);
+        if (s_->sink)
+            s_->sink->saveMenuItem(s_->menu[index], index);
+    }
+    menuChanged();
+    emit notice(tr("%n price(s) changed", "", int(changes.size())));
     return true;
 }
 

@@ -528,3 +528,79 @@ TEST_CASE("Menu Builder: undo, a change at a time; not over a change made elsewh
     REQUIRE(pos.loginWithPin(u"2222"_s));
     CHECK_FALSE(pos.undoMenuChange());
 }
+
+TEST_CASE("Menu Builder: the card's More settings; many prices at once", "[menubuilder][cardmore]")
+{
+    test::RecordingSink sink;
+    PosService pos(test::seedPosData(), &sink);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    const QString id = u"classic-burger"_s;
+    const QString name = item(pos, u"Classic Burger"_s)[u"name"_s].toString();
+    REQUIRE(name == u"Classic Burger"_s);
+
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, id}, {u"name"_s, name}, {u"kitchenName"_s, u" CLASSIC "_s},
+                                  {u"number"_s, u"904"_s}, {u"prepMinutes"_s, u"12"_s}, {u"takeoutPrice"_s, u"$13.25"_s},
+                                  {u"periodPrices"_s, QVariantMap{{u"dinner"_s, u"14.50"_s}, {u"lunch"_s, u""_s}}},
+                                  {u"buttonColor"_s, u"#b83232"_s}, {u"taxClass"_s, u"alcohol"_s},
+                                  {u"description"_s, u"Two patties"_s}}));
+    const core::MenuItem *m = pos.findItem(id);
+    REQUIRE(m);
+    CHECK(m->kitchenName == "CLASSIC");
+    CHECK(m->number == "904");
+    CHECK(m->prepMinutes == 12);
+    CHECK(m->takeoutPrice.cents() == 1325);
+    CHECK(m->periodPrices.size() == 1);
+    CHECK(m->periodPrices.at("dinner").cents() == 1450);
+    CHECK(m->buttonColor == "#b83232");
+    CHECK(m->taxClass == core::TaxClass::Alcohol);
+    CHECK(m->description == "Two patties");
+    CHECK(sink.savedMenuIds().contains(id));
+    // Read back the way the card shows it.
+    const QVariantMap shown = item(pos, name);
+    CHECK(shown[u"kitchenName"_s] == u"CLASSIC"_s);
+    CHECK(shown[u"prepMinutes"_s].toInt() == 12);
+    CHECK(shown[u"takeoutPrice"_s] == u"13.25"_s);
+    CHECK(shown[u"periodPrices"_s].toMap() == QVariantMap{{u"dinner"_s, u"14.50"_s}});
+
+    // Mistakes are refused, nothing changed.
+    CHECK_FALSE(pos.saveMenuItemCard({{u"id"_s, u"cheeseburger"_s}, {u"name"_s, u"Cheeseburger"_s}, {u"number"_s, u"904"_s}}));
+    CHECK_FALSE(pos.saveMenuItemCard({{u"id"_s, id}, {u"name"_s, name}, {u"number"_s, u"1a"_s}}));
+    CHECK_FALSE(pos.saveMenuItemCard({{u"id"_s, id}, {u"name"_s, name}, {u"prepMinutes"_s, u"soon"_s}}));
+    CHECK_FALSE(pos.saveMenuItemCard({{u"id"_s, id}, {u"name"_s, name}, {u"periodPrices"_s, QVariantMap{{u"brunch"_s, u"9"_s}}}}));
+    CHECK(pos.findItem(id)->number == "904");
+    // Emptied: back to the regular price, learned kitchen time, no number.
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, id}, {u"name"_s, name}, {u"number"_s, u""_s}, {u"prepMinutes"_s, u""_s},
+                                  {u"takeoutPrice"_s, u""_s}, {u"periodPrices"_s, QVariantMap{{u"dinner"_s, u""_s}}}}));
+    CHECK(pos.findItem(id)->number.empty());
+    CHECK(pos.findItem(id)->prepMinutes == 0);
+    CHECK(pos.findItem(id)->takeoutPrice.cents() == 0);
+    CHECK(pos.findItem(id)->periodPrices.empty());
+
+    // Prices…: as previewed, its other prices too; one Undo step.
+    REQUIRE(pos.saveMenuItemCard({{u"id"_s, u"cheeseburger"_s}, {u"name"_s, u"Cheeseburger"_s}, {u"takeoutPrice"_s, u"9.00"_s},
+                                  {u"periodPrices"_s, QVariantMap{{u"lunch"_s, u"10.00"_s}}}}));
+    const qint64 classic = pos.findItem(id)->price.cents(), cheese = pos.findItem(u"cheeseburger"_s)->price.cents();
+    REQUIRE(pos.setMenuPrices({QVariantMap{{u"id"_s, id}, {u"price"_s, u"20.00"_s}},
+                               QVariantMap{{u"id"_s, u"cheeseburger"_s}, {u"price"_s, u"21.05"_s}, {u"takeoutPrice"_s, u"9.90"_s},
+                                           {u"periodPrices"_s, QVariantMap{{u"lunch"_s, u"11.00"_s}}}}}));
+    CHECK(pos.findItem(id)->price.cents() == 2000);
+    CHECK(pos.findItem(u"cheeseburger"_s)->price.cents() == 2105);
+    CHECK(pos.findItem(u"cheeseburger"_s)->takeoutPrice.cents() == 990);
+    CHECK(pos.findItem(u"cheeseburger"_s)->periodPrices.at("lunch").cents() == 1100);
+    CHECK(pos.menuUndoText() == u"Change 2 prices"_s);
+    REQUIRE(pos.undoMenuChange());
+    CHECK(pos.findItem(id)->price.cents() == classic);
+    CHECK(pos.findItem(u"cheeseburger"_s)->price.cents() == cheese);
+    CHECK(pos.findItem(u"cheeseburger"_s)->periodPrices.at("lunch").cents() == 1000);
+    // One gone or a bad price: nothing changes.
+    CHECK_FALSE(pos.setMenuPrices({QVariantMap{{u"id"_s, id}, {u"price"_s, u"1.00"_s}},
+                                   QVariantMap{{u"id"_s, u"no-such"_s}, {u"price"_s, u"2.00"_s}}}));
+    CHECK_FALSE(pos.setMenuPrices({QVariantMap{{u"id"_s, id}, {u"price"_s, u"cheap"_s}}}));
+    CHECK_FALSE(pos.setMenuPrices({QVariantMap{{u"id"_s, id}, {u"price"_s, u"1.00"_s},
+                                               {u"periodPrices"_s, QVariantMap{{u"dinner"_s, u"2.00"_s}}}}}));   // it has none
+    CHECK(pos.findItem(id)->price.cents() == classic);
+    // Only managers.
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"2222"_s));
+    CHECK_FALSE(pos.setMenuPrices({QVariantMap{{u"id"_s, id}, {u"price"_s, u"1.00"_s}}}));
+}

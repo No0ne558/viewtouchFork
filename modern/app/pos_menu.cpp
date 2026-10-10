@@ -485,6 +485,10 @@ QVariantList PosService::menuItems() const
                                {u"printer"_s, qs(m.printer)}, {u"station"_s, qs(m.station)},
                                {u"description"_s, qs(m.description)}, {u"kioskHide"_s, m.kioskHide},
                                {u"availableSet"_s, m.available}, {u"favorite"_s, m.favorite},
+                               {u"kitchenName"_s, qs(m.kitchenName)}, {u"prepMinutes"_s, m.prepMinutes},
+                               {u"takeoutPrice"_s, m.takeoutPrice.cents() ? QString::number(double(m.takeoutPrice.cents()) / 100.0, 'f', 2) : QString()},
+                               {u"deliveryPrice"_s, m.deliveryPrice.cents() ? QString::number(double(m.deliveryPrice.cents()) / 100.0, 'f', 2) : QString()},
+                               {u"periodPrices"_s, [&m] { QVariantMap p; for (const auto &[k, v] : m.periodPrices) p.insert(qs(k), QString::number(double(v.cents()) / 100.0, 'f', 2)); return p; }()},
                                {u"allergens"_s, [&m] { QStringList a; for (const std::string &x : m.allergens) a << qs(x); return a; }()}});
     }
     return out;

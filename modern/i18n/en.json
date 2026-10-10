@@ -1,4 +1,16 @@
 {
+ "%1 for %n guest(s)": {
+  "one": "%1 for %n guest",
+  "other": "%1 for %n guests"
+ },
+ "%n changed": {
+  "one": "%n changed",
+  "other": "%n changed"
+ },
+ "%n closing task(s) not done yet": {
+  "one": "%n closing task not done yet",
+  "other": "%n closing tasks not done yet"
+ },
  "%n guest(s)": {
   "one": "%n guest",
   "other": "%n guests"
@@ -7,85 +19,53 @@
   "one": "%n item",
   "other": "%n items"
  },
- "It took over from another main server %n time(s).": {
-  "one": "It took over from another main server once.",
-  "other": "It took over from another main server %n times."
+ "%n item(s) go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2": {
+  "one": "%n item goes to the printer %1, which isn't set up, and there's no kitchen printer: its tickets print nowhere: %2",
+  "other": "%n items go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2"
  },
- "Received %n item(s) from %1: %2": {
-  "one": "Received %n item from %1: %2",
-  "other": "Received %n items from %1: %2"
+ "%n item(s) go to the printer %1, which isn't set up, so they print in the kitchen: %2": {
+  "one": "%n item goes to the printer %1, which isn't set up, so it prints in the kitchen: %2",
+  "other": "%n items go to the printer %1, which isn't set up, so they print in the kitchen: %2"
  },
- "Received %n item(s): %1": {
-  "one": "Received %n item: %1",
-  "other": "Received %n items: %1"
- },
- "%n sample employee(s) turned off": {
-  "one": "%n sample employee turned off",
-  "other": "%n sample employees turned off"
- },
- "Printing %n receipt(s)": {
-  "one": "Printing %n receipt",
-  "other": "Printing %n receipts"
- },
- "Another round: %n drink(s)": {
-  "one": "Another round: %n drink",
-  "other": "Another round: %n drinks"
- },
- "Another round: %n drink(s) (sold out: %1)": {
-  "one": "Another round: %n drink (sold out: %1)",
-  "other": "Another round: %n drinks (sold out: %1)"
- },
- "%n request(s) waiting: Schedule → Requests": {
-  "one": "%n request waiting: Schedule → Requests",
-  "other": "%n requests waiting: Schedule → Requests"
- },
- "%n closing task(s) not done yet": {
-  "one": "%n closing task not done yet",
-  "other": "%n closing tasks not done yet"
- },
- "Exported all pages to %1, with %n picture(s) and font(s)": {
-  "one": "Exported all pages to %1, with %n picture or font",
-  "other": "Exported all pages to %1, with %n pictures and fonts"
- },
- "Imported every page, and added %n picture(s) and font(s) to the store": {
-  "one": "Imported every page, and added %n picture or font to the store",
-  "other": "Imported every page, and added %n pictures and fonts to the store"
- },
- "%n seat(s)": {
-  "one": "%n seat",
-  "other": "%n seats"
- },
- "%1 for %n guest(s)": {
-  "one": "%1 for %n guest",
-  "other": "%1 for %n guests"
- },
- "%n order(s) picked": {
-  "one": "%n order picked",
-  "other": "%n orders picked"
- },
- "Same as last time: %n item(s)": {
-  "one": "Same as last time: %n item",
-  "other": "Same as last time: %n items"
- },
- "Same as last time: %n item(s) (sold out: %1)": {
-  "one": "Same as last time: %n item (sold out: %1)",
-  "other": "Same as last time: %n items (sold out: %1)"
- },
- "%n order(s) out with %1": {
-  "one": "%n order out with %1",
-  "other": "%n orders out with %1"
- },
- "Move or remove its %n item(s) first.": {
-  "one": "Move or remove its item first.",
-  "other": "Move or remove its %n items first."
+ "%n more": {
+  "one": "%n more",
+  "other": "%n more"
  },
  "%n option(s)": {
   "one": "%n option",
   "other": "%n options"
  },
- "used by %n": {
-  "one": "used by %n item",
-  "other": "used by %n items"
+ "%n order(s) out with %1": {
+  "one": "%n order out with %1",
+  "other": "%n orders out with %1"
+ },
+ "%n order(s) picked": {
+  "one": "%n order picked",
+  "other": "%n orders picked"
+ },
+ "%n price(s) changed": {
+  "one": "%n price changed",
+  "other": "%n prices changed"
+ },
+ "%n request(s) waiting: Schedule → Requests": {
+  "one": "%n request waiting: Schedule → Requests",
+  "other": "%n requests waiting: Schedule → Requests"
+ },
+ "%n sample employee(s) turned off": {
+  "one": "%n sample employee turned off",
+  "other": "%n sample employees turned off"
+ },
+ "%n seat(s)": {
+  "one": "%n seat",
+  "other": "%n seats"
+ },
+ "(+%n other price(s))": {
+  "one": "(+%n other price)",
+  "other": "(+%n other prices)"
+ },
+ "Add %n item(s)": {
+  "one": "Add %n item",
+  "other": "Add %n items"
  },
  "Added %n item(s)": {
   "one": "Added %n item",
@@ -95,17 +75,69 @@
   "one": "Added %n item; already on the menu: %1",
   "other": "Added %n items; already on the menu: %1"
  },
- "Add %n item(s)": {
-  "one": "Add %n item",
-  "other": "Add %n items"
+ "Another round: %n drink(s)": {
+  "one": "Another round: %n drink",
+  "other": "Another round: %n drinks"
+ },
+ "Another round: %n drink(s) (sold out: %1)": {
+  "one": "Another round: %n drink (sold out: %1)",
+  "other": "Another round: %n drinks (sold out: %1)"
+ },
+ "Avoiding %n": {
+  "one": "Avoiding %n",
+  "other": "Avoiding %n"
+ },
+ "Change %n price(s)": {
+  "one": "Change %n price",
+  "other": "Change %n prices"
+ },
+ "Exported all pages to %1, with %n picture(s) and font(s)": {
+  "one": "Exported all pages to %1, with %n picture or font",
+  "other": "Exported all pages to %1, with %n pictures and fonts"
  },
  "Import %n item(s)": {
   "one": "Import %n item",
   "other": "Import %n items"
  },
+ "Imported every page, and added %n picture(s) and font(s) to the store": {
+  "one": "Imported every page, and added %n picture or font to the store",
+  "other": "Imported every page, and added %n pictures and fonts to the store"
+ },
+ "It took over from another main server %n time(s).": {
+  "one": "It took over from another main server once.",
+  "other": "It took over from another main server %n times."
+ },
+ "Move or remove its %n item(s) first.": {
+  "one": "Move or remove its item first.",
+  "other": "Move or remove its %n items first."
+ },
+ "Printing %n receipt(s)": {
+  "one": "Printing %n receipt",
+  "other": "Printing %n receipts"
+ },
+ "Received %n item(s) from %1: %2": {
+  "one": "Received %n item from %1: %2",
+  "other": "Received %n items from %1: %2"
+ },
+ "Received %n item(s): %1": {
+  "one": "Received %n item: %1",
+  "other": "Received %n items: %1"
+ },
+ "Same as last time: %n item(s)": {
+  "one": "Same as last time: %n item",
+  "other": "Same as last time: %n items"
+ },
+ "Same as last time: %n item(s) (sold out: %1)": {
+  "one": "Same as last time: %n item (sold out: %1)",
+  "other": "Same as last time: %n items (sold out: %1)"
+ },
  "new prices for %n": {
   "one": "a new price for %n item",
   "other": "new prices for %n items"
+ },
+ "used by %n": {
+  "one": "used by %n item",
+  "other": "used by %n items"
  },
  "⚠ %n to fix": {
   "one": "⚠ %n to fix",
@@ -114,25 +146,5 @@
  "✓ Ready (%n note(s))": {
   "one": "✓ Ready (%n note)",
   "other": "✓ Ready (%n notes)"
- },
- "%n more": {
-  "one": "%n more",
-  "other": "%n more"
- },
- "%n item(s) go to the printer %1, which isn't set up, so they print in the kitchen: %2": {
-  "one": "%n item goes to the printer %1, which isn't set up, so it prints in the kitchen: %2",
-  "other": "%n items go to the printer %1, which isn't set up, so they print in the kitchen: %2"
- },
- "%n item(s) go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2": {
-  "one": "%n item goes to the printer %1, which isn't set up, and there's no kitchen printer: its tickets print nowhere: %2",
-  "other": "%n items go to the printer %1, which isn't set up, and there's no kitchen printer: their tickets print nowhere: %2"
- },
- "%n changed": {
-  "one": "%n changed",
-  "other": "%n changed"
- },
- "Avoiding %n": {
-  "one": "Avoiding %n",
-  "other": "Avoiding %n"
  }
 }
