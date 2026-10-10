@@ -3792,7 +3792,13 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     REQUIRE(s.pos.loginWithPin(u"1111"_s));                     // Sam, a server
     s.pos.clockIn();
     for (const char *table : {"T2", "T5"}) {                    // a couple of tables already going
-        REQUIRE(s.pos.selectTable(QString::fromLatin1(table)) == app::PosService::TableNeedsGuests);
+        // (The demo's service may have it going already, by the time of day.)
+        const int r = s.pos.selectTable(QString::fromLatin1(table));
+        if (r == app::PosService::TableOpened) {
+            s.pos.releaseCheck();
+            continue;
+        }
+        REQUIRE(r == app::PosService::TableNeedsGuests);
         s.pos.entryKey(u"4"_s);
         REQUIRE(s.pos.startCheck(core::CheckType::DineIn));
         s.pos.addItem(u"cobb"_s);
@@ -3993,7 +3999,7 @@ TEST_CASE("Manual: a screenshot of every screen", "[.manual]")
     QTest::qWait(80);
     snap("m47-report-month-vs-last-year");
     s.tapKey(u"Day"_s);
-    for (const char *r : {"Labor", "Kitchen", "Food Cost", "Tips", "Gift Cards", "Expenses", "Purchases", "Exceptions", "Deposit", "Customers", "Royalty", "Accounting"}) {
+    for (const char *r : {"Labor", "Kitchen", "Food Cost", "Menu Mix", "Tips", "Gift Cards", "Expenses", "Purchases", "Exceptions", "Deposit", "Customers", "Royalty", "Accounting"}) {
         s.tapKey(QString::fromLatin1(r));
         QTest::qWait(80);
         snap(QString(u"m48-report-%1"_s).arg(QString::fromLatin1(r).toLower().replace(u' ', u'-')).toLatin1().constData());

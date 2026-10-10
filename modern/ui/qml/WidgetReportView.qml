@@ -28,6 +28,7 @@ Item {
         { id: "accounts", label: qsTr("Gift Cards") },
         { id: "kitchen", label: qsTr("Kitchen") },
         { id: "foodcost", label: qsTr("Food Cost") },
+        { id: "engineering", label: qsTr("Menu Mix") },
         { id: "turns", label: qsTr("Turns") },
         { id: "checklists", label: qsTr("Checklists") },
         { id: "drivers", label: qsTr("Drivers") },

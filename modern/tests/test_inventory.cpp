@@ -261,6 +261,42 @@ TEST_CASE("Food cost report: sales against recipe cost, and the stock", "[invent
     CHECK(cellsOf(report, u"Burger Buns"_s).size() == 5);
 }
 
+TEST_CASE("Menu engineering: each item by how it sells and what it earns", "[inventory][reports]")
+{
+    PosService pos(test::seedPosData(), nullptr);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    pos.entryKey(u"10000"_s);
+    REQUIRE(pos.openDrawerSession());
+    REQUIRE(pos.startCheck(core::CheckType::Takeout));
+    for (int i = 0; i < 3; ++i)
+        pos.addItem(u"classic-burger"_s);          // earns $11.50 - $2.01 = $9.49 each
+    REQUIRE(pos.tender(u"cash"_s));
+    REQUIRE(pos.closeCheck());
+
+    const QVariantMap report = pos.report(u"engineering"_s);
+    const QStringList burger = cellsOf(report, u"Classic Burger"_s);
+    REQUIRE(burger.size() == 6);
+    CHECK(burger[1] == u"3"_s);
+    CHECK(burger[2] == u"100.0%"_s);
+    CHECK(burger[3] == u"$9.49"_s);
+    CHECK(burger[4] == u"$28.47"_s);
+    CHECK(burger[5] == u"Star"_s);
+    // Another burger, not sold: slow.
+    int slow = 0;
+    for (const core::MenuItem &m : pos.shared()->menu) {
+        if (m.family != pos.findItem(u"classic-burger"_s)->family || m.id == "classic-burger" || m.isModifier)
+            continue;
+        const QStringList row = cellsOf(report, QString::fromStdString(m.name + (m.recipe.empty() ? " *" : "")));
+        REQUIRE(row.size() == 6);
+        CHECK(row[1] == u"0"_s);
+        CHECK((row[5] == u"Weak"_s || row[5] == u"Hidden gem"_s));
+        ++slow;
+    }
+    CHECK(slow > 0);
+    // Water's category sold nothing: not in it.
+    CHECK(cellsOf(report, u"Water"_s).isEmpty());
+}
+
 TEST_CASE("Inventory is saved and comes back; starter stock on a new store", "[inventory][store]")
 {
     QTemporaryDir dir;

@@ -41,7 +41,7 @@ QVariantMap toVariant(const Report &r)
 }
 
 const QStringList kReportIds = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s, u"tips"_s,
-                                u"labor"_s, u"drawer"_s, u"expenses"_s, u"purchases"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"turns"_s,
+                                u"labor"_s, u"drawer"_s, u"expenses"_s, u"purchases"_s, u"audit"_s, u"accounts"_s, u"kitchen"_s, u"foodcost"_s, u"engineering"_s, u"turns"_s,
                                 u"exceptions"_s, u"deposit"_s, u"customers"_s,
                                 u"royalty"_s, u"accounting"_s, u"checklists"_s, u"drivers"_s};
 
@@ -1216,6 +1216,8 @@ Report PosService::buildReport(const QString &id) const
         return categorySales(s_->closedToday, s_->menu, ctx);
     if (id == u"foodcost")
         return foodCostReport(s_->closedToday, ctx);
+    if (id == u"engineering")
+        return menuEngineeringReport(s_->closedToday, ctx);
     if (id == u"turns")
         return tableTurns(s_->closedToday, ctx);
     if (id == u"customers")
@@ -1256,7 +1258,7 @@ Report PosService::buildReport(const QString &id) const
 
 namespace {
 const QStringList kRangeReports = {u"sales"_s, u"items"_s, u"categories"_s, u"hourly"_s, u"servers"_s,
-                                   u"kitchen"_s, u"audit"_s, u"foodcost"_s, u"turns"_s, u"exceptions"_s, u"customers"_s,
+                                   u"kitchen"_s, u"audit"_s, u"foodcost"_s, u"engineering"_s, u"turns"_s, u"exceptions"_s, u"customers"_s,
                                    u"royalty"_s, u"accounting"_s};
 } // namespace
 
@@ -1284,6 +1286,8 @@ Report PosService::rangeCapableReport(const QString &id, const std::vector<Check
         return exceptionsReport(ptrs, {}, ctx);
     if (id == u"foodcost")
         return foodCostReport(closed, ctx);
+    if (id == u"engineering")
+        return menuEngineeringReport(closed, ctx);
     if (id == u"turns")
         return tableTurns(closed, ctx);
     if (id == u"customers")

@@ -6,6 +6,7 @@
 #include "app/pos_service.hh"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <map>
@@ -157,6 +158,15 @@ void PosService::refreshSoldOut()
     emit s_->adminChanged();
 }
 
+Money PosService::lineCost(const OrderLine &l) const
+{
+    double cents = 0;
+    for (const auto &[id, q] : stockUse(l))
+        if (const Ingredient *g = const_cast<PosShared *>(s_)->ingredient(id))
+            cents += q * double(g->cost.cents());
+    return Money::fromCents(std::llround(cents));
+}
+
 Report PosService::foodCostReport(const std::vector<Check> &closed, const ReportContext &ctx) const
 {
     Report r;
@@ -167,13 +177,7 @@ Report PosService::foodCostReport(const std::vector<Check> &closed, const Report
 
     struct Row { std::string name; int sold = 0; Money sales, cost; };
     std::map<std::string, Row> rows;
-    const auto costOf = [&](const OrderLine &l) {
-        double cents = 0;
-        for (const auto &[id, q] : stockUse(l))
-            if (const Ingredient *g = const_cast<PosShared *>(s_)->ingredient(id))
-                cents += q * double(g->cost.cents());
-        return Money::fromCents(std::llround(cents));
-    };
+    const auto costOf = [&](const OrderLine &l) { return lineCost(l); };
     for (const Check &c : closed) {
         for (const OrderLine &l : c.lines) {
             if (l.voided || l.isComment() || l.isGiftCard())
@@ -216,6 +220,114 @@ Report PosService::foodCostReport(const std::vector<Check> &closed, const Report
     }
     if (!any)
         r.note("No ingredients yet (Manager -> Inventory).");
+    return r;
+}
+
+// Menu engineering: in each category, every item rated by how well it sells
+// (its share of the category's count against 70% of an even share) and how
+// much each one earns (price less food cost, against the category's
+// average). Stars sell and earn; the rest say what to try.
+Report PosService::menuEngineeringReport(const std::vector<Check> &closed, const ReportContext &ctx) const
+{
+    Report r;
+    r.id = "engineering";
+    r.title = "Menu Mix";
+    r.subtitle = ctx.period;
+    r.columns = {"Item", "Sold", "Of category", "Earns each", "Earned", "Rating"};
+
+    struct Row { std::string name; std::int64_t sold = 0; Money sales, cost; bool costed = false; };
+    std::map<std::string, std::map<std::string, Row>> families;   // family -> item id -> row
+    // Everything on the menu, sold or not (a slow item is one not sold).
+    for (const MenuItem &m : s_->menu) {
+        if (m.isModifier || m.family.empty() || m.id.starts_with("giftcard"))
+            continue;
+        Row &row = families[m.family][m.id];
+        row.name = m.name;
+        row.costed = !m.recipe.empty();
+    }
+    for (const Check &c : closed) {
+        if (c.training)
+            continue;
+        for (const OrderLine &l : c.lines) {
+            if (l.voided || l.isComment() || l.isGiftCard() || l.isFee())
+                continue;
+            const MenuItem *m = findItem(qs(l.itemId));
+            if (!m || m->isModifier)
+                continue;
+            Row &row = families[m->family.empty() ? std::string("other") : m->family][l.itemId];
+            if (row.name.empty())
+                row.name = l.name;
+            row.costed = row.costed || !m->recipe.empty();
+            row.sold += l.counted();
+            row.sales += l.total();
+            row.cost += lineCost(l);
+        }
+    }
+    std::map<std::string, std::string> names;
+    for (const MenuCategory &c : s_->categories())
+        names[c.id] = c.name;
+
+    const auto percent = [](double v) { return QString::number(v, 'f', 1).toStdString() + "%"; };
+    bool anySold = false;
+    bool uncosted = false;
+    for (const auto &[family, items] : families) {
+        std::int64_t sold = 0;
+        Money earned;
+        for (const auto &[id, row] : items) {
+            sold += row.sold;
+            earned += row.sales - row.cost;
+        }
+        if (sold == 0)
+            continue;   // nothing sold in it: nothing to compare
+        anySold = true;
+        const double popular = 0.7 / double(items.size());       // the share that counts as selling well
+        const double average = double(earned.cents()) / double(sold);   // earned per item sold, in cents
+        std::vector<std::pair<std::string, const Row *>> sorted;
+        for (const auto &[id, row] : items)
+            sorted.emplace_back(id, &row);
+        std::ranges::sort(sorted, [](const auto &a, const auto &b) {
+            return (a.second->sales - a.second->cost) > (b.second->sales - b.second->cost);
+        });
+        const auto it = names.find(family);
+        std::string title = it != names.end() ? it->second : family;
+        if (!title.empty())
+            title[0] = char(std::toupper(static_cast<unsigned char>(title[0])));
+        r.section(title);
+        for (const auto &[id, row] : sorted) {
+            const double mix = double(row->sold) / double(sold);
+            // Each one: what it sold for, else what it sells for now.
+            Money each;
+            if (row->sold > 0) {
+                each = Money::fromCents((row->sales - row->cost).cents() / row->sold);
+            } else if (const MenuItem *m = findItem(qs(id))) {
+                OrderLine one;
+                one.itemId = m->id;
+                one.quantity = 1;
+                each = m->price - lineCost(one);
+            }
+            const bool sells = mix >= popular;
+            const bool earns = double(each.cents()) >= average;
+            const std::string rating = sells && earns ? "Star" : sells ? "Workhorse" : earns ? "Hidden gem" : "Weak";
+            if (!row->costed)
+                uncosted = true;
+            r.line({row->name + (row->costed ? "" : " *"), std::to_string(row->sold), percent(100.0 * mix), ctx.money(each),
+                    ctx.money(row->sales - row->cost), rating});
+        }
+        r.total({"All", std::to_string(sold), "100.0%", ctx.money(Money::fromCents(std::llround(average))),
+                 ctx.money(earned), ""});
+    }
+    if (!anySold)
+        r.note("Nothing sold.");
+    else {
+        r.note("Star: sells well and earns well. Keep it as it is.");
+        r.note("Workhorse: sells well, earns little. Raise the price a little, or make it for less.");
+        r.note("Hidden gem: earns well, sells slowly. Show it off: a picture, the top of the page, suggest it.");
+        r.note("Weak: sells slowly and earns little. Change it, or take it off the menu.");
+        r.note("Sells well: at least 70% of an even share of its category. Earns well: at least the category's "
+               "average, after food cost.");
+        if (uncosted)
+            r.note("* No recipe: its food cost isn't counted (Manager -> Inventory).");
+    }
     return r;
 }
 
