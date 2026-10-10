@@ -130,6 +130,8 @@ struct PosSettings {
     std::string storeName = "ViewTouch";
     bool setupDone = false;   // the setup guide was finished (it opens for managers until then)
     std::string currencySymbol = "$";
+    // Colors the store mixed itself (custom colors), the newest first.
+    std::vector<std::string> customColors;
     TaxRates tax;
     std::vector<Tender> tenders;
     std::vector<PrinterConfig> printers;

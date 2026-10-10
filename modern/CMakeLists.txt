@@ -115,7 +115,7 @@ if(Qt6_FOUND)
     # UI: the ViewTouch QML module as a static library, so the app and the
     # UI tests load the very same QML, C++ types, and resources.
     qt_add_library(vtm_ui STATIC)
-    set_source_files_properties(ui/qml/EditorStyle.qml ui/qml/TouchGuard.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+    set_source_files_properties(ui/qml/EditorStyle.qml ui/qml/TouchGuard.qml ui/qml/StoreColors.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
     qt_add_qml_module(vtm_ui
         URI ViewTouch
@@ -128,6 +128,8 @@ if(Qt6_FOUND)
             ui/qml/ZoneItem.qml
             ui/qml/ZoneShape.qml
             ui/qml/EditorStyle.qml
+            ui/qml/StoreColors.qml
+            ui/qml/ColorPicker.qml
             ui/qml/TouchGuard.qml
             ui/qml/EditLayer.qml
             ui/qml/EditorToolbar.qml

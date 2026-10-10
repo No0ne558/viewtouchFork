@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Fusion
 import QtQuick.Layouts
 
 // The menu, laid out by itself: a button for every item of a family (or of
@@ -102,12 +103,6 @@ Item {
         zone.controller.setWidgetState(zone.zoneId + ".picked", id)
     }
     readonly property bool mayArrange: pos !== null && pos.loggedIn && pos.can("manager") && !search && !popular
-    readonly property var swatches: ["#a86a12", "#1f8a4c", "#1f6f73", "#2b62b0", "#6b46c1", "#b83232", "#8a5a2b", "#4a5260"]
-    // Dark text on light buttons.
-    function inkOn(c) {
-        const k = Qt.color(c)
-        return 0.299 * k.r + 0.587 * k.g + 0.114 * k.b > 0.6 ? "#14171c" : "white"
-    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -263,7 +258,7 @@ Item {
                             maximumLineCount: 2
                             elide: Text.ElideRight
                             text: qsTranslate("Page", cell.modelData.name)
-                            color: cell.itemColor ? w.inkOn(cell.itemColor) : (card.st.keyTextColor ?? "white")
+                            color: cell.itemColor ? StoreColors.ink(cell.itemColor) : (card.st.keyTextColor ?? "white")
                             font.family: card.st.keyFont ?? w.face
                             // Smaller for a long word, so it never breaks mid-word.
                             readonly property int longest: Math.max(4, ...cell.modelData.name.split(/\s+/).map(x => x.length))
@@ -320,34 +315,17 @@ Item {
                 fontScale: 0.34
                 onClicked: w.pos.moveMenuItem(w.picked, 1)
             }
-            Repeater {
-                model: w.swatches
-                delegate: Rectangle {
-                    required property string modelData
-                    required property int index
-                    objectName: "swatch-" + index
-                    Layout.preferredWidth: parent.keyH
-                    Layout.preferredHeight: parent.keyH
-                    radius: 10
-                    color: modelData
-                    opacity: w.picked !== "" ? 1 : 0.4
-                    border.color: "white"
-                    border.width: 2
-                    MouseArea {
-                        anchors.fill: parent
-                        enabled: w.picked !== ""
-                        onClicked: w.pos.setMenuItemColor(w.picked, parent.modelData)
-                    }
-                }
-            }
+            // Its color: the store's colors, its own, or one mixed.
             WidgetKey {
-                objectName: "swatch-none"
+                objectName: "arrangeColor"
                 enabled: w.picked !== ""
                 opacity: enabled ? 1 : 0.4
-                Layout.preferredWidth: 120; Layout.preferredHeight: parent.keyH
-                text: qsTr("No color")
-                fontScale: 0.3
-                onClicked: w.pos.setMenuItemColor(w.picked, "")
+                Layout.preferredWidth: 170; Layout.preferredHeight: parent.keyH
+                readonly property var item: w.pos ? w.pos.menuItems.find(i => i.id === w.picked) : null
+                text: "🎨 " + qsTr("Color…")
+                baseColor: item && item.buttonColor ? item.buttonColor : "#343c49"
+                fontScale: 0.32
+                onClicked: colorPopup.open()
             }
             Item { Layout.fillWidth: true }
             WidgetKey {
@@ -369,6 +347,28 @@ Item {
                 : qsTr("Nothing on the menu here yet (Manager -> Menu).")
             color: "#8a94a6"
             font.pixelSize: 24
+        }
+    }
+
+    Popup {
+        id: colorPopup
+        objectName: "arrangeColorPopup"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(parent ? parent.width - 32 : 600, 600)
+        modal: true
+        padding: 16
+        contentItem: ColorPicker {
+            pos: w.pos
+            noneText: qsTr("No color")
+            color: {
+                const i = w.pos ? w.pos.menuItems.find(x => x.id === w.picked) : null
+                return i ? i.buttonColor : ""
+            }
+            onPicked: c => {
+                w.pos.setMenuItemColor(w.picked, c)
+                colorPopup.close()
+            }
         }
     }
 }

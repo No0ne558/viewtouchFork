@@ -571,6 +571,7 @@ public:
     QString clockedInSince() const override;
     QString storeName() const override;
     QString currencySymbol() const override;
+    QStringList customColors() const override;
     int pinLength() const override { return int(pin_.size()); }
     QString entry() const override { return entry_; }
     QString entryAmount() const override;
@@ -596,6 +597,7 @@ public:
     // or later within its family, and its button color.
     bool moveMenuItem(const QString &id, int by);
     bool setMenuItemColor(const QString &id, const QString &color);
+    bool addCustomColor(const QString &color);   // kept for the store's color pickers
     QVariantMap stockLeft() const override;
     QVariantMap dashboard() const override;
     QVariantMap checklists() const override;

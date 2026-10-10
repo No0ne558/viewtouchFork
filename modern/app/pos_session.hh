@@ -36,6 +36,7 @@ class PosSession : public QObject {
     Q_PROPERTY(QString clockedInSince READ clockedInSince NOTIFY sessionChanged)
     Q_PROPERTY(QString storeName READ storeName NOTIFY adminChanged)
     Q_PROPERTY(QString currencySymbol READ currencySymbol NOTIFY adminChanged)
+    Q_PROPERTY(QStringList customColors READ customColors NOTIFY adminChanged)
 
     Q_PROPERTY(int pinLength READ pinLength NOTIFY entryChanged)
     Q_PROPERTY(QString entry READ entry NOTIFY entryChanged)
@@ -226,6 +227,7 @@ public:
     virtual QString clockedInSince() const = 0;
     virtual QString storeName() const = 0;
     virtual QString currencySymbol() const = 0;
+    virtual QStringList customColors() const = 0;
     virtual int pinLength() const = 0;
     virtual QString entry() const = 0;
     virtual QString entryAmount() const = 0;
@@ -400,6 +402,7 @@ public:
     Q_INVOKABLE void timeClockCancelRequest(qint64 requestId) { invoke(QStringLiteral("timeClockCancelRequest"), {requestId}); }
     Q_INVOKABLE void tickChecklist(const QString &list, int index) { invoke(QStringLiteral("tickChecklist"), {list, index}); }
     Q_INVOKABLE void moveMenuItem(const QString &id, int by) { invoke(QStringLiteral("moveMenuItem"), {id, by}); }
+    Q_INVOKABLE void addCustomColor(const QString &color) { invoke(QStringLiteral("addCustomColor"), {color}); }
     Q_INVOKABLE void setMenuItemColor(const QString &id, const QString &color) { invoke(QStringLiteral("setMenuItemColor"), {id, color}); }
     // The day's figures again (the dashboard, once a minute: labor keeps adding up).
     Q_INVOKABLE void refreshDay() { invoke(QStringLiteral("refreshDay"), {}); }

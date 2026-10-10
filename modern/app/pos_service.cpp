@@ -1856,6 +1856,14 @@ QString PosService::currencySymbol() const
     return qs(s_->settings.currencySymbol);
 }
 
+QStringList PosService::customColors() const
+{
+    QStringList out;
+    for (const std::string &c : s_->settings.customColors)
+        out << qs(c);
+    return out;
+}
+
 // --- customers ---------------------------------------------------------------------------
 
 bool PosService::setCustomer(const QVariantMap &customer)
@@ -2305,6 +2313,7 @@ void PosService::invoke(const QString &method, const QVariantList &args, Reply r
         {u"timeClockCancelRequest"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.timeClockCancelRequest(a.value(0).toLongLong())); }},
         {u"tickChecklist"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.tickChecklist(a.value(0).toString(), a.value(1).toInt())); }},
         {u"moveMenuItem"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.moveMenuItem(a.value(0).toString(), a.value(1).toInt())); }},
+        {u"addCustomColor"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.addCustomColor(a.value(0).toString())); }},
         {u"setMenuItemColor"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.setMenuItemColor(a.value(0).toString(), a.value(1).toString())); }},
         {u"refreshDay"_s, [](PosService &p, const QVariantList &) { emit p.shared()->dayChanged(); return QVariant(true); }},
         {u"cardCharge"_s, [](PosService &p, const QVariantList &a) { return QVariant(p.cardCharge(a.value(0).toString())); }},

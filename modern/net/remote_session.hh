@@ -68,6 +68,7 @@ public:
     QString clockedInSince() const override { return v(u"clockedInSince").toString(); }
     QString storeName() const override { return v(u"storeName").toString(); }
     QString currencySymbol() const override { return v(u"currencySymbol").toString(); }
+    QStringList customColors() const override { return v(u"customColors").toStringList(); }
     int pinLength() const override { return v(u"pinLength").toInt(); }
     QString entry() const override { return v(u"entry").toString(); }
     QString entryAmount() const override { return v(u"entryAmount").toString(); }

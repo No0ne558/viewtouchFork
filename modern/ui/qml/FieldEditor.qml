@@ -259,10 +259,25 @@ ColumnLayout {
                     else fe.commit(text)
                 }
             }
-            ColorDialog {
+            // The store's colors, by touch (the same as the Menu Builder's).
+            Popup {
                 id: colorDialog
-                selectedColor: fe.shown ?? "#808080"
-                onAccepted: fe.commit(selectedColor.toString())
+                objectName: "fieldColorPopup"
+                parent: Overlay.overlay
+                anchors.centerIn: parent
+                width: Math.min(parent ? parent.width - 32 : 600, 600)
+                modal: true
+                padding: 16
+                contentItem: ColorPicker {
+                    pos: fe.pos
+                    noneText: fe.inheritable ? qsTr("(inherit)") : ""
+                    color: fe.isSet && !fe.mixed && fe.value ? String(fe.value) : ""
+                    onPicked: c => {
+                        if (c === "") fe.reset()
+                        else fe.commit(c)
+                        colorDialog.close()
+                    }
+                }
             }
         }
     }

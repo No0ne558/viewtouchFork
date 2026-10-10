@@ -762,6 +762,7 @@ QJsonObject toJson(const PosSettings &s)
         {u"schemaVersion"_s, PosSchemaVersion},
         {u"storeName"_s, qs(s.storeName)}, {u"setupDone"_s, s.setupDone},
         {u"currencySymbol"_s, qs(s.currencySymbol)},
+        {u"customColors"_s, [&s] { QJsonArray a; for (const std::string &c : s.customColors) a.append(qs(c)); return a; }()},
         {u"tax"_s, QJsonObject{
              {u"food"_s, percentFromPpm(s.tax.foodPpm)}, {u"alcohol"_s, percentFromPpm(s.tax.alcoholPpm)},
              {u"merchandise"_s, percentFromPpm(s.tax.merchandisePpm)}, {u"room"_s, percentFromPpm(s.tax.roomPpm)},
@@ -943,6 +944,8 @@ PosSettings settingsFromJson(const QJsonObject &o)
     s.storeName = ss(o.value(u"storeName").toString(qs(s.storeName)));
     s.setupDone = o.value(u"setupDone").toBool(false);
     s.currencySymbol = ss(o.value(u"currencySymbol").toString(qs(s.currencySymbol)));
+    for (const QJsonValue &c : o.value(u"customColors").toArray())
+        s.customColors.push_back(ss(c.toString()));
     const QJsonObject tax = o.value(u"tax").toObject();
     s.tax.foodPpm = ppmFromPercent(tax.value(u"food").toDouble());
     s.tax.alcoholPpm = ppmFromPercent(tax.value(u"alcohol").toDouble());

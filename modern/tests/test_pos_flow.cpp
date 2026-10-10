@@ -1141,7 +1141,9 @@ TEST_CASE("UI: a manager arranges the self-filling menu by touch", "[flow][ui][a
     CHECK(s.pos.lines().isEmpty());                            // picked, not ordered
     tap(u"arrangeEarlier"_s);
     CHECK(indexOf(u"cheeseburger"_s) < indexOf(u"classic-burger"_s));
-    tap(u"swatch-1"_s);                                        // green; still arranging after the change
+    tap(u"arrangeColor"_s);
+    s.shot("78-arrange-color");
+    tap(u"color-13"_s);                                        // green; still arranging after the change
     CHECK(s.pos.menuItems()[indexOf(u"cheeseburger"_s)].toMap()[u"buttonColor"_s] == u"#1f8a4c"_s);
     REQUIRE(find(u"arrangeBar"_s));
     s.shot("78-arrange-menu");
@@ -1149,6 +1151,59 @@ TEST_CASE("UI: a manager arranges the self-filling menu by touch", "[flow][ui][a
     CHECK_FALSE(find(u"arrangeBar"_s));
     tap(u"menuItem-cheeseburger"_s);                           // orders again
     CHECK(s.pos.lines().size() == 1);
+}
+
+TEST_CASE("UI: colors: the store's, picked by touch; one mixed is kept for the store", "[flow][ui][colors]")
+{
+    Screen s(false, 1280, 800);
+    REQUIRE(s.pos.loginWithPin(u"1234"_s));
+    REQUIRE(s.c.jumpTo(u"menu-builder"_s));
+    QTest::qWait(100);
+    QQuickItem *root = s.window->contentItem();
+    const auto by = [&](const QString &name) { return Screen::findBy(root, "objectName", name); };
+    const auto shown = [&](const QString &name) { QQuickItem *i = by(name); return i && i->isVisible(); };
+    s.tapItem(by(u"builderCategory-burgers"_s));
+    s.tapItem(by(u"builderEditCategory"_s));
+    QTest::qWait(60);
+    QQuickItem *picker = by(u"builderCategoryColor"_s);
+    REQUIRE(picker);
+    // Thirty to choose from: a light blue.
+    QQuickItem *lightBlue = Screen::findBy(picker, "objectName", u"color-25"_s);
+    REQUIRE(lightBlue);
+    s.tapItem(lightBlue);
+    QTest::qWait(30);
+    CHECK(shown(u"builderNotSaved"_s));
+    s.tapItem(by(u"builderSaveCategory"_s));
+    QTest::qWait(60);
+    for (const QVariant &c : s.pos.menuCategories())
+        if (c.toMap()[u"id"_s] == u"burgers"_s)
+            CHECK(c.toMap()[u"color"_s] == u"#6c9ce0"_s);
+
+    // Mixed: typed in, used, and kept with the store's colors.
+    CHECK(s.pos.customColors().isEmpty());
+    s.tapItem(Screen::findBy(picker, "objectName", u"colorMix"_s));
+    QTest::qWait(100);
+    REQUIRE(shown(u"colorHex"_s));
+    QQuickItem *hex = by(u"colorHex"_s);
+    s.tapItem(hex);
+    QTest::keyClick(s.window, Qt::Key_A, Qt::ControlModifier);
+    for (const char *ch = "#123abc"; *ch; ++ch)
+        QTest::sendKeyEvent(QTest::Click, s.window, Qt::Key_unknown, *ch, Qt::NoModifier);
+    QTest::keyClick(s.window, Qt::Key_Return);
+    QTest::qWait(30);
+    if (qEnvironmentVariableIsSet("VTM_SHOTS"))
+        s.window->grabWindow().save(qEnvironmentVariable("VTM_SHOTS") + u"/color-mixer.png"_s);
+    s.tapItem(by(u"colorUse"_s));
+    QTest::qWait(60);
+    CHECK(s.pos.customColors() == QStringList{u"#123abc"_s});
+    CHECK_FALSE(shown(u"colorUse"_s));
+    s.tapItem(by(u"builderSaveCategory"_s));
+    QTest::qWait(60);
+    for (const QVariant &c : s.pos.menuCategories())
+        if (c.toMap()[u"id"_s] == u"burgers"_s)
+            CHECK(c.toMap()[u"color"_s] == u"#123abc"_s);
+    if (qEnvironmentVariableIsSet("VTM_SHOTS"))
+        s.window->grabWindow().save(qEnvironmentVariable("VTM_SHOTS") + u"/color-category.png"_s);
 }
 
 TEST_CASE("UI: a terminal's own look", "[flow][ui][terminallook]")

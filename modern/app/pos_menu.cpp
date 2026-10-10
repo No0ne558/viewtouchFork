@@ -327,6 +327,28 @@ bool PosService::moveMenuItem(const QString &id, int by)
     return true;
 }
 
+// A color mixed in a color picker: first among the store's own (a dozen kept).
+bool PosService::addCustomColor(const QString &color)
+{
+    if (!require(perm::Manager, tr("Arranging the menu")))
+        return false;
+    static const QRegularExpression hex(u"^#[0-9a-fA-F]{6}$"_s);
+    if (!hex.match(color).hasMatch())
+        return fail(tr("That isn't a color."));
+    const std::string c = ss(color.toLower());
+    auto &list = s_->settings.customColors;
+    if (!list.empty() && list.front() == c)
+        return true;
+    std::erase(list, c);
+    list.insert(list.begin(), c);
+    if (list.size() > 12)
+        list.resize(12);
+    settingsChanged();
+    ++s_->adminRevision;
+    emit s_->adminChanged();
+    return true;
+}
+
 bool PosService::setMenuItemColor(const QString &id, const QString &color)
 {
     if (!require(perm::Manager, tr("Arranging the menu")))

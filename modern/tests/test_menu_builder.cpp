@@ -604,3 +604,25 @@ TEST_CASE("Menu Builder: the card's More settings; many prices at once", "[menub
     REQUIRE(pos.loginWithPin(u"2222"_s));
     CHECK_FALSE(pos.setMenuPrices({QVariantMap{{u"id"_s, id}, {u"price"_s, u"1.00"_s}}}));
 }
+
+TEST_CASE("Colors the store mixed: newest first, a dozen kept, stored", "[menubuilder][colors]")
+{
+    test::RecordingSink sink;
+    PosService pos(test::seedPosData(), &sink);
+    REQUIRE(pos.loginWithPin(u"1234"_s));
+    CHECK_FALSE(pos.addCustomColor(u"blue"_s));
+    REQUIRE(pos.addCustomColor(u"#ABCDEF"_s));
+    REQUIRE(pos.addCustomColor(u"#123456"_s));
+    REQUIRE(pos.addCustomColor(u"#abcdef"_s));             // again: first, once
+    CHECK(pos.customColors() == QStringList{u"#abcdef"_s, u"#123456"_s});
+    for (int i = 0; i < 20; ++i)
+        REQUIRE(pos.addCustomColor(u"#0000%1"_s.arg(i, 2, 10, QChar(u'0'))));
+    CHECK(pos.customColors().size() == 12);
+    CHECK(pos.customColors().front() == u"#000019"_s);
+    // With the store's settings.
+    const auto back = app::settingsFromJson(app::toJson(pos.shared()->settings));
+    CHECK(back.customColors == pos.shared()->settings.customColors);
+    pos.logout();
+    REQUIRE(pos.loginWithPin(u"2222"_s));
+    CHECK_FALSE(pos.addCustomColor(u"#ffffff"_s));
+}

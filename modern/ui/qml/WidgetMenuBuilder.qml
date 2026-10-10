@@ -29,7 +29,6 @@ Item {
     readonly property var printers: pos ? pos.kitchenStations.filter(s => s.printer) : []
     readonly property var taxes: [{ id: "food", name: qsTr("Food") }, { id: "alcohol", name: qsTr("Alcohol") },
                                   { id: "merchandise", name: qsTr("Merchandise") }, { id: "room", name: qsTr("Room") }]
-    readonly property var swatches: ["#a86a12", "#b83232", "#1f8a4c", "#1f6f73", "#2b62b0", "#6b46c1", "#8a5a2b", "#4a5260"]
 
     // What's chosen, and the card being edited.
     property string categoryId: ""
@@ -116,7 +115,7 @@ Item {
     function categoryDraft(c) {
         return c ? { id: c.id, name: c.name, color: c.color, periods: c.periods.slice(), printer: c.printer,
                      station: c.station, taxClass: c.taxClass }
-                 : { id: "", name: "", color: swatches[categories.length % swatches.length], periods: [],
+                 : { id: "", name: "", color: StoreColors.starters[categories.length % StoreColors.starters.length], periods: [],
                      printer: "kitchen", station: "", taxClass: "food" }
     }
     function groupDraft(g) {
@@ -342,10 +341,6 @@ Item {
         if (card.id === "")
             waitingFor = card.name.trim()
         pos.saveMenuItemCard(card)
-    }
-    function inkOn(c) {
-        const k = Qt.color(c)
-        return 0.299 * k.r + 0.587 * k.g + 0.114 * k.b > 0.6 ? "#14171c" : "white"
     }
 
     Item {
@@ -763,7 +758,7 @@ Item {
                                     width: parent.width
                                     horizontalAlignment: Text.AlignHCenter
                                     text: modelData.add ? qsTr("+ Add Item") : modelData.name
-                                    color: w.inkOn(parent.parent.tint)
+                                    color: StoreColors.ink(parent.parent.tint)
                                     font.pixelSize: 18
                                     font.bold: true
                                     elide: Text.ElideRight
@@ -773,7 +768,7 @@ Item {
                                     horizontalAlignment: Text.AlignHCenter
                                     visible: !modelData.add
                                     text: modelData.add ? "" : (modelData.availableSet ? modelData.price : qsTr("sold out"))
-                                    color: w.inkOn(parent.parent.tint)
+                                    color: StoreColors.ink(parent.parent.tint)
                                     opacity: 0.8
                                     font.pixelSize: 15
                                 }
@@ -1118,28 +1113,15 @@ Item {
                                         }
                                     }
                                 }
-                                Label { text: qsTr("Button color"); Layout.preferredWidth: 110 }
-                                Flow {
+                                Label { text: qsTr("Button color"); Layout.columnSpan: 2 }
+                                ColorPicker {
+                                    objectName: "builderButtonColor"
+                                    Layout.columnSpan: 2
                                     Layout.fillWidth: true
-                                    spacing: 6
-                                    TouchButton {
-                                        checkable: true
-                                        checked: (w.draft.buttonColor ?? "") === ""
-                                        highlighted: checked
-                                        text: qsTr("Category's")
-                                        onClicked: w.set("buttonColor", "")
-                                    }
-                                    Repeater {
-                                        model: w.swatches
-                                        delegate: Rectangle {
-                                            required property string modelData
-                                            width: 52; height: 52; radius: 6
-                                            color: modelData
-                                            border.color: w.draft.buttonColor === modelData ? "white" : "transparent"
-                                            border.width: 3
-                                            MouseArea { anchors.fill: parent; onClicked: w.set("buttonColor", modelData) }
-                                        }
-                                    }
+                                    pos: w.pos
+                                    noneText: qsTr("Category's")
+                                    color: w.draft.buttonColor ?? ""
+                                    onPicked: c => w.set("buttonColor", c)
                                 }
                                 Label { text: qsTr("Kitchen ticket"); Layout.preferredWidth: 110 }
                                 ComboBox {
@@ -1326,21 +1308,14 @@ Item {
                                     placeholderText: qsTr("e.g. Tacos")
                                     onTextEdited: w.set("name", text)
                                 }
-                                Label { text: qsTr("Color") }
-                                Flow {
+                                Label { text: qsTr("Color"); Layout.columnSpan: 2 }
+                                ColorPicker {
+                                    objectName: "builderCategoryColor"
+                                    Layout.columnSpan: 2
                                     Layout.fillWidth: true
-                                    spacing: 6
-                                    Repeater {
-                                        model: w.swatches
-                                        delegate: Rectangle {
-                                            required property string modelData
-                                            width: 40; height: 40; radius: 6
-                                            color: modelData
-                                            border.color: w.draft.color === modelData ? "white" : "transparent"
-                                            border.width: 3
-                                            MouseArea { anchors.fill: parent; onClicked: w.set("color", modelData) }
-                                        }
-                                    }
+                                    pos: w.pos
+                                    color: w.draft.color ?? ""
+                                    onPicked: c => w.set("color", c)
                                 }
                                 Label { text: qsTr("On the menu") }
                                 Flow {
@@ -1685,7 +1660,7 @@ Item {
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
             text: ghost.text
-            color: w.inkOn(ghost.color)
+            color: StoreColors.ink(ghost.color)
             font.pixelSize: 17 * w.zoom
             font.bold: true
         }
